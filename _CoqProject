@@ -1,0 +1,9 @@
+-R . rbgs
+
+monad/InteractionMonad.v
+monad/IntmDef.v
+monad/IntmTactics.v
+monad/IntmIter.v
+monad/IntmDecomp.v
+monad/IntmAbs.v
+
