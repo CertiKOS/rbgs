@@ -590,6 +590,15 @@ Module Intm.
     firstorder.
   Qed.
 
+  Global Instance join_rel :
+    Monotonic
+      (@join)
+      (forallr - @ M, forallr - @ N, forallr R,
+         r M N R ++> r M N R ++> r M N R) | 10.
+  Proof.
+    firstorder.
+  Qed.
+
   Lemma meet_lb_l {M N A} (x y : t M N A) :
     ref (meet x y) x.
   Proof.
@@ -719,6 +728,15 @@ Module Intm.
       (forallr -, forallr -, forallr -, (- ==> impl) ++> ref).
   Proof.
     firstorder.
+  Qed.
+
+  Global Instance choose_r :
+    Monotonic
+      (@choose)
+      (forallr - @ M, forallr - @ N, forallr R, set_le R ++> r M N R) | 10.
+  Proof.
+    intros M N A B R p q H t (a & Ha & Ht). subst. cbn.
+    apply H in Ha as (b & Hb & Hab). eauto 10.
   Qed.
 
   (** ** Interaction (§3.6) *)

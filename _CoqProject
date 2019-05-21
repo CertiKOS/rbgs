@@ -6,4 +6,5 @@ monad/IntmTactics.v
 monad/IntmIter.v
 monad/IntmDecomp.v
 monad/IntmAbs.v
+monad/IntmSubst.v
 
