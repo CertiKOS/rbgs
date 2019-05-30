@@ -1,4 +1,5 @@
 Require Import coqrel.LogicalRelations.
+Require Import Classical.
 Require Import IntmDef.
 Require Import IntmTactics.
 
@@ -8,7 +9,9 @@ Module Intm.
   Import IntmDef.Intm.
   Import IntmTactics.Intm.
 
-  (** *** Decomposition *)
+  (** * Decomposition *)
+
+  (** ** Components *)
 
   Program Definition phi {M N P Q A B} (x : t M N A) : t P Q B :=
     {|
@@ -48,7 +51,7 @@ Module Intm.
     eauto using closed.
   Qed.
 
-  (** *** Relational properties *)
+  (** ** Relational properties *)
 
   Global Instance phi_ref :
     Monotonic
@@ -91,7 +94,7 @@ Module Intm.
     repeat rstep; subst; firstorder.
   Qed.
 
-  (** *** Various properties *)
+  (** ** Various properties *)
 
   Lemma rho_decr {M N A} (x : t M N A) :
     ref (rho x) x.
@@ -129,7 +132,7 @@ Module Intm.
           simpl in H0. auto.
   Qed.
 
-  (** *** Components of various constructions *)
+  (** ** Components of various constructions *)
 
   (** [ret] *)
 
@@ -571,6 +574,103 @@ Module Intm.
   Qed.
 
   Hint Rewrite @bind_phi @bind_nu_bot @bind_mu_bot : monad.
+
+
+  (** * Trace-based decomposition *)
+
+  (** ** Definition *)
+
+  Program Definition pref {M N A} (t : trace M N A) :=
+    {|
+      has s := prefix s t;
+    |}.
+  Next Obligation.
+    intros. rauto.
+  Qed.
+
+  Lemma pref_decomp {M N A} (x : t M N A) :
+    x = sup (fun t => pref (proj1_sig (P := has x) t)).
+  Proof.
+    apply antisymmetry.
+    - intros t Ht. exists (exist _ t Ht). cbn. reflexivity.
+    - intros t [[s Hs] Hst]. cbn in *. eauto using closed.
+  Qed.
+
+  (** ** Equational properties *)
+
+  Lemma pref_val {M N A} (a : A) :
+    @pref M N A (val a) = ret a.
+  Proof.
+    apply antisymmetry; intros t Ht; cbn in *; inversion Ht; reflexivity.
+  Qed.
+
+  Lemma pref_div {M N A} :
+    @pref M N A div = diverge.
+  Proof.
+    apply antisymmetry; intros t Ht; cbn in *; inversion Ht; reflexivity.
+  Qed.
+
+  Lemma pref_undef {M N A} :
+    @pref M N A undef = top.
+  Proof.
+    apply antisymmetry; intros t Ht; cbn in *; inversion Ht; auto.
+  Qed.
+
+  Lemma pref_move {M N A} (m : M) :
+    @pref M N A (move m) = interact m >>= fun _ => bot.
+  Proof.
+    apply antisymmetry; intros t Ht; cbn in *; firstorder.
+    - inversion Ht; clear Ht; subst. eauto 10.
+    - subst. inversion H0; clear H0; subst. auto.
+    - subst. inversion H0; clear H0; subst. inversion H4. contradiction.
+  Qed.
+
+  Lemma pref_tcons {M N A} (m : M) (n : N) (t : trace M N A) :
+    @pref M N A (tcons m n t) =
+    interact m >>= fun n' => guard (n = n') >>= fun _ => pref t.
+  Proof.
+    apply antisymmetry.
+  Admitted.
+
+  Hint Rewrite @pref_val @pref_div @pref_undef @pref_move @pref_tcons : monad.
+
+  (** ** Induction *)
+
+  (** Based on the decomposition above, we can introduce the following
+    reasoning principle. *)
+
+  Lemma sup_empty {M N A} (f : Empty_set -> t M N A) :
+    sup f = bot.
+  Proof.
+    apply antisymmetry; monad.
+    apply sup_lub; intros [ ].
+  Qed.
+
+  Lemma delta_diverge {M N A} m n :
+    @delta M N A diverge m n = bot.
+  Proof.
+    apply antisymmetry; monad.
+    discriminate.
+  Qed.
+
+  Hint Rewrite @delta_diverge : monad.
+
+  Lemma ind_sup {M N A} (P : t M N A -> Prop) :
+    (forall I (f : I -> t M N A), (forall i, P (f i)) -> P (sup f)) ->
+    P top ->
+    (forall x, (forall m n, P (delta x m n)) -> P x) ->
+    (forall x, P x).
+  Proof.
+    intros Hsup Htop Hstep x.
+    assert (Hbot : P bot) by (rewrite <- (sup_empty (fun _ => top)); auto).
+    rewrite (pref_decomp x). apply Hsup.
+    intros [t Ht]. cbn.
+    revert x Ht. induction t; intros; apply Hstep; intros; monad.
+    - destruct (classic (m = m0)); monad.
+    - destruct (classic (m = m0)); monad.
+      destruct (classic (n = n0)); monad.
+      eapply (IHt (delta x m n)). cbn. auto.
+  Qed.
 
 End Intm.
 
