@@ -413,6 +413,40 @@ Module Intm.
 
   Hint Rewrite @phi_top @nu_top @rho_top @mu_top @delta_top : monad.
 
+  (** [sup] *)
+
+  Lemma phi_sup {M N P Q A B I} (x : I -> t M N A) :
+    @phi M N P Q A B (sup x) = sup (fun i => phi (x i)).
+  Proof.
+    apply antisymmetry; firstorder.
+  Qed.
+
+  Lemma nu_sup {M N P Q A I} (x : I -> t M N A) :
+    @nu M N P Q A (sup x) = sup (fun i => nu (x i)).
+  Proof.
+    apply antisymmetry; firstorder.
+  Qed.
+
+  Lemma rho_sup {M N P Q A I} (x : I -> t M N A) :
+    @rho M N P Q A (sup x) = sup (fun i => rho (x i)).
+  Proof.
+    apply antisymmetry; firstorder.
+  Qed.
+
+  Lemma mu_sup {M N P Q A I} (x : I -> t M N A) :
+    @mu M N P Q A (sup x) = sup (fun i => mu (x i)).
+  Proof.
+    apply antisymmetry; firstorder.
+  Qed.
+
+  Lemma delta_sup {M N A I} (x : I -> t M N A) m n :
+    @delta M N A (sup x) m n = sup (fun i => delta (x i) m n).
+  Proof.
+    apply antisymmetry; firstorder.
+  Qed.
+
+  Hint Rewrite @phi_sup @nu_sup @rho_sup @mu_sup @delta_sup : monad.
+
   (** [phi] *)
 
   Lemma phi_phi {M N P Q R S A B C} (x : t M N A) :
