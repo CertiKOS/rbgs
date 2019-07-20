@@ -3,6 +3,8 @@ Require Import coqrel.LogicalRelations.
 
 (** * Definition *)
 
+(** ** Partially ordered sets *)
+
 Class Poset (C : Type) :=
   {
     ref : relation C;
@@ -12,6 +14,8 @@ Class Poset (C : Type) :=
 
 Notation "(⊑)" := ref.
 Infix "⊑" := ref (at level 70).
+
+(** ** Completely distributive lattices *)
 
 Class CDLattice (L : Type) :=
   {
@@ -51,6 +55,23 @@ Notation "⋀ { x | P } ; M" :=
 Notation "⋀ { x : A | P } ; M" :=
   (inf (I := sig (fun x : A => P)) (fun '(exist _ x _) => M))
   (at level 65, x ident, right associativity).
+
+(** ** Completion procedures *)
+
+(** We implement several procedures which give completely distributive
+  lattices over a poset. They use the following pattern, with some
+  addition which characterize each one. *)
+
+Module Type LatticeCompletion.
+
+  Parameter F : forall C `{Cpo : Poset C}, Type.
+  Parameter lattice : forall `{Poset}, CDLattice (F C).
+  Parameter emb : forall `{Poset}, C -> F C.
+  Existing Instance lattice.
+
+  Axiom ref_emb : forall `{Cpo : Poset} (c1 c2 : C), emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
+
+End LatticeCompletion.
 
 
 (** * Properties of [sup] and [inf] *)
@@ -170,8 +191,3 @@ Notation "(⊔)" := join.
 Notation "(⊓)" := meet.
 Infix "⊔" := join (at level 50).
 Infix "⊓" := meet (at level 50).
-
-
-(** * Relational properties *)
-
-

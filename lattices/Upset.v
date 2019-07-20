@@ -11,20 +11,13 @@ Require Import Dual.
   distributive lattice (see [Morris, 2005]). *)
 
 Module Type UpsetSig.
+  Include LatticeCompletion.
 
-  Parameter F : forall C `{Cpo : Poset C}, Type.
-  Parameter lattice : forall `{Poset}, CDLattice (F C).
-  Parameter up : forall `{Poset}, C -> F C.
-  Existing Instance lattice.
+  Axiom emb_meet_dense :
+    forall `{Poset} x, x = ⋀ {c | x ⊑ emb c}; emb c.
 
-  Axiom up_ref_emb :
-    forall `{Poset} c1 c2, up c1 ⊑ up c2 <-> c1 ⊑ c2.
-
-  Axiom up_dense :
-    forall `{Poset} x, x = ⋀ {c | x ⊑ up c}; up c.
-
-  Axiom up_prime :
-    forall `{Poset} {I} c x, inf x ⊑ up c <-> exists i:I, x i ⊑ up c.
+  Axiom emb_meet_prime :
+    forall `{Poset} {I} c x, inf x ⊑ emb c <-> exists i:I, x i ⊑ emb c.
 
 End UpsetSig.
 
@@ -40,25 +33,26 @@ Module Upset : UpsetSig.
 
   Definition F C `{Cpo : Poset C} := opp (downset (opp C)).
   Instance lattice : forall `{Poset}, CDLattice (F C) := _.
-  Definition up `{Poset} (c : C) := oin (Downset.down (oin c)).
+  Definition emb `{Poset} (c : C) := oin (Downset.down (oin c)).
 
-  Lemma up_ref_emb `{Poset} c1 c2 : up c1 ⊑ up c2 <-> c1 ⊑ c2.
+  Lemma ref_emb `{Poset} c1 c2 : emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
   Proof.
     split; intro Hc.
-    - rewrite <- ref_oin. apply Downset.down_ref_emb. apply Hc.
-    - rewrite <- ref_oin. apply Downset.down_ref_emb. apply Hc.
+    - rewrite <- ref_oin. apply Downset.ref_emb. apply Hc.
+    - rewrite <- ref_oin. apply Downset.ref_emb. apply Hc.
   Qed.
 
-  Lemma up_dense :
-    forall `{Poset} x, x = ⋀ {c | x ⊑ up c}; up c.
+  Lemma emb_meet_dense :
+    forall `{Poset} x, x = ⋀ {c | x ⊑ emb c}; emb c.
   Proof.
   Admitted.
 
-  Lemma up_prime :
-    forall `{Poset} {I} c x, inf x ⊑ up c <-> exists i:I, x i ⊑ up c.
+  Lemma emb_meet_prime :
+    forall `{Poset} {I} c x, inf x ⊑ emb c <-> exists i:I, x i ⊑ emb c.
   Proof.
   Admitted.
 
 End Upset.
 
 Notation upset := Upset.F.
+Notation up := Upset.emb.

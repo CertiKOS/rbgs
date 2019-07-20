@@ -16,20 +16,13 @@ Require Import Lattice.
   nondeterminism. *)
 
 Module Type DownsetSig.
+  Include LatticeCompletion.
 
-  Parameter F : forall C `{Cpo : Poset C}, Type.
-  Parameter lattice : forall `{Poset}, CDLattice (F C).
-  Parameter down : forall `{Poset}, C -> F C.
-  Existing Instance lattice.
+  Axiom emb_join_dense :
+    forall `{Poset} x, x = ⋁ {c | emb c ⊑ x}; emb c.
 
-  Axiom down_ref_emb :
-    forall `{Poset} c1 c2, down c1 ⊑ down c2 <-> c1 ⊑ c2.
-
-  Axiom down_dense :
-    forall `{Poset} x, x = ⋁ {c | down c ⊑ x}; down c.
-
-  Axiom down_prime :
-    forall `{Poset} {I} c x, down c ⊑ sup x <-> exists i:I, down c ⊑ x i.
+  Axiom emb_join_prime :
+    forall `{Poset} {I} c x, emb c ⊑ sup x <-> exists i:I, emb c ⊑ x i.
 
 End DownsetSig.
 
@@ -104,7 +97,7 @@ Module Downset : DownsetSig.
 
     (** ** Embedding *)
 
-    Program Definition down (c : C) :=
+    Program Definition emb (c : C) :=
       {|
         has x := x ⊑ c;
       |}.
@@ -113,22 +106,23 @@ Module Downset : DownsetSig.
       etransitivity; eauto.
     Qed.
 
-    Lemma down_ref_emb c1 c2 :
-      down c1 ⊑ down c2 <-> c1 ⊑ c2.
+    Lemma ref_emb c1 c2 :
+      emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
     Proof.
       cbn. firstorder.
       etransitivity; eauto.
     Qed.
 
-    Lemma down_dense :
-      forall x, x = ⋁{c : C | down c ⊑ x}; down c.
+    Lemma emb_join_dense :
+      forall x, x = ⋁{c : C | emb c ⊑ x}; emb c.
     Admitted.
 
-    Lemma down_prime {I} c (x : I -> downset C) :
-      down c ⊑ sup x <-> exists i, down c ⊑ x i.
+    Lemma emb_join_prime {I} c (x : I -> downset C) :
+      emb c ⊑ sup x <-> exists i, emb c ⊑ x i.
     Admitted.
 
   End DOWNSETS.
 End Downset.
 
 Notation downset := Downset.F.
+Notation down := Downset.emb.
