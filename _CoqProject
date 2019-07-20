@@ -1,10 +1,7 @@
 -R . rbgs
 
-monad/InteractionMonad.v
-monad/IntmDef.v
-monad/IntmTactics.v
-monad/IntmIter.v
-monad/IntmDecomp.v
-monad/IntmAbs.v
-monad/IntmSubst.v
-
+structures/Lattice.v
+structures/Monad.v
+lattices/Dual.v
+lattices/Downset.v
+lattices/Upset.v
