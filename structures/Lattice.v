@@ -1,9 +1,7 @@
 Require Import coqrel.LogicalRelations.
 
 
-(** * Definition *)
-
-(** ** Partially ordered sets *)
+(** * Partially ordered sets *)
 
 Class Poset (C : Type) :=
   {
@@ -15,7 +13,10 @@ Class Poset (C : Type) :=
 Notation "(⊑)" := ref.
 Infix "⊑" := ref (at level 70).
 
-(** ** Completely distributive lattices *)
+
+(** * Completely distributive lattices *)
+
+(** ** Definition *)
 
 Class CDLattice (L : Type) :=
   {
@@ -56,21 +57,49 @@ Notation "⋀ { x : A | P } ; M" :=
   (inf (I := sig (fun x : A => P)) (fun '(exist _ x _) => M))
   (at level 65, x ident, right associativity).
 
-(** ** Completion procedures *)
 
-(** We implement several procedures which give completely distributive
-  lattices over a poset. They use the following pattern, with some
-  addition which characterize each one. *)
+(** * Poset completions *)
 
-Module Type LatticeCompletion.
+(** We will be interested in constructing various kinds of free
+  lattice completions of posets. The interface of such constructions
+  follows from the kind of morphism we consider between complete
+  lattices. *)
 
+Module Type LatticeCategory.
+  Parameter Morphism :
+    forall {L M} `{CDLattice L} `{CDLattice M}, (L -> M) -> Prop.
+
+  Existing Class Morphism.
+End LatticeCategory.
+
+Module Type LatticeCompletion (LC : LatticeCategory).
   Parameter F : forall C `{Cpo : Poset C}, Type.
   Parameter lattice : forall `{Poset}, CDLattice (F C).
   Parameter emb : forall `{Poset}, C -> F C.
+  Parameter ext : forall `{Poset} `{CDLattice}, (C -> L) -> (F C -> L).
   Existing Instance lattice.
 
-  Axiom ref_emb : forall `{Cpo : Poset} (c1 c2 : C), emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
+  Axiom emb_mor :
+    forall `{Cpo : Poset} (c1 c2 : C), emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
 
+  Axiom ext_mor :
+    forall `{Poset} `{CDLattice} (f : C -> L),
+      Monotonic f ((⊑) ++> (⊑)) ->
+      LC.Morphism (ext f).
+
+  Axiom ext_ana :
+    forall `{Poset} `{CDLattice} (f : C -> L),
+      Monotonic f ((⊑) ++> (⊑)) ->
+      (forall x, ext f (emb x) = f x).
+
+  Axiom ext_unique :
+    forall `{Poset} `{CDLattice} (f : C -> L) (g : F C -> L),
+      Monotonic f ((⊑) ++> (⊑)) ->
+      LC.Morphism g ->
+      (forall x, g (emb x) = f x) ->
+      g = ext f.
+
+  Existing Instance ext_mor.
 End LatticeCompletion.
 
 

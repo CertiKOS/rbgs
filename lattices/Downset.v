@@ -1,4 +1,4 @@
-Require Import RelationClasses.
+Require Import coqrel.LogicalRelations.
 Require Import Classical.
 Require Import ClassicalChoice.
 Require Import FunctionalExtensionality.
@@ -8,23 +8,17 @@ Require Import Lattice.
 
 (** * Interface *)
 
-(** The downset lattice over a poset is a completely distributive
-  completion that is join dense and completely join prime. We use it
-  as an intermediate step in the construction of the free completely
+(** The downset lattice over a poset is a free distributive completion
+  with respect to join-distributive morphisms. We use it as an
+  intermediate step in the construction of the free completely
   distributive lattice (see [Morris, 2005]), and it could be used to
-  construct traditional strategies which only feature angelic
-  nondeterminism. *)
+  construct traditional strategy models defined as prefix-closed sets
+  of plays (which only feature angelic nondeterminism). *)
 
-Module Type DownsetSig.
-  Include LatticeCompletion.
-
-  Axiom emb_join_dense :
-    forall `{Poset} x, x = ⋁ {c | emb c ⊑ x}; emb c.
-
-  Axiom emb_join_prime :
-    forall `{Poset} {I} c x, emb c ⊑ sup x <-> exists i:I, emb c ⊑ x i.
-
-End DownsetSig.
+Module Sup <: LatticeCategory.
+  Class Morphism {L M} `{CDLattice L} `{CDLattice M} (f : L -> M) :=
+    mor : forall {I} (x : I -> L), f (sup x) = ⋁ i; f (x i).
+End Sup.
 
 
 (** * Construction *)
@@ -33,7 +27,7 @@ End DownsetSig.
   extensionality to prove antisymmetry, and the axiom of choice to
   prove distributivity. *)
 
-Module Downset : DownsetSig.
+Module Downset : LatticeCompletion Sup.
 
   Record downset {C} `{Cpo : Poset C} :=
     {
@@ -106,7 +100,7 @@ Module Downset : DownsetSig.
       etransitivity; eauto.
     Qed.
 
-    Lemma ref_emb c1 c2 :
+    Lemma emb_mor c1 c2 :
       emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
     Proof.
       cbn. firstorder.
@@ -121,6 +115,53 @@ Module Downset : DownsetSig.
       emb c ⊑ sup x <-> exists i, emb c ⊑ x i.
     Admitted.
 
+    (** ** Simulator *)
+
+    Section EXT.
+      Context `{Lcdl : CDLattice} (f : C -> L).
+
+      Definition ext (x : F C) : L :=
+        ⋁{ c | emb c ⊑ x }; f c.
+
+      Instance ext_mor :
+        Monotonic f ((⊑) ++> (⊑)) ->
+        Sup.Morphism ext.
+      Proof.
+        intros Hf I x.
+        apply antisymmetry.
+        - apply sup_lub. intros [c Hc].
+          edestruct Hc as [i Hi]. { cbn. reflexivity. }
+          erewrite <- (sup_ub _ i). unfold ext.
+          admit. (* need version of sup_ub with predicate *)
+        - apply sup_lub. intros y. unfold ext.
+          apply sup_lub. intros [c Hc].
+          admit. (* same *)
+      Admitted.
+
+      Lemma ext_ana :
+        Monotonic f ((⊑) ++> (⊑)) ->
+        (forall x, ext (emb x) = f x).
+      Proof.
+        intros Hf x. unfold ext.
+        apply antisymmetry.
+        - apply sup_lub. intros [c Hc].
+          rstep. apply emb_mor. assumption.
+        - admit. (* version of sup_ub with predicate *)
+      Admitted.
+
+      Lemma ext_unique (g : F C -> L) :
+        Monotonic f ((⊑) ++> (⊑)) ->
+        Sup.Morphism g ->
+        (forall x, g (emb x) = f x) ->
+        g = ext.
+      Proof.
+        intros Hf Hg Hgf. apply functional_extensionality. intros x.
+        rewrite (emb_join_dense x), Sup.mor.
+        unfold ext.
+        (* maybe use emb_join_prime *)
+      Admitted.
+
+    End EXT.
   End DOWNSETS.
 End Downset.
 

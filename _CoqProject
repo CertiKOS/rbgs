@@ -2,6 +2,5 @@
 
 structures/Lattice.v
 structures/Monad.v
-lattices/Dual.v
 lattices/Downset.v
 lattices/Upset.v
