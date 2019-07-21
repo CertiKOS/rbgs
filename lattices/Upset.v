@@ -1,7 +1,7 @@
 Require Import coqrel.LogicalRelations.
 Require Import Lattice.
+Require Import Completion.
 Require Import Downset.
-Require Import FunctionalExtensionality.
 
 
 (** * Interface *)
@@ -93,38 +93,33 @@ Module Upset : LatticeCompletion Inf.
       - rewrite Downset.emb_mor. assumption.
     Qed.
 
-    Context `{CDLattice} (f : C -> L).
+    Context `{Lcd : CDLattice}.
 
-    Definition ext (x : F C) : L :=
+    Definition ext (f : C -> L) (x : F C) : L :=
       opp_out (Downset.ext (opp_map f) (opp_out x)).
 
+    Context {f : C -> L} `{Hf : Monotonic f ((⊑) ++> (⊑))}.
+
     Instance ext_mor :
-      Monotonic f ((⊑) ++> (⊑)) ->
-      Inf.Morphism ext.
+      Inf.Morphism (ext f).
     Proof.
-      intros Hf I x. unfold ext. cbn.
+      intros I x. unfold ext. cbn.
       rewrite Sup.mor. cbn. auto.
     Qed.
 
     Lemma ext_ana :
-      Monotonic f ((⊑) ++> (⊑)) ->
-      (forall x, ext (emb x) = f x).
+      (forall x, ext f (emb x) = f x).
     Proof.
-      intros Hf x. unfold ext. cbn.
+      intros x. unfold ext. cbn.
       rewrite Downset.ext_ana. cbn. auto.
-      typeclasses eauto.
     Qed.
 
-    Lemma ext_unique (g : F C -> L) :
-      Monotonic f ((⊑) ++> (⊑)) ->
-      Inf.Morphism g ->
-      (forall x, g (emb x) = f x) ->
-      g = ext.
+    Lemma ext_unique (g : F C -> L) `{Hg : !Inf.Morphism g} :
+      (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
     Proof.
-      intros Hf Hg Hgf. apply functional_extensionality. intros [x].
+      intros Hgf [x].
       unfold emb, ext in *. cbn in *. apply opp_in_out_eq.
       rewrite <- Downset.ext_unique with (g0 := fun x => opp_in (g (opp_in x))); auto.
-      - typeclasses eauto.
       - clear - Hg. intros I x. cbn.
         rewrite <- Inf.mor. cbn. reflexivity.
       - intros [y]. cbn. congruence.

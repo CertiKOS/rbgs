@@ -1,18 +1,5 @@
 Require Import coqrel.LogicalRelations.
-
-
-(** * Partially ordered sets *)
-
-Class Poset (C : Type) :=
-  {
-    ref : relation C;
-    ref_preo :> PreOrder ref;
-    ref_po :> Antisymmetric C eq ref;
-  }.
-
-Notation "(⊑)" := ref.
-Infix "⊑" := ref (at level 70).
-
+Require Export Poset.
 
 (** * Completely distributive lattices *)
 
@@ -33,7 +20,7 @@ Class CDLattice (L : Type) :=
 
     sup_inf {I J} (x : forall i:I, J i -> L) :
       sup (fun i => inf (fun j => x i j)) =
-      inf (fun f => sup (fun i => x i (f i)));
+      inf (fun f : (forall i, J i) => sup (fun i => x i (f i)));
   }.
 
 (** The notations below work well in the context of completely
@@ -56,51 +43,6 @@ Notation "⋀ { x | P } ; M" :=
 Notation "⋀ { x : A | P } ; M" :=
   (inf (I := sig (fun x : A => P)) (fun '(exist _ x _) => M))
   (at level 65, x ident, right associativity).
-
-
-(** * Poset completions *)
-
-(** We will be interested in constructing various kinds of free
-  lattice completions of posets. The interface of such constructions
-  follows from the kind of morphism we consider between complete
-  lattices. *)
-
-Module Type LatticeCategory.
-  Parameter Morphism :
-    forall {L M} `{CDLattice L} `{CDLattice M}, (L -> M) -> Prop.
-
-  Existing Class Morphism.
-End LatticeCategory.
-
-Module Type LatticeCompletion (LC : LatticeCategory).
-  Parameter F : forall C `{Cpo : Poset C}, Type.
-  Parameter lattice : forall `{Poset}, CDLattice (F C).
-  Parameter emb : forall `{Poset}, C -> F C.
-  Parameter ext : forall `{Poset} `{CDLattice}, (C -> L) -> (F C -> L).
-  Existing Instance lattice.
-
-  Axiom emb_mor :
-    forall `{Cpo : Poset} (c1 c2 : C), emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
-
-  Axiom ext_mor :
-    forall `{Poset} `{CDLattice} (f : C -> L),
-      Monotonic f ((⊑) ++> (⊑)) ->
-      LC.Morphism (ext f).
-
-  Axiom ext_ana :
-    forall `{Poset} `{CDLattice} (f : C -> L),
-      Monotonic f ((⊑) ++> (⊑)) ->
-      (forall x, ext f (emb x) = f x).
-
-  Axiom ext_unique :
-    forall `{Poset} `{CDLattice} (f : C -> L) (g : F C -> L),
-      Monotonic f ((⊑) ++> (⊑)) ->
-      LC.Morphism g ->
-      (forall x, g (emb x) = f x) ->
-      g = ext f.
-
-  Existing Instance ext_mor.
-End LatticeCompletion.
 
 
 (** * Properties of [sup] and [inf] *)

@@ -3,7 +3,9 @@ Require Import Classical.
 Require Import ClassicalChoice.
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
+
 Require Import Lattice.
+Require Import Completion.
 
 
 (** * Interface *)
@@ -117,51 +119,46 @@ Module Downset : LatticeCompletion Sup.
 
     (** ** Simulator *)
 
-    Section EXT.
-      Context `{Lcdl : CDLattice} (f : C -> L).
+    Context `{Lcd : CDLattice}.
 
-      Definition ext (x : F C) : L :=
-        ⋁{ c | emb c ⊑ x }; f c.
+    Definition ext (f : C -> L) (x : F C) : L :=
+      ⋁{ c | emb c ⊑ x }; f c.
 
-      Instance ext_mor :
-        Monotonic f ((⊑) ++> (⊑)) ->
-        Sup.Morphism ext.
-      Proof.
-        intros Hf I x.
-        apply antisymmetry.
-        - apply sup_lub. intros [c Hc].
-          edestruct Hc as [i Hi]. { cbn. reflexivity. }
-          erewrite <- (sup_ub _ i). unfold ext.
-          admit. (* need version of sup_ub with predicate *)
-        - apply sup_lub. intros y. unfold ext.
-          apply sup_lub. intros [c Hc].
-          admit. (* same *)
-      Admitted.
+    Context {f : C -> L} `{Hf : Monotonic f ((⊑) ++> (⊑))}.
 
-      Lemma ext_ana :
-        Monotonic f ((⊑) ++> (⊑)) ->
-        (forall x, ext (emb x) = f x).
-      Proof.
-        intros Hf x. unfold ext.
-        apply antisymmetry.
-        - apply sup_lub. intros [c Hc].
-          rstep. apply emb_mor. assumption.
-        - admit. (* version of sup_ub with predicate *)
-      Admitted.
+    Instance ext_mor :
+      Sup.Morphism (ext f).
+    Proof.
+      intros I x.
+      apply antisymmetry.
+      - apply sup_lub. intros [c Hc].
+        edestruct Hc as [i Hi]. { cbn. reflexivity. }
+        erewrite <- (sup_ub _ i). unfold ext.
+        admit. (* need version of sup_ub with predicate *)
+      - apply sup_lub. intros y. unfold ext.
+        apply sup_lub. intros [c Hc].
+        admit. (* same *)
+    Admitted.
 
-      Lemma ext_unique (g : F C -> L) :
-        Monotonic f ((⊑) ++> (⊑)) ->
-        Sup.Morphism g ->
-        (forall x, g (emb x) = f x) ->
-        g = ext.
-      Proof.
-        intros Hf Hg Hgf. apply functional_extensionality. intros x.
-        rewrite (emb_join_dense x), Sup.mor.
-        unfold ext.
-        (* maybe use emb_join_prime *)
-      Admitted.
+    Lemma ext_ana :
+      (forall x, ext f (emb x) = f x).
+    Proof.
+      intros x. unfold ext.
+      apply antisymmetry.
+      - apply sup_lub. intros [c Hc].
+        rstep. apply emb_mor. assumption.
+      - admit. (* version of sup_ub with predicate *)
+    Admitted.
 
-    End EXT.
+    Lemma ext_unique (g : F C -> L) `{Hg : !Sup.Morphism g} :
+      (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
+    Proof.
+      intros Hgf x.
+      rewrite (emb_join_dense x), Sup.mor.
+      unfold ext.
+      (* maybe use emb_join_prime *)
+    Admitted.
+
   End DOWNSETS.
 End Downset.
 

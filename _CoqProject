@@ -1,6 +1,8 @@
 -R . rbgs
 
+structures/Poset.v
 structures/Lattice.v
+structures/Completion.v
 structures/Monad.v
 lattices/Downset.v
 lattices/Upset.v
