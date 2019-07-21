@@ -48,7 +48,7 @@ Module Downset : LatticeCompletion Sup.
 
     (** ** Partial order *)
 
-    Program Instance poset : Poset (downset C) :=
+    Program Instance poset : Poset (downset C) | 5 :=
       {
         ref x y := forall c, has x c -> has y c;
       }.
@@ -121,7 +121,7 @@ Module Downset : LatticeCompletion Sup.
 
     Context `{Lcd : CDLattice}.
 
-    Definition ext (f : C -> L) (x : F C) : L :=
+    Definition ext (f : C -> L) (x : downset C) : L :=
       ⋁{ c | emb c ⊑ x }; f c.
 
     Context {f : C -> L} `{Hf : Monotonic f ((⊑) ++> (⊑))}.
@@ -139,8 +139,7 @@ Module Downset : LatticeCompletion Sup.
         reflexivity.
       - apply sup_lub. intros i. unfold ext.
         apply psup_lub. intros c Hc.
-        apply (psup_ub c). etransitivity; eauto.
-        rewrite <- sup_ub. reflexivity.
+        apply (psup_ub c). eauto using @sup_at.
     Qed.
 
     Lemma ext_ana :
