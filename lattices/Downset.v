@@ -132,13 +132,16 @@ Module Downset : LatticeCompletion Sup.
       intros I x.
       apply antisymmetry.
       - apply sup_lub. intros [c Hc].
-        edestruct Hc as [i Hi]. { cbn. reflexivity. }
-        erewrite <- (sup_ub _ i). unfold ext.
-        admit. (* need version of sup_ub with predicate *)
-      - apply sup_lub. intros y. unfold ext.
-        apply sup_lub. intros [c Hc].
-        admit. (* same *)
-    Admitted.
+        edestruct Hc as [i Hi]; cbn; try reflexivity.
+        apply emb_join_prime in Hc as [j Hc].
+        apply (sup_at j). unfold ext.
+        apply (psup_at c); auto.
+        reflexivity.
+      - apply sup_lub. intros i. unfold ext.
+        apply psup_lub. intros c Hc.
+        apply (psup_ub c). etransitivity; eauto.
+        rewrite <- sup_ub. reflexivity.
+    Qed.
 
     Lemma ext_ana :
       (forall x, ext f (emb x) = f x).

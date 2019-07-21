@@ -59,9 +59,9 @@ Module Upset : LatticeCompletion Inf.
       sup I x := opp_in (inf (fun i => opp_out (x i)));
       inf I x := opp_in (sup (fun i => opp_out (x i)));
     }.
-  Next Obligation. apply (inf_lb (fun i => opp_out (x i))). Qed.
+  Next Obligation. eapply (inf_lb i). Qed.
   Next Obligation. apply inf_glb; auto. Qed.
-  Next Obligation. apply (sup_ub (fun i => opp_out (x i))). Qed.
+  Next Obligation. apply (sup_ub i (fun i => opp_out (x i))). Qed.
   Next Obligation. apply sup_lub; auto. Qed.
   Next Obligation. f_equal. apply inf_sup. Qed.
 

@@ -1,6 +1,7 @@
 Require Import coqrel.LogicalRelations.
 Require Export Poset.
 
+
 (** * Completely distributive lattices *)
 
 (** ** Definition *)
@@ -12,10 +13,10 @@ Class CDLattice (L : Type) :=
     sup : forall {I}, (I -> L) -> L;
     inf : forall {I}, (I -> L) -> L;
 
-    sup_ub {I} (x : I -> L) i : ref (x i) (sup x);
+    sup_ub {I} (i : I) (x : I -> L) : ref (x i) (sup x);
     sup_lub {I} (x : I -> L) (y : L) : (forall i, ref (x i) y) -> ref (sup x) y;
 
-    inf_lb {I} (x : I -> L) i : ref (inf x) (x i);
+    inf_lb {I} (i : I) (x : I -> L) : ref (inf x) (x i);
     inf_glb {I} (x : L) (y : I -> L) : (forall i, ref x (y i)) -> ref x (inf y);
 
     sup_inf {I J} (x : forall i:I, J i -> L) :
@@ -31,6 +32,36 @@ Notation "⋁ i .. j ; M" := (sup (fun i => .. (sup (fun j => M)) .. ))
 Notation "⋀ i .. j ; M" := (inf (fun i => .. (inf (fun j => M)) .. ))
     (at level 65, i binder, j binder, right associativity).
 
+(** ** Properties of [sup] and [inf] *)
+
+Section PROPERTIES.
+  Context `{Lcd : CDLattice}.
+
+  Lemma sup_at {I} (i : I) (x : L) (y : I -> L) :
+    x ⊑ y i -> x ⊑ ⋁ i; y i.
+  Proof.
+    intros; etransitivity; eauto using sup_ub.
+  Qed.
+
+  Lemma inf_at {I} (i : I) (x : I -> L) (y : L) :
+    x i ⊑ y -> ⋀ i; x i ⊑ y.
+  Proof.
+    intros; etransitivity; eauto using inf_lb.
+  Qed.
+
+  Lemma inf_sup {I J} (x : forall i:I, J i -> L) :
+    ⋀ i; ⋁ j; x i j = ⋁ f; ⋀ i; x i (f i).
+  Proof.
+  Admitted.
+
+End PROPERTIES.
+
+
+(** * Joins and meets with predicates *)
+
+(** It is often convenient to take the [sup] or [inf] by ranging over
+  the elements of an index type which satisfy a given predicate. *)
+
 Notation "⋁ { x | P } ; M" :=
   (sup (I := sig (fun x => P)) (fun '(exist _ x _) => M))
   (at level 65, x ident, right associativity).
@@ -44,19 +75,49 @@ Notation "⋀ { x : A | P } ; M" :=
   (inf (I := sig (fun x : A => P)) (fun '(exist _ x _) => M))
   (at level 65, x ident, right associativity).
 
+Section PREDICATES.
+  Context `{Lcd : CDLattice}.
 
-(** * Properties of [sup] and [inf] *)
-
-Section PROP.
-  Context `{Acdl : CDLattice}.
-
-  Lemma inf_sup {I J} (x : forall i:I, J i -> L) :
-    inf (fun i => sup (fun j => x i j)) =
-    sup (fun f => inf (fun i => x i (f i))).
+  Lemma psup_ub {I} (i : I) (P : I -> Prop) (x : I -> L) :
+    P i -> x i ⊑ ⋁{ i | P i }; x i.
   Proof.
-  Admitted.
+    intros Hi.
+    apply (sup_ub (exist P i Hi) (fun '(exist _ i _) => x i)).
+  Qed.
 
-End PROP.
+  Lemma psup_at {I} (i : I) (P : I -> Prop) (x : L) (y : I -> L) :
+    P i -> x ⊑ y i -> x ⊑ ⋁{ i | P i }; y i.
+  Proof.
+    intros Hi Hx. etransitivity; eauto using psup_ub.
+  Qed.
+
+  Lemma psup_lub {I} (P : I -> Prop) (x : I -> L) (y : L) :
+    (forall i, P i -> x i ⊑ y) ->
+    ⋁{ i | P i }; x i ⊑ y.
+  Proof.
+    intros Hy. apply sup_lub. intros [i Hi]. auto.
+  Qed.
+
+  Lemma pinf_lb {I} (i : I) (P : I -> Prop) (x : I -> L) :
+    P i -> ⋀{ i | P i }; x i ⊑ x i.
+  Proof.
+    intros Hi.
+    apply (inf_lb (exist P i Hi) (fun '(exist _ i _) => x i)).
+  Qed.
+
+  Lemma pinf_at {I} (i : I) (P : I -> Prop) (x : I -> L) (y : L) :
+    P i -> x i ⊑ y -> ⋀{ i | P i }; x i ⊑ y.
+  Proof.
+    intros Hi Hy. etransitivity; eauto using pinf_lb.
+  Qed.
+
+  Lemma pinf_glb {I} (P : I -> Prop) (x : L) (y : I -> L) :
+    (forall i, P i -> x ⊑ y i) ->
+    x ⊑ ⋀{ i | P i }; y i.
+  Proof.
+    intros Hy. apply inf_glb. intros [i Hi]. auto.
+  Qed.
+End PREDICATES.
 
 
 (** * Derived operations *)

@@ -61,7 +61,7 @@ Module Type LatticeCompletion (LC : LatticeCategory).
     Axiom emb_mor : forall c1 c2, emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
 
     Context `{Lcd : CDLattice} {f : C -> L}.
-    Axiom ext_mor : forall `{Hf : Monotonic f ((⊑) ++> (⊑))}, LC.Morphism (ext f).
+    Axiom ext_mor : LC.Morphism (ext f).
     Axiom ext_ana : forall `{Hf : Monotonic f ((⊑) ++> (⊑))} x, ext f (emb x) = f x.
     Axiom ext_unique :
       forall `{Hf : Monotonic f ((⊑) ++> (⊑))} (g : F C -> L) `{Hg : !LC.Morphism g},
