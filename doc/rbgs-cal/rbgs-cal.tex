@@ -1,4 +1,5 @@
 \documentclass[format=sigplan,authordraft]{acmart}
+\usepackage{tikz-cd}
 \usepackage{bussproofs}
 
 % Macros {{{
@@ -27,6 +28,30 @@
 
 \section{Introduction} %{{{
 
+Contributions:
+\begin{itemize}
+\item A new understanding of nondeterminism in game semantics.
+  Historically has been tricky and complicated.
+  We believe this is due to conflating
+  angelic nondeterminism
+  (ranging over the possible choices of environment)
+  which is always present in game models,
+  vs. demonic nondeterminism
+  (ranging over the possible choices of the system)
+  which models of nondeterministic languages
+  typically try to introduce.
+\item Based on this,
+  categories of games and strategies
+  with refinement and a complete distributive lattice structure.
+\item Can be used to provide a good semantics
+  for the LTS of CompCertO.
+  Show how to embed the stuff.
+\item Use the algebraic flexibility of the result
+  to recover techniques used in CertiKOS
+  to formalize and work with
+  certified abstraction layers.
+\end{itemize}
+
 %}}}
 
 \section{Game semantics and nondeterminism} %{{{
@@ -47,6 +72,105 @@ and use a lattice completion
 (which determines what kind of nondeterminism
 the model has)
 to derive the strategy model.
+
+\subsection{Basic idea} %{{{
+
+Strategy models can be obtained as
+lattice completions of posets of plays.
+
+The traditional construction is to use the downset lattice,
+which is the free complete join-semilattice over a poset:
+downsets enrich the underlying order
+with arbitrary joins (unions of downsets),
+but don't add any new meets (save for $\varnothing$).
+These arbitrary joins correspond to \emph{angelic} nondeterminism,
+allowing us to range over all possible choices of the environment
+so as to characterize the system's strategy.
+
+For semantics of languages
+where getting different inputs is the only source of
+nondeterministic choice,
+this formal angelic nondeterminism is usually associated with
+a \emph{determinacy} constraint.
+That is,
+although the record of the computation (the play)
+can be influenced by choices of the environment,
+these choices should all be explicitly labelled
+by distinct environment moves.
+
+Because this is equivalent to excluding
+$\{ s m_1, s m_2 \} \subseteq \sigma$,
+where $m_1$ and $m_2$ are distinct system moves,
+this constraint has often been understood
+as a \emph{determinism} constraint on the \emph{system},
+with the implicit assumption that
+should this configuration appear,
+it should be understood as
+a system choice between the outputs $m_1$ and $m_2$.
+Indeed,
+semantics of languages featuring nondeterministic choice
+have been proposed following this interpretation \cite{gsnondet},
+but they are difficult to manipulate
+and/or suffer from issues wrt. unbounded nondeterminism.
+
+By contrast,
+under our interpretation,
+$\{ s m_1, s m_2 \}$
+[invisible choices of the environment
+result in different observed system actions down the line.
+Can happen as consequence of abstraction.
+Perhaps an assembly spec says
+the outcome of a function should depend on the value of some
+register which is considered irrelevant by the C calling convention.
+If we try to lift this spec to the C level
+we will get $s m_1 \cup s m_2$,
+which can never be implemented by a C program
+since C language semantics are determinate in the environment.]
+
+Under this interpretation,
+in the standard approach strategies encode deterministic systems,
+not because of some additional constraint,
+but because by construction system nondeterminism is inexpressible.
+If we want it,
+we need to expand the lattice completion we use
+to go from plays to strategies.
+
+%}}}
+
+\subsection{Free completely distributive lattice} %{{{
+
+A completely distributive lattice $L$ is called the
+\emph{free completely distributive lattice}
+over a poset $C$ is there is
+a monotonic function $\phi : C \rightarrow L$
+such that
+for any completely distributive lattice $M$
+and monotonic function $f : C \rightarrow M$,
+there exists a unique complete morphism $f^*_\phi : L \rightarrow M$
+such that $f^*_\phi \circ \phi = f$:
+\[
+  \begin{tikzcd}
+    C \arrow[r, "\phi"] \arrow[rd, "f"'] &
+    L \arrow[d, "f^*_\phi", dashed] \\ & M
+  \end{tikzcd}
+\]
+The free completely distributive lattice over a poset
+always exists ---
+we will use the construction provided by
+Morris and Tyrell in \cite{dnd}.
+We write $\mathbf{FCD}(C)$ for
+the free completely distributive lattice over $C$.
+
+Note that $\mathbf{FCD} : \mathbf{Poset} \rightarrow \mathbf{CDL}$
+can also be characterized as
+the left adjoint to the forgeful functor
+$\mathbf{U} : \mathbf{CDL} \rightarrow \mathbf{Poset}$
+from the category $\mathbf{CDL}$
+of completely distributive lattices and complete morphisms
+to the category $\mathbf{Poset}$
+of partially ordered sets and monotonic functions.
+
+%}}}
 
 %}}}
 
@@ -82,6 +206,88 @@ but it is only a monoidal tensor in $\gcat$
 (where subsequent questions in the different $B_i$'s
 may interact with each other).
 
+\subsection{Arrow games} %{{{
+\label{sec:arrow}
+
+The arrow game $A \rightarrow B$ consists of
+nested iterations of the elementary games $A$ and $B$.
+In instances of $A$, the roles of $\kw{P}$ and $\kw{O}$ are exchanged;
+instances of $B$ proceed normally.
+When a new instance is initiated,
+the current game is suspended
+until the new instance concludes.
+Hence,
+the valid plays of $A \rightarrow B$
+are described by the graph:
+\[
+  \begin{tikzpicture}[baseline=(O1.base)]
+    \node (O1) at (0,0) {\kw{O}};
+    \node (P1) at (1,0) {\kw{P}};
+    \node (O2) at (2,0) {\kw{O}};
+    \node (P2) at (3,0) {\kw{P}};
+    \node (O3) at (4,0) {$\ldots$};
+    \path [->] (-0.5,0) edge (O1);
+    \path [->] (O1) edge[bend left] node[auto] {$m$} (P1);
+    \path [->] (P1) edge[bend left] node[auto] {$n$} (O1);
+    \path [->] (P1) edge[bend left] node[auto] {$q$} (O2);
+    \path [->] (O2) edge[bend left] node[auto] {$r$} (P1);
+    \path [->] (O2) edge[bend left] node[auto] {$m$} (P2);
+    \path [->] (P2) edge[bend left] node[auto] {$n$} (O2);
+    \path [->] (P2) edge[bend left] node[auto] {$q$} (O3);
+    \path [->] (O3) edge[bend left] node[auto] {$r$} (P2);
+  \end{tikzpicture}
+  \quad
+  \begin{array}{c@{\,}l@{\quad}c@{\,}l}
+    m &\in M_B^\kw{Q} & q &\in M_A^\kw{Q} \\[1ex]
+    n &\in M_B^\kw{A} & r &\in M_A^\kw{A}
+  \end{array}
+\]
+The first move is always a question $m$ played by $\kw{O}$ in $B$.
+The player $\kw{P}$ can conclude the current instance of $B$
+with an answer $n$, or
+initiate an instance of $A$
+with a question $q$.
+Then $\kw{O}$ can initiate a new instance of $B$
+with another $m$, or
+conclude any current instance of $A$
+with an answer $r$.
+This process goes on indefinitely.
+
+%}}}
+
+\subsection{Innocent strategies} %{{{
+
+Readers familiar with traditional work on HON games \cite{something}
+will recognize this description
+as the \emph{well-bracketed} plays for the game ${!}A \multimap {!}B$
+whose arena can be given schematically as:
+\[
+  \begin{tikzpicture}
+    \node (S) at (0,3) {$\star$};
+    \node (BQ) at (0,2) {$M_B^\kw{Q}$};
+    \node (BA) at (-1,1) {$M_B^\kw{A}$};
+    \node (AQ) at (+1,1) {$M_A^\kw{Q}$};
+    \node (AA) at (+1,0) {$M_A^\kw{A}$};
+    \path (S) edge (BQ);
+    \path (BQ) edge (BA);
+    \path (BQ) edge (AQ);
+    \path (AQ) edge (AA);
+  \end{tikzpicture}
+\]
+Drawing from this work,
+we can further distinguish \emph{innocent} strategies,
+which handle all incoming questions $m \in M_B^\kw{Q}$
+independently of the computation's history,
+and therefore can be described in a particularly simple way.
+
+
+
+
+
+
+
+%}}}
+
 %}}}
 
 \section{Refinement-based game semantics for C} %{{{
@@ -91,13 +297,154 @@ and explain how to use it in the context of our strategy model.
 
 \subsection{Semantics of transition systems} %{{{
 
+We now interpret the transition systems defined in \S\ref{sec:compcert}
+in terms of the strategy model we have defined.
+We consider a transition system $L : E \rightarrow F$
+with the components $L = \langle S, {\rightarrow}, I, X, Y, F \rangle$.
+
+In CompCert transition systems,
+multiple transitions from a given state $s$
+denotes demonic nondeterminism.
+However,
+the lack of any transition is interpreted as ``going wrong'',
+in other words it denotes an undefined behavior.
+To account for this idiom,
+we define the notion of discontinuous choice among
+a set $S \subseteq \mathcal{I}_E(A)$ of interactive computations:
+\[
+    \bigoplus S :=
+    \begin{cases}
+      \bot & \mbox{if } S = \varnothing \\
+      \bigsqcap S & \mbox{otherwise}
+    \end{cases}
+\]
+With this,
+we can define the immediate behavior of a state $s \in S$ as
+using the function $\delta : S \rightarrow \mathcal{I}_E(S)$
+defined as:
+\[
+  \delta(s) :=
+    \{ \kw{safe}(s) \} ;
+    \left( \bigsqcap_{s \rightarrow s'} \eta(s') \right)
+    \sqcap
+    \left( \bigsqcap_{m \in X(s)} n \leftarrow \mathbf{I}(m) ;
+            \bigoplus_{s' \in Y(s, n)} \eta(s') \right)
+\]
+The initial assertion ensures that unsafe states go wrong.
+The subsequent demonic choice
+collects transitions to other states,
+either direct or after an interaction.
+By iterating $\delta$, we can then compute the overall behavior of $L$:
+\[
+   \llbracket L \rrbracket (q) :=
+     \bigoplus_{s \in I(q)}
+     \left(
+     \bigsqcup_{n \in \mathbb{N}}
+     s' \leftarrow \delta^n(s) ; \bigsqcap_{r \in F(s')} \eta(r)
+     \right)
+\]
+
 %}}}
 
 \subsection{Simulation conventions} %{{{
 
+Consider a simulation convention $\mathbb{R} : E_1 \Leftrightarrow E_2$
+with the components $\mathbb{R} = \langle W, R^\kw{Q}, R^\kw{A} \rangle$.
+We will define two adjoint strategies
+which will translate questions and answers between
+$E_1$ and $E_2$.
+For purposes of intuition,
+we can think of $E_1$ as the game $\mathcal{C}$,
+$E_2$ as the game $\mathcal{A}$,
+and $\mathbb{R}$ as the overall simulation convention of CompCert.
+
+The strategy $\mathbb{R}^* : E_1 \rightarrow E_2$
+is used to translate incoming calls
+and is defined as follows:
+\[
+    \mathbb{R}^*(m_2) :=
+       \bigsqcup_{m_1 \ifr{w \Vdash R^\kw{Q}} m_2}
+       n_1 \leftarrow \mathbf{I}(m_1) ;
+       \bigsqcap_{n_1 \ifr{w \Vdash R^\kw{A}} n_2}
+       \eta(n_2)
+\]
+Note that the first choice ranges over the values of both
+$w \in W$ and $m_1 \in M_{E_1}^\kw{Q}$,
+whereas the second choice ranges only over the value of
+$n_2 \in M_{E_2}^\kw{A}$.
+If $m_2$ is an assembly call,
+we first choose a corresponding C call $m_1$,
+then pass the request along.
+If there are no such calls,
+the result is an undefined behavior.
+When the answer $n_1$ is received,
+we translate it back to an assembly return $n_2$.
+The exact details of $n_2$ will be chosen by
+the compiled program implementing our specification,
+hence we use a demonic choice.
+
+The strategy $\mathbb{R}_* : E_2 \rightarrow E_1$
+is used to translate outgoing calls
+and is defined as follows:
+\[
+    \mathbb{R}_*(m_1) :=
+       \bigsqcap_{m_1 \ifr{w \Vdash R^\kw{Q}} m_2}
+       n_2 \leftarrow \mathbf{I}(m_2) ;
+       \bigsqcup_{n_1 \ifr{w \Vdash R^\kw{A}} n_2}
+       \eta(n_1)
+\]
+Here,
+the compiled system will determine
+the details of the assembly call,
+whereas its environment will determine
+the exact assembly state returned.
+Hence, the polarity of choices is reversed.
+
+With these definitions,
+given two simulation conventions
+$\mathbb{R} : E_1 \Leftrightarrow E_2$ and
+$\mathbb{S} : F_1 \Leftrightarrow F_2$,
+we can give the concretization of a strategy
+$\sigma \in \llbracket E_1 \rightarrow F_1 \rrbracket$
+according to the simulation convention
+$\mathbb{R} \rightarrow \mathbb{S}$
+as the strategy
+$\gamma_{\mathbb{R} \rightarrow \mathbb{S}}(\sigma) \in
+  \llbracket E_2 \rightarrow F_2 \rrbracket$
+defined by:
+\[
+    \gamma_{\mathbb{R} \rightarrow \mathbb{S}}(\sigma) :=
+    \mathbb{R}^* \circ \sigma \circ \mathbb{S}_* \,.
+\]
+
+%}}}
+
+\subsection{Soundness of simulations} %{{{
+
+Putting these ingredients together,
+backward simulations can be embedded as refinement:
+\[
+    \AxiomC{$L_1 \ge_{\mathbb{R} \rightarrow \mathbb{S}} L_2$}
+    \UnaryInfC{$\gamma_{\mathbb{R} \rightarrow \mathbb{S}}
+                (\llbracket L_1 \rrbracket) \sqsubseteq
+                \llbracket L_2 \rrbracket$}
+    \DisplayProof
+\]
+[Actually we could use forward sim directly,
+interpreting all CompCert nondet as angelic,
+which doesn't matter if we've shown they're determinate
+and makes the embedding simpler.]
+
 %}}}
 
 \subsection{Compiler correctness} %{{{
+
+Formulated in our setting as:
+\[
+    \gamma_{\mathbb{C} \twoheadrightarrow \mathbb{C}}
+          (\llbracket \kw{Clight}(p) \rrbracket) \sqsubseteq
+    \llbracket \kw{Asm}(p') \rrbracket
+\]
 
 %}}}
 
@@ -147,6 +494,12 @@ to $h(\sigma^\dagger, s_0) \in \gcat[A, B]$.
 
 \subsection{Abstraction relations} %{{{
 
+From the usual match/relate relations
+we can formulate a Galois connexion
+similar to what happens with simulation conventions
+(in fact we could probably define an actual simulation convention).
+Then the goal is to show that for 
+
 %}}}
 
 %}}}
@@ -156,7 +509,8 @@ to $h(\sigma^\dagger, s_0) \in \gcat[A, B]$.
 
 
 \newpage
-Stuff from before to redistribute
+\appendix
+\section*{Stuff from before, to redistribute}
 
 \section{Refinement-Based Game Semantics} \label{sec:gamesem} %{{{
 
@@ -527,137 +881,7 @@ The interaction primitive
 $\mathbf{I}_E \in \llbracket E \rightarrow E \rrbracket$
 plays the role of the identity strategy.
 
-\subsubsection{Transition systems}
-
-We now interpret the transition systems defined in \S\ref{sec:compcert}
-in terms of the strategy model we have defined.
-We consider a transition system $L : E \rightarrow F$
-with the components $L = \langle S, {\rightarrow}, I, X, Y, F \rangle$.
-
-In CompCert transition systems,
-multiple transitions from a given state $s$
-denotes demonic nondeterminism.
-However,
-the lack of any transition is interpreted as ``going wrong'',
-in other words it denotes an undefined behavior.
-To account for this idiom,
-we define the notion of discontinuous choice among
-a set $S \subseteq \mathcal{I}_E(A)$ of interactive computations:
-\[
-    \bigoplus S :=
-    \begin{cases}
-      \bot & \mbox{if } S = \varnothing \\
-      \bigsqcap S & \mbox{otherwise}
-    \end{cases}
-\]
-With this,
-we can define the immediate behavior of a state $s \in S$ as
-using the function $\delta : S \rightarrow \mathcal{I}_E(S)$
-defined as:
-\[
-  \delta(s) :=
-    \{ \kw{safe}(s) \} ;
-    \left( \bigsqcap_{s \rightarrow s'} \eta(s') \right)
-    \sqcap
-    \left( \bigsqcap_{m \in X(s)} n \leftarrow \mathbf{I}(m) ;
-            \bigoplus_{s' \in Y(s, n)} \eta(s') \right)
-\]
-The initial assertion ensures that unsafe states go wrong.
-The subsequent demonic choice
-collects transitions to other states,
-either direct or after an interaction.
-By iterating $\delta$, we can then compute the overall behavior of $L$:
-\[
-   \llbracket L \rrbracket (q) :=
-     \bigoplus_{s \in I(q)}
-     \left(
-     \bigsqcup_{n \in \mathbb{N}}
-     s' \leftarrow \delta^n(s) ; \bigsqcap_{r \in F(s')} \eta(r)
-     \right)
-\]
-
-\subsubsection{Simulation conventions}
-
-Consider a simulation convention $\mathbb{R} : E_1 \Leftrightarrow E_2$
-with the components $\mathbb{R} = \langle W, R^\kw{Q}, R^\kw{A} \rangle$.
-We will define two adjoint strategies
-which will translate questions and answers between
-$E_1$ and $E_2$.
-For purposes of intuition,
-we can think of $E_1$ as the game $\mathcal{C}$,
-$E_2$ as the game $\mathcal{A}$,
-and $\mathbb{R}$ as the overall simulation convention of CompCert.
-
-The strategy $\mathbb{R}^* : E_1 \rightarrow E_2$
-is used to translate incoming calls
-and is defined as follows:
-\[
-    \mathbb{R}^*(m_2) :=
-       \bigsqcup_{m_1 \ifr{w \Vdash R^\kw{Q}} m_2}
-       n_1 \leftarrow \mathbf{I}(m_1) ;
-       \bigsqcap_{n_1 \ifr{w \Vdash R^\kw{A}} n_2}
-       \eta(n_2)
-\]
-Note that the first choice ranges over the values of both
-$w \in W$ and $m_1 \in M_{E_1}^\kw{Q}$,
-whereas the second choice ranges only over the value of
-$n_2 \in M_{E_2}^\kw{A}$.
-If $m_2$ is an assembly call,
-we first choose a corresponding C call $m_1$,
-then pass the request along.
-If there are no such calls,
-the result is an undefined behavior.
-When the answer $n_1$ is received,
-we translate it back to an assembly return $n_2$.
-The exact details of $n_2$ will be chosen by
-the compiled program implementing our specification,
-hence we use a demonic choice.
-
-The strategy $\mathbb{R}_* : E_2 \rightarrow E_1$
-is used to translate outgoing calls
-and is defined as follows:
-\[
-    \mathbb{R}_*(m_1) :=
-       \bigsqcap_{m_1 \ifr{w \Vdash R^\kw{Q}} m_2}
-       n_2 \leftarrow \mathbf{I}(m_2) ;
-       \bigsqcup_{n_1 \ifr{w \Vdash R^\kw{A}} n_2}
-       \eta(n_1)
-\]
-Here,
-the compiled system will determine
-the details of the assembly call,
-whereas its environment will determine
-the exact assembly state returned.
-Hence, the polarity of choices is reversed.
-
-With these definitions,
-given two simulation conventions
-$\mathbb{R} : E_1 \Leftrightarrow E_2$ and
-$\mathbb{S} : F_1 \Leftrightarrow F_2$,
-we can give the concretization of a strategy
-$\sigma \in \llbracket E_1 \rightarrow F_1 \rrbracket$
-according to the simulation convention
-$\mathbb{R} \rightarrow \mathbb{S}$
-as the strategy
-$\gamma_{\mathbb{R} \rightarrow \mathbb{S}}(\sigma) \in
-  \llbracket E_2 \rightarrow F_2 \rrbracket$
-defined by:
-\[
-    \gamma_{\mathbb{R} \rightarrow \mathbb{S}}(\sigma) :=
-    \mathbb{R}^* \circ \sigma \circ \mathbb{S}_* \,.
-\]
-
-\subsubsection{Backward simulations}
-
-Putting these ingredients together,
-backward simulations can be embedded as refinement:
-\[
-    \AxiomC{$L_1 \ge_{\mathbb{R} \rightarrow \mathbb{S}} L_2$}
-    \UnaryInfC{$\gamma_{\mathbb{R} \rightarrow \mathbb{S}}
-                (\llbracket L_1 \rrbracket) \sqsubseteq
-                \llbracket L_2 \rrbracket$}
-    \DisplayProof
-\]
+\subsection*{[Sections integrated]}
 
 \subsection{Multi-module programs}
 
