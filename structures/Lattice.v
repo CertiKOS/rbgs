@@ -169,6 +169,15 @@ Section OPS.
     apply join_ub_r.
   Qed.
 
+  Lemma ref_join x y :
+    x ⊑ y <-> join x y = y.
+  Proof.
+    split; intro.
+    - apply antisymmetry, join_ub_r.
+      apply join_lub; auto. reflexivity.
+    - rewrite <- H. apply join_ub_l.
+  Qed.
+
   (** ** Greatest element *)  
 
   Definition top :=
@@ -183,17 +192,44 @@ Section OPS.
   Definition meet (x y : L) :=
     ⋀ b : bool; if b then x else y.
 
-  Lemma meet_ub_l x y :
+  Lemma meet_lb_l x y :
     ref (meet x y) x.
   Admitted.
 
-  Lemma meet_ub_r x y :
+  Lemma meet_lb_r x y :
     ref (meet x y) y.
   Admitted.
 
   Lemma meet_glb x y z :
     ref x y -> ref x z -> ref x (meet y z).
   Admitted.
+
+  Lemma meet_l x y z :
+    ref x z ->
+    ref (meet x y) z.
+  Proof.
+    intro.
+    etransitivity; eauto.
+    apply meet_lb_l.
+  Qed.
+
+  Lemma meet_r x y z :
+    ref y z ->
+    ref (meet x y) z.
+  Proof.
+    intro.
+    etransitivity; eauto.
+    apply meet_lb_r.
+  Qed.
+
+  Lemma ref_meet x y :
+    x ⊑ y <-> meet x y = x.
+  Proof.
+    split; intro.
+    - apply antisymmetry. apply meet_lb_l.
+      apply meet_glb; auto. reflexivity.
+    - rewrite <- H. apply meet_lb_r.
+  Qed.
 
   (** ** Properties *)
 
