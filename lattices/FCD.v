@@ -72,4 +72,7 @@ Module FCD : LatticeCompletion CDL.
     Admitted.
 
   End DEF.
+
+  Include (LatticeCompletionDefs CDL).
+
 End FCD.

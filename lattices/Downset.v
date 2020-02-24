@@ -162,6 +162,9 @@ Module Downset : LatticeCompletion Sup.
     Admitted.
 
   End DOWNSETS.
+
+  Include (LatticeCompletionDefs Sup).
+
 End Downset.
 
 Notation downset := Downset.F.

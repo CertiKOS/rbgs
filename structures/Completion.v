@@ -47,7 +47,7 @@ End LatticeCategory.
   type of morphism used fully characterizes the completion, so that we
   can always use an opaque implementation. *)
 
-Module Type LatticeCompletion (LC : LatticeCategory).
+Module Type LatticeCompletionSpec (LC : LatticeCategory).
 
   Parameter F : forall C `{Cpo : Poset C}, Type.
   Parameter lattice : forall `{Cpo : Poset}, CDLattice (F C).
@@ -74,4 +74,34 @@ Module Type LatticeCompletion (LC : LatticeCategory).
   Hint Extern 1 (LC.Morphism (ext _)) =>
     apply @ext_mor : typeclass_instances.
 
-End LatticeCompletion.
+End LatticeCompletionSpec.
+
+Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec LC).
+
+  Definition map {A B} `{!Poset A} `{Poset B} (f : A -> B) : CS.F A -> CS.F B :=
+    CS.ext (fun a => CS.emb (f a)).
+
+  Instance map_mor {A B} `{!Poset A} `{Poset B} (f : A -> B) :
+    Monotonic f ((⊑) ++> (⊑)) ->
+    LC.Morphism (map f).
+  Proof.
+    unfold map.
+    typeclasses eauto.
+  Qed.
+
+  Lemma ext_emb {A} `{!Poset A} (x : CS.F A) :
+    CS.ext CS.emb x = x.
+  Proof.
+  Admitted.
+
+  Lemma ext_ext {A B L} `{!Poset A} `{!Poset B} `{!CDLattice L} :
+    forall {f : A -> CS.F B} `{!Monotonic f (ref ++> ref)},
+    forall {g : B -> L} `{!Monotonic g (ref ++> ref)},
+    forall (x : CS.F A), CS.ext g (CS.ext f x) = CS.ext (fun a => CS.ext g (f a)) x.
+  Proof.
+  Admitted.
+
+End LatticeCompletionDefs.
+
+Module Type LatticeCompletion (LC : LatticeCategory) :=
+  LatticeCompletionSpec LC <+ LatticeCompletionDefs LC.

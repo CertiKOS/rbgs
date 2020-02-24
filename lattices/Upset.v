@@ -126,6 +126,8 @@ Module Upset : LatticeCompletion Inf.
     Qed.
   End DEFS.
 
+  Include (LatticeCompletionDefs Inf).
+
 End Upset.
 
 Notation upset := Upset.F.
