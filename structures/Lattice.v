@@ -151,6 +151,24 @@ Section OPS.
     ref x z -> ref y z -> ref (join x y) z.
   Admitted.
 
+  Lemma join_l x y z :
+    ref x y ->
+    ref x (join y z).
+  Proof.
+    intro.
+    etransitivity; eauto.
+    apply join_ub_l.
+  Qed.
+
+  Lemma join_r x y z :
+    ref x z ->
+    ref x (join y z).
+  Proof.
+    intro.
+    etransitivity; eauto.
+    apply join_ub_r.
+  Qed.
+
   (** ** Greatest element *)  
 
   Definition top :=
