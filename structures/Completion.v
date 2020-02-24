@@ -51,7 +51,9 @@ Module Type LatticeCompletion (LC : LatticeCategory).
 
   Parameter F : forall C `{Cpo : Poset C}, Type.
   Parameter lattice : forall `{Cpo : Poset}, CDLattice (F C).
-  Existing Instance lattice.
+
+  Hint Extern 1 (CDLattice (F _)) =>
+    apply @lattice : typeclass_instances.
 
   Parameter emb : forall `{Cpo : Poset}, C -> F C.
   Parameter ext : forall `{Cpo : Poset} `{Lcd : CDLattice}, (C -> L) -> F C -> L.
@@ -69,6 +71,7 @@ Module Type LatticeCompletion (LC : LatticeCategory).
         (forall x, g x = ext f x).
   End DEFS.
 
-  Existing Instance ext_mor.
+  Hint Extern 1 (LC.Morphism (ext _)) =>
+    apply @ext_mor : typeclass_instances.
 
 End LatticeCompletion.

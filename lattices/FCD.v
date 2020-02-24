@@ -29,7 +29,8 @@ Module FCD : LatticeCompletion CDL.
   Section DEF.
     Context `{Cpo : Poset}.
 
-    Instance lattice : CDLattice (F C) := _.
+    Instance lattice : CDLattice (F C) := Upset.lattice.
+
     Definition emb (c : C) := up (down c).
 
     Lemma emb_mor c1 c2 :
