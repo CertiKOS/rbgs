@@ -13,10 +13,39 @@ Require Import Upset.
 Module CDL <: LatticeCategory.
   Section DEF.
     Context {L M} `{Lcd : CDLattice L} `{Mcd : CDLattice M} (f : L -> M).
+
     Class Morphism := mor : Sup.Morphism f /\ Inf.Morphism f.
     Global Instance cmor_sup : Morphism -> Sup.Morphism f := @proj1 _ _.
     Global Instance cmor_inf : Morphism -> Inf.Morphism f := @proj2 _ _.
+
+    Instance mor_ref :
+      Morphism -> PosetMorphism f.
+    Proof.
+      intros [H _].
+      apply Sup.mor_ref; auto.
+    Qed.
   End DEF.
+
+  Lemma id_mor `{CDLattice} :
+    Morphism (fun x => x).
+  Proof.
+    split.
+    - apply Sup.id_mor.
+    - apply Inf.id_mor.
+  Qed.
+
+  Lemma compose_mor {A B C} `{!CDLattice A} `{!CDLattice B} `{!CDLattice C} :
+    forall (f : A -> B) `{!Morphism f},
+    forall (g : B -> C) `{!Morphism g},
+      Morphism (fun a => g (f a)).
+  Proof.
+    split.
+    - apply Sup.compose_mor; typeclasses eauto.
+    - apply Inf.compose_mor; typeclasses eauto.
+  Qed.
+
+  Existing Instance mor_ref.
+
 End CDL.
 
 
@@ -47,7 +76,7 @@ Module FCD : LatticeCompletion CDL.
     Definition ext (f : C -> L) (x : F C) :=
       Upset.ext (Downset.ext f) x.
 
-    Context {f : C -> L} `{Hf : Monotonic f ((⊑) ++> (⊑))}.
+    Context {f : C -> L} `{Hf : !PosetMorphism f}.
 
     Instance ext_mor :
       CDL.Morphism (ext f).

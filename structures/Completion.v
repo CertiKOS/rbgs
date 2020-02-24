@@ -36,10 +36,24 @@ Module Type LatticeCategory.
   Parameter Morphism :
     forall {L M} `{Lcd : CDLattice L} `{Mcd : CDLattice M}, (L -> M) -> Prop.
 
-  (*Axiom mor_ref : forall f, Morphism f -> Monotonic f ((⊑) ++> (⊑)).*)
+  Axiom mor_ref :
+    forall {L M} `{Lcd : CDLattice L} `{Mcd : CDLattice M} (f : L -> M),
+      Morphism f ->
+      PosetMorphism f.
+
+  Axiom id_mor :
+    forall `{CDLattice}, Morphism (fun l => l).
+
+  Axiom compose_mor :
+    forall {A B C} `{!CDLattice A} `{CDLattice B} `{CDLattice C},
+    forall (f : A -> B) `{Morphism f},
+    forall (g : B -> C) `{Morphism g},
+      Morphism (fun a => g (f a)).
 
   Existing Class Morphism.
-  (*Existing Instance mor_ref.*)
+  Existing Instance mor_ref.
+  Existing Instance id_mor.
+  Existing Instance compose_mor.
 
 End LatticeCategory.
 
@@ -64,9 +78,9 @@ Module Type LatticeCompletionSpec (LC : LatticeCategory).
 
     Context `{Lcd : CDLattice} {f : C -> L}.
     Axiom ext_mor : LC.Morphism (ext f).
-    Axiom ext_ana : forall `{Hf : Monotonic f ((⊑) ++> (⊑))} x, ext f (emb x) = f x.
+    Axiom ext_ana : forall `{Hf : !PosetMorphism f} x, ext f (emb x) = f x.
     Axiom ext_unique :
-      forall `{Hf : Monotonic f ((⊑) ++> (⊑))} (g : F C -> L) `{Hg : !LC.Morphism g},
+      forall `{Hf : !PosetMorphism f} (g : F C -> L) `{Hg : !LC.Morphism g},
         (forall x, g (emb x) = f x) ->
         (forall x, g x = ext f x).
   End DEFS.
@@ -82,7 +96,7 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
     CS.ext (fun a => CS.emb (f a)).
 
   Instance map_mor {A B} `{!Poset A} `{Poset B} (f : A -> B) :
-    Monotonic f ((⊑) ++> (⊑)) ->
+    PosetMorphism f ->
     LC.Morphism (map f).
   Proof.
     unfold map.
@@ -95,8 +109,8 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
   Admitted.
 
   Lemma ext_ext {A B L} `{!Poset A} `{!Poset B} `{!CDLattice L} :
-    forall {f : A -> CS.F B} `{!Monotonic f (ref ++> ref)},
-    forall {g : B -> L} `{!Monotonic g (ref ++> ref)},
+    forall {f : A -> CS.F B} `{!PosetMorphism f},
+    forall {g : B -> L} `{!PosetMorphism g},
     forall (x : CS.F A), CS.ext g (CS.ext f x) = CS.ext (fun a => CS.ext g (f a)) x.
   Proof.
   Admitted.

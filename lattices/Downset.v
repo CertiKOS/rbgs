@@ -18,8 +18,48 @@ Require Import Completion.
   of plays (which only feature angelic nondeterminism). *)
 
 Module Sup <: LatticeCategory.
+
   Class Morphism {L M} `{CDLattice L} `{CDLattice M} (f : L -> M) :=
     mor : forall {I} (x : I -> L), f (sup x) = ⋁ i; f (x i).
+
+  Lemma mor_join `{Morphism} x y :
+    f (x ⊔ y) = f x ⊔ f y.
+  Proof.
+    Local Transparent join. unfold join.
+    rewrite (mor (f := f)). f_equal.
+    apply functional_extensionality. intros b.
+    destruct b; auto.
+  Qed.
+
+  Lemma mor_ref {L M} `{!CDLattice L} `{!CDLattice M} (f : L -> M) :
+    Morphism f ->
+    PosetMorphism f.
+  Proof.
+    intros Hf. split.
+    intros x y Hxy.
+    apply ref_join in Hxy.
+    rewrite <- Hxy, mor_join.
+    apply join_ub_l.
+  Qed.
+
+  Lemma id_mor `{CDLattice} :
+    Morphism (fun x => x).
+  Proof.
+    red. auto.
+  Qed.
+
+  Lemma compose_mor {A B C} `{!CDLattice A} `{!CDLattice B} `{!CDLattice C} :
+    forall (f : A -> B) `{!Morphism f},
+    forall (g : B -> C) `{!Morphism g},
+      Morphism (fun a => g (f a)).
+  Proof.
+    intros f Hf g Hg I x.
+    rewrite (mor (f:=f)), (mor (f:=g)).
+    reflexivity.
+  Qed.
+
+  Hint Immediate mor_ref : typeclass_instances.
+
 End Sup.
 
 
@@ -124,7 +164,7 @@ Module Downset : LatticeCompletion Sup.
     Definition ext (f : C -> L) (x : downset C) : L :=
       ⋁{ c | emb c ⊑ x }; f c.
 
-    Context {f : C -> L} `{Hf : Monotonic f ((⊑) ++> (⊑))}.
+    Context {f : C -> L} `{Hf : !PosetMorphism f}.
 
     Instance ext_mor :
       Sup.Morphism (ext f).

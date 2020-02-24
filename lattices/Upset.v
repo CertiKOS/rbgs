@@ -1,4 +1,5 @@
 Require Import coqrel.LogicalRelations.
+Require Import FunctionalExtensionality.
 Require Import Lattice.
 Require Import Completion.
 Require Import Downset.
@@ -12,8 +13,48 @@ Require Import Downset.
   distributive lattice (see [Morris, 2005]). *)
 
 Module Inf <: LatticeCategory.
+
   Class Morphism {L M} `{CDLattice L} `{CDLattice M} (f : L -> M) :=
     mor : forall {I} (x : I -> L), f (inf x) = ⋀ i; f (x i).
+
+  Lemma mor_meet `{Morphism} x y :
+    f (x ⊓ y) = f x ⊓ f y.
+  Proof.
+    Local Transparent meet. unfold meet.
+    rewrite (mor (f := f)). f_equal.
+    apply functional_extensionality. intros b.
+    destruct b; auto.
+  Qed.
+
+  Lemma mor_ref {L M} `{!CDLattice L} `{!CDLattice M} (f : L -> M) :
+    Morphism f ->
+    PosetMorphism f.
+  Proof.
+    intros Hf. split.
+    intros x y Hxy.
+    apply ref_meet in Hxy.
+    rewrite <- Hxy, mor_meet.
+    apply meet_lb_r.
+  Qed.
+
+  Lemma id_mor `{CDLattice} :
+    Morphism (fun x => x).
+  Proof.
+    red. auto.
+  Qed.
+
+  Lemma compose_mor {A B C} `{!CDLattice A} `{!CDLattice B} `{!CDLattice C} :
+    forall (f : A -> B) `{!Morphism f},
+    forall (g : B -> C) `{!Morphism g},
+      Morphism (fun a => g (f a)).
+  Proof.
+    intros f Hf g Hg I x.
+    rewrite (mor (f:=f)), (mor (f:=g)).
+    reflexivity.
+  Qed.
+
+  Hint Immediate mor_ref : typeclass_instances.
+
 End Inf.
 
 
@@ -69,10 +110,10 @@ Module Upset : LatticeCompletion Inf.
     fun '(opp_in a) => opp_in (f a).
 
   Instance opp_map_ref {A B} `{Poset A} `{Poset B} (f : A -> B) :
-    Monotonic f ((⊑) ++> (⊑)) ->
-    Monotonic (opp_map f) ((⊑) ++> (⊑)).
+    PosetMorphism f ->
+    PosetMorphism (opp_map f).
   Proof.
-    intros Hf [x] [y] Hxy. cbn in *. rauto.
+    intros Hf. split. intros [x] [y] Hxy. cbn in *. rauto.
   Qed.
 
   (** ** Upsets *)
@@ -98,7 +139,7 @@ Module Upset : LatticeCompletion Inf.
     Definition ext (f : C -> L) (x : F C) : L :=
       opp_out (Downset.ext (opp_map f) (opp_out x)).
 
-    Context {f : C -> L} `{Hf : Monotonic f ((⊑) ++> (⊑))}.
+    Context {f : C -> L} `{Hf : !PosetMorphism f}.
 
     Instance ext_mor :
       Inf.Morphism (ext f).
