@@ -8,3 +8,4 @@ lattices/Downset.v
 lattices/Upset.v
 lattices/FCD.v
 models/IntSpec.v
+examples/CAL.v
