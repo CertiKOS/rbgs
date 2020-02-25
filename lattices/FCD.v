@@ -49,16 +49,33 @@ Module CDL <: LatticeCategory.
 End CDL.
 
 
+(** * Specification *)
+
+Module Type JoinMeetDense (LC : LatticeCompletion CDL).
+
+  Axiom join_meet_dense :
+    forall `{Poset} (x : LC.F C),
+      exists I J (c : forall i:I, J i -> C), x = ⋁ i; ⋀ j; LC.emb (c i j).
+
+  Axiom meet_join_dense :
+    forall `{Poset} (x : LC.F C),
+      exists I J (c : forall i:I, J i -> C), x = ⋀ i; ⋁ j; LC.emb (c i j).
+
+End JoinMeetDense.
+
+Module Type FCDSpec := LatticeCompletion CDL <+ JoinMeetDense.
+
+
 (** * Construction *)
 
-Module FCD : LatticeCompletion CDL.
+Module FCD : FCDSpec.
 
   Definition F C `{Poset C} := upset (downset C).
 
   Section DEF.
     Context `{Cpo : Poset}.
 
-    Instance lattice : CDLattice (F C) := Upset.lattice.
+    Global Instance lattice : CDLattice (F C) := Upset.lattice.
 
     Definition emb (c : C) := up (down c).
 
@@ -103,5 +120,24 @@ Module FCD : LatticeCompletion CDL.
   End DEF.
 
   Include (LatticeCompletionDefs CDL).
+
+  Lemma meet_join_dense `{Poset} (x : F C) :
+    exists I J c, x = ⋀ i : I; ⋁ j : J i; emb (c i j).
+  Proof.
+    exists {S : downset C | up S ⊑ x}.
+    exists (fun i => {c : C | down c ⊑ proj1_sig i}).
+    exists (fun i j => proj1_sig j).
+    apply antisymmetry.
+    - apply inf_glb. intros [S HS].
+  Admitted.
+
+  Lemma join_meet_dense `{Poset} (x : F C) :
+    exists I J c, x = ⋁ i : I; ⋀ j : J i; emb (c i j).
+  Proof.
+    destruct (meet_join_dense x) as (I & J & c & Hx).
+    rewrite inf_sup in Hx.
+    exists (forall i, J i), (fun _ => I), (fun f i => c i (f i)).
+    assumption.
+  Qed.
 
 End FCD.

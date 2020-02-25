@@ -103,6 +103,13 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
     typeclasses eauto.
   Qed.
 
+  Instance emb_mor' `{Poset} :
+    PosetMorphism (CS.emb (C:=C)).
+  Proof.
+    constructor. intros x y Hxy.
+    apply CS.emb_mor. auto.
+  Qed.
+
   Lemma ext_emb {A} `{!Poset A} (x : CS.F A) :
     CS.ext CS.emb x = x.
   Proof.
@@ -114,6 +121,10 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
     forall (x : CS.F A), CS.ext g (CS.ext f x) = CS.ext (fun a => CS.ext g (f a)) x.
   Proof.
   Admitted.
+
+  Global Instance emb_params : Params (@CS.emb) 1.
+  Global Instance ext_params : Params (@CS.ext) 1.
+  Global Instance map_params : Params (@map) 1.
 
 End LatticeCompletionDefs.
 
