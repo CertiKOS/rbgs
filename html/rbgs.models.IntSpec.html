@@ -34,19 +34,34 @@
 <span class="id" title="keyword">Definition</span> <a name="esig"><span class="id" title="definition">esig</span></a> := <span class="id" title="keyword">Type</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Type</span>.<br/>
 
 <br/>
-<span class="id" title="keyword">Instance</span> <a name="functional_extensionality_subrel"><span class="id" title="instance">functional_extensionality_subrel</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span>} :<br/>
-&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.RelationClasses.html#subrelation"><span class="id" title="class">subrelation</span></a> (@<a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#pointwise_relation"><span class="id" title="definition">pointwise_relation</span></a> <a class="idref" href="rbgs.models.IntSpec.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="rbgs.models.IntSpec.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#eq"><span class="id" title="inductive">eq</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#eq"><span class="id" title="inductive">eq</span></a>.<br/>
-<span class="id" title="keyword">Proof</span>.<br/>
-&nbsp;&nbsp;<span class="id" title="tactic">cbv</span>. <span class="id" title="tactic">intros</span>.<br/>
-<span class="id" title="var">Admitted</span>.<br/>
+</div>
+
+<div class="doc">
+<a name="lab25"></a><h1 class="section">Preliminaries</h1>
+
+<div class="paragraph"> </div>
+
+ The following <span class="inlinecode"><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#Proper"><span class="id" title="class">Proper</span></a></span> instance enables rewriting under binders
+  for infinitary operations like <span class="inlinecode"><a class="idref" href="rbgs.structures.Lattice.html#sup"><span class="id" title="projection">sup</span></a></span> and <span class="inlinecode"><a class="idref" href="rbgs.structures.Lattice.html#inf"><span class="id" title="projection">inf</span></a></span>. 
+</div>
+<div class="code">
 
 <br/>
-<span class="id" title="keyword">Instance</span> <a name="functional_extensionality_proper"><span class="id" title="instance">functional_extensionality_proper</span></a> {<span class="id" title="var">I</span> <span class="id" title="var">A</span> <span class="id" title="var">B</span>} (<span class="id" title="var">f</span> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><a class="idref" href="rbgs.models.IntSpec.html#I"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.models.IntSpec.html#A"><span class="id" title="variable">A</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.models.IntSpec.html#B"><span class="id" title="variable">B</span></a>) :<br/>
+<span class="id" title="keyword">Instance</span> <a name="bigop_eq"><span class="id" title="instance">bigop_eq</span></a> {<span class="id" title="var">I</span> <span class="id" title="var">A</span> <span class="id" title="var">B</span>} (<span class="id" title="var">f</span> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><a class="idref" href="rbgs.models.IntSpec.html#I"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.models.IntSpec.html#A"><span class="id" title="variable">A</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.models.IntSpec.html#B"><span class="id" title="variable">B</span></a>) :<br/>
 &nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#Proper"><span class="id" title="class">Proper</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#pointwise_relation"><span class="id" title="definition">pointwise_relation</span></a> <a class="idref" href="rbgs.models.IntSpec.html#I"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#eq"><span class="id" title="inductive">eq</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#8dc5652698a6e16f72dd37bd17d3b973"><span class="id" title="notation">==&gt;</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#eq"><span class="id" title="inductive">eq</span></a>) <a class="idref" href="rbgs.models.IntSpec.html#f"><span class="id" title="variable">f</span></a>.<br/>
 <span class="id" title="keyword">Proof</span>.<br/>
 &nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">x</span> <span class="id" title="var">y</span> <span class="id" title="var">Hxy</span>.<br/>
-&nbsp;&nbsp;<span class="id" title="tactic">f_equal</span>.<br/>
-<span class="id" title="var">Admitted</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.FunctionalExtensionality.html#functional_extensionality"><span class="id" title="lemma">functional_extensionality</span></a> <span class="id" title="tactic">in</span> <span class="id" title="var">Hxy</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">congruence</span>.<br/>
+<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The discrete poset on a set, currently unused. 
+</div>
+<div class="code">
 
 <br/>
 <span class="id" title="keyword">Module</span> <a name="Discrete"><span class="id" title="module">Discrete</span></a>.<br/>
@@ -78,15 +93,6 @@
 
 <br/>
 <span class="id" title="keyword">End</span> <a class="idref" href="rbgs.models.IntSpec.html#Discrete"><span class="id" title="module">Discrete</span></a>.<br/>
-
-<br/>
-</div>
-
-<div class="doc">
-<a name="lab25"></a><h1 class="section">Lattice interpretations of effect signature</h1>
-
-</div>
-<div class="code">
 
 <br/>
 
@@ -163,21 +169,12 @@
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> @<a class="idref" href="rbgs.models.IntSpec.html#ISpec.play_poset"><span class="id" title="definition">play_poset</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
 
 <br/>
-</div>
-
-<div class="doc">
-<a name="lab27"></a><h2 class="section">Free interpretation</h2>
-
-</div>
-<div class="code">
-
-<br/>
 
 <br/>
 </div>
 
 <div class="doc">
-<a name="lab28"></a><h2 class="section">Monad</h2>
+<a name="lab27"></a><h2 class="section">Monad</h2>
 
 </div>
 <div class="code">
@@ -260,7 +257,7 @@
 </div>
 
 <div class="doc">
-<a name="lab29"></a><h2 class="section">Interaction</h2>
+<a name="lab28"></a><h2 class="section">Interaction</h2>
 
 <div class="paragraph"> </div>
 
