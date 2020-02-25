@@ -7,3 +7,4 @@ structures/Monad.v
 lattices/Downset.v
 lattices/Upset.v
 lattices/FCD.v
+models/IntSpec.v
