@@ -1,0 +1,332 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>rbgs.lattices.Downset</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library rbgs.lattices.Downset</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">coqrel.LogicalRelations</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.Classical.html#"><span class="id" title="library">Classical</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.ClassicalChoice.html#"><span class="id" title="library">ClassicalChoice</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.FunctionalExtensionality.html#"><span class="id" title="library">FunctionalExtensionality</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.PropExtensionality.html#"><span class="id" title="library">PropExtensionality</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="rbgs.structures.Lattice.html#"><span class="id" title="library">Lattice</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="rbgs.structures.Completion.html#"><span class="id" title="library">Completion</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab12"></a><h1 class="section">Interface</h1>
+
+<div class="paragraph"> </div>
+
+ The downset lattice over a poset is a free distributive completion
+  with respect to join-distributive morphisms. We use it as an
+  intermediate step in the construction of the free completely
+  distributive lattice (see <span class="inlinecode"><span class="id" title="var">Morris</span>,</span> <span class="inlinecode">2005</span>), and it could be used to
+  construct traditional strategy models defined as prefix-closed sets
+  of plays (which only feature angelic nondeterminism). 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a name="Sup"><span class="id" title="module">Sup</span></a> &lt;: <a class="idref" href="rbgs.structures.Completion.html#LatticeCategory"><span class="id" title="module">LatticeCategory</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Class</span> <a name="Sup.Morphism"><span class="id" title="record">Morphism</span></a> {<span class="id" title="var">L</span> <span class="id" title="var">M</span>} `{<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.lattices.Downset.html#L"><span class="id" title="variable">L</span></a>} `{<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.lattices.Downset.html#M"><span class="id" title="variable">M</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.lattices.Downset.html#L"><span class="id" title="variable">L</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#M"><span class="id" title="variable">M</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="Sup.mor"><span class="id" title="projection">mor</span></a> : <span class="id" title="keyword">∀</span> {<span class="id" title="var">I</span>} (<span class="id" title="var">x</span> : <a class="idref" href="rbgs.lattices.Downset.html#I"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#L"><span class="id" title="variable">L</span></a>), <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="rbgs.structures.Lattice.html#sup"><span class="id" title="method">sup</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">⋁</span></a> <span class="id" title="var">i</span><a class="idref" href="rbgs.structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">;</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="rbgs.lattices.Downset.html#i"><span class="id" title="variable">i</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Sup.mor_join"><span class="id" title="lemma">mor_join</span></a> `{<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Morphism</span></a>} <span class="id" title="var">x</span> <span class="id" title="var">y</span> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="rbgs.structures.Lattice.html#5f6e23418fe57f53494d3fe983edb069"><span class="id" title="notation">⊔</span></a> <a class="idref" href="rbgs.lattices.Downset.html#y"><span class="id" title="variable">y</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="rbgs.structures.Lattice.html#5f6e23418fe57f53494d3fe983edb069"><span class="id" title="notation">⊔</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.lattices.Downset.html#y"><span class="id" title="variable">y</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Local Transparent</span> <a class="idref" href="rbgs.structures.Lattice.html#join"><span class="id" title="definition">join</span></a>. <span class="id" title="tactic">unfold</span> <a class="idref" href="rbgs.structures.Lattice.html#join"><span class="id" title="definition">join</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> (<a class="idref" href="rbgs.lattices.Downset.html#Sup.mor"><span class="id" title="definition">mor</span></a> (<span class="id" title="var">f</span> := <span class="id" title="var">f</span>)). <span class="id" title="tactic">f_equal</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.FunctionalExtensionality.html#functional_extensionality"><span class="id" title="lemma">functional_extensionality</span></a>. <span class="id" title="tactic">intros</span> <span class="id" title="var">b</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">destruct</span> <span class="id" title="var">b</span>; <span class="id" title="tactic">auto</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Sup.mor_ref"><span class="id" title="lemma">mor_ref</span></a> {<span class="id" title="var">L</span> <span class="id" title="var">M</span>} `{!<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.lattices.Downset.html#L"><span class="id" title="variable">L</span></a>} `{!<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.lattices.Downset.html#M"><span class="id" title="variable">M</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.lattices.Downset.html#L"><span class="id" title="variable">L</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#M"><span class="id" title="variable">M</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">Hf</span>. <span class="id" title="tactic">split</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">x</span> <span class="id" title="var">y</span> <span class="id" title="var">Hxy</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.structures.Lattice.html#ref_join"><span class="id" title="lemma">ref_join</span></a> <span class="id" title="tactic">in</span> <span class="id" title="var">Hxy</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> &lt;- <span class="id" title="var">Hxy</span>, <a class="idref" href="rbgs.lattices.Downset.html#Sup.mor_join"><span class="id" title="lemma">mor_join</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.structures.Lattice.html#join_ub_l"><span class="id" title="axiom">join_ub_l</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Sup.id_mor"><span class="id" title="lemma">id_mor</span></a> `{<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">x</span> ⇒ <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">red</span>. <span class="id" title="tactic">auto</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Sup.compose_mor"><span class="id" title="lemma">compose_mor</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span>} `{!<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.lattices.Downset.html#A"><span class="id" title="variable">A</span></a>} `{!<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.lattices.Downset.html#B"><span class="id" title="variable">B</span></a>} `{!<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.lattices.Downset.html#C"><span class="id" title="variable">C</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.lattices.Downset.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#B"><span class="id" title="variable">B</span></a>) `{!<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<span class="id" title="var">g</span> : <a class="idref" href="rbgs.lattices.Downset.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#C"><span class="id" title="variable">C</span></a>) `{!<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="rbgs.lattices.Downset.html#g"><span class="id" title="variable">g</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">a</span> ⇒ <a class="idref" href="rbgs.lattices.Downset.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.lattices.Downset.html#a"><span class="id" title="variable">a</span></a>)).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">f</span> <span class="id" title="var">Hf</span> <span class="id" title="var">g</span> <span class="id" title="var">Hg</span> <span class="id" title="var">I</span> <span class="id" title="var">x</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> (<a class="idref" href="rbgs.lattices.Downset.html#Sup.mor"><span class="id" title="definition">mor</span></a> (<span class="id" title="var">f</span>:=<span class="id" title="var">f</span>)), (<a class="idref" href="rbgs.lattices.Downset.html#Sup.mor"><span class="id" title="definition">mor</span></a> (<span class="id" title="var">f</span>:=<span class="id" title="var">g</span>)).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">reflexivity</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Hint Immediate</span> <span class="id" title="var">mor_ref</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="rbgs.lattices.Downset.html#Sup"><span class="id" title="module">Sup</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab13"></a><h1 class="section">Construction</h1>
+
+<div class="paragraph"> </div>
+
+ Our construction is straightforward. We use predicate
+  extensionality to prove antisymmetry, and the axiom of choice to
+  prove distributivity. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a name="Downset"><span class="id" title="module">Downset</span></a> : <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletion"><span class="id" title="module">LatticeCompletion</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Sup"><span class="id" title="module">Sup</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Record</span> <a name="Downset.downset"><span class="id" title="record">downset</span></a> {<span class="id" title="var">C</span>} `{<span class="id" title="var">Cpo</span> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#C"><span class="id" title="variable">C</span></a>} :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a name="Downset.has"><span class="id" title="projection">has</span></a> : <a class="idref" href="rbgs.lattices.Downset.html#C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Prop</span>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a name="Downset.closed"><span class="id" title="projection">closed</span></a> <span class="id" title="var">x</span> <span class="id" title="var">y</span> : <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.lattices.Downset.html#y"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#has"><span class="id" title="method">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#y"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#has"><span class="id" title="method">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="var">Arguments</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.downset"><span class="id" title="record">downset</span></a> <span class="id" title="var">C</span> {<span class="id" title="var">Cpo</span>}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a name="Downset.F"><span class="id" title="definition">F</span></a> <span class="id" title="var">C</span> `{<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#C"><span class="id" title="variable">C</span></a>} := <a class="idref" href="rbgs.lattices.Downset.html#Downset.downset"><span class="id" title="record">downset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#C"><span class="id" title="variable">C</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Local</span> <span class="id" title="keyword">Obligation</span> <span class="id" title="keyword">Tactic</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">cbn</span>; <span class="id" title="tactic">try</span> <span class="id" title="tactic">solve</span> [<span class="id" title="tactic">firstorder</span>].<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Section</span> <a name="Downset.DOWNSETS"><span class="id" title="section">DOWNSETS</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">C</span>} `{<span class="id" title="var">Cpo</span> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#C"><span class="id" title="variable">C</span></a>}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab14"></a><h2 class="section">Partial order</h2>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Program Instance</span> <a name="Downset.poset"><span class="id" title="instance">poset</span></a> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#Downset.downset"><span class="id" title="record">downset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a>) | 5 :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Poset.html#ref"><span class="id" title="method">ref</span></a> <span class="id" title="var">x</span> <span class="id" title="var">y</span> := <span class="id" title="keyword">∀</span> <span class="id" title="var">c</span>, <a class="idref" href="rbgs.lattices.Downset.html#Downset.has"><span class="id" title="projection">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.has"><span class="id" title="projection">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#y"><span class="id" title="variable">y</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Next</span> <span class="id" title="keyword">Obligation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> [<span class="id" title="var">x</span> <span class="id" title="var">Hx</span>] [<span class="id" title="var">y</span> <span class="id" title="var">Hy</span>]. <span class="id" title="tactic">unfold</span> <a class="idref" href="rbgs.structures.Poset.html#ref"><span class="id" title="method">ref</span></a>. <span class="id" title="var">cbn</span>. <span class="id" title="tactic">intros</span> <span class="id" title="var">Hxy</span> <span class="id" title="var">Hyz</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">assert</span> (<span class="id" title="var">x</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <span class="id" title="var">y</span>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.FunctionalExtensionality.html#functional_extensionality"><span class="id" title="lemma">functional_extensionality</span></a>. <span class="id" title="tactic">intros</span> <span class="id" title="var">c</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.PropExtensionality.html#propositional_extensionality"><span class="id" title="axiom">propositional_extensionality</span></a>. <span class="id" title="tactic">firstorder</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">subst</span>. <span class="id" title="tactic">f_equal</span>. <span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Logic.PropExtensionality.html#proof_irrelevance"><span class="id" title="lemma">proof_irrelevance</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab15"></a><h2 class="section">Distributive lattice</h2>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Program Instance</span> <a name="Downset.lattice"><span class="id" title="instance">lattice</span></a> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#Downset.downset"><span class="id" title="record">downset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Lattice.html#sup"><span class="id" title="method">sup</span></a> <span class="id" title="var">I</span> <span class="id" title="var">x</span> := {| <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">c</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">:=</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">∃</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">i</span></a><a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">,</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">(</span></a><a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">x</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">i</span></a><a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">)</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">c</span></a> |};<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Lattice.html#inf"><span class="id" title="method">inf</span></a> <span class="id" title="var">I</span> <span class="id" title="var">x</span> := {| <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">c</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">:=</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">∀</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">i</span></a><a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">,</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">(</span></a><a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">x</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">i</span></a><a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">)</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">c</span></a> |};<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<span class="inlinecode"><a class="idref" href="rbgs.structures.Lattice.html#sup"><span class="id" title="projection">sup</span></a></span> is downward closed. 
+</div>
+<div class="code">
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Next</span> <span class="id" title="keyword">Obligation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">I</span> <span class="id" title="var">x</span> <span class="id" title="var">c1</span> <span class="id" title="var">c2</span> <span class="id" title="var">Hc</span> [<span class="id" title="var">i</span> <span class="id" title="var">H2</span>].<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">eauto</span> <span class="id" title="keyword">using</span> @<a class="idref" href="rbgs.lattices.Downset.html#Downset.closed"><span class="id" title="projection">closed</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<span class="inlinecode"><a class="idref" href="rbgs.structures.Lattice.html#inf"><span class="id" title="projection">inf</span></a></span> is downward closed. 
+</div>
+<div class="code">
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Next</span> <span class="id" title="keyword">Obligation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">I</span> <span class="id" title="var">x</span> <span class="id" title="var">c1</span> <span class="id" title="var">c2</span> <span class="id" title="var">Hc</span> <span class="id" title="var">H2</span> <span class="id" title="var">i</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">eauto</span> <span class="id" title="keyword">using</span> @<a class="idref" href="rbgs.lattices.Downset.html#Downset.closed"><span class="id" title="projection">closed</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Distributivity. 
+</div>
+<div class="code">
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Next</span> <span class="id" title="keyword">Obligation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.RelationClasses.html#antisymmetry"><span class="id" title="definition">antisymmetry</span></a>; <span class="id" title="var">cbn</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">firstorder</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="var">admit</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab16"></a><h2 class="section">Embedding</h2>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Program Definition</span> <a name="Downset.emb"><span class="id" title="definition">emb</span></a> (<span class="id" title="var">c</span> : <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{|<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">has</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">x</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">:=</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">x</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">⊑</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">c</span></a><a class="idref" href="rbgs.lattices.Downset.html#Downset.Build_downset"><span class="id" title="constructor">;</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Next</span> <span class="id" title="keyword">Obligation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">c</span> <span class="id" title="var">x</span> <span class="id" title="var">y</span> <span class="id" title="var">Hxy</span> <span class="id" title="var">Hyc</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">etransitivity</span>; <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Downset.emb_mor"><span class="id" title="lemma">emb_mor</span></a> <span class="id" title="var">c1</span> <span class="id" title="var">c2</span> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c1"><span class="id" title="variable">c1</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c2"><span class="id" title="variable">c2</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#4bfb4f2d0721ba668e3a802ab1b745a1"><span class="id" title="notation">↔</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c1"><span class="id" title="variable">c1</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c2"><span class="id" title="variable">c2</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">cbn</span>. <span class="id" title="tactic">firstorder</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">etransitivity</span>; <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Downset.emb_join_dense"><span class="id" title="lemma">emb_join_dense</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.structures.Lattice.html#40df84d24c11677e6629bba4bdb2f599"><span class="id" title="notation">⋁{</span></a><span class="id" title="var">c</span> <a class="idref" href="rbgs.structures.Lattice.html#40df84d24c11677e6629bba4bdb2f599"><span class="id" title="notation">:</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a> <a class="idref" href="rbgs.structures.Lattice.html#40df84d24c11677e6629bba4bdb2f599"><span class="id" title="notation">|</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a><a class="idref" href="rbgs.structures.Lattice.html#40df84d24c11677e6629bba4bdb2f599"><span class="id" title="notation">};</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Downset.emb_join_prime"><span class="id" title="lemma">emb_join_prime</span></a> {<span class="id" title="var">I</span>} <span class="id" title="var">c</span> (<span class="id" title="var">x</span> : <a class="idref" href="rbgs.lattices.Downset.html#I"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.downset"><span class="id" title="record">downset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.structures.Lattice.html#sup"><span class="id" title="method">sup</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#4bfb4f2d0721ba668e3a802ab1b745a1"><span class="id" title="notation">↔</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <span class="id" title="var">i</span><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="rbgs.lattices.Downset.html#i"><span class="id" title="variable">i</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab17"></a><h2 class="section">Simulator</h2>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">Lcd</span> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a name="Downset.ext"><span class="id" title="definition">ext</span></a> (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.L"><span class="id" title="variable">L</span></a>) (<span class="id" title="var">x</span> : <a class="idref" href="rbgs.lattices.Downset.html#Downset.downset"><span class="id" title="record">downset</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a>) : <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.L"><span class="id" title="variable">L</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Lattice.html#ba8c23ca74dbd8c64d40a01f95352199"><span class="id" title="notation">⋁{</span></a> <span class="id" title="var">c</span> <a class="idref" href="rbgs.structures.Lattice.html#ba8c23ca74dbd8c64d40a01f95352199"><span class="id" title="notation">|</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="rbgs.structures.Lattice.html#ba8c23ca74dbd8c64d40a01f95352199"><span class="id" title="notation">};</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.lattices.Downset.html#c"><span class="id" title="variable">c</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">f</span> : <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.L"><span class="id" title="variable">L</span></a>} `{<span class="id" title="var">Hf</span> : !<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.lattices.Downset.html#f"><span class="id" title="variable">f</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Instance</span> <a name="Downset.ext_mor"><span class="id" title="instance">ext_mor</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Sup.Morphism</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#Downset.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.f"><span class="id" title="variable">f</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">I</span> <span class="id" title="var">x</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.RelationClasses.html#antisymmetry"><span class="id" title="definition">antisymmetry</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.structures.Lattice.html#sup_lub"><span class="id" title="method">sup_lub</span></a>. <span class="id" title="tactic">intros</span> [<span class="id" title="var">c</span> <span class="id" title="var">Hc</span>].<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">edestruct</span> <span class="id" title="var">Hc</span> <span class="id" title="keyword">as</span> [<span class="id" title="var">i</span> <span class="id" title="var">Hi</span>]; <span class="id" title="var">cbn</span>; <span class="id" title="tactic">try</span> <span class="id" title="tactic">reflexivity</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.emb_join_prime"><span class="id" title="axiom">emb_join_prime</span></a> <span class="id" title="tactic">in</span> <span class="id" title="var">Hc</span> <span class="id" title="keyword">as</span> [<span class="id" title="var">j</span> <span class="id" title="var">Hc</span>].<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> (<a class="idref" href="rbgs.structures.Lattice.html#sup_at"><span class="id" title="lemma">sup_at</span></a> <span class="id" title="var">j</span>). <span class="id" title="tactic">unfold</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.ext"><span class="id" title="definition">ext</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> (<a class="idref" href="rbgs.structures.Lattice.html#psup_at"><span class="id" title="lemma">psup_at</span></a> <span class="id" title="var">c</span>); <span class="id" title="tactic">auto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">reflexivity</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.structures.Lattice.html#sup_lub"><span class="id" title="method">sup_lub</span></a>. <span class="id" title="tactic">intros</span> <span class="id" title="var">i</span>. <span class="id" title="tactic">unfold</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.ext"><span class="id" title="definition">ext</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.structures.Lattice.html#psup_lub"><span class="id" title="lemma">psup_lub</span></a>. <span class="id" title="tactic">intros</span> <span class="id" title="var">c</span> <span class="id" title="var">Hc</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> (<a class="idref" href="rbgs.structures.Lattice.html#psup_ub"><span class="id" title="lemma">psup_ub</span></a> <span class="id" title="var">c</span>). <span class="id" title="tactic">eauto</span> <span class="id" title="keyword">using</span> @<a class="idref" href="rbgs.structures.Lattice.html#sup_at"><span class="id" title="lemma">sup_at</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Downset.ext_ana"><span class="id" title="lemma">ext_ana</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="rbgs.lattices.Downset.html#Downset.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">x</span>. <span class="id" title="tactic">unfold</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.ext"><span class="id" title="definition">ext</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.RelationClasses.html#antisymmetry"><span class="id" title="definition">antisymmetry</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.structures.Lattice.html#sup_lub"><span class="id" title="method">sup_lub</span></a>. <span class="id" title="tactic">intros</span> [<span class="id" title="var">c</span> <span class="id" title="var">Hc</span>].<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">rstep</span>. <span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.emb_mor"><span class="id" title="lemma">emb_mor</span></a>. <span class="id" title="tactic">assumption</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="var">admit</span>. &nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="Downset.ext_unique"><span class="id" title="lemma">ext_unique</span></a> (<span class="id" title="var">g</span> : <a class="idref" href="rbgs.lattices.Downset.html#Downset.F"><span class="id" title="definition">F</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.L"><span class="id" title="variable">L</span></a>) `{<span class="id" title="var">Hg</span> : !<a class="idref" href="rbgs.lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Sup.Morphism</span></a> <a class="idref" href="rbgs.lattices.Downset.html#g"><span class="id" title="variable">g</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="rbgs.lattices.Downset.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="rbgs.lattices.Downset.html#Downset.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="rbgs.lattices.Downset.html#g"><span class="id" title="variable">g</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS.f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.lattices.Downset.html#x"><span class="id" title="variable">x</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">Hgf</span> <span class="id" title="var">x</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> (<a class="idref" href="rbgs.lattices.Downset.html#Downset.emb_join_dense"><span class="id" title="axiom">emb_join_dense</span></a> <span class="id" title="var">x</span>), <a class="idref" href="rbgs.lattices.Downset.html#Sup.mor"><span class="id" title="definition">Sup.mor</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">unfold</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.ext"><span class="id" title="definition">ext</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">End</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset.DOWNSETS"><span class="id" title="section">DOWNSETS</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Include</span> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionDefs"><span class="id" title="module">LatticeCompletionDefs</span></a> <a class="idref" href="rbgs.lattices.Downset.html#Sup"><span class="id" title="module">Sup</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="rbgs.lattices.Downset.html#Downset"><span class="id" title="module">Downset</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a name="downset"><span class="id" title="abbreviation">downset</span></a> := <a class="idref" href="rbgs.lattices.Downset.html#F"><span class="id" title="axiom">Downset.F</span></a>.<br/>
+<span class="id" title="keyword">Notation</span> <a name="down"><span class="id" title="abbreviation">down</span></a> := <a class="idref" href="rbgs.lattices.Downset.html#emb"><span class="id" title="axiom">Downset.emb</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>

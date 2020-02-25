@@ -1,0 +1,206 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>rbgs.structures.Completion</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library rbgs.structures.Completion</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">coqrel.LogicalRelations</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="rbgs.structures.Lattice.html#"><span class="id" title="library">Lattice</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+We construct various kinds of strategy models by defining the
+  plays they use and a corresponding prefix ordering, then choosing
+  a free completion corresponding to the kind of nondeterminism we
+  wish to consider.
+
+<div class="paragraph"> </div>
+
+  In particular, the traditional construction of strategies as
+  prefix-closed sets of plays corresponds to the downset completion,
+  which is initial in the category of distributive lattices and
+  join-distributive morphisms. This introduces angelic nondeterminism,
+  which lets us consider all possible choices of the environment.
+  We go one step further and consider the free completely distributive
+  lattice over plays, which is initial wrt. complete morphisms. This
+  models demonic as well as angelic nondeterminism and allows us to
+  model strategy specifications permitting several possible system
+  behaviors.
+
+<div class="paragraph"> </div>
+
+  This library captures the general pattern poset completions
+  definitions as a module type and proves general properties which
+  hold in all of them. This allows parts of our development to be
+  carried out in a modular way and be instantiated for arbitrary
+  lattice completions. 
+<div class="paragraph"> </div>
+
+<a name="lab11"></a><h1 class="section">Poset completions</h1>
+
+<div class="paragraph"> </div>
+
+ Each of the completions we will consider is a free completion for
+  a specific category of completely distributive lattices. Hence, the
+  first step when constructing a completion procedure is to specify
+  the kind of morphisms used in that category. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a name="LatticeCategory"><span class="id" title="module">LatticeCategory</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a name="LatticeCategory.Morphism"><span class="id" title="axiom">Morphism</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<span class="id" title="var">L</span> <span class="id" title="var">M</span>} `{<span class="id" title="var">Lcd</span> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a>} `{<span class="id" title="var">Mcd</span> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#M"><span class="id" title="variable">M</span></a>}, <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#M"><span class="id" title="variable">M</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Prop</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="LatticeCategory.mor_ref"><span class="id" title="axiom">mor_ref</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<span class="id" title="var">L</span> <span class="id" title="var">M</span>} `{<span class="id" title="var">Lcd</span> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a>} `{<span class="id" title="var">Mcd</span> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#M"><span class="id" title="variable">M</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#M"><span class="id" title="variable">M</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Completion.html#LatticeCategory.Morphism"><span class="id" title="axiom">Morphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="LatticeCategory.id_mor"><span class="id" title="axiom">id_mor</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> `{<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a>}, <a class="idref" href="rbgs.structures.Completion.html#LatticeCategory.Morphism"><span class="id" title="axiom">Morphism</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">l</span> ⇒ <a class="idref" href="rbgs.structures.Completion.html#l"><span class="id" title="variable">l</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="LatticeCategory.compose_mor"><span class="id" title="axiom">compose_mor</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span>} `{!<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a>} `{<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>} `{<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>) `{<a class="idref" href="rbgs.structures.Completion.html#LatticeCategory.Morphism"><span class="id" title="axiom">Morphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<span class="id" title="var">g</span> : <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a>) `{<a class="idref" href="rbgs.structures.Completion.html#LatticeCategory.Morphism"><span class="id" title="axiom">Morphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Completion.html#LatticeCategory.Morphism"><span class="id" title="axiom">Morphism</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">a</span> ⇒ <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.structures.Completion.html#a"><span class="id" title="variable">a</span></a>)).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="var">Existing</span> <span class="id" title="keyword">Class</span> <span class="id" title="var">Morphism</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="var">Existing</span> <span class="id" title="keyword">Instance</span> <span class="id" title="var">mor_ref</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="var">Existing</span> <span class="id" title="keyword">Instance</span> <span class="id" title="var">id_mor</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="var">Existing</span> <span class="id" title="keyword">Instance</span> <span class="id" title="var">compose_mor</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="rbgs.structures.Completion.html#LatticeCategory"><span class="id" title="module">LatticeCategory</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Then a free completion has the following interface. Note that the
+  type of morphism used fully characterizes the completion, so that we
+  can always use an opaque implementation. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a name="LatticeCompletionSpec"><span class="id" title="module">LatticeCompletionSpec</span></a> (<span class="id" title="var">LC</span> : <a class="idref" href="rbgs.structures.Completion.html#LatticeCategory"><span class="id" title="module">LatticeCategory</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a name="LatticeCompletionSpec.F"><span class="id" title="axiom">F</span></a> : <span class="id" title="keyword">∀</span> <span class="id" title="var">C</span> `{<span class="id" title="var">Cpo</span> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a>}, <span class="id" title="keyword">Type</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a name="LatticeCompletionSpec.lattice"><span class="id" title="axiom">lattice</span></a> : <span class="id" title="keyword">∀</span> `{<span class="id" title="var">Cpo</span> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a>}, <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.F"><span class="id" title="axiom">F</span></a> <a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Hint Extern</span> 1 (<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.F"><span class="id" title="axiom">F</span></a> <span class="id" title="var">_</span>)) ⇒<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> @<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.lattice"><span class="id" title="axiom">lattice</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a name="LatticeCompletionSpec.emb"><span class="id" title="axiom">emb</span></a> : <span class="id" title="keyword">∀</span> `{<span class="id" title="var">Cpo</span> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a>}, <a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.F"><span class="id" title="axiom">F</span></a> <a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a name="LatticeCompletionSpec.ext"><span class="id" title="axiom">ext</span></a> : <span class="id" title="keyword">∀</span> `{<span class="id" title="var">Cpo</span> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a>} `{<span class="id" title="var">Lcd</span> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a>}, <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.F"><span class="id" title="axiom">F</span></a> <a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Section</span> <a name="LatticeCompletionSpec.DEFS"><span class="id" title="section">DEFS</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">Cpo</span> : <a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="LatticeCompletionSpec.emb_mor"><span class="id" title="axiom">emb_mor</span></a> : <span class="id" title="keyword">∀</span> <span class="id" title="var">c1</span> <span class="id" title="var">c2</span>, <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.emb"><span class="id" title="axiom">emb</span></a> <a class="idref" href="rbgs.structures.Completion.html#c1"><span class="id" title="variable">c1</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.emb"><span class="id" title="axiom">emb</span></a> <a class="idref" href="rbgs.structures.Completion.html#c2"><span class="id" title="variable">c2</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#4bfb4f2d0721ba668e3a802ab1b745a1"><span class="id" title="notation">↔</span></a> <a class="idref" href="rbgs.structures.Completion.html#c1"><span class="id" title="variable">c1</span></a> <a class="idref" href="rbgs.structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="rbgs.structures.Completion.html#c2"><span class="id" title="variable">c2</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">Lcd</span> : <a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a>} {<span class="id" title="var">f</span> : <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a>}.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="LatticeCompletionSpec.ext_mor"><span class="id" title="axiom">ext_mor</span></a> : <a class="idref" href="rbgs.structures.Completion.html#LC.Morphism"><span class="id" title="class">LC.Morphism</span></a> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.ext"><span class="id" title="axiom">ext</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.f"><span class="id" title="variable">f</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="LatticeCompletionSpec.ext_ana"><span class="id" title="axiom">ext_ana</span></a> : <span class="id" title="keyword">∀</span> `{<span class="id" title="var">Hf</span> : !<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.f"><span class="id" title="variable">f</span></a>} <span class="id" title="var">x</span>, <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.ext"><span class="id" title="axiom">ext</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.emb"><span class="id" title="axiom">emb</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="LatticeCompletionSpec.ext_unique"><span class="id" title="axiom">ext_unique</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> `{<span class="id" title="var">Hf</span> : !<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.f"><span class="id" title="variable">f</span></a>} (<span class="id" title="var">g</span> : <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.F"><span class="id" title="axiom">F</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.L"><span class="id" title="variable">L</span></a>) `{<span class="id" title="var">Hg</span> : !<a class="idref" href="rbgs.structures.Completion.html#LC.Morphism"><span class="id" title="class">LC.Morphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.emb"><span class="id" title="axiom">emb</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.ext"><span class="id" title="axiom">ext</span></a> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS.f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">End</span> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.DEFS"><span class="id" title="section">DEFS</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Hint Extern</span> 1 (<a class="idref" href="rbgs.structures.Completion.html#LC.Morphism"><span class="id" title="class">LC.Morphism</span></a> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.ext"><span class="id" title="axiom">ext</span></a> <span class="id" title="var">_</span>)) ⇒<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> @<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec.ext_mor"><span class="id" title="axiom">ext_mor</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec"><span class="id" title="module">LatticeCompletionSpec</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Module</span> <a name="LatticeCompletionDefs"><span class="id" title="module">LatticeCompletionDefs</span></a> (<span class="id" title="var">LC</span> : <a class="idref" href="rbgs.structures.Completion.html#LatticeCategory"><span class="id" title="module">LatticeCategory</span></a>) (<span class="id" title="var">CS</span> : <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec"><span class="id" title="module">LatticeCompletionSpec</span></a> <a class="idref" href="rbgs.structures.Completion.html#LC"><span class="id" title="module">LC</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a name="LatticeCompletionDefs.map"><span class="id" title="definition">map</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span>} `{!<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a>} `{<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>) : <a class="idref" href="rbgs.structures.Completion.html#CS.F"><span class="id" title="axiom">CS.F</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#CS.F"><span class="id" title="axiom">CS.F</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Completion.html#CS.ext"><span class="id" title="axiom">CS.ext</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">a</span> ⇒ <a class="idref" href="rbgs.structures.Completion.html#CS.emb"><span class="id" title="axiom">CS.emb</span></a> (<a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.structures.Completion.html#a"><span class="id" title="variable">a</span></a>)).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Instance</span> <a name="LatticeCompletionDefs.map_mor"><span class="id" title="instance">map_mor</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span>} `{!<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a>} `{<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Completion.html#LC.Morphism"><span class="id" title="class">LC.Morphism</span></a> (<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionDefs.map"><span class="id" title="definition">map</span></a> <a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">unfold</span> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionDefs.map"><span class="id" title="definition">map</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">typeclasses</span> <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Instance</span> <a name="LatticeCompletionDefs.emb_mor'"><span class="id" title="instance">emb_mor'</span></a> `{<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> (<a class="idref" href="rbgs.structures.Completion.html#CS.emb"><span class="id" title="axiom">CS.emb</span></a> (<span class="id" title="var">C</span>:=<a class="idref" href="rbgs.structures.Completion.html#C"><span class="id" title="variable">C</span></a>)).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">constructor</span>. <span class="id" title="tactic">intros</span> <span class="id" title="var">x</span> <span class="id" title="var">y</span> <span class="id" title="var">Hxy</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="rbgs.structures.Completion.html#CS.emb_mor"><span class="id" title="axiom">CS.emb_mor</span></a>. <span class="id" title="tactic">auto</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="LatticeCompletionDefs.ext_emb"><span class="id" title="lemma">ext_emb</span></a> {<span class="id" title="var">A</span>} `{!<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a>} (<span class="id" title="var">x</span> : <a class="idref" href="rbgs.structures.Completion.html#CS.F"><span class="id" title="axiom">CS.F</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Completion.html#CS.ext"><span class="id" title="axiom">CS.ext</span></a> <a class="idref" href="rbgs.structures.Completion.html#CS.emb"><span class="id" title="axiom">CS.emb</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="LatticeCompletionDefs.ext_ext"><span class="id" title="lemma">ext_ext</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">L</span>} `{!<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a>} `{!<a class="idref" href="rbgs.structures.Poset.html#Poset"><span class="id" title="class">Poset</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>} `{!<a class="idref" href="rbgs.structures.Lattice.html#CDLattice"><span class="id" title="class">CDLattice</span></a> <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<span class="id" title="var">f</span> : <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#CS.F"><span class="id" title="axiom">CS.F</span></a> <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a>} `{!<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<span class="id" title="var">g</span> : <a class="idref" href="rbgs.structures.Completion.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="rbgs.structures.Completion.html#L"><span class="id" title="variable">L</span></a>} `{!<a class="idref" href="rbgs.structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a>},<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<span class="id" title="var">x</span> : <a class="idref" href="rbgs.structures.Completion.html#CS.F"><span class="id" title="axiom">CS.F</span></a> <a class="idref" href="rbgs.structures.Completion.html#A"><span class="id" title="variable">A</span></a>), <a class="idref" href="rbgs.structures.Completion.html#CS.ext"><span class="id" title="axiom">CS.ext</span></a> <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="rbgs.structures.Completion.html#CS.ext"><span class="id" title="axiom">CS.ext</span></a> <a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="rbgs.structures.Completion.html#CS.ext"><span class="id" title="axiom">CS.ext</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">a</span> ⇒ <a class="idref" href="rbgs.structures.Completion.html#CS.ext"><span class="id" title="axiom">CS.ext</span></a> <a class="idref" href="rbgs.structures.Completion.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="rbgs.structures.Completion.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="rbgs.structures.Completion.html#a"><span class="id" title="variable">a</span></a>)) <a class="idref" href="rbgs.structures.Completion.html#x"><span class="id" title="variable">x</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a name="LatticeCompletionDefs.emb_params"><span class="id" title="instance">emb_params</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#Params"><span class="id" title="class">Params</span></a> (@<a class="idref" href="rbgs.structures.Completion.html#CS.emb"><span class="id" title="axiom">CS.emb</span></a>) 1.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a name="LatticeCompletionDefs.ext_params"><span class="id" title="instance">ext_params</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#Params"><span class="id" title="class">Params</span></a> (@<a class="idref" href="rbgs.structures.Completion.html#CS.ext"><span class="id" title="axiom">CS.ext</span></a>) 1.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a name="LatticeCompletionDefs.map_params"><span class="id" title="instance">map_params</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.0/stdlib//Coq.Classes.Morphisms.html#Params"><span class="id" title="class">Params</span></a> (@<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionDefs.map"><span class="id" title="definition">map</span></a>) 1.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionDefs"><span class="id" title="module">LatticeCompletionDefs</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a name="LatticeCompletion"><span class="id" title="module">LatticeCompletion</span></a> (<span class="id" title="var">LC</span> : <a class="idref" href="rbgs.structures.Completion.html#LatticeCategory"><span class="id" title="module">LatticeCategory</span></a>) :=<br/>
+&nbsp;&nbsp;<a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionSpec"><span class="id" title="module">LatticeCompletionSpec</span></a> <a class="idref" href="rbgs.structures.Completion.html#LC"><span class="id" title="module">LC</span></a> &lt;+ <a class="idref" href="rbgs.structures.Completion.html#LatticeCompletionDefs"><span class="id" title="module">LatticeCompletionDefs</span></a> <a class="idref" href="rbgs.structures.Completion.html#LC"><span class="id" title="module">LC</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
