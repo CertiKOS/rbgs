@@ -11,19 +11,20 @@ Require Import Upset.
 
 Definition esig := Type -> Type.
 
-Instance functional_extensionality_subrel {A B} :
-  subrelation (@pointwise_relation A B eq) eq.
-Proof.
-  cbv. intros.
-Admitted.
+(** * Preliminaries *)
 
-Instance functional_extensionality_proper {I A B} (f : (I -> A) -> B) :
+(** The following [Proper] instance enables rewriting under binders
+  for infinitary operations like [sup] and [inf]. *)
+
+Instance bigop_eq {I A B} (f : (I -> A) -> B) :
   Proper (pointwise_relation I eq ==> eq) f.
 Proof.
   intros x y Hxy.
-  f_equal.
-Admitted.
+  apply functional_extensionality in Hxy.
+  congruence.
+Qed.
 
+(** The discrete poset on a set, currently unused. *)
 
 Module Discrete.
 
@@ -51,9 +52,9 @@ Module Discrete.
 End Discrete.
 
 
+(*
 (** * Lattice interpretations of effect signature *)
 
-(*
 Program Instance option_poset A : Poset (option A) :=
   {
     ref := option_le eq;
@@ -142,9 +143,9 @@ Module ISpec.
   Hint Extern 1 (Poset (play _ _)) =>
     apply @play_poset : typeclass_instances.
 
+  (*
   (** ** Free interpretation *)
 
-  (*
   Program Instance ti E V : Interp E (t E V) :=
     {
       eval ar m k :=
