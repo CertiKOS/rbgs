@@ -60,6 +60,14 @@ Module Sup <: LatticeCategory.
 
   Hint Immediate mor_ref : typeclass_instances.
 
+  Lemma mor_bot `{Morphism} :
+    f ⊥ = ⊥.
+  Proof.
+    Local Transparent bot. unfold bot.
+    rewrite (mor (f:=f)).
+    apply antisymmetry; apply sup_lub; intros [ ].
+  Qed.
+
 End Sup.
 
 
