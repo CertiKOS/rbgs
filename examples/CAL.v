@@ -4,6 +4,7 @@ Require Import List.
 Require Import PeanoNat.
 Require Import Lattice.
 Require Import FCD.
+Require Import Effects.
 Require Import IntSpec.
 
 

@@ -1,4 +1,4 @@
-Require Import coqrel.LogicalRelations.
+Require Export coqrel.LogicalRelations.
 
 
 (** * Partially ordered sets *)

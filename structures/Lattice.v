@@ -1,4 +1,3 @@
-Require Import coqrel.LogicalRelations.
 Require Export Poset.
 
 

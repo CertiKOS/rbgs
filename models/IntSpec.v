@@ -8,8 +8,7 @@ Require Import Poset.
 Require Import Lattice.
 Require Import Downset.
 Require Import Upset.
-
-Definition esig := Type -> Type.
+Require Import Effects.
 
 (** * Preliminaries *)
 

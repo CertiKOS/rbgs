@@ -3,7 +3,9 @@
 structures/Poset.v
 structures/Lattice.v
 structures/Completion.v
+structures/Category.v
 structures/Monad.v
+structures/Effects.v
 lattices/Downset.v
 lattices/Upset.v
 lattices/FCD.v
