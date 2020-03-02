@@ -11,7 +11,7 @@ Require Import ClassicalChoice.
 Module Lazy <: LatticeCategory.
 
   Section DEF.
-    Context {L M} `{Lcd : CDLattice L} `{Mcd : CDLattice M} (f : L -> M).
+    Context {L M : cdlattice} (f : L -> M).
 
     Class NSupMorphism :=
       mor_sup : forall {I} (x : I -> L), inhabited I -> f (sup x) = sup (f @ x).
@@ -28,16 +28,16 @@ Module Lazy <: LatticeCategory.
     Qed.
   End DEF.
 
-  Lemma id_mor `{CDLattice} :
-    Morphism (fun x => x).
+  Lemma id_mor (L : cdlattice) :
+    Morphism (fun x:L => x).
   Proof.
     firstorder.
   Qed.
 
-  Lemma compose_mor {A B C} `{!CDLattice A} `{!CDLattice B} `{!CDLattice C} :
-    forall (f : A -> B) `{!Morphism f},
-    forall (g : B -> C) `{!Morphism g},
-      Morphism (fun a => g (f a)).
+  Lemma compose_mor {A B C : cdlattice} (g : B -> C) (f : A -> B) :
+    Morphism f ->
+    Morphism g ->
+    Morphism (fun a => g (f a)).
   Proof.
     split.
     - intros I x Hx. rewrite (mor_sup f), (mor_sup g); auto.
@@ -47,6 +47,9 @@ Module Lazy <: LatticeCategory.
 End Lazy.
 
 Module LBot.
+
+  (** We construct the extended the lattice with a new ⊥ by using sets
+    with at most one element. *)
 
   Inductive opt {A} :=
     mkopt (s : A -> Prop) (Hs : forall a b, s a -> s b -> a = b).
@@ -70,18 +73,16 @@ Module LBot.
       apply propositional_extensionality; auto.
   Qed.
 
-  Definition F L `{CDLattice L} := opt L.
-
   Section DEF.
-    Context {L} `{Lcdl : CDLattice L}.
-    Context {M} `{Mcdl : CDLattice M}.
+    Context {L M : cdlattice}.
 
     (** ** Poset *)
 
-    Program Instance poset : Poset (F L) | 10 :=
-      {
+    Program Definition Fposet : poset :=
+      {|
+        poset_carrier := opt L;
         ref x y := forall l, is x l -> exists m, is y m /\ ref l m;
-      }.
+      |}.
 
     Next Obligation.
       split.
@@ -111,7 +112,7 @@ Module LBot.
 
     (** ** Lattice structure *)
 
-    Definition proj (x : F L) : L :=
+    Definition proj (x : opt L) : L :=
       ⋁ {l | is x l}; l.
 
     Lemma proj_is x l :
@@ -123,23 +124,23 @@ Module LBot.
       - eapply psup_at; eauto. reflexivity.
     Qed.
 
-    Definition sup_of {I} (x : I -> F L) (l : L) :=
+    Definition sup_of {I} (x : I -> opt L) (l : L) :=
       (exists i, exists li, is (x i) li) /\
       ⋁ i; proj (x i) = l.
 
-    Definition inf_of {I} (x : I -> F L) (l : L) :=
+    Definition inf_of {I} (x : I -> opt L) (l : L) :=
       (forall i, exists li, is (x i) li) /\
       ⋀ i; proj (x i) = l.
 
-    Definition sup_inf_of {I J} (x : forall i:I, J i -> F L) (l : L) :=
+    Definition sup_inf_of {I J} (x : forall i:I, J i -> opt L) (l : L) :=
       (exists i, forall j, exists li, is (x i j) li) /\
       ⋁ i; ⋀ j; proj (x i j) = l.
 
-    Definition inf_sup_of {I J} (x : forall i:I, J i -> F L) (l : L) :=
+    Definition inf_sup_of {I J} (x : forall i:I, J i -> opt L) (l : L) :=
       (forall i, exists j, exists li, is (x i j) li) /\
       ⋀ i; ⋁ j; proj (x i j) = l.
 
-    Lemma sup_inf_of_cd {I J} (x : forall i:I, J i -> F L) (l : L) :
+    Lemma sup_inf_of_cd {I J} (x : forall i:I, J i -> opt L) (l : L) :
       sup_inf_of x l <->
       inf_sup_of (fun f i => x i (f i)) l.
     Proof.
@@ -163,11 +164,12 @@ Module LBot.
 
     Hint Unfold sup_of inf_of.
 
-    Global Program Instance lattice : CDLattice (F L) :=
-      {
+    Program Definition F : cdlattice :=
+      {|
+        cdl_poset := Fposet;
         sup I x := mkopt (sup_of x) _;
         inf I x := mkopt (inf_of x) _;
-      }.
+      |}.
 
     (** [sup], [inf] are singletons. *)
 
@@ -268,7 +270,7 @@ Module LBot.
 
     (** ** Adjunction *)
 
-    Program Definition emb (l : L) : F L := mkopt (eq l) _.
+    Program Definition emb (l : L) : F := mkopt (eq l) _.
 
     Global Instance emb_mor :
       Lazy.Morphism emb.
@@ -322,7 +324,7 @@ Module LBot.
         + apply bot_lb.
     Qed.
 
-    Lemma sup_cases {I} (x : I -> F L) :
+    Lemma sup_cases {I} (x : I -> F) :
       (sup x = ⊥ /\ forall i, x i = ⊥) \/
       (sup x = emb (⋁ {l | exists i, is (x i) l}; l) /\ exists i l, is (x i) l).
     Proof.
@@ -341,7 +343,7 @@ Module LBot.
     Admitted.
 
 
-    Definition ext (f : L -> M) (x : F L) : M :=
+    Definition ext (f : L -> M) (x : F) : M :=
       ⋁ {l | is x l}; f l.
 
     Context {f : L -> M} `{Hf : !Lazy.Morphism f}.
@@ -383,7 +385,7 @@ Module LBot.
       - admit.
     Admitted.
 
-    Lemma ext_unique (g : F L -> M) `{Hg : !CDL.Morphism g} :
+    Lemma ext_unique (g : F -> M) `{Hg : !CDL.Morphism g} :
       (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
     Proof.
       intros Hgf l. destruct (cases l) as [? | [y Hy]]; subst.

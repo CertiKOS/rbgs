@@ -23,22 +23,24 @@ Infix "+" := esum : esig_scope.
 
 (** * Interpretations *)
 
-Class LazyMorphism {A B} `{!CDLattice A} `{CDLattice B} (f : A -> B) :=
+Class LazyMorphism {A B : cdlattice} (f : A -> B) :=
   {
     lcdlm_inf :> Inf.Morphism f;
     lcdlm_sup {I} (x : I -> A) :
       inhabited I -> f (sup x) = sup (f @ x);
   }.
 
-Class Interp (E : esig) (A : Type) :=
+Record interp {E : esig} {A : cdlattice} :=
   {
-    int_lat :> CDLattice A;
-    op {ar} (m : E ar) : (ar -> A) -> A;
-    op_lm {ar} (m : E ar) :> LazyMorphism (op m);
+    op {ar} (m : E ar) :> (A ^ ar)%cdlat -> A;
+    op_lm {ar} (m : E ar) : LazyMorphism (op m);
   }.
 
-Class InterpMorphism E {A B} `{!Interp E A} `{!Interp E B} (f : A -> B) :=
+Arguments interp : clear implicits.
+Existing Instance op_lm.
+
+Class InterpMorphism {E A B} (α : interp E A) (β : interp E B) (f : A -> B) :=
   {
-    intm_lmor {ar} (m : E ar) :> CDL.Morphism (op m);
-    op_mor {ar} (m : E ar) (k : ar -> A) : f (op m k) = op m (f @ k);
+    intm_lmor {ar} (m : E ar) :> CDL.Morphism f;
+    op_mor {ar} (m : E ar) (k : ar -> A) : f (op α m k) = op β m (f @ k)%mor;
   }.

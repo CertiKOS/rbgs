@@ -7,6 +7,8 @@ Require Import FCD.
 Require Import Effects.
 Require Import IntSpec.
 
+Import ISpec.
+
 
 (** * Preliminaries *)
 

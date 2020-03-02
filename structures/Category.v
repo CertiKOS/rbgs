@@ -40,10 +40,9 @@ Infix "*" := mtens : mor_scope.
 
 (** * CDLat-enriched categories *)
 
-Class CDCat (V : Type) (E : V -> V -> Type) :=
+Class CDCat (V : Type) (E : V -> V -> cdlattice) :=
   {
     cdcat_cat : Category V E;
-    cdcat_lat : forall A B, CDLattice (E A B);
 
     compose_mor_r {A B C} (f : E B C) :>
       CDL.Morphism (compose (A:=A) f);
