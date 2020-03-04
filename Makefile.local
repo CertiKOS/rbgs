@@ -1,0 +1,5 @@
+pre-all::
+	make -C coqrel
+	make -C compcert driver/Compiler.vo
+
+-include Makefile.user
