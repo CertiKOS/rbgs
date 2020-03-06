@@ -23,10 +23,20 @@ Definition assert {E : esig} (P : Prop) : ispec E unit :=
 
 (** * Effect signatures *)
 
-(** Ring buffer *)
+(** ** Ring buffer *)
 
-Parameter val : Type.  (* type of values *)
-Parameter N : nat.     (* capacity *)
+(** We will use the global parameters [val] for the type of values,
+  and [N] for the capacity of the ring buffer. *)
+
+Parameter val : Type.
+Parameter N : nat.
+
+(** The signature for the ring buffer includes operations [set], [get]
+  to access the element at a given index, and two counters to keep
+  track of the index of the first element ([inc1]) and the index of
+  the first free position in the buffer ([inc2]). The [inc1], [inc2]
+  primitives both increment the corresponding counter and return their
+  previous value. *)
 
 Inductive rb_sig : esig :=
   | set (i : nat) (v : val) : rb_sig unit
@@ -34,20 +44,22 @@ Inductive rb_sig : esig :=
   | inc1 : rb_sig nat
   | inc2 : rb_sig nat.
 
-(** Bounded queue *)
+(** ** Bounded queue *)
+
+(** We will use the ring buffer data structure to implement a bounded
+  queue of size [N]. The corresponding operations are self-explanatory. *)
 
 Inductive bq_sig : esig :=
   | enq (v : val) : bq_sig unit
   | deq : bq_sig val.
 
-(** Empty signature *)
 
-Inductive empty_sig : esig := .
+(** * Layer implementation *)
 
-Notation "1" := empty_sig.
-
-
-(** * Example program (or interpretation thereof) *)
+(** Code implementing an overlay interface with signature [F] on top
+  of an underlay with signature [E] can be represented as a morphism
+  [E ~> F]. The following example implements a bounded queue in terms
+  a ring buffer. *)
 
 Definition M_bq : rb_sig ~> bq_sig :=
   fun _ m =>
@@ -59,11 +71,21 @@ Definition M_bq : rb_sig ~> bq_sig :=
 
 (** * Layer interfaces *)
 
-Definition CALspec E S :=
-  forall ar, E ar -> S -> ispec 1 (ar * S).
+(** A layer interface with a signature [E] and abstract states in [S]
+  gives for each operation in [E] and start state in [S] an
+  interaction-free specification of the possible choices of return
+  value and next state. *)
 
-Definition update (f : nat -> val) (i : nat) (v : val) :=
+Definition CALspec E S :=
+  forall ar, E ar -> S -> ispec 0 (ar * S).
+
+(** To formulate the specifications for the ring buffer layer
+  interface, we will use the following helper function. *)
+
+Definition update (f : nat -> val) (i : nat) (v : val) : nat -> val :=
   fun j => if Nat.eq_dec i j then v else f j.
+
+(** Then our layer interfaces can be defined as follows. *)
 
 Definition L_bq : CALspec bq_sig (list val) :=
   fun ar m vs =>
@@ -80,11 +102,11 @@ Definition L_rb : CALspec rb_sig ((nat -> val) * nat * nat) :=
   fun ar m '(f, c1, c2) =>
     match m with
       | set i v =>
-        _ <- assert (E:=1) (i < N);
+        _ <- assert (E:=0) (i < N);
         ISpec.ret (tt, (update f i v, c1, c2))
 
       | get i =>
-        _ <- assert (E:=1) (i < N);
+        _ <- assert (E:=0) (i < N);
         ISpec.ret (f i, (f, c1, c2))
 
       | inc1 =>
@@ -95,16 +117,31 @@ Definition L_rb : CALspec rb_sig ((nat -> val) * nat * nat) :=
     end.
 
 
-(** * Interpretation of layer interfaces *)
+(** * Layer interfaces and implementations as morphisms *)
+
+(** ** Keeping track of state *)
+
+(** To interpret layer interfaces as morphisms in our category of
+  effect signatures and substitution specifications, we use the
+  following signature which adjoins a state in [S] to the operations
+  and arities of the signature [E]. This is written [E@S] in the paper
+  but since I plan on using [@] for composition I use [E#S] here. *)
 
 Inductive state_sig (E : Type -> Type) (S : Type) : Type -> Type :=
   | st {ar} (m : E ar) (k : S) : state_sig E S (ar * S).
 
 Arguments st {E S ar} m k.
+
 Infix "#" := state_sig (at level 40, left associativity).
 
-Coercion CALspec_mor {E S} (L : CALspec E S) : (1 ~> E # S) :=
+(** A layer interface can then be promoted to a morphism as follows. *)
+
+Coercion CALspec_mor {E S} (L : CALspec E S) : (0 ~> E # S) :=
   fun _ '(st m s) => L _ m s.
+
+(** To connect this with layer implementations, we must lift a
+  state-free morphism [M : E ~> F] to a corresponding stateful
+  morphism [E#S ~> F#S] which passes the state around unchanged. *)
 
 Fixpoint stateful_play {E S A} (k: S) (s: ISpec.play E A): ispec (E#S) (A*S) :=
   match s with
@@ -141,10 +178,13 @@ Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
 Notation "x / f" := (ISpec.apply f x).
 Infix "@" := ISpec.compose (at level 40, left associativity).
 
+(** Then the behavior of [M : E ~> F] running on top of [L : 0 ~> E#S]
+  can be computed as follows. *)
 
-Definition layer {E F S} (M : E ~> F) (L : 1 ~> E#S) : 1 ~> F#S :=
+Definition layer {E F S} (M : E ~> F) (L : 0 ~> E#S) : 0 ~> F#S :=
   ISpec.compose (slift M) L.
 
+(** ** Properties *)
 
 Lemma srun_slift {E F S A} (k : S) (x : ispec F A) (σ : E ~> F) :
   srun k x / slift σ = srun k (x / σ).
@@ -197,6 +237,12 @@ Proof.
   - apply (sup_at H). reflexivity.
 Qed.
 
+(** ** Example *)
+
+(** The following example shows the effect of running the "deq"
+  function as implemented by [M_bq] in terms of the abstract state of
+  the underlay [L_rb]. *)
+
 Goal
   forall f,
     srun (f, 2, 5) (ISpec.int deq) / layer M_bq L_rb =
@@ -218,3 +264,7 @@ Proof.
   rewrite Nat.mod_small by admit.
   reflexivity.
 Admitted.
+
+(** The next step will be to show that [layer M_bq L_rb] implements
+  [L_bq] with a particular simulation relation between the abstract
+  states of the overlay and underlay. Stay tuned... *)

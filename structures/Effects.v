@@ -12,6 +12,8 @@ Definition esig := Type -> Type.
 Delimit Scope esig_scope with esig.
 Bind Scope esig_scope with esig.
 
+(** ** Direct sum *)
+
 Inductive esum {E F : esig} : esig :=
   | einl {X} : E X -> esum X
   | einr {X} : F X -> esum X.
@@ -19,6 +21,12 @@ Inductive esum {E F : esig} : esig :=
 Arguments esum : clear implicits.
 
 Infix "+" := esum : esig_scope.
+
+(** ** Empty signature *)
+
+Inductive empty_sig : esig := .
+
+Notation "0" := empty_sig.
 
 
 (** * Interpretations *)
