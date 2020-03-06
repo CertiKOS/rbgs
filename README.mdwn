@@ -1,0 +1,32 @@
+# Refinement-based game semantics
+
+## Setup
+
+You will need a version of Coq and various other tools supported by
+CompCert v3.6. If you are using `opam` (recommended),
+the following works as of 2020-03-06:
+
+    $ opam init
+    $ opam install coq.8.9.1 menhir.20200211
+
+You can then clone the git repository using the following command:
+
+    $ git clone https://github.com/CertiKOS/rbgs.git
+
+Our `configure` script will take care of retreiving the git submodule
+for Coqrel and CompCertO, and will configure them:
+
+    $ cd rbgs
+    $ ./configure
+
+At this point make sure there were no error messages. In particular
+if your versions of Coq, Menhir, etc. are not suitable to build
+CompCert, this is when things will break.
+
+If the configuration was successful you should be able to build the
+development using `make`. We recommend using the `-jN` option to enable
+parallel jobs as CompCert will take a while to build otherwise.
+For example on my 8-cores machine:
+
+    $ make -j8
+
