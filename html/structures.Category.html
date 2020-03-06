@@ -1,0 +1,134 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>structures.Category</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library structures.Category</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="structures.Lattice.html#"><span class="id" title="library">Lattice</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="lattices.FCD.html#"><span class="id" title="library">FCD</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab12"></a><h1 class="section">Categories</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a name="Category"><span class="id" title="record">Category</span></a> (<span class="id" title="var">V</span> : <span class="id" title="keyword">Type</span>) (<span class="id" title="var">E</span> : <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Type</span>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="id"><span class="id" title="projection">id</span></a> {<span class="id" title="var">A</span>} : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="compose"><span class="id" title="projection">compose</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span>} : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="structures.Category.html#C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="structures.Category.html#C"><span class="id" title="variable">C</span></a>;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="id_compose"><span class="id" title="projection">id_compose</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span>} (<span class="id" title="var">f</span> : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <a class="idref" href="structures.Category.html#id"><span class="id" title="method">id</span></a> <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="compose_id"><span class="id" title="projection">compose_id</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span>} (<span class="id" title="var">f</span> : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.Category.html#id"><span class="id" title="method">id</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="compose_assoc"><span class="id" title="projection">compose_assoc</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span> <span class="id" title="var">D</span>} (<span class="id" title="var">f</span> : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#C"><span class="id" title="variable">C</span></a> <a class="idref" href="structures.Category.html#D"><span class="id" title="variable">D</span></a>) (<span class="id" title="var">g</span> : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="structures.Category.html#C"><span class="id" title="variable">C</span></a>) (<span class="id" title="var">h</span> : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <a class="idref" href="structures.Category.html#g"><span class="id" title="variable">g</span></a> <a class="idref" href="structures.Category.html#h"><span class="id" title="variable">h</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> (<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.Category.html#g"><span class="id" title="variable">g</span></a>) <a class="idref" href="structures.Category.html#h"><span class="id" title="variable">h</span></a>;<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Delimit</span> <span class="id" title="keyword">Scope</span> <span class="id" title="var">obj_scope</span> <span class="id" title="keyword">with</span> <span class="id" title="var">obj</span>.<br/>
+<span class="id" title="keyword">Delimit</span> <span class="id" title="keyword">Scope</span> <span class="id" title="var">mor_scope</span> <span class="id" title="keyword">with</span> <span class="id" title="var">mor</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a name="84af9502e0ca63aafac4e19b8ab24edd"><span class="id" title="notation">&quot;</span></a>(@)" := <a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a>.<br/>
+<span class="id" title="keyword">Notation</span> <a name="d839202bce0364441478bd35f3de355d"><span class="id" title="notation">&quot;</span></a>( f @)" := (<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <span class="id" title="var">f</span>).<br/>
+<span class="id" title="keyword">Notation</span> <a name="9b49a6e617be1663c5cae680e9becbd5"><span class="id" title="notation">&quot;</span></a>(@  g )" := (<span class="id" title="keyword">fun</span> <span class="id" title="var">f</span> ⇒ <a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a> <span class="id" title="var">g</span>).<br/>
+<span class="id" title="keyword">Infix</span> <a name="96217d8083c7399a0f9e56ce79670ab3"><span class="id" title="notation">&quot;</span></a>@" := <a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> (<span class="id" title="tactic">at</span> <span class="id" title="keyword">level</span> 40, <span class="id" title="tactic">left</span> <span class="id" title="keyword">associativity</span>) : <span class="id" title="var">mor_scope</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab13"></a><h1 class="section">Monoidal structure</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a name="SMCat"><span class="id" title="record">SMCat</span></a> (<span class="id" title="var">V</span> : <span class="id" title="keyword">Type</span>) (<span class="id" title="var">E</span> : <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Type</span>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="tens"><span class="id" title="projection">tens</span></a> : <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="mtens"><span class="id" title="projection">mtens</span></a> {<span class="id" title="var">A1</span> <span class="id" title="var">A2</span> <span class="id" title="var">B1</span> <span class="id" title="var">B2</span>} : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A1"><span class="id" title="variable">A1</span></a> <a class="idref" href="structures.Category.html#B1"><span class="id" title="variable">B1</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A2"><span class="id" title="variable">A2</span></a> <a class="idref" href="structures.Category.html#B2"><span class="id" title="variable">B2</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> (<a class="idref" href="structures.Category.html#tens"><span class="id" title="method">tens</span></a> <a class="idref" href="structures.Category.html#A1"><span class="id" title="variable">A1</span></a> <a class="idref" href="structures.Category.html#A2"><span class="id" title="variable">A2</span></a>) (<a class="idref" href="structures.Category.html#tens"><span class="id" title="method">tens</span></a> <a class="idref" href="structures.Category.html#B1"><span class="id" title="variable">B1</span></a> <a class="idref" href="structures.Category.html#B2"><span class="id" title="variable">B2</span></a>);<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Infix</span> <a name="1312e0511799a761854453f242931280"><span class="id" title="notation">&quot;</span></a>×" := <a class="idref" href="structures.Category.html#tens"><span class="id" title="method">tens</span></a> : <span class="id" title="var">obj_scope</span>.<br/>
+<span class="id" title="keyword">Infix</span> <a name="a3a5fe39f444e509590798fa8c733ac4"><span class="id" title="notation">&quot;</span></a>×" := <a class="idref" href="structures.Category.html#mtens"><span class="id" title="method">mtens</span></a> : <span class="id" title="var">mor_scope</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab14"></a><h1 class="section">CDLat-enriched categories</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a name="CDCat"><span class="id" title="record">CDCat</span></a> (<span class="id" title="var">V</span> : <span class="id" title="keyword">Type</span>) (<span class="id" title="var">E</span> : <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Lattice.html#cdlattice"><span class="id" title="record">cdlattice</span></a>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="cdcat_cat"><span class="id" title="projection">cdcat_cat</span></a> : <a class="idref" href="structures.Category.html#Category"><span class="id" title="class">Category</span></a> <a class="idref" href="structures.Category.html#V"><span class="id" title="variable">V</span></a> <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a>;<br/>
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="compose_mor_r"><span class="id" title="projection">compose_mor_r</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span>} (<span class="id" title="var">f</span> : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="structures.Category.html#C"><span class="id" title="variable">C</span></a>) :&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">CDL.Morphism</span></a> (<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> (<span class="id" title="var">A</span>:=<a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a>) <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a>);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="compose_mor_l"><span class="id" title="projection">compose_mor_l</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span>} (<span class="id" title="var">g</span> : <a class="idref" href="structures.Category.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a>) :&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">CDL.Morphism</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">f</span> ⇒ <a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> (<span class="id" title="var">C</span>:=<a class="idref" href="structures.Category.html#C"><span class="id" title="variable">C</span></a>) <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.Category.html#g"><span class="id" title="variable">g</span></a>);<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab15"></a><h1 class="section">Sets and functions</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Program Instance</span> <a name="SET"><span class="id" title="instance">SET</span></a> : <a class="idref" href="structures.Category.html#Category"><span class="id" title="class">Category</span></a> <span class="id" title="keyword">Type</span> (<span class="id" title="keyword">fun</span> <span class="id" title="var">A</span> <span class="id" title="var">B</span> ⇒ <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Category.html#id"><span class="id" title="method">id</span></a> <span class="id" title="var">A</span> := <span class="id" title="keyword">fun</span> <span class="id" title="var">a</span> ⇒ <a class="idref" href="structures.Category.html#a"><span class="id" title="variable">a</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Category.html#compose"><span class="id" title="method">compose</span></a> <span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span> <span class="id" title="var">f</span> <span class="id" title="var">g</span> := <span class="id" title="keyword">fun</span> <span class="id" title="var">a</span> ⇒ <a class="idref" href="structures.Category.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.Category.html#g"><span class="id" title="variable">g</span></a> <a class="idref" href="structures.Category.html#a"><span class="id" title="variable">a</span></a>);<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Instance</span> <a name="SET_prod"><span class="id" title="instance">SET_prod</span></a> : <a class="idref" href="structures.Category.html#SMCat"><span class="id" title="class">SMCat</span></a> <span class="id" title="keyword">Type</span> (<span class="id" title="keyword">fun</span> <span class="id" title="var">A</span> <span class="id" title="var">B</span> ⇒ <a class="idref" href="structures.Category.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Category.html#B"><span class="id" title="variable">B</span></a>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Category.html#tens"><span class="id" title="method">tens</span></a> := <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#prod"><span class="id" title="inductive">prod</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Category.html#mtens"><span class="id" title="method">mtens</span></a> <span class="id" title="var">A1</span> <span class="id" title="var">A2</span> <span class="id" title="var">B1</span> <span class="id" title="var">B2</span> <span class="id" title="var">f1</span> <span class="id" title="var">f2</span> <span class="id" title="var">x</span> := <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">(</span></a><a class="idref" href="structures.Category.html#f1"><span class="id" title="variable">f1</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#fst"><span class="id" title="definition">fst</span></a> <a class="idref" href="structures.Category.html#x"><span class="id" title="variable">x</span></a>)<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">,</span></a> <a class="idref" href="structures.Category.html#f2"><span class="id" title="variable">f2</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#snd"><span class="id" title="definition">snd</span></a> <a class="idref" href="structures.Category.html#x"><span class="id" title="variable">x</span></a>)<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">)</span></a>;<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Bind</span> <span class="id" title="keyword">Scope</span> <span class="id" title="var">obj_scope</span> <span class="id" title="keyword">with</span> <span class="id" title="var">Sortclass</span>.<br/>
+<span class="id" title="keyword">Bind</span> <span class="id" title="keyword">Scope</span> <span class="id" title="var">mor_scope</span> <span class="id" title="keyword">with</span> <span class="id" title="var">Funclass</span>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>

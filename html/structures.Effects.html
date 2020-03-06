@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>structures.Effects</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library structures.Effects</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="structures.Category.html#"><span class="id" title="library">Category</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="structures.Lattice.html#"><span class="id" title="library">Lattice</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="lattices.Upset.html#"><span class="id" title="library">Upset</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="lattices.LatticeProduct.html#"><span class="id" title="library">LatticeProduct</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="lattices.FCD.html#"><span class="id" title="library">FCD</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab16"></a><h1 class="section">Effect signatures</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a name="esig"><span class="id" title="definition">esig</span></a> := <span class="id" title="keyword">Type</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Type</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Delimit</span> <span class="id" title="keyword">Scope</span> <span class="id" title="var">esig_scope</span> <span class="id" title="keyword">with</span> <span class="id" title="var">esig</span>.<br/>
+<span class="id" title="keyword">Bind</span> <span class="id" title="keyword">Scope</span> <span class="id" title="var">esig_scope</span> <span class="id" title="keyword">with</span> <span class="id" title="var">esig</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab17"></a><h2 class="section">Direct sum</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Inductive</span> <a name="esum"><span class="id" title="inductive">esum</span></a> {<span class="id" title="var">E</span> <span class="id" title="var">F</span> : <a class="idref" href="structures.Effects.html#esig"><span class="id" title="definition">esig</span></a>} : <a class="idref" href="structures.Effects.html#esig"><span class="id" title="definition">esig</span></a> :=<br/>
+&nbsp;&nbsp;| <a name="einl"><span class="id" title="constructor">einl</span></a> {<span class="id" title="var">X</span>} : <a class="idref" href="structures.Effects.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Effects.html#X"><span class="id" title="variable">X</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#esum"><span class="id" title="inductive">esum</span></a> <a class="idref" href="structures.Effects.html#X"><span class="id" title="variable">X</span></a><br/>
+&nbsp;&nbsp;| <a name="einr"><span class="id" title="constructor">einr</span></a> {<span class="id" title="var">X</span>} : <a class="idref" href="structures.Effects.html#F"><span class="id" title="variable">F</span></a> <a class="idref" href="structures.Effects.html#X"><span class="id" title="variable">X</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#esum"><span class="id" title="inductive">esum</span></a> <a class="idref" href="structures.Effects.html#X"><span class="id" title="variable">X</span></a>.<br/>
+
+<br/>
+<span class="id" title="var">Arguments</span> <a class="idref" href="structures.Effects.html#esum"><span class="id" title="inductive">esum</span></a> : <span class="id" title="tactic">clear</span> <span class="id" title="var">implicits</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Infix</span> <a name="b1a37170b55658821c73ffa64ca82475"><span class="id" title="notation">&quot;</span></a>+" := <a class="idref" href="structures.Effects.html#esum"><span class="id" title="inductive">esum</span></a> : <span class="id" title="var">esig_scope</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab18"></a><h2 class="section">Empty signature</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Inductive</span> <a name="empty_sig"><span class="id" title="inductive">empty_sig</span></a> : <a class="idref" href="structures.Effects.html#esig"><span class="id" title="definition">esig</span></a> := .<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a name="672b3182ee6aa583109a8f43339df641"><span class="id" title="notation">&quot;</span></a>0" := <a class="idref" href="structures.Effects.html#empty_sig"><span class="id" title="inductive">empty_sig</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab19"></a><h1 class="section">Interpretations</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a name="LazyMorphism"><span class="id" title="record">LazyMorphism</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> : <a class="idref" href="structures.Lattice.html#cdlattice"><span class="id" title="record">cdlattice</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="structures.Effects.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#B"><span class="id" title="variable">B</span></a>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="lcdlm_inf"><span class="id" title="projection">lcdlm_inf</span></a> :&gt; <a class="idref" href="lattices.Upset.html#Inf.Morphism"><span class="id" title="class">Inf.Morphism</span></a> <a class="idref" href="structures.Effects.html#f"><span class="id" title="variable">f</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="lcdlm_sup"><span class="id" title="projection">lcdlm_sup</span></a> {<span class="id" title="var">I</span>} (<span class="id" title="var">x</span> : <a class="idref" href="structures.Effects.html#I"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#A"><span class="id" title="variable">A</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#inhabited"><span class="id" title="inductive">inhabited</span></a> <a class="idref" href="structures.Effects.html#I"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.Lattice.html#sup"><span class="id" title="projection">sup</span></a> <a class="idref" href="structures.Effects.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Lattice.html#sup"><span class="id" title="projection">sup</span></a> (<a class="idref" href="structures.Effects.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.Category.html#96217d8083c7399a0f9e56ce79670ab3"><span class="id" title="notation">@</span></a> <a class="idref" href="structures.Effects.html#x"><span class="id" title="variable">x</span></a>);<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Record</span> <a name="interp"><span class="id" title="record">interp</span></a> {<span class="id" title="var">E</span> : <a class="idref" href="structures.Effects.html#esig"><span class="id" title="definition">esig</span></a>} {<span class="id" title="var">A</span> : <a class="idref" href="structures.Lattice.html#cdlattice"><span class="id" title="record">cdlattice</span></a>} :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="op"><span class="id" title="projection">op</span></a> {<span class="id" title="var">ar</span>} (<span class="id" title="var">m</span> : <a class="idref" href="structures.Effects.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Effects.html#ar"><span class="id" title="variable">ar</span></a>) :&gt; (<a class="idref" href="structures.Effects.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="lattices.LatticeProduct.html#0528c52525722420ea2d5bed65445699"><span class="id" title="notation">^</span></a> <a class="idref" href="structures.Effects.html#ar"><span class="id" title="variable">ar</span></a>)%<span class="id" title="var">cdlat</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#A"><span class="id" title="variable">A</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="op_lm"><span class="id" title="projection">op_lm</span></a> {<span class="id" title="var">ar</span>} (<span class="id" title="var">m</span> : <a class="idref" href="structures.Effects.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Effects.html#ar"><span class="id" title="variable">ar</span></a>) : <a class="idref" href="structures.Effects.html#LazyMorphism"><span class="id" title="class">LazyMorphism</span></a> (<a class="idref" href="structures.Effects.html#op"><span class="id" title="method">op</span></a> <a class="idref" href="structures.Effects.html#m"><span class="id" title="variable">m</span></a>);<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="var">Arguments</span> <a class="idref" href="structures.Effects.html#interp"><span class="id" title="record">interp</span></a> : <span class="id" title="tactic">clear</span> <span class="id" title="var">implicits</span>.<br/>
+<span class="id" title="var">Existing</span> <span class="id" title="keyword">Instance</span> <span class="id" title="var">op_lm</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Class</span> <a name="InterpMorphism"><span class="id" title="record">InterpMorphism</span></a> {<span class="id" title="var">E</span> <span class="id" title="var">A</span> <span class="id" title="var">B</span>} (<span class="id" title="var">α</span> : <a class="idref" href="structures.Effects.html#interp"><span class="id" title="record">interp</span></a> <a class="idref" href="structures.Effects.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Effects.html#A"><span class="id" title="variable">A</span></a>) (<span class="id" title="var">β</span> : <a class="idref" href="structures.Effects.html#interp"><span class="id" title="record">interp</span></a> <a class="idref" href="structures.Effects.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Effects.html#B"><span class="id" title="variable">B</span></a>) (<span class="id" title="var">f</span> : <a class="idref" href="structures.Effects.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#B"><span class="id" title="variable">B</span></a>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="intm_lmor"><span class="id" title="projection">intm_lmor</span></a> {<span class="id" title="var">ar</span>} (<span class="id" title="var">m</span> : <a class="idref" href="structures.Effects.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Effects.html#ar"><span class="id" title="variable">ar</span></a>) :&gt; <a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">CDL.Morphism</span></a> <a class="idref" href="structures.Effects.html#f"><span class="id" title="variable">f</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="op_mor"><span class="id" title="projection">op_mor</span></a> {<span class="id" title="var">ar</span>} (<span class="id" title="var">m</span> : <a class="idref" href="structures.Effects.html#E"><span class="id" title="variable">E</span></a> <a class="idref" href="structures.Effects.html#ar"><span class="id" title="variable">ar</span></a>) (<span class="id" title="var">k</span> : <a class="idref" href="structures.Effects.html#ar"><span class="id" title="variable">ar</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Effects.html#A"><span class="id" title="variable">A</span></a>) : <a class="idref" href="structures.Effects.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.Effects.html#op"><span class="id" title="projection">op</span></a> <a class="idref" href="structures.Effects.html#ab410a966ac148e9b78c65c6cdf301fd"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.Effects.html#m"><span class="id" title="variable">m</span></a> <a class="idref" href="structures.Effects.html#k"><span class="id" title="variable">k</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Effects.html#op"><span class="id" title="projection">op</span></a> <a class="idref" href="structures.Effects.html#dc5233cb1d950ecad15b1e9b2514f665"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.Effects.html#m"><span class="id" title="variable">m</span></a> (<a class="idref" href="structures.Effects.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.Category.html#96217d8083c7399a0f9e56ce79670ab3"><span class="id" title="notation">@</span></a> <a class="idref" href="structures.Effects.html#k"><span class="id" title="variable">k</span></a>)%<span class="id" title="var">mor</span>;<br/>
+&nbsp;&nbsp;}.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>

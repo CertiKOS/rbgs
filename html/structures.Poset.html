@@ -1,0 +1,67 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>structures.Poset</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library structures.Poset</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <span class="id" title="library">coqrel.LogicalRelations</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab1"></a><h1 class="section">Partially ordered sets</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Record</span> <a name="poset"><span class="id" title="record">poset</span></a> :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="poset_carrier"><span class="id" title="projection">poset_carrier</span></a> :&gt; <span class="id" title="keyword">Type</span>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="ref"><span class="id" title="projection">ref</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Relations.Relation_Definitions.html#relation"><span class="id" title="definition">relation</span></a> <a class="idref" href="structures.Poset.html#poset_carrier"><span class="id" title="method">poset_carrier</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="ref_preo"><span class="id" title="projection">ref_preo</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Classes.RelationClasses.html#PreOrder"><span class="id" title="class">PreOrder</span></a> <a class="idref" href="structures.Poset.html#ref"><span class="id" title="method">ref</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="ref_po"><span class="id" title="projection">ref_po</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Classes.RelationClasses.html#Antisymmetric"><span class="id" title="class">Antisymmetric</span></a> <a class="idref" href="structures.Poset.html#poset_carrier"><span class="id" title="method">poset_carrier</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#eq"><span class="id" title="inductive">eq</span></a> <a class="idref" href="structures.Poset.html#ref"><span class="id" title="method">ref</span></a>;<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="var">Arguments</span> <a class="idref" href="structures.Poset.html#ref"><span class="id" title="projection">ref</span></a> {<span class="id" title="var">_</span>}.<br/>
+<span class="id" title="var">Existing</span> <span class="id" title="keyword">Instance</span> <span class="id" title="var">ref_preo</span>.<br/>
+<span class="id" title="var">Existing</span> <span class="id" title="keyword">Instance</span> <span class="id" title="var">ref_po</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Class</span> <a name="PosetMorphism"><span class="id" title="record">PosetMorphism</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> : <a class="idref" href="structures.Poset.html#poset"><span class="id" title="record">poset</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="structures.Poset.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Poset.html#B"><span class="id" title="variable">B</span></a>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a name="mor_monotonic"><span class="id" title="projection">mor_monotonic</span></a> :&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="abbreviation">Monotonic</span> <a class="idref" href="structures.Poset.html#f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.Poset.html#ref"><span class="id" title="projection">ref</span></a> <span class="id" title="notation">++&gt;</span> <a class="idref" href="structures.Poset.html#ref"><span class="id" title="projection">ref</span></a>);<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a name="9e291de952f8df010fe7cf45c3a7df27"><span class="id" title="notation">&quot;</span></a>(⊑)" := <a class="idref" href="structures.Poset.html#ref"><span class="id" title="projection">ref</span></a>.<br/>
+<span class="id" title="keyword">Infix</span> <a name="807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">&quot;</span></a>⊑" := <a class="idref" href="structures.Poset.html#ref"><span class="id" title="projection">ref</span></a> (<span class="id" title="tactic">at</span> <span class="id" title="keyword">level</span> 70).<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>lattices.FCD</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library lattices.FCD</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">coqrel.LogicalRelations</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="structures.Lattice.html#"><span class="id" title="library">Lattice</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="structures.Completion.html#"><span class="id" title="library">Completion</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="lattices.Downset.html#"><span class="id" title="library">Downset</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="lattices.Upset.html#"><span class="id" title="library">Upset</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab30"></a><h1 class="section">Interface</h1>
+
+<div class="paragraph"> </div>
+
+ The free completely distributive lattice over a poset is the
+  completion with respect to complete morphisms. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a name="CDL"><span class="id" title="module">CDL</span></a> &lt;: <a class="idref" href="structures.Completion.html#LatticeCategory"><span class="id" title="module">LatticeCategory</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Section</span> <a name="CDL.DEF"><span class="id" title="section">DEF</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">L</span> <span class="id" title="var">M</span> : <a class="idref" href="structures.Lattice.html#cdlattice"><span class="id" title="record">cdlattice</span></a>} (<span class="id" title="var">f</span> : <a class="idref" href="lattices.FCD.html#L"><span class="id" title="variable">L</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#M"><span class="id" title="variable">M</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Class</span> <a name="CDL.Morphism"><span class="id" title="record">Morphism</span></a> := <a name="CDL.mor"><span class="id" title="projection">mor</span></a> : <a class="idref" href="lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Sup.Morphism</span></a> <a class="idref" href="lattices.FCD.html#CDL.DEF.f"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#ba2b0e492d2b4675a0acf3ea92aabadd"><span class="id" title="notation">∧</span></a> <a class="idref" href="lattices.Upset.html#Inf.Morphism"><span class="id" title="class">Inf.Morphism</span></a> <a class="idref" href="lattices.FCD.html#CDL.DEF.f"><span class="id" title="variable">f</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a name="CDL.cmor_sup"><span class="id" title="instance">cmor_sup</span></a> : <a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.Downset.html#Sup.Morphism"><span class="id" title="class">Sup.Morphism</span></a> <a class="idref" href="lattices.FCD.html#CDL.DEF.f"><span class="id" title="variable">f</span></a> := @<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#proj1"><span class="id" title="lemma">proj1</span></a> <span class="id" title="var">_</span> <span class="id" title="var">_</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a name="CDL.cmor_inf"><span class="id" title="instance">cmor_inf</span></a> : <a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.Upset.html#Inf.Morphism"><span class="id" title="class">Inf.Morphism</span></a> <a class="idref" href="lattices.FCD.html#CDL.DEF.f"><span class="id" title="variable">f</span></a> := @<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#proj2"><span class="id" title="lemma">proj2</span></a> <span class="id" title="var">_</span> <span class="id" title="var">_</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Instance</span> <a name="CDL.mor_ref"><span class="id" title="instance">mor_ref</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="lattices.FCD.html#CDL.DEF.f"><span class="id" title="variable">f</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> [<span class="id" title="var">H</span> <span class="id" title="var">_</span>].<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="lattices.Downset.html#Sup.mor_ref"><span class="id" title="lemma">Sup.mor_ref</span></a>; <span class="id" title="tactic">auto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">End</span> <a class="idref" href="lattices.FCD.html#CDL.DEF"><span class="id" title="section">DEF</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="CDL.id_mor"><span class="id" title="lemma">id_mor</span></a> (<span class="id" title="var">L</span> : <a class="idref" href="structures.Lattice.html#cdlattice"><span class="id" title="record">cdlattice</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">x</span>:<a class="idref" href="lattices.FCD.html#L"><span class="id" title="variable">L</span></a> ⇒ <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">split</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="lattices.Downset.html#Sup.id_mor"><span class="id" title="lemma">Sup.id_mor</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="lattices.Upset.html#Inf.id_mor"><span class="id" title="lemma">Inf.id_mor</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="CDL.compose_mor"><span class="id" title="lemma">compose_mor</span></a> {<span class="id" title="var">A</span> <span class="id" title="var">B</span> <span class="id" title="var">C</span> : <a class="idref" href="structures.Lattice.html#cdlattice"><span class="id" title="record">cdlattice</span></a>} (<span class="id" title="var">g</span> : <a class="idref" href="lattices.FCD.html#B"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a>) (<span class="id" title="var">f</span> : <a class="idref" href="lattices.FCD.html#A"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#B"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="lattices.FCD.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="lattices.FCD.html#g"><span class="id" title="variable">g</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <span class="id" title="var">a</span> ⇒ <a class="idref" href="lattices.FCD.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="lattices.FCD.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="lattices.FCD.html#a"><span class="id" title="variable">a</span></a>)).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">split</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="lattices.Downset.html#Sup.compose_mor"><span class="id" title="lemma">Sup.compose_mor</span></a>; <span class="id" title="var">typeclasses</span> <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="lattices.Upset.html#Inf.compose_mor"><span class="id" title="lemma">Inf.compose_mor</span></a>; <span class="id" title="var">typeclasses</span> <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="var">Existing</span> <span class="id" title="keyword">Instance</span> <span class="id" title="var">mor_ref</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="lattices.FCD.html#CDL"><span class="id" title="module">CDL</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab31"></a><h1 class="section">Specification</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a name="JoinMeetDense"><span class="id" title="module">JoinMeetDense</span></a> (<span class="id" title="var">LC</span> : <a class="idref" href="structures.Completion.html#LatticeCompletion"><span class="id" title="module">LatticeCompletion</span></a> <a class="idref" href="lattices.FCD.html#CDL"><span class="id" title="module">CDL</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="JoinMeetDense.join_meet_dense"><span class="id" title="axiom">join_meet_dense</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<span class="id" title="var">C</span> : <a class="idref" href="structures.Poset.html#poset"><span class="id" title="record">poset</span></a>} (<span class="id" title="var">x</span> : <a class="idref" href="lattices.FCD.html#LC.F"><span class="id" title="axiom">LC.F</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <span class="id" title="var">I</span> <span class="id" title="var">J</span> (<span class="id" title="var">c</span> : <span class="id" title="keyword">∀</span> <span class="id" title="var">i</span>:<a class="idref" href="lattices.FCD.html#I"><span class="id" title="variable">I</span></a>, <a class="idref" href="lattices.FCD.html#J"><span class="id" title="variable">J</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">),</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">⋁</span></a> <span class="id" title="var">i</span><a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">;</span></a> <a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">⋀</span></a> <span class="id" title="var">j</span><a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">;</span></a> <a class="idref" href="lattices.FCD.html#LC.emb"><span class="id" title="axiom">LC.emb</span></a> (<a class="idref" href="lattices.FCD.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a> <a class="idref" href="lattices.FCD.html#j"><span class="id" title="variable">j</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a name="JoinMeetDense.meet_join_dense"><span class="id" title="axiom">meet_join_dense</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<span class="id" title="var">C</span> : <a class="idref" href="structures.Poset.html#poset"><span class="id" title="record">poset</span></a>} (<span class="id" title="var">x</span> : <a class="idref" href="lattices.FCD.html#LC.F"><span class="id" title="axiom">LC.F</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <span class="id" title="var">I</span> <span class="id" title="var">J</span> (<span class="id" title="var">c</span> : <span class="id" title="keyword">∀</span> <span class="id" title="var">i</span>:<a class="idref" href="lattices.FCD.html#I"><span class="id" title="variable">I</span></a>, <a class="idref" href="lattices.FCD.html#J"><span class="id" title="variable">J</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">),</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">⋀</span></a> <span class="id" title="var">i</span><a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">;</span></a> <a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">⋁</span></a> <span class="id" title="var">j</span><a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">;</span></a> <a class="idref" href="lattices.FCD.html#LC.emb"><span class="id" title="axiom">LC.emb</span></a> (<a class="idref" href="lattices.FCD.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a> <a class="idref" href="lattices.FCD.html#j"><span class="id" title="variable">j</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="lattices.FCD.html#JoinMeetDense"><span class="id" title="module">JoinMeetDense</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a name="FCDSpec"><span class="id" title="module">FCDSpec</span></a> := <a class="idref" href="structures.Completion.html#LatticeCompletion"><span class="id" title="module">LatticeCompletion</span></a> <a class="idref" href="lattices.FCD.html#CDL"><span class="id" title="module">CDL</span></a> &lt;+ <a class="idref" href="lattices.FCD.html#JoinMeetDense"><span class="id" title="module">JoinMeetDense</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab32"></a><h1 class="section">Construction</h1>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a name="FCD"><span class="id" title="module">FCD</span></a> : <a class="idref" href="lattices.FCD.html#FCDSpec"><span class="id" title="module">FCDSpec</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a name="FCD.F"><span class="id" title="definition">F</span></a> (<span class="id" title="var">C</span> : <a class="idref" href="structures.Poset.html#poset"><span class="id" title="record">poset</span></a>) := <a class="idref" href="lattices.Upset.html#upset"><span class="id" title="abbreviation">upset</span></a> (<a class="idref" href="lattices.Downset.html#downset"><span class="id" title="abbreviation">downset</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Section</span> <a name="FCD.DEF"><span class="id" title="section">DEF</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">C</span> : <a class="idref" href="structures.Poset.html#poset"><span class="id" title="record">poset</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a name="FCD.emb"><span class="id" title="definition">emb</span></a> (<span class="id" title="var">c</span> : <a class="idref" href="lattices.FCD.html#FCD.DEF.C"><span class="id" title="variable">C</span></a>) := <a class="idref" href="lattices.Upset.html#up"><span class="id" title="abbreviation">up</span></a> (<a class="idref" href="lattices.Downset.html#down"><span class="id" title="abbreviation">down</span></a> <a class="idref" href="lattices.FCD.html#c"><span class="id" title="variable">c</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="FCD.emb_mor"><span class="id" title="lemma">emb_mor</span></a> <span class="id" title="var">c1</span> <span class="id" title="var">c2</span> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="lattices.FCD.html#c1"><span class="id" title="variable">c1</span></a> <a class="idref" href="structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="lattices.FCD.html#c2"><span class="id" title="variable">c2</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#4bfb4f2d0721ba668e3a802ab1b745a1"><span class="id" title="notation">↔</span></a> <a class="idref" href="lattices.FCD.html#c1"><span class="id" title="variable">c1</span></a> <a class="idref" href="structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="lattices.FCD.html#c2"><span class="id" title="variable">c2</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">unfold</span> <a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> <a class="idref" href="lattices.Upset.html#Upset.emb_mor"><span class="id" title="axiom">Upset.emb_mor</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> <a class="idref" href="lattices.Downset.html#Downset.emb_mor"><span class="id" title="axiom">Downset.emb_mor</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">reflexivity</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">L</span> : <a class="idref" href="structures.Lattice.html#cdlattice"><span class="id" title="record">cdlattice</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a name="FCD.ext"><span class="id" title="definition">ext</span></a> (<span class="id" title="var">f</span> : <a class="idref" href="lattices.FCD.html#FCD.DEF.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.L"><span class="id" title="variable">L</span></a>) (<span class="id" title="var">x</span> : <a class="idref" href="lattices.FCD.html#FCD.F"><span class="id" title="definition">F</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.C"><span class="id" title="variable">C</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.Upset.html#Upset.ext"><span class="id" title="axiom">Upset.ext</span></a> (<a class="idref" href="lattices.Downset.html#Downset.ext"><span class="id" title="axiom">Downset.ext</span></a> <a class="idref" href="lattices.FCD.html#f"><span class="id" title="variable">f</span></a>) <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">f</span> : <a class="idref" href="lattices.FCD.html#FCD.DEF.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.L"><span class="id" title="variable">L</span></a>} `{<span class="id" title="var">Hf</span> : !<a class="idref" href="structures.Poset.html#PosetMorphism"><span class="id" title="class">PosetMorphism</span></a> <a class="idref" href="lattices.FCD.html#f"><span class="id" title="variable">f</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Instance</span> <a name="FCD.ext_mor"><span class="id" title="instance">ext_mor</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">CDL.Morphism</span></a> (<a class="idref" href="lattices.FCD.html#FCD.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.f"><span class="id" title="variable">f</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">clear</span> <span class="id" title="var">Hf</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="FCD.ext_ana"><span class="id" title="lemma">ext_ana</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="lattices.FCD.html#FCD.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.f"><span class="id" title="variable">f</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">x</span>. <span class="id" title="tactic">unfold</span> <a class="idref" href="lattices.FCD.html#FCD.ext"><span class="id" title="definition">ext</span></a>, <a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> @<a class="idref" href="lattices.Upset.html#Upset.ext_ana"><span class="id" title="axiom">Upset.ext_ana</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="lattices.Downset.html#Downset.ext_ana"><span class="id" title="axiom">Downset.ext_ana</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="FCD.ext_unique"><span class="id" title="lemma">ext_unique</span></a> (<span class="id" title="var">g</span> : <a class="idref" href="lattices.FCD.html#FCD.F"><span class="id" title="definition">F</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.C"><span class="id" title="variable">C</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.L"><span class="id" title="variable">L</span></a>) `{!<a class="idref" href="lattices.FCD.html#CDL.Morphism"><span class="id" title="class">CDL.Morphism</span></a> <a class="idref" href="lattices.FCD.html#g"><span class="id" title="variable">g</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="lattices.FCD.html#g"><span class="id" title="variable">g</span></a> (<a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.f"><span class="id" title="variable">f</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">∀</span> <span class="id" title="var">x</span>, <a class="idref" href="lattices.FCD.html#g"><span class="id" title="variable">g</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="lattices.FCD.html#FCD.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="lattices.FCD.html#FCD.DEF.f"><span class="id" title="variable">f</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">unfold</span> <a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a>, <a class="idref" href="lattices.FCD.html#FCD.ext"><span class="id" title="definition">ext</span></a>. <span class="id" title="tactic">intros</span> <span class="id" title="var">Hg</span> <span class="id" title="var">x</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> @<a class="idref" href="lattices.Upset.html#Upset.ext_unique"><span class="id" title="axiom">Upset.ext_unique</span></a>. <span class="id" title="var">admit</span>. <span class="id" title="var">typeclasses</span> <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="lattices.Downset.html#Downset.ext_unique"><span class="id" title="axiom">Downset.ext_unique</span></a>. <span class="id" title="var">admit</span>. <span class="id" title="tactic">auto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">End</span> <a class="idref" href="lattices.FCD.html#FCD.DEF"><span class="id" title="section">DEF</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Include</span> (<a class="idref" href="structures.Completion.html#LatticeCompletionDefs"><span class="id" title="module">LatticeCompletionDefs</span></a> <a class="idref" href="lattices.FCD.html#CDL"><span class="id" title="module">CDL</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="FCD.meet_join_dense"><span class="id" title="lemma">meet_join_dense</span></a> {<span class="id" title="var">C</span> : <a class="idref" href="structures.Poset.html#poset"><span class="id" title="record">poset</span></a>} (<span class="id" title="var">x</span> : <a class="idref" href="lattices.FCD.html#FCD.F"><span class="id" title="definition">F</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <span class="id" title="var">I</span> <span class="id" title="var">J</span> <span class="id" title="var">c</span><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">⋀</span></a> <span class="id" title="var">i</span> : <a class="idref" href="lattices.FCD.html#I"><span class="id" title="variable">I</span></a><a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">;</span></a> <a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">⋁</span></a> <span class="id" title="var">j</span> : <a class="idref" href="lattices.FCD.html#J"><span class="id" title="variable">J</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a><a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">;</span></a> <a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a> (<a class="idref" href="lattices.FCD.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a> <a class="idref" href="lattices.FCD.html#j"><span class="id" title="variable">j</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">∃</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">{</span></a><span class="id" title="var">S</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">:</span></a> <a class="idref" href="lattices.Downset.html#downset"><span class="id" title="abbreviation">downset</span></a> <span class="id" title="var">C</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">|</span></a> <a class="idref" href="lattices.Upset.html#up"><span class="id" title="abbreviation">up</span></a> <a class="idref" href="lattices.FCD.html#S"><span class="id" title="variable">S</span></a> <a class="idref" href="structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <span class="id" title="var">x</span><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">}</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">∃</span> (<span class="id" title="keyword">fun</span> <span class="id" title="var">i</span> ⇒ <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">{</span></a><span class="id" title="var">c</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">:</span></a> <span class="id" title="var">C</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">|</span></a> <a class="idref" href="lattices.Downset.html#down"><span class="id" title="abbreviation">down</span></a> <a class="idref" href="lattices.FCD.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="structures.Poset.html#807cf07fc9b6e174a5f6d1ef141e1432"><span class="id" title="notation">⊑</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#proj1_sig"><span class="id" title="definition">proj1_sig</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#6556914db359db999889decec6a4a562"><span class="id" title="notation">}</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">∃</span> (<span class="id" title="keyword">fun</span> <span class="id" title="var">i</span> <span class="id" title="var">j</span> ⇒ <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Specif.html#proj1_sig"><span class="id" title="definition">proj1_sig</span></a> <a class="idref" href="lattices.FCD.html#j"><span class="id" title="variable">j</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">apply</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Classes.RelationClasses.html#antisymmetry"><span class="id" title="definition">antisymmetry</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">apply</span> <a class="idref" href="structures.Lattice.html#inf_glb"><span class="id" title="projection">inf_glb</span></a>. <span class="id" title="tactic">intros</span> [<span class="id" title="var">S</span> <span class="id" title="var">HS</span>].<br/>
+&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="FCD.join_meet_dense"><span class="id" title="lemma">join_meet_dense</span></a> {<span class="id" title="var">C</span> : <a class="idref" href="structures.Poset.html#poset"><span class="id" title="record">poset</span></a>} (<span class="id" title="var">x</span> : <a class="idref" href="lattices.FCD.html#FCD.F"><span class="id" title="definition">F</span></a> <a class="idref" href="lattices.FCD.html#C"><span class="id" title="variable">C</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <span class="id" title="var">I</span> <span class="id" title="var">J</span> <span class="id" title="var">c</span><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="lattices.FCD.html#x"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">⋁</span></a> <span class="id" title="var">i</span> : <a class="idref" href="lattices.FCD.html#I"><span class="id" title="variable">I</span></a><a class="idref" href="structures.Lattice.html#5f78a2f4a078b41340329448425fd5af"><span class="id" title="notation">;</span></a> <a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">⋀</span></a> <span class="id" title="var">j</span> : <a class="idref" href="lattices.FCD.html#J"><span class="id" title="variable">J</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a><a class="idref" href="structures.Lattice.html#4c37fe60023622edd74820e98d904ea4"><span class="id" title="notation">;</span></a> <a class="idref" href="lattices.FCD.html#FCD.emb"><span class="id" title="definition">emb</span></a> (<a class="idref" href="lattices.FCD.html#c"><span class="id" title="variable">c</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a> <a class="idref" href="lattices.FCD.html#j"><span class="id" title="variable">j</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">destruct</span> (<a class="idref" href="lattices.FCD.html#FCD.meet_join_dense"><span class="id" title="axiom">meet_join_dense</span></a> <span class="id" title="var">x</span>) <span class="id" title="keyword">as</span> (<span class="id" title="var">I</span> &amp; <span class="id" title="var">J</span> &amp; <span class="id" title="var">c</span> &amp; <span class="id" title="var">Hx</span>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">rewrite</span> <a class="idref" href="structures.Lattice.html#inf_sup"><span class="id" title="axiom">inf_sup</span></a> <span class="id" title="tactic">in</span> <span class="id" title="var">Hx</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">∃</span> (<span class="id" title="keyword">∀</span> <span class="id" title="var">i</span>, <span class="id" title="var">J</span> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a>), (<span class="id" title="keyword">fun</span> <span class="id" title="var">_</span> ⇒ <span class="id" title="var">I</span>), (<span class="id" title="keyword">fun</span> <span class="id" title="var">f</span> <span class="id" title="var">i</span> ⇒ <span class="id" title="var">c</span> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a> (<a class="idref" href="lattices.FCD.html#f"><span class="id" title="variable">f</span></a> <a class="idref" href="lattices.FCD.html#i"><span class="id" title="variable">i</span></a>)).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">assumption</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="lattices.FCD.html#FCD"><span class="id" title="module">FCD</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
