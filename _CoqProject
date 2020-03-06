@@ -1,11 +1,20 @@
--R . rbgs
+-R coqrel coqrel
+-R compcert compcert
+-R structures structures
+-R lattices lattices
+-R models models
+-R examples examples
 
 structures/Poset.v
 structures/Lattice.v
 structures/Completion.v
+structures/Category.v
 structures/Monad.v
+structures/Effects.v
 lattices/Downset.v
 lattices/Upset.v
 lattices/FCD.v
+lattices/LatticeProduct.v
+lattices/AdjoinBot.v
 models/IntSpec.v
 examples/CAL.v

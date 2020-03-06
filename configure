@@ -1,2 +1,22 @@
 #!/bin/sh
+
+set -e
+
+if ! [ -e coqrel/configure ] || ! [ -e compcert/configure ]; then
+    if [ -e .git ]; then
+        git submodule init
+        git submodule update
+    else
+        echo >&2 "Coqrel and CompCert not found"
+    fi
+fi
+
+echo >&2 "-- Configuring Coqrel"
+(cd coqrel; ./configure)
+
+echo >&2 "-- Configuring CompCert"
+(cd compcert; ./configure -coqrel ../coqrel x86_64-linux)
+
+echo >&2 "-- Creating Makefile"
 coq_makefile -f _CoqProject -o Makefile
+

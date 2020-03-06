@@ -8,8 +8,7 @@ Require Import Poset.
 Require Import Lattice.
 Require Import Downset.
 Require Import Upset.
-
-Definition esig := Type -> Type.
+Require Import Effects.
 
 (** * Preliminaries *)
 
@@ -24,6 +23,7 @@ Proof.
   congruence.
 Qed.
 
+(*
 (** The discrete poset on a set, currently unused. *)
 
 Module Discrete.
@@ -50,6 +50,7 @@ Module Discrete.
   Qed.
 
 End Discrete.
+*)
 
 
 (*
@@ -135,13 +136,10 @@ Module ISpec.
     - apply IHHp12 in H0. congruence.
   Qed.
 
-  Definition play_poset E V : Poset (play E V) :=
+  Canonical Structure play_poset E V : poset :=
     {|
-      ref := pref;
+      ref := @pref E V;
     |}.
-
-  Hint Extern 1 (Poset (play _ _)) =>
-    apply @play_poset : typeclass_instances.
 
   (*
   (** ** Free interpretation *)
@@ -170,10 +168,7 @@ Module ISpec.
   (** ** Monad *)
 
   Definition t E V :=
-    FCD.F (play E V).
-
-  Hint Extern 1 (CDLattice (t _ _)) =>
-    apply @FCD.lattice : typeclass_instances.
+    FCD.F (play_poset E V).
 
   Definition ret {E A} (a : A) : t E A :=
     FCD.emb (pret a).

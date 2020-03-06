@@ -19,7 +19,7 @@ Require Import Completion.
 
 Module Sup <: LatticeCategory.
 
-  Class Morphism {L M} `{CDLattice L} `{CDLattice M} (f : L -> M) :=
+  Class Morphism {L M : cdlattice} (f : L -> M) :=
     mor : forall {I} (x : I -> L), f (sup x) = ⋁ i; f (x i).
 
   Lemma mor_join `{Morphism} x y :
@@ -31,7 +31,7 @@ Module Sup <: LatticeCategory.
     destruct b; auto.
   Qed.
 
-  Lemma mor_ref {L M} `{!CDLattice L} `{!CDLattice M} (f : L -> M) :
+  Lemma mor_ref {L M : cdlattice} (f : L -> M) :
     Morphism f ->
     PosetMorphism f.
   Proof.
@@ -42,23 +42,31 @@ Module Sup <: LatticeCategory.
     apply join_ub_l.
   Qed.
 
-  Lemma id_mor `{CDLattice} :
-    Morphism (fun x => x).
+  Lemma id_mor (L : cdlattice) :
+    Morphism (fun x:L => x).
   Proof.
     red. auto.
   Qed.
 
-  Lemma compose_mor {A B C} `{!CDLattice A} `{!CDLattice B} `{!CDLattice C} :
-    forall (f : A -> B) `{!Morphism f},
-    forall (g : B -> C) `{!Morphism g},
-      Morphism (fun a => g (f a)).
+  Lemma compose_mor {A B C : cdlattice} (g : B -> C) (f : A -> B) :
+    Morphism f ->
+    Morphism g ->
+    Morphism (fun a => g (f a)).
   Proof.
-    intros f Hf g Hg I x.
+    intros Hf Hg I x.
     rewrite (mor (f:=f)), (mor (f:=g)).
     reflexivity.
   Qed.
 
   Hint Immediate mor_ref : typeclass_instances.
+
+  Lemma mor_bot `{Morphism} :
+    f ⊥ = ⊥.
+  Proof.
+    Local Transparent bot. unfold bot.
+    rewrite (mor (f:=f)).
+    apply antisymmetry; apply sup_lub; intros [ ].
+  Qed.
 
 End Sup.
 
@@ -71,27 +79,30 @@ End Sup.
 
 Module Downset : LatticeCompletion Sup.
 
-  Record downset {C} `{Cpo : Poset C} :=
+  Record downset {C : poset} :=
     {
       has : C -> Prop;
       closed x y : x ⊑ y -> has y -> has x;
     }.
 
-  Arguments downset C {Cpo}.
-  Definition F C `{Poset C} := downset C.
+  Arguments downset : clear implicits.
+  (*
+  Definition F := downset.
+   *)
 
   Local Obligation Tactic :=
     cbn; try solve [firstorder].
 
   Section DOWNSETS.
-    Context {C} `{Cpo : Poset C}.
+    Context {C : poset}.
 
     (** ** Partial order *)
 
-    Program Instance poset : Poset (downset C) | 5 :=
-      {
+    Program Definition Fpos : poset :=
+      {|
+        poset_carrier := downset C;
         ref x y := forall c, has x c -> has y c;
-      }.
+      |}.
 
     Next Obligation.
       intros [x Hx] [y Hy]. unfold ref. cbn. intros Hxy Hyz.
@@ -105,11 +116,12 @@ Module Downset : LatticeCompletion Sup.
 
     (** ** Distributive lattice *)
 
-    Program Instance lattice : CDLattice (downset C) :=
-      {
+    Program Definition F : cdlattice :=
+      {|
+        cdl_poset := Fpos;
         sup I x := {| has c := exists i, has (x i) c |};
         inf I x := {| has c := forall i, has (x i) c |};
-      }.
+      |}.
 
     (** [sup] is downward closed. *)
     Next Obligation.
@@ -126,14 +138,14 @@ Module Downset : LatticeCompletion Sup.
     (** Distributivity. *)
     Next Obligation.
       intros.
-      apply antisymmetry; cbn.
+      apply (antisymmetry (A := Fpos)); cbn.
       - firstorder.
       - admit.
     Admitted.
 
     (** ** Embedding *)
 
-    Program Definition emb (c : C) :=
+    Program Definition emb (c : C) : F :=
       {|
         has x := x ⊑ c;
       |}.
@@ -142,7 +154,7 @@ Module Downset : LatticeCompletion Sup.
       etransitivity; eauto.
     Qed.
 
-    Lemma emb_mor c1 c2 :
+    Lemma emb_mor (c1 c2 : C) :
       emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
     Proof.
       cbn. firstorder.
@@ -153,15 +165,15 @@ Module Downset : LatticeCompletion Sup.
       forall x, x = ⋁{c : C | emb c ⊑ x}; emb c.
     Admitted.
 
-    Lemma emb_join_prime {I} c (x : I -> downset C) :
+    Lemma emb_join_prime {I} c (x : I -> F) :
       emb c ⊑ sup x <-> exists i, emb c ⊑ x i.
     Admitted.
 
     (** ** Simulator *)
 
-    Context `{Lcd : CDLattice}.
+    Context {L: cdlattice}.
 
-    Definition ext (f : C -> L) (x : downset C) : L :=
+    Definition ext (f : C -> L) (x : F) : L :=
       ⋁{ c | emb c ⊑ x }; f c.
 
     Context {f : C -> L} `{Hf : !PosetMorphism f}.
@@ -192,7 +204,7 @@ Module Downset : LatticeCompletion Sup.
       - admit. (* version of sup_ub with predicate *)
     Admitted.
 
-    Lemma ext_unique (g : F C -> L) `{Hg : !Sup.Morphism g} :
+    Lemma ext_unique (g : F -> L) `{Hg : !Sup.Morphism g} :
       (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
     Proof.
       intros Hgf x.

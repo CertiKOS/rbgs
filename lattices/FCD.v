@@ -12,7 +12,7 @@ Require Import Upset.
 
 Module CDL <: LatticeCategory.
   Section DEF.
-    Context {L M} `{Lcd : CDLattice L} `{Mcd : CDLattice M} (f : L -> M).
+    Context {L M : cdlattice} (f : L -> M).
 
     Class Morphism := mor : Sup.Morphism f /\ Inf.Morphism f.
     Global Instance cmor_sup : Morphism -> Sup.Morphism f := @proj1 _ _.
@@ -26,18 +26,18 @@ Module CDL <: LatticeCategory.
     Qed.
   End DEF.
 
-  Lemma id_mor `{CDLattice} :
-    Morphism (fun x => x).
+  Lemma id_mor (L : cdlattice) :
+    Morphism (fun x:L => x).
   Proof.
     split.
     - apply Sup.id_mor.
     - apply Inf.id_mor.
   Qed.
 
-  Lemma compose_mor {A B C} `{!CDLattice A} `{!CDLattice B} `{!CDLattice C} :
-    forall (f : A -> B) `{!Morphism f},
-    forall (g : B -> C) `{!Morphism g},
-      Morphism (fun a => g (f a)).
+  Lemma compose_mor {A B C : cdlattice} (g : B -> C) (f : A -> B) :
+    Morphism f ->
+    Morphism g ->
+    Morphism (fun a => g (f a)).
   Proof.
     split.
     - apply Sup.compose_mor; typeclasses eauto.
@@ -54,11 +54,11 @@ End CDL.
 Module Type JoinMeetDense (LC : LatticeCompletion CDL).
 
   Axiom join_meet_dense :
-    forall `{Poset} (x : LC.F C),
+    forall {C : poset} (x : LC.F C),
       exists I J (c : forall i:I, J i -> C), x = ⋁ i; ⋀ j; LC.emb (c i j).
 
   Axiom meet_join_dense :
-    forall `{Poset} (x : LC.F C),
+    forall {C : poset} (x : LC.F C),
       exists I J (c : forall i:I, J i -> C), x = ⋀ i; ⋁ j; LC.emb (c i j).
 
 End JoinMeetDense.
@@ -70,12 +70,10 @@ Module Type FCDSpec := LatticeCompletion CDL <+ JoinMeetDense.
 
 Module FCD : FCDSpec.
 
-  Definition F C `{Poset C} := upset (downset C).
+  Definition F (C : poset) := upset (downset C).
 
   Section DEF.
-    Context `{Cpo : Poset}.
-
-    Global Instance lattice : CDLattice (F C) := Upset.lattice.
+    Context {C : poset}.
 
     Definition emb (c : C) := up (down c).
 
@@ -88,7 +86,7 @@ Module FCD : FCDSpec.
       reflexivity.
     Qed.
 
-    Context `{Lcd : CDLattice}.
+    Context {L : cdlattice}.
 
     Definition ext (f : C -> L) (x : F C) :=
       Upset.ext (Downset.ext f) x.
@@ -121,7 +119,7 @@ Module FCD : FCDSpec.
 
   Include (LatticeCompletionDefs CDL).
 
-  Lemma meet_join_dense `{Poset} (x : F C) :
+  Lemma meet_join_dense {C : poset} (x : F C) :
     exists I J c, x = ⋀ i : I; ⋁ j : J i; emb (c i j).
   Proof.
     exists {S : downset C | up S ⊑ x}.
@@ -131,7 +129,7 @@ Module FCD : FCDSpec.
     - apply inf_glb. intros [S HS].
   Admitted.
 
-  Lemma join_meet_dense `{Poset} (x : F C) :
+  Lemma join_meet_dense {C : poset} (x : F C) :
     exists I J c, x = ⋁ i : I; ⋀ j : J i; emb (c i j).
   Proof.
     destruct (meet_join_dense x) as (I & J & c & Hx).

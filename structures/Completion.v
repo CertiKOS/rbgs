@@ -34,21 +34,17 @@ Require Import Lattice.
 Module Type LatticeCategory.
 
   Parameter Morphism :
-    forall {L M} `{Lcd : CDLattice L} `{Mcd : CDLattice M}, (L -> M) -> Prop.
+    forall {L M : cdlattice}, (L -> M) -> Prop.
 
   Axiom mor_ref :
-    forall {L M} `{Lcd : CDLattice L} `{Mcd : CDLattice M} (f : L -> M),
-      Morphism f ->
-      PosetMorphism f.
+    forall {L M : cdlattice} (f : L -> M), Morphism f -> PosetMorphism f.
 
   Axiom id_mor :
-    forall `{CDLattice}, Morphism (fun l => l).
+    forall {L : cdlattice}, @Morphism L L (fun l => l).
 
   Axiom compose_mor :
-    forall {A B C} `{!CDLattice A} `{CDLattice B} `{CDLattice C},
-    forall (f : A -> B) `{Morphism f},
-    forall (g : B -> C) `{Morphism g},
-      Morphism (fun a => g (f a)).
+    forall {A B C : cdlattice} (g : B -> C) (f : A -> B),
+      Morphism f -> Morphism g -> Morphism (fun a => g (f a)).
 
   Existing Class Morphism.
   Existing Instance mor_ref.
@@ -63,20 +59,14 @@ End LatticeCategory.
 
 Module Type LatticeCompletionSpec (LC : LatticeCategory).
 
-  Parameter F : forall C `{Cpo : Poset C}, Type.
-  Parameter lattice : forall `{Cpo : Poset}, CDLattice (F C).
-
-  Hint Extern 1 (CDLattice (F _)) =>
-    apply @lattice : typeclass_instances.
-
-  Parameter emb : forall `{Cpo : Poset}, C -> F C.
-  Parameter ext : forall `{Cpo : Poset} `{Lcd : CDLattice}, (C -> L) -> F C -> L.
+  Parameter F : poset -> cdlattice.
+  Parameter emb : forall {C : poset}, C -> F C.
+  Parameter ext : forall {C : poset} {L : cdlattice}, (C -> L) -> F C -> L.
 
   Section DEFS.
-    Context `{Cpo : Poset}.
-    Axiom emb_mor : forall c1 c2, emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
+    Context {C : poset} {L : cdlattice} {f : C -> L}.
 
-    Context `{Lcd : CDLattice} {f : C -> L}.
+    Axiom emb_mor : forall c1 c2 : C, emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
     Axiom ext_mor : LC.Morphism (ext f).
     Axiom ext_ana : forall `{Hf : !PosetMorphism f} x, ext f (emb x) = f x.
     Axiom ext_unique :
@@ -92,10 +82,10 @@ End LatticeCompletionSpec.
 
 Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec LC).
 
-  Definition map {A B} `{!Poset A} `{Poset B} (f : A -> B) : CS.F A -> CS.F B :=
+  Definition map {A B : poset} (f : A -> B) : CS.F A -> CS.F B :=
     CS.ext (fun a => CS.emb (f a)).
 
-  Instance map_mor {A B} `{!Poset A} `{Poset B} (f : A -> B) :
+  Instance map_mor {A B : poset} (f : A -> B) :
     PosetMorphism f ->
     LC.Morphism (map f).
   Proof.
@@ -103,19 +93,19 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
     typeclasses eauto.
   Qed.
 
-  Instance emb_mor' `{Poset} :
+  Instance emb_mor' {C : poset} :
     PosetMorphism (CS.emb (C:=C)).
   Proof.
     constructor. intros x y Hxy.
     apply CS.emb_mor. auto.
   Qed.
 
-  Lemma ext_emb {A} `{!Poset A} (x : CS.F A) :
+  Lemma ext_emb {A : poset} (x : CS.F A) :
     CS.ext CS.emb x = x.
   Proof.
   Admitted.
 
-  Lemma ext_ext {A B L} `{!Poset A} `{!Poset B} `{!CDLattice L} :
+  Lemma ext_ext {A B : poset} {L : cdlattice} :
     forall {f : A -> CS.F B} `{!PosetMorphism f},
     forall {g : B -> L} `{!PosetMorphism g},
     forall (x : CS.F A), CS.ext g (CS.ext f x) = CS.ext (fun a => CS.ext g (f a)) x.

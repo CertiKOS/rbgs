@@ -1,4 +1,3 @@
-Require Import coqrel.LogicalRelations.
 Require Export Poset.
 
 
@@ -6,23 +5,39 @@ Require Export Poset.
 
 (** ** Definition *)
 
-Class CDLattice (L : Type) :=
+Record cdlattice :=
   {
-    cdl_poset :> Poset L;
+    cdl_poset :> poset;
 
-    sup : forall {I}, (I -> L) -> L;
-    inf : forall {I}, (I -> L) -> L;
+    sup : forall {I}, (I -> cdl_poset) -> cdl_poset;
+    inf : forall {I}, (I -> cdl_poset) -> cdl_poset;
 
-    sup_ub {I} (i : I) (x : I -> L) : ref (x i) (sup x);
-    sup_lub {I} (x : I -> L) (y : L) : (forall i, ref (x i) y) -> ref (sup x) y;
+    sup_ub {I} (i : I) (x : I -> cdl_poset) :
+      ref (x i) (sup x);
+    sup_lub {I} (x : I -> cdl_poset) (y : cdl_poset) :
+      (forall i, ref (x i) y) ->
+      ref (sup x) y;
 
-    inf_lb {I} (i : I) (x : I -> L) : ref (inf x) (x i);
-    inf_glb {I} (x : L) (y : I -> L) : (forall i, ref x (y i)) -> ref x (inf y);
+    inf_lb {I} (i : I) (x : I -> cdl_poset) :
+      ref (inf x) (x i);
+    inf_glb {I} (x : cdl_poset) (y : I -> cdl_poset) :
+      (forall i, ref x (y i)) ->
+      ref x (inf y);
 
-    sup_inf {I J} (x : forall i:I, J i -> L) :
+    sup_inf {I J} (x : forall i:I, J i -> cdl_poset) :
       sup (fun i => inf (fun j => x i j)) =
       inf (fun f : (forall i, J i) => sup (fun i => x i (f i)));
   }.
+
+Arguments sup {_ _}.
+Arguments inf {_ _}.
+Arguments sup_ub {_ _}.
+Arguments sup_lub {_ _}.
+Arguments inf_lb {_ _}.
+Arguments inf_glb {_ _}.
+
+Delimit Scope cdlat_scope with cdlat.
+Bind Scope cdlat_scope with cdlattice.
 
 (** The notations below work well in the context of completely
   distributive monads. *)
@@ -35,7 +50,7 @@ Notation "⋀ i .. j ; M" := (inf (fun i => .. (inf (fun j => M)) .. ))
 (** ** Properties of [sup] and [inf] *)
 
 Section PROPERTIES.
-  Context `{Lcd : CDLattice}.
+  Context {L : cdlattice}.
 
   Lemma sup_at {I} (i : I) (x : L) (y : I -> L) :
     x ⊑ y i -> x ⊑ ⋁ i; y i.
@@ -76,7 +91,7 @@ Notation "⋀ { x : A | P } ; M" :=
   (at level 65, x ident, right associativity).
 
 Section PREDICATES.
-  Context `{Lcd : CDLattice}.
+  Context {L : cdlattice}.
 
   Lemma psup_ub {I} (i : I) (P : I -> Prop) (x : I -> L) :
     P i -> x i ⊑ ⋁{ i | P i }; x i.
@@ -123,11 +138,11 @@ End PREDICATES.
 (** * Derived operations *)
 
 Section OPS.
-  Context `{Acdl : CDLattice}.
+  Context {L : cdlattice}.
 
   (** Least element *)
 
-  Definition bot :=
+  Definition bot : L :=
     ⋁ i : Empty_set; match i with end.
 
   Lemma bot_lb x :
@@ -180,7 +195,7 @@ Section OPS.
 
   (** ** Greatest element *)  
 
-  Definition top :=
+  Definition top : L :=
     ⋀ i : Empty_set; match i with end.
 
   Lemma top_ub x :

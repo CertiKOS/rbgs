@@ -1,16 +1,21 @@
-Require Import coqrel.LogicalRelations.
+Require Export coqrel.LogicalRelations.
 
 
 (** * Partially ordered sets *)
 
-Class Poset (C : Type) :=
+Record poset :=
   {
-    ref : relation C;
-    ref_preo :> PreOrder ref;
-    ref_po :> Antisymmetric C eq ref;
+    poset_carrier :> Type;
+    ref : relation poset_carrier;
+    ref_preo : PreOrder ref;
+    ref_po : Antisymmetric poset_carrier eq ref;
   }.
 
-Class PosetMorphism {A B} `{!Poset A} `{!Poset B} (f : A -> B) :=
+Arguments ref {_}.
+Existing Instance ref_preo.
+Existing Instance ref_po.
+
+Class PosetMorphism {A B : poset} (f : A -> B) :=
   {
     mor_monotonic :>
       Monotonic f (ref ++> ref);

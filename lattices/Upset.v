@@ -14,7 +14,7 @@ Require Import Downset.
 
 Module Inf <: LatticeCategory.
 
-  Class Morphism {L M} `{CDLattice L} `{CDLattice M} (f : L -> M) :=
+  Class Morphism {L M : cdlattice} (f : L -> M) :=
     mor : forall {I} (x : I -> L), f (inf x) = ⋀ i; f (x i).
 
   Lemma mor_meet `{Morphism} x y :
@@ -26,7 +26,7 @@ Module Inf <: LatticeCategory.
     destruct b; auto.
   Qed.
 
-  Lemma mor_ref {L M} `{!CDLattice L} `{!CDLattice M} (f : L -> M) :
+  Lemma mor_ref {L M : cdlattice} (f : L -> M) :
     Morphism f ->
     PosetMorphism f.
   Proof.
@@ -37,18 +37,18 @@ Module Inf <: LatticeCategory.
     apply meet_lb_r.
   Qed.
 
-  Lemma id_mor `{CDLattice} :
-    Morphism (fun x => x).
+  Lemma id_mor {L : cdlattice} :
+    Morphism (fun x:L => x).
   Proof.
     red. auto.
   Qed.
 
-  Lemma compose_mor {A B C} `{!CDLattice A} `{!CDLattice B} `{!CDLattice C} :
-    forall (f : A -> B) `{!Morphism f},
-    forall (g : B -> C) `{!Morphism g},
-      Morphism (fun a => g (f a)).
+  Lemma compose_mor {A B C : cdlattice} (g : B -> C) (f : A -> B) :
+    Morphism f ->
+    Morphism g ->
+    Morphism (fun a => g (f a)).
   Proof.
-    intros f Hf g Hg I x.
+    intros Hf Hg I x.
     rewrite (mor (f:=f)), (mor (f:=g)).
     reflexivity.
   Qed.
@@ -69,43 +69,34 @@ Module Upset : LatticeCompletion Inf.
     may or may not result in a lower complexity than copy-and-pasting,
     so we should evaluate once the [Downset] proofs are completed. *)
 
-  Inductive opp (A : Type) := opp_in (a : A).
-  Arguments opp_in {A} _.
-
-  Definition opp_out {A} : opp A -> A :=
-    fun '(opp_in a) => a.
-
-  Lemma opp_in_out_eq {A} (x : A) (y : opp A) :
-    opp_in x = y -> x = opp_out y.
-  Proof.
-    destruct y. cbn. congruence.
-  Qed.
-
-  Program Instance opp_poset `(Poset) : Poset (opp C) | 5 :=
-    {
-      ref x y := opp_out y ⊑ opp_out x;
-    }.
+  Program Definition opp_poset (C : poset) : poset :=
+    {|
+      poset_carrier := C;
+      ref x y := y ⊑ x;
+    |}.
   Next Obligation.
     split.
-    - intros [x]. reflexivity.
-    - intros [x] [y] [z] Hyz Hxy. etransitivity; eauto.
+    - intros x. reflexivity.
+    - intros x y z Hyz Hxy. etransitivity; eauto.
   Qed.
   Next Obligation.
-    intros [x] [y] Hxy Hyx.
-    f_equal. apply antisymmetry; auto.
+    intros x y Hxy Hyx.
+    apply antisymmetry; auto.
   Qed.
 
-  Program Instance opp_lattice `(CDLattice) : CDLattice (opp L) :=
-    {
-      sup I x := opp_in (inf (fun i => opp_out (x i)));
-      inf I x := opp_in (sup (fun i => opp_out (x i)));
-    }.
+  Program Definition opp_cdlat (L : cdlattice) : cdlattice :=
+    {|
+      cdl_poset := opp_poset L;
+      sup I x := inf x;
+      inf I x := sup x;
+    |}.
   Next Obligation. eapply (inf_lb i). Qed.
   Next Obligation. apply inf_glb; auto. Qed.
-  Next Obligation. apply (sup_ub i (fun i => opp_out (x i))). Qed.
+  Next Obligation. apply sup_ub; auto. Qed.
   Next Obligation. apply sup_lub; auto. Qed.
-  Next Obligation. f_equal. apply inf_sup. Qed.
+  Next Obligation. apply inf_sup. Qed.
 
+  (*
   Definition opp_map {A B} (f : A -> B) : opp A -> opp B :=
     fun '(opp_in a) => opp_in (f a).
 
@@ -115,17 +106,17 @@ Module Upset : LatticeCompletion Inf.
   Proof.
     intros Hf. split. intros [x] [y] Hxy. cbn in *. rauto.
   Qed.
+   *)
 
   (** ** Upsets *)
 
-  Definition F C `{Cpo : Poset C} := opp (downset (opp C)).
-  Instance lattice : forall `{Poset}, CDLattice (F C) := _.
+  Definition F (C : poset) := opp_cdlat (downset (opp_poset C)).
 
   Section DEFS.
-    Context `{Poset}.
+    Context {C : poset}.
 
     Definition emb (c : C) : F C :=
-      opp_in (Downset.down (opp_in c)).
+      Downset.emb (c : opp_poset C).
 
     Lemma emb_mor c1 c2 : emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
     Proof.
@@ -134,10 +125,10 @@ Module Upset : LatticeCompletion Inf.
       - rewrite Downset.emb_mor. assumption.
     Qed.
 
-    Context `{Lcd : CDLattice}.
+    Context {L : cdlattice}.
 
     Definition ext (f : C -> L) (x : F C) : L :=
-      opp_out (Downset.ext (opp_map f) (opp_out x)).
+      Downset.ext (f : opp_poset C -> opp_cdlat L) (x : downset (opp_poset C)).
 
     Context {f : C -> L} `{Hf : !PosetMorphism f}.
 
@@ -151,19 +142,18 @@ Module Upset : LatticeCompletion Inf.
     Lemma ext_ana :
       (forall x, ext f (emb x) = f x).
     Proof.
-      intros x. unfold ext. cbn.
-      rewrite Downset.ext_ana. cbn. auto.
+      intros x. unfold ext, emb. cbn.
+      rewrite @Downset.ext_ana. cbn. auto.
+      firstorder.
     Qed.
 
     Lemma ext_unique (g : F C -> L) `{Hg : !Inf.Morphism g} :
       (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
     Proof.
-      intros Hgf [x].
-      unfold emb, ext in *. cbn in *. apply opp_in_out_eq.
-      rewrite <- Downset.ext_unique with (g0 := fun x => opp_in (g (opp_in x))); auto.
-      - clear - Hg. intros I x. cbn.
-        rewrite <- Inf.mor. cbn. reflexivity.
-      - intros [y]. cbn. congruence.
+      intros Hgf x.
+      unfold emb, ext in *. cbn in *.
+      erewrite <- @Downset.ext_unique; eauto.
+      firstorder.
     Qed.
   End DEFS.
 
