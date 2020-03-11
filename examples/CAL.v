@@ -1,11 +1,11 @@
-Require Import coqrel.LogicalRelations.
 Require Import FunctionalExtensionality.
 Require Import List.
 Require Import PeanoNat.
-Require Import Lattice.
-Require Import FCD.
-Require Import Effects.
-Require Import IntSpec.
+Require Import coqrel.LogicalRelations.
+Require Import structures.Lattice.
+Require Import structures.Effects.
+Require Import lattices.FCD.
+Require Import models.IntSpec.
 
 Import ISpec.
 

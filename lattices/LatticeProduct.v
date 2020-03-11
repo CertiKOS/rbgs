@@ -1,5 +1,5 @@
 Require Import FunctionalExtensionality.
-Require Import Lattice.
+Require Import structures.Lattice.
 
 Program Definition poset_prod (K : Type) (C : poset) : poset :=
   {|

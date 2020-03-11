@@ -1,5 +1,5 @@
 Require Import coqrel.LogicalRelations.
-Require Import Lattice.
+Require Import structures.Lattice.
 
 (** We construct various kinds of strategy models by defining the
   plays they use and a corresponding prefix ordering, then choosing

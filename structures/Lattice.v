@@ -1,4 +1,4 @@
-Require Export Poset.
+Require Export structures.Poset.
 
 
 (** * Completely distributive lattices *)

@@ -1,11 +1,10 @@
-Require Import coqrel.LogicalRelations.
 Require Import Classical.
 Require Import ClassicalChoice.
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
-
-Require Import Lattice.
-Require Import Completion.
+Require Import coqrel.LogicalRelations.
+Require Import structures.Lattice.
+Require Import structures.Completion.
 
 
 (** * Interface *)

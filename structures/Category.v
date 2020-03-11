@@ -1,5 +1,5 @@
-Require Import Lattice.
-Require Import FCD.
+Require Import structures.Lattice.
+Require Import lattices.FCD.
 
 
 (** * Categories *)

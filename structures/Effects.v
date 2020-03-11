@@ -1,8 +1,8 @@
-Require Import Category.
-Require Import Lattice.
-Require Import Upset.
-Require Import LatticeProduct.
-Require Import FCD.
+Require Import structures.Category.
+Require Import structures.Lattice.
+Require Import lattices.Upset.
+Require Import lattices.LatticeProduct.
+Require Import lattices.FCD.
 
 
 (** * Effect signatures *)

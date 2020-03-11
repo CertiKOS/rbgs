@@ -1,14 +1,14 @@
+Require Import FunctionalExtensionality.
+Require Import Classical.
 Require Import coqrel.LogicalRelations.
 Require Import coqrel.OptionRel.
-Require Import FunctionalExtensionality.
-Require Import FCD.
-Require Import Monad.
-Require Import Classical.
-Require Import Poset.
-Require Import Lattice.
-Require Import Downset.
-Require Import Upset.
-Require Import Effects.
+Require Import structures.Poset.
+Require Import structures.Lattice.
+Require Import structures.Effects.
+Require Import structures.Monad.
+Require Import lattices.Downset.
+Require Import lattices.Upset.
+Require Import lattices.FCD.
 
 (** * Preliminaries *)
 

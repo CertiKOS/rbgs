@@ -1,12 +1,12 @@
-Require Import Category.
-Require Import Lattice.
-Require Import Completion.
-Require Import Upset.
-Require Import FCD.
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
 Require Import Classical.
 Require Import ClassicalChoice.
+Require Import structures.Category.
+Require Import structures.Lattice.
+Require Import structures.Completion.
+Require Import lattices.Upset.
+Require Import lattices.FCD.
 
 Module Lazy <: LatticeCategory.
 
