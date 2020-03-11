@@ -179,7 +179,7 @@ Module ISpec.
       | pmove m =>
         FCD.emb (pmove m)
       | pcons m n q =>
-        FCD.emb (pmove m) ⊔
+        FCD.emb (pmove m) ||
         FCD.ext (fun s => FCD.emb (pcons m n s)) (pbind f q)
     end.
 
@@ -234,7 +234,7 @@ Module ISpec.
     signature and returns the environment's response. *)
 
   Definition int {E ar} (m : E ar) : t E ar :=
-    ⋁ k : option ar;
+    sup k : option ar,
       match k with
         | Some n => FCD.emb (pcons m n (pret n))
         | None   => FCD.emb (pmove m)
@@ -255,7 +255,7 @@ Module ISpec.
     match s with
       | pret a => FCD.emb (pret a)
       | pmove m => bind (fun _ => bot) (f _ m)
-      | pcons m n t => bind (fun n' => ⋁ H : n' = n; papply f t) (f _ m)
+      | pcons m n t => bind (fun n' => sup H : n' = n, papply f t) (f _ m)
     end.
 
   Instance papply_mor {E F A} (f : subst E F) :

@@ -21,5 +21,7 @@ Class PosetMorphism {A B : poset} (f : A -> B) :=
       Monotonic f (ref ++> ref);
   }.
 
-Notation "(⊑)" := ref.
-Infix "⊑" := ref (at level 70).
+Delimit Scope poselt_scope with poselt.
+Bind Scope poselt_scope with poset_carrier.
+
+Notation "x [=  y" := (ref x%poselt y%poselt) (at level 70).

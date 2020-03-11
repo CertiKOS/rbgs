@@ -18,7 +18,7 @@ Notation "v <- x ; M" := (ISpec.bind (fun v => M) x)
   (at level 65, right associativity).
 
 Definition assert {E : esig} (P : Prop) : ispec E unit :=
-  ⋁ H : P; ISpec.ret tt.
+  sup H : P, ISpec.ret tt.
 
 
 (** * Effect signatures *)
@@ -148,7 +148,7 @@ Fixpoint stateful_play {E S A} (k: S) (s: ISpec.play E A): ispec (E#S) (A*S) :=
     | ISpec.pret v => FCD.emb (ISpec.pret (v, k))
     | ISpec.pmove m => FCD.emb (ISpec.pmove (st m k))
     | ISpec.pcons m n t =>
-      ⋁ x : option S;
+      sup x : option S,
       match x with
       | Some k' => FCD.map (ISpec.pcons (st m k) (n, k')) (stateful_play k' t)
       | None => FCD.emb (ISpec.pmove (st m k))

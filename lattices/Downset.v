@@ -19,10 +19,10 @@ Require Import structures.Completion.
 Module Sup <: LatticeCategory.
 
   Class Morphism {L M : cdlattice} (f : L -> M) :=
-    mor : forall {I} (x : I -> L), f (sup x) = ⋁ i; f (x i).
+    mor : forall {I} (x : I -> L), f (lsup x) = sup i, f (x i).
 
   Lemma mor_join `{Morphism} x y :
-    f (x ⊔ y) = f x ⊔ f y.
+    f (x || y) = f x || f y.
   Proof.
     Local Transparent join. unfold join.
     rewrite (mor (f := f)). f_equal.
@@ -60,7 +60,7 @@ Module Sup <: LatticeCategory.
   Hint Immediate mor_ref : typeclass_instances.
 
   Lemma mor_bot `{Morphism} :
-    f ⊥ = ⊥.
+    f bot = bot.
   Proof.
     Local Transparent bot. unfold bot.
     rewrite (mor (f:=f)).
@@ -81,7 +81,7 @@ Module Downset : LatticeCompletion Sup.
   Record downset {C : poset} :=
     {
       has : C -> Prop;
-      closed x y : x ⊑ y -> has y -> has x;
+      closed x y : x [= y -> has y -> has x;
     }.
 
   Arguments downset : clear implicits.
@@ -118,8 +118,8 @@ Module Downset : LatticeCompletion Sup.
     Program Definition F : cdlattice :=
       {|
         cdl_poset := Fpos;
-        sup I x := {| has c := exists i, has (x i) c |};
-        inf I x := {| has c := forall i, has (x i) c |};
+        lsup I x := {| has c := exists i, has (x i) c |};
+        linf I x := {| has c := forall i, has (x i) c |};
       |}.
 
     (** [sup] is downward closed. *)
@@ -146,7 +146,7 @@ Module Downset : LatticeCompletion Sup.
 
     Program Definition emb (c : C) : F :=
       {|
-        has x := x ⊑ c;
+        has x := x [= c;
       |}.
     Next Obligation.
       intros c x y Hxy Hyc.
@@ -154,18 +154,18 @@ Module Downset : LatticeCompletion Sup.
     Qed.
 
     Lemma emb_mor (c1 c2 : C) :
-      emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
+      emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
       cbn. firstorder.
       etransitivity; eauto.
     Qed.
 
     Lemma emb_join_dense :
-      forall x, x = ⋁{c : C | emb c ⊑ x}; emb c.
+      forall x, x = sup {c : C | emb c [= x}, emb c.
     Admitted.
 
     Lemma emb_join_prime {I} c (x : I -> F) :
-      emb c ⊑ sup x <-> exists i, emb c ⊑ x i.
+      emb c [= lsup x <-> exists i, emb c [= x i.
     Admitted.
 
     (** ** Simulator *)
@@ -173,7 +173,7 @@ Module Downset : LatticeCompletion Sup.
     Context {L: cdlattice}.
 
     Definition ext (f : C -> L) (x : F) : L :=
-      ⋁{ c | emb c ⊑ x }; f c.
+      sup {c : C | emb c [= x}, f c.
 
     Context {f : C -> L} `{Hf : !PosetMorphism f}.
 
@@ -186,11 +186,11 @@ Module Downset : LatticeCompletion Sup.
         edestruct Hc as [i Hi]; cbn; try reflexivity.
         apply emb_join_prime in Hc as [j Hc].
         apply (sup_at j). unfold ext.
-        apply (psup_at c); auto.
+        apply (fsup_at c); auto.
         reflexivity.
       - apply sup_lub. intros i. unfold ext.
-        apply psup_lub. intros c Hc.
-        apply (psup_ub c). eauto using @sup_at.
+        apply fsup_lub. intros c Hc.
+        apply (fsup_ub c). eauto using @sup_at.
     Qed.
 
     Lemma ext_ana :
@@ -207,7 +207,8 @@ Module Downset : LatticeCompletion Sup.
       (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
     Proof.
       intros Hgf x.
-      rewrite (emb_join_dense x), Sup.mor.
+      rewrite (emb_join_dense x).
+      unfold fsup. rewrite Sup.mor.
       unfold ext.
       (* maybe use emb_join_prime *)
     Admitted.

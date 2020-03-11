@@ -35,7 +35,7 @@ Class LazyMorphism {A B : cdlattice} (f : A -> B) :=
   {
     lcdlm_inf :> Inf.Morphism f;
     lcdlm_sup {I} (x : I -> A) :
-      inhabited I -> f (sup x) = sup (f @ x);
+      inhabited I -> f (lsup x) = lsup (f @ x);
   }.
 
 Record interp {E : esig} {A : cdlattice} :=

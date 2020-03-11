@@ -18,8 +18,8 @@ Class CDMonad (M : Type -> cdlattice) :=
 
     bind_sup {A} {L : cdlattice} {I} :
       forall (f : A -> L) (x : I -> M A),
-        bind f (sup x) = sup (fun i => bind f (x i));
+        bind f (lsup x) = lsup (fun i => bind f (x i));
     bind_inf {A} {L : cdlattice} {I} :
       forall (f : A -> L) (x : I -> M A),
-        bind f (inf x) = inf (fun i => bind f (x i));
+        bind f (linf x) = linf (fun i => bind f (x i));
   }.

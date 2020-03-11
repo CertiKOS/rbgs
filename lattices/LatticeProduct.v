@@ -24,8 +24,8 @@ Notation "C ^ K" := (poset_prod K C) : poset_scope.
 Program Definition cdlat_prod (K : Type) (L : cdlattice) : cdlattice :=
   {|
     cdl_poset := poset_prod K L;
-    sup I x k := sup (fun i => x i k);
-    inf I x k := inf (fun i => x i k);
+    lsup I x k := lsup (fun i => x i k);
+    linf I x k := linf (fun i => x i k);
 
     sup_ub I i x k := sup_ub i (fun i => x i k);
     sup_lub I x y H k := sup_lub (fun i => x i k) (y k) (fun i => H i k);
