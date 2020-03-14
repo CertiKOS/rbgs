@@ -1,12 +1,12 @@
-Require Import Category.
-Require Import Lattice.
-Require Import Completion.
-Require Import Upset.
-Require Import FCD.
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
 Require Import Classical.
 Require Import ClassicalChoice.
+Require Import structures.Category.
+Require Import structures.Lattice.
+Require Import structures.Completion.
+Require Import lattices.Upset.
+Require Import lattices.FCD.
 
 Module Lazy <: LatticeCategory.
 
@@ -14,7 +14,7 @@ Module Lazy <: LatticeCategory.
     Context {L M : cdlattice} (f : L -> M).
 
     Class NSupMorphism :=
-      mor_sup : forall {I} (x : I -> L), inhabited I -> f (sup x) = sup (f @ x).
+      mor_sup: forall {I} (x : I -> L), inhabited I -> f (lsup x) = lsup (f @ x).
 
     Class Morphism := mor : NSupMorphism /\ Inf.Morphism f.
     Global Instance cmor_sup : Morphism -> NSupMorphism := @proj1 _ _.
@@ -113,32 +113,32 @@ Module LBot.
     (** ** Lattice structure *)
 
     Definition proj (x : opt L) : L :=
-      ⋁ {l | is x l}; l.
+      sup {l | is x l}, l.
 
     Lemma proj_is x l :
       is x l -> proj x = l.
     Proof.
       intros Hl. apply antisymmetry.
-      - apply psup_lub. intros m Hm.
+      - apply fsup_lub. intros m Hm.
         assert (m = l) by eauto using is_unique. rauto.
-      - eapply psup_at; eauto. reflexivity.
+      - eapply fsup_at; eauto. reflexivity.
     Qed.
 
     Definition sup_of {I} (x : I -> opt L) (l : L) :=
       (exists i, exists li, is (x i) li) /\
-      ⋁ i; proj (x i) = l.
+      sup i, proj (x i) = l.
 
     Definition inf_of {I} (x : I -> opt L) (l : L) :=
       (forall i, exists li, is (x i) li) /\
-      ⋀ i; proj (x i) = l.
+      inf i, proj (x i) = l.
 
     Definition sup_inf_of {I J} (x : forall i:I, J i -> opt L) (l : L) :=
       (exists i, forall j, exists li, is (x i j) li) /\
-      ⋁ i; ⋀ j; proj (x i j) = l.
+      sup i, inf j, proj (x i j) = l.
 
     Definition inf_sup_of {I J} (x : forall i:I, J i -> opt L) (l : L) :=
       (forall i, exists j, exists li, is (x i j) li) /\
-      ⋀ i; ⋁ j; proj (x i j) = l.
+      inf i, sup j, proj (x i j) = l.
 
     Lemma sup_inf_of_cd {I J} (x : forall i:I, J i -> opt L) (l : L) :
       sup_inf_of x l <->
@@ -167,8 +167,8 @@ Module LBot.
     Program Definition F : cdlattice :=
       {|
         cdl_poset := Fposet;
-        sup I x := mkopt (sup_of x) _;
-        inf I x := mkopt (inf_of x) _;
+        lsup I x := mkopt (sup_of x) _;
+        linf I x := mkopt (inf_of x) _;
       |}.
 
     (** [sup], [inf] are singletons. *)
@@ -193,7 +193,7 @@ Module LBot.
       destruct (H i li Hli) as (m & Hm & _). clear i li Hli.
       exists m. split; auto.
       apply sup_lub. intros i.
-      apply psup_lub. intros li Hli.
+      apply fsup_lub. intros li Hli.
       destruct (H i li Hli) as (m' & Hm' & LE).
       assert (m' = m) by eauto using is_unique. congruence.
     Qed.
@@ -230,23 +230,23 @@ Module LBot.
           + apply antisymmetry.
             * apply sup_lub. intros i. apply (sup_at i).
               destruct (classic (forall j, exists lij, is (x i j) lij)).
-              -- eapply psup_at; eauto. reflexivity.
+              -- eapply fsup_at; eauto. reflexivity.
               -- apply not_all_ex_not in H as (j & Hj).
-                 apply (inf_at j). apply psup_lub. firstorder.
+                 apply (inf_at j). apply fsup_lub. firstorder.
             * apply sup_lub. intros i. apply (sup_at i).
-              apply psup_lub. intros _ [H [ ]].
+              apply fsup_lub. intros _ [H [ ]].
               reflexivity.
         - split.
           + destruct Hx as [i Hi]. eauto.
           + apply antisymmetry.
             * apply sup_lub. intros i. apply (sup_at i).
-              apply psup_lub. intros _ [Hi [ ]].
+              apply fsup_lub. intros _ [Hi [ ]].
               reflexivity.
             * apply sup_lub. intros i. apply (sup_at i).
               destruct (classic (forall j, exists lij, is (x i j) lij)).
-              -- eapply psup_at; eauto. reflexivity.
+              -- eapply fsup_at; eauto. reflexivity.
               -- apply not_all_ex_not in H as (j & Hj).
-                 apply (inf_at j). apply psup_lub. firstorder.
+                 apply (inf_at j). apply fsup_lub. firstorder.
       }
       rewrite sup_inf_of_cd.
       {
@@ -256,15 +256,15 @@ Module LBot.
           + intros f. destruct (Hx f) as (i & l & Hl). eauto.
           + f_equal. apply functional_extensionality. intros f.
             apply antisymmetry.
-            * apply psup_lub. intros _ [(i & l & Hl) [ ]]. reflexivity.
-            * eapply psup_at; eauto. reflexivity.
+            * apply fsup_lub. intros _ [(i & l & Hl) [ ]]. reflexivity.
+            * eapply fsup_at; eauto. reflexivity.
         - split.
           + intros f. destruct (Hx f) as (i & l & Hl). eauto.
           + f_equal. apply functional_extensionality. intros f.
             apply antisymmetry.
-            * apply sup_lub. intros i. apply psup_lub. intros l Hl.
-              eapply psup_at; eauto. eapply sup_at, psup_at; eauto. reflexivity.
-            * apply psup_lub. intros _ [(i & l & Hl) [ ]]. reflexivity.
+            * apply sup_lub. intros i. apply fsup_lub. intros l Hl.
+              eapply fsup_at; eauto. eapply sup_at, fsup_at; eauto. reflexivity.
+            * apply fsup_lub. intros _ [(i & l & Hl) [ ]]. reflexivity.
       }
     Qed.
 
@@ -282,10 +282,10 @@ Module LBot.
           split. exists i. eauto. unfold proj; cbn.
           apply antisymmetry.
           * apply sup_lub. intros j.
-            apply psup_lub. intros _ [ ].
+            apply fsup_lub. intros _ [ ].
             apply (sup_at j). reflexivity.
           * apply sup_lub. intros j. apply (sup_at j). cbn.
-            eapply psup_at; eauto. reflexivity.
+            eapply fsup_at; eauto. reflexivity.
         + apply sup_lub. cbn. intros j _ [ ].
           eexists; split; [reflexivity | ].
           apply sup_ub.
@@ -293,11 +293,11 @@ Module LBot.
         + cbn. intros _ [ ].
           eexists; split; [constructor; cbn; eauto | ].
           eapply inf_glb. intros i. apply (inf_at i).
-          unfold proj; cbn. eapply psup_at; eauto. reflexivity.
+          unfold proj; cbn. eapply fsup_at; eauto. reflexivity.
         + cbn. intros _ [? [ ]]. cbn in *.
           eexists; split; [reflexivity | ].
           eapply inf_glb. intros i. unfold proj; cbn.
-          apply (inf_at i). apply psup_lub. intros _ [ ]. reflexivity.
+          apply (inf_at i). apply fsup_lub. intros _ [ ]. reflexivity.
     Qed.
 
     (*
@@ -325,10 +325,12 @@ Module LBot.
     Qed.
 
     Lemma sup_cases {I} (x : I -> F) :
-      (sup x = ⊥ /\ forall i, x i = ⊥) \/
-      (sup x = emb (⋁ {l | exists i, is (x i) l}; l) /\ exists i l, is (x i) l).
+      (lsup x = bot /\
+       forall i, x i = bot) \/
+      (lsup x = emb (sup {l | exists i, is (x i) l}, l) /\
+       exists i l, is (x i) l).
     Proof.
-      destruct (classic (forall i, x i = ⊥)).
+      destruct (classic (forall i, x i = bot)).
       - left. split; auto.
         apply antisymmetry; auto using bot_lb.
         apply sup_lub. intros i.
@@ -336,7 +338,7 @@ Module LBot.
         intros ([ ] & _).
       - right. apply not_all_ex_not in H as (i & Hi).
         split.
-        rewrite (Lazy.mor_sup emb).
+        unfold fsup. rewrite (Lazy.mor_sup emb).
         + cbn. apply opt_eq. intros l. cbn. split.
           * intros [(j & m & Hm)].
             econstructor.
@@ -344,15 +346,15 @@ Module LBot.
 
 
     Definition ext (f : L -> M) (x : F) : M :=
-      ⋁ {l | is x l}; f l.
+      sup {l | is x l}, f l.
 
     Context {f : L -> M} `{Hf : !Lazy.Morphism f}.
 
     Lemma ext_bot :
-      ext f ⊥ = ⊥.
+      ext f bot = bot.
     Proof.
       apply antisymmetry; try apply bot_lb.
-      unfold ext. apply psup_lub. Local Transparent bot. cbn.
+      unfold ext. apply fsup_lub. Local Transparent bot. cbn.
       intros i [? ?]. destruct H as [[ ]].
     Qed.
 
@@ -361,8 +363,8 @@ Module LBot.
     Proof.
       intros x. unfold ext, emb. cbn.
       apply antisymmetry.
-      - apply psup_lub. intros _ [ ]. reflexivity.
-      - apply psup_ub. reflexivity.
+      - apply fsup_lub. intros _ [ ]. reflexivity.
+      - apply fsup_ub. reflexivity.
     Qed.
 
     Instance ext_mor :
@@ -371,15 +373,15 @@ Module LBot.
       split.
       - red. intros I x.
         destruct (sup_cases x) as [[Hsup H] | [Hsup H]]; rewrite Hsup.
-        + rewrite ext_bot. transitivity (⋁ i:I; ext f ⊥).
+        + rewrite ext_bot. transitivity (sup i:I, ext f bot).
           * apply antisymmetry; try apply bot_lb.
             apply sup_lub. intros _. rewrite ext_bot. reflexivity.
           * f_equal. apply functional_extensionality. intro. rewrite H. reflexivity.
-        + rewrite ext_ana. rewrite (Lazy.mor_sup f).
+        + rewrite ext_ana. unfold fsup. rewrite (Lazy.mor_sup f).
           * apply antisymmetry.
             -- apply sup_lub. intros (l & i & Hli). cbn.
-               apply (sup_at i). eapply psup_at; eauto. reflexivity.
-            -- apply sup_lub. intros i. apply psup_lub. intros l Hli. cbn.
+               apply (sup_at i). eapply fsup_at; eauto. reflexivity.
+            -- apply sup_lub. intros i. apply fsup_lub. intros l Hli. cbn.
                admit.
           * admit.
       - admit.

@@ -1,8 +1,8 @@
 Require Import coqrel.LogicalRelations.
-Require Import Lattice.
-Require Import Completion.
-Require Import Downset.
-Require Import Upset.
+Require Import structures.Lattice.
+Require Import structures.Completion.
+Require Import lattices.Downset.
+Require Import lattices.Upset.
 
 
 (** * Interface *)
@@ -55,11 +55,11 @@ Module Type JoinMeetDense (LC : LatticeCompletion CDL).
 
   Axiom join_meet_dense :
     forall {C : poset} (x : LC.F C),
-      exists I J (c : forall i:I, J i -> C), x = ⋁ i; ⋀ j; LC.emb (c i j).
+      exists I J (c : forall i:I, J i -> C), x = sup i, inf j, LC.emb (c i j).
 
   Axiom meet_join_dense :
     forall {C : poset} (x : LC.F C),
-      exists I J (c : forall i:I, J i -> C), x = ⋀ i; ⋁ j; LC.emb (c i j).
+      exists I J (c : forall i:I, J i -> C), x = inf i, sup j, LC.emb (c i j).
 
 End JoinMeetDense.
 
@@ -78,7 +78,7 @@ Module FCD : FCDSpec.
     Definition emb (c : C) := up (down c).
 
     Lemma emb_mor c1 c2 :
-      emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
+      emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
       unfold emb.
       rewrite Upset.emb_mor.
@@ -120,17 +120,17 @@ Module FCD : FCDSpec.
   Include (LatticeCompletionDefs CDL).
 
   Lemma meet_join_dense {C : poset} (x : F C) :
-    exists I J c, x = ⋀ i : I; ⋁ j : J i; emb (c i j).
+    exists I J c, x = inf i : I, sup j : J i, emb (c i j).
   Proof.
-    exists {S : downset C | up S ⊑ x}.
-    exists (fun i => {c : C | down c ⊑ proj1_sig i}).
+    exists {S : downset C | up S [= x}.
+    exists (fun i => {c : C | down c [= proj1_sig i}).
     exists (fun i j => proj1_sig j).
     apply antisymmetry.
     - apply inf_glb. intros [S HS].
   Admitted.
 
   Lemma join_meet_dense {C : poset} (x : F C) :
-    exists I J c, x = ⋁ i : I; ⋀ j : J i; emb (c i j).
+    exists I J c, x = sup i : I, inf j : J i, emb (c i j).
   Proof.
     destruct (meet_join_dense x) as (I & J & c & Hx).
     rewrite inf_sup in Hx.

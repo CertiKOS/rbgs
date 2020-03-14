@@ -1,8 +1,8 @@
-Require Import coqrel.LogicalRelations.
 Require Import FunctionalExtensionality.
-Require Import Lattice.
-Require Import Completion.
-Require Import Downset.
+Require Import coqrel.LogicalRelations.
+Require Import structures.Lattice.
+Require Import structures.Completion.
+Require Import lattices.Downset.
 
 
 (** * Interface *)
@@ -15,10 +15,10 @@ Require Import Downset.
 Module Inf <: LatticeCategory.
 
   Class Morphism {L M : cdlattice} (f : L -> M) :=
-    mor : forall {I} (x : I -> L), f (inf x) = ⋀ i; f (x i).
+    mor : forall {I} (x : I -> L), f (linf x) = inf i, f (x i).
 
   Lemma mor_meet `{Morphism} x y :
-    f (x ⊓ y) = f x ⊓ f y.
+    f (x && y) = f x && f y.
   Proof.
     Local Transparent meet. unfold meet.
     rewrite (mor (f := f)). f_equal.
@@ -72,7 +72,7 @@ Module Upset : LatticeCompletion Inf.
   Program Definition opp_poset (C : poset) : poset :=
     {|
       poset_carrier := C;
-      ref x y := y ⊑ x;
+      ref x y := y [= x;
     |}.
   Next Obligation.
     split.
@@ -87,8 +87,8 @@ Module Upset : LatticeCompletion Inf.
   Program Definition opp_cdlat (L : cdlattice) : cdlattice :=
     {|
       cdl_poset := opp_poset L;
-      sup I x := inf x;
-      inf I x := sup x;
+      lsup I x := linf x;
+      linf I x := lsup x;
     |}.
   Next Obligation. eapply (inf_lb i). Qed.
   Next Obligation. apply inf_glb; auto. Qed.
@@ -118,7 +118,7 @@ Module Upset : LatticeCompletion Inf.
     Definition emb (c : C) : F C :=
       Downset.emb (c : opp_poset C).
 
-    Lemma emb_mor c1 c2 : emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
+    Lemma emb_mor c1 c2 : emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
       split; intro Hc; cbn in *.
       - rewrite Downset.emb_mor in Hc. assumption.

@@ -15,11 +15,16 @@ Arguments ref {_}.
 Existing Instance ref_preo.
 Existing Instance ref_po.
 
+Delimit Scope poset_scope with poset.
+Bind Scope poset_scope with poset.
+
 Class PosetMorphism {A B : poset} (f : A -> B) :=
   {
     mor_monotonic :>
       Monotonic f (ref ++> ref);
   }.
 
-Notation "(⊑)" := ref.
-Infix "⊑" := ref (at level 70).
+Delimit Scope poselt_scope with poselt.
+Bind Scope poselt_scope with poset_carrier.
+
+Notation "x [=  y" := (ref x%poselt y%poselt) (at level 70).

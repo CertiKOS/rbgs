@@ -1,5 +1,5 @@
 Require Import coqrel.LogicalRelations.
-Require Import Lattice.
+Require Import structures.Lattice.
 
 (** We construct various kinds of strategy models by defining the
   plays they use and a corresponding prefix ordering, then choosing
@@ -66,7 +66,7 @@ Module Type LatticeCompletionSpec (LC : LatticeCategory).
   Section DEFS.
     Context {C : poset} {L : cdlattice} {f : C -> L}.
 
-    Axiom emb_mor : forall c1 c2 : C, emb c1 ⊑ emb c2 <-> c1 ⊑ c2.
+    Axiom emb_mor : forall c1 c2 : C, emb c1 [= emb c2 <-> c1 [= c2.
     Axiom ext_mor : LC.Morphism (ext f).
     Axiom ext_ana : forall `{Hf : !PosetMorphism f} x, ext f (emb x) = f x.
     Axiom ext_unique :

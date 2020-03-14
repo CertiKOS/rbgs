@@ -1,14 +1,15 @@
+Require Import FunctionalExtensionality.
+Require Import Classical.
 Require Import coqrel.LogicalRelations.
 Require Import coqrel.OptionRel.
-Require Import FunctionalExtensionality.
-Require Import FCD.
-Require Import Monad.
-Require Import Classical.
-Require Import Poset.
-Require Import Lattice.
-Require Import Downset.
-Require Import Upset.
-Require Import Effects.
+Require Import structures.Poset.
+Require Import structures.Lattice.
+Require Import structures.Effects.
+Require Import structures.Monad.
+Require Import lattices.Downset.
+Require Import lattices.Upset.
+Require Import lattices.FCD.
+Require Import lattices.LatticeProduct.
 
 (** * Preliminaries *)
 
@@ -179,7 +180,7 @@ Module ISpec.
       | pmove m =>
         FCD.emb (pmove m)
       | pcons m n q =>
-        FCD.emb (pmove m) ⊔
+        FCD.emb (pmove m) ||
         FCD.ext (fun s => FCD.emb (pcons m n s)) (pbind f q)
     end.
 
@@ -202,6 +203,9 @@ Module ISpec.
   Proof.
     unfold bind. typeclasses eauto.
   Qed.
+
+  Instance bind_mor_params :
+    Params (@bind) 1.
 
   Lemma bind_ret_r {E A B} (a : A) (f : A -> t E B) :
     bind f (ret a) = f a.
@@ -228,13 +232,18 @@ Module ISpec.
     apply FCD.ext_emb.
   Qed.
 
+  Lemma bind_bind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : t E A) :
+    bind g (bind f x) = bind (fun a => bind g (f a)) x.
+  Proof.
+  Admitted.
+
   (** ** Interaction *)
 
   (** The interaction primitive triggers one of the actions from the
     signature and returns the environment's response. *)
 
   Definition int {E ar} (m : E ar) : t E ar :=
-    ⋁ k : option ar;
+    sup k : option ar,
       match k with
         | Some n => FCD.emb (pcons m n (pret n))
         | None   => FCD.emb (pmove m)
@@ -244,8 +253,8 @@ Module ISpec.
     which give an interaction specification in [E] for each possible
     operation in [F]. *)
 
-  Definition subst (E F : esig) :=
-    forall ar, F ar -> t E ar.
+  Definition subst (E F : esig) : cdlattice :=
+    pi ar, t E ar ^ F ar.
 
   (** To apply a substitution [f : E -> F] to an interaction
     specification in [F], we replace each move [m] by the
@@ -255,7 +264,7 @@ Module ISpec.
     match s with
       | pret a => FCD.emb (pret a)
       | pmove m => bind (fun _ => bot) (f _ m)
-      | pcons m n t => bind (fun n' => ⋁ H : n' = n; papply f t) (f _ m)
+      | pcons m n t => bind (fun n' => sup H : n' = n, papply f t) (f _ m)
     end.
 
   Instance papply_mor {E F A} (f : subst E F) :
@@ -295,10 +304,23 @@ Module ISpec.
     typeclasses eauto.
   Qed.
 
+  Instance apply_mor_params :
+    Params (@apply) 1.
+
   Definition compose {E F G} (g : subst F G) (f : subst E F) : subst E G :=
     fun ar m => apply f (g ar m).
 
   (** Properties of [apply]. *)
+
+  Lemma apply_ret {E F A} (f : subst E F) (a : A) :
+    apply f (ret a) = ret a.
+  Proof.
+    unfold apply, ret. rewrite FCD.ext_ana. cbn. auto.
+  Qed.
+
+  Lemma apply_bind {E F A B} (f : subst E F) (g : A -> t F B) (x : t F A) :
+    apply f (bind g x) = bind (fun a => apply f (g a)) (apply f x).
+  Admitted.
 
   Lemma apply_int_r {E F ar} (m : F ar) (f : subst E F) :
     apply f (int m) = f ar m.
@@ -388,7 +410,7 @@ Module ISpec.
   Proof.
     unfold compose.
     apply functional_extensionality_dep; intros ar.
-    apply functional_extensionality; intros m.
+    apply functional_extensionality_dep; intros m.
     apply apply_int_r.
   Qed.
 
@@ -397,7 +419,7 @@ Module ISpec.
   Proof.
     unfold compose.
     apply functional_extensionality_dep; intros ar.
-    apply functional_extensionality; intros m.
+    apply functional_extensionality_dep; intros m.
     apply apply_int_l.
   Qed.
 
@@ -406,7 +428,7 @@ Module ISpec.
   Proof.
     unfold compose.
     apply functional_extensionality_dep; intros ar.
-    apply functional_extensionality; intros m.
+    apply functional_extensionality_dep; intros m.
     apply apply_assoc.
   Qed.
 

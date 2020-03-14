@@ -1,11 +1,11 @@
-Require Import coqrel.LogicalRelations.
 Require Import FunctionalExtensionality.
 Require Import List.
 Require Import PeanoNat.
-Require Import Lattice.
-Require Import FCD.
-Require Import Effects.
-Require Import IntSpec.
+Require Import coqrel.LogicalRelations.
+Require Import structures.Lattice.
+Require Import structures.Effects.
+Require Import lattices.FCD.
+Require Import models.IntSpec.
 
 Import ISpec.
 
@@ -14,11 +14,14 @@ Import ISpec.
 
 Infix "~>" := ISpec.subst (at level 99).
 
-Notation "v <- x ; M" := (ISpec.bind (fun v => M) x)
+Notation "x >>= f" := (ISpec.bind f x)
+  (at level 40, left associativity).
+
+Notation "v <- x ; M" := (x >>= fun v => M)
   (at level 65, right associativity).
 
 Definition assert {E : esig} (P : Prop) : ispec E unit :=
-  ⋁ H : P; ISpec.ret tt.
+  sup H : P, ISpec.ret tt.
 
 
 (** * Effect signatures *)
@@ -87,10 +90,15 @@ Definition update (f : nat -> val) (i : nat) (v : val) : nat -> val :=
 
 (** Then our layer interfaces can be defined as follows. *)
 
-Definition L_bq : CALspec bq_sig (list val) :=
+Definition bq_state : Type :=
+  list val.
+
+Definition L_bq : CALspec bq_sig bq_state :=
   fun ar m vs =>
     match m with
-      | enq v => ISpec.ret (tt, v::vs)
+      | enq v =>
+        _ <- assert (length vs < N);
+        ISpec.ret (tt, vs ++ v :: nil)
       | deq =>
         match vs with
           | v::vs' => ISpec.ret (v, vs')
@@ -98,7 +106,10 @@ Definition L_bq : CALspec bq_sig (list val) :=
         end
     end.
 
-Definition L_rb : CALspec rb_sig ((nat -> val) * nat * nat) :=
+Definition rb_state : Type :=
+  (nat -> val) * nat * nat.
+
+Definition L_rb : CALspec rb_sig rb_state :=
   fun ar m '(f, c1, c2) =>
     match m with
       | set i v =>
@@ -148,7 +159,7 @@ Fixpoint stateful_play {E S A} (k: S) (s: ISpec.play E A): ispec (E#S) (A*S) :=
     | ISpec.pret v => FCD.emb (ISpec.pret (v, k))
     | ISpec.pmove m => FCD.emb (ISpec.pmove (st m k))
     | ISpec.pcons m n t =>
-      ⋁ x : option S;
+      sup x : option S,
       match x with
       | Some k' => FCD.map (ISpec.pcons (st m k) (n, k')) (stateful_play k' t)
       | None => FCD.emb (ISpec.pmove (st m k))
@@ -220,14 +231,6 @@ Lemma srun_int {E S ar} (k : S) (m : E ar) :
   srun k (ISpec.int m) = ISpec.int (st m k).
 Admitted.
 
-Lemma apply_bind {E F A B} (f : A -> ispec F B) (x : ispec F A) (σ : E ~> F) :
-  ISpec.bind f x / σ = a <- (x / σ); (f a / σ).
-Admitted.
-  
-Lemma apply_int {E F ar} (m : F ar) (σ : E ~> F) :
-  ISpec.int m / σ = σ ar m.
-Admitted.
-
 Lemma assert_true {E} {P : Prop} (H : P) :
   @assert E P = ISpec.ret tt.
 Proof.
@@ -236,6 +239,25 @@ Proof.
   - apply sup_lub. reflexivity.
   - apply (sup_at H). reflexivity.
 Qed.
+
+(** ** Rewriting tactic *)
+
+Hint Rewrite
+  @bind_ret_l
+  @bind_ret_r
+  @bind_bind
+  @apply_ret
+  @apply_bind
+  @apply_int_l
+  @apply_int_r
+  @srun_bind
+  @srun_int
+  : intm.
+
+Hint Rewrite @assert_true using solve [auto] : intm.
+
+Ltac intm :=
+  repeat progress (autorewrite with intm; cbn).
 
 (** ** Example *)
 
@@ -249,18 +271,8 @@ Goal
     ISpec.ret (f 2, (f, 3, 5)).
 Proof.
   intros f. unfold layer.
-  rewrite <- ISpec.apply_assoc.
-  rewrite srun_slift.
-  rewrite ISpec.apply_int_r. cbn.
-  rewrite srun_bind.
-  rewrite srun_int.
-  rewrite apply_bind.
-  rewrite apply_int. cbn.
-  rewrite ISpec.bind_ret_r.
-  rewrite srun_int.
-  rewrite apply_int. cbn.
-  rewrite assert_true by admit.
-  rewrite ISpec.bind_ret_r.
+  rewrite <- ISpec.apply_assoc. intm.
+  rewrite assert_true by admit. intm.
   rewrite Nat.mod_small by admit.
   reflexivity.
 Admitted.
@@ -268,3 +280,129 @@ Admitted.
 (** The next step will be to show that [layer M_bq L_rb] implements
   [L_bq] with a particular simulation relation between the abstract
   states of the overlay and underlay. Stay tuned... *)
+
+(** * Data refinement *)
+
+(** ** Simulation relations as morphisms *)
+
+Definition srel_push {E S1 S2} (R : rel S1 S2) : E#S2 ~> E#S1 :=
+  fun _ '(st m k1) =>
+    sup {k2 | R k1 k2}, ISpec.int (st m k2) >>= fun '(n, k2') =>
+    inf {k1' | R k1' k2'}, ISpec.ret (n, k1').
+
+Definition srel_pull {E S1 S2} (R : rel S1 S2) : E#S1 ~> E#S2 :=
+  fun _ '(st m k2) =>
+    inf {k1 | R k1 k2}, ISpec.int (st m k1) >>= fun '(n, k1') =>
+    sup {k2' | R k1' k2'}, ISpec.ret (n, k2').
+
+Lemma srel_push_pull {E S1 S2} (R : rel S1 S2) (σ : 0 ~> E#S2) (τ : 0 ~> E#S1) :
+  srel_push R @ σ [= τ <-> σ [= srel_pull R @ τ.
+Proof.
+  split.
+  - intros H _ [ar m k2]. unfold srel_pull, compose.
+    unfold finf. rewrite Upset.Inf.mor. eapply inf_glb. intros [k1 Hk]. intm.
+    specialize (H _ (st m k1)). unfold srel_push, compose in H. rewrite <- H.
+    unfold fsup. rewrite !Downset.Sup.mor. apply (sup_at (exist _ k2 Hk)). intm.
+    destruct (FCD.meet_join_dense (σ _ (st m k2))) as (I & J & c & Hc).
+    rewrite Hc. clear.
+    rewrite !Upset.Inf.mor. apply inf_glb. intros i. apply (inf_at i).
+    rewrite !Downset.Sup.mor. apply sup_lub. intros j. apply (sup_at j).
+    destruct (c i j) as [[v k2'] | | ] eqn:Hcij; try tauto.
+    setoid_rewrite bind_ret_r.
+    unfold finf. rewrite !Upset.Inf.mor. apply inf_glb. intros [k1' Hk']. intm.
+    rewrite Downset.Sup.mor. apply (sup_at (exist _ k2' Hk')). intm.
+    reflexivity.
+  - admit.
+Admitted.
+
+(** ** Correctness of [M_bq] *)
+
+(** To express the relationship between the ring buffer and the
+  corresponding bounded queue, we use the following auxiliary
+  functions. [slice] reads a slice of the ring buffer and returns a
+  list of elements. *)
+
+Fixpoint slice (f : nat -> val) (i : nat) (n : nat) : list val :=
+  match n with
+    | O => nil
+    | S n' => f i :: slice f (S i mod N) n'
+  end.
+
+(** Then we can define the simulation relation as follows. *)
+
+Inductive rb_bq : rb_state -> bq_state -> Prop :=
+  bq_rb_intro f c1 c2 n q :
+    c1 < N ->
+    n <= N ->
+    q = slice f c1 n ->
+    c2 = (c1 + n) mod N ->
+    rb_bq (f, c1, c2) q.
+
+(** This allows us to establish the correctness of [M_bq] as the
+  following refinement property. *)
+
+Lemma slice_length f c1 n :
+  length (slice f c1 n) = n.
+Proof.
+  revert c1. induction n; cbn; auto.
+Qed.
+
+Lemma assert_l {E A} (P : Prop) (x y : ispec E A) :
+  (P -> x [= y) ->
+  _ <- assert P; x [= y.
+Proof.
+  intros H. unfold assert.
+  rewrite Downset.Sup.mor. apply sup_lub. intros HP.
+  intm. auto.
+Qed.
+
+Lemma assert_r {E A} (P : Prop) (x y : ispec E A) :
+  x [= y -> P ->
+  x [= _ <- assert P; y.
+Proof.
+  intros Hxy HP.
+  rewrite assert_true; intm; auto.
+Qed.
+
+Lemma bq_rb_correct :
+  L_bq [= srel_pull rb_bq @ slift M_bq @ L_rb.
+Proof.
+  intros _ [ar m q]. unfold compose, srel_pull, finf. cbn.
+  rewrite !Upset.Inf.mor. apply inf_glb. intros [[[f c1] c2] H]. intm.
+  inversion H; clear H; subst.
+  destruct m; intm.
+  - (* enq *)
+    apply assert_l. intros HN.
+    rewrite assert_true. 2: eapply Nat.mod_upper_bound; admit. intm.
+    unfold fsup. rewrite !Downset.Sup.mor. eapply (sup_at (exist _ _ _)). intm.
+    reflexivity.
+    Unshelve. cbn.
+    rewrite slice_length in HN.
+    apply bq_rb_intro with (n := S n); auto.
+    + revert c1 H3.
+      induction n; cbn; intros.
+      * rewrite Nat.add_0_r.
+        rewrite Nat.mod_small by auto.
+        f_equal. unfold update. destruct Nat.eq_dec; congruence.
+      * rewrite IHn; auto.
+        -- unfold update at 2.
+           destruct Nat.eq_dec. admit. cbn. f_equal. f_equal.
+           ++ f_equal. rewrite Nat.add_mod_idemp_l by admit. f_equal.
+              induction c1; cbn in *; auto.
+           ++ f_equal. f_equal. rewrite Nat.add_mod_idemp_l by admit. f_equal.
+              induction c1; cbn in *; auto.
+        -- apply Le.le_Sn_le; auto.
+        -- apply Nat.mod_upper_bound. admit.
+    + change (S ?x) with (1 + x).
+      rewrite Nat.add_mod_idemp_r by admit. f_equal.
+      induction c1; cbn in *; auto.
+  - (* deq *)
+    destruct n; cbn; auto using bot_lb.
+    unfold fsup. rewrite !Downset.Sup.mor.
+    eapply (sup_at (exist _ _ _)). intm. reflexivity.
+    Unshelve. cbn. apply bq_rb_intro with (n := n); eauto.
+    + apply Nat.mod_upper_bound. admit.
+    + apply Le.le_Sn_le. auto.
+    + rewrite Nat.add_mod_idemp_l by admit. f_equal.
+      induction c1; cbn in *; auto.
+Admitted.
