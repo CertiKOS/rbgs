@@ -9,6 +9,7 @@ Require Import structures.Monad.
 Require Import lattices.Downset.
 Require Import lattices.Upset.
 Require Import lattices.FCD.
+Require Import lattices.LatticeProduct.
 
 (** * Preliminaries *)
 
@@ -203,6 +204,9 @@ Module ISpec.
     unfold bind. typeclasses eauto.
   Qed.
 
+  Instance bind_mor_params :
+    Params (@bind) 1.
+
   Lemma bind_ret_r {E A B} (a : A) (f : A -> t E B) :
     bind f (ret a) = f a.
   Proof.
@@ -228,6 +232,11 @@ Module ISpec.
     apply FCD.ext_emb.
   Qed.
 
+  Lemma bind_bind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : t E A) :
+    bind g (bind f x) = bind (fun a => bind g (f a)) x.
+  Proof.
+  Admitted.
+
   (** ** Interaction *)
 
   (** The interaction primitive triggers one of the actions from the
@@ -244,8 +253,8 @@ Module ISpec.
     which give an interaction specification in [E] for each possible
     operation in [F]. *)
 
-  Definition subst (E F : esig) :=
-    forall ar, F ar -> t E ar.
+  Definition subst (E F : esig) : cdlattice :=
+    pi ar, t E ar ^ F ar.
 
   (** To apply a substitution [f : E -> F] to an interaction
     specification in [F], we replace each move [m] by the
@@ -294,6 +303,9 @@ Module ISpec.
     unfold apply.
     typeclasses eauto.
   Qed.
+
+  Instance apply_mor_params :
+    Params (@apply) 1.
 
   Definition compose {E F G} (g : subst F G) (f : subst E F) : subst E G :=
     fun ar m => apply f (g ar m).
@@ -388,7 +400,7 @@ Module ISpec.
   Proof.
     unfold compose.
     apply functional_extensionality_dep; intros ar.
-    apply functional_extensionality; intros m.
+    apply functional_extensionality_dep; intros m.
     apply apply_int_r.
   Qed.
 
@@ -397,7 +409,7 @@ Module ISpec.
   Proof.
     unfold compose.
     apply functional_extensionality_dep; intros ar.
-    apply functional_extensionality; intros m.
+    apply functional_extensionality_dep; intros m.
     apply apply_int_l.
   Qed.
 
@@ -406,7 +418,7 @@ Module ISpec.
   Proof.
     unfold compose.
     apply functional_extensionality_dep; intros ar.
-    apply functional_extensionality; intros m.
+    apply functional_extensionality_dep; intros m.
     apply apply_assoc.
   Qed.
 

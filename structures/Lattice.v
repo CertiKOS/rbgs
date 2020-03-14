@@ -65,6 +65,22 @@ Section PROPERTIES.
     intros; etransitivity; eauto using inf_lb.
   Qed.
 
+  Lemma sup_iff {I} (x : I -> L) (y : L) :
+    lsup x [= y <-> forall i, x i [= y.
+  Proof.
+    split.
+    - intros H i. etransitivity; eauto using sup_ub.
+    - apply sup_lub.
+  Qed.
+
+  Lemma inf_iff {I} (x : L) (y : I -> L) :
+    x [= linf y <-> forall i, x [= y i.
+  Proof.
+    split.
+    - intros H i. etransitivity; eauto using inf_lb.
+    - apply inf_glb.
+  Qed.
+
   Lemma inf_sup {I J} (x : forall i:I, J i -> L) :
     inf i, sup j, x i j = sup f, inf i, x i (f i).
   Proof.
