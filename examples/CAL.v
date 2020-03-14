@@ -231,20 +231,6 @@ Lemma srun_int {E S ar} (k : S) (m : E ar) :
   srun k (ISpec.int m) = ISpec.int (st m k).
 Admitted.
 
-Lemma apply_bind {E F A B} (f : A -> ispec F B) (x : ispec F A) (σ : E ~> F) :
-  ISpec.bind f x / σ = a <- (x / σ); (f a / σ).
-Admitted.
-
-Lemma apply_ret {E F A} (a : A) (σ : E ~> F) :
-  ret a / σ = ret a.
-Proof.
-  unfold apply, ret. rewrite FCD.ext_ana. cbn. auto.
-Qed.
-  
-Lemma apply_int {E F ar} (m : F ar) (σ : E ~> F) :
-  ISpec.int m / σ = σ ar m.
-Admitted.
-
 Lemma assert_true {E} {P : Prop} (H : P) :
   @assert E P = ISpec.ret tt.
 Proof.
@@ -253,11 +239,6 @@ Proof.
   - apply sup_lub. reflexivity.
   - apply (sup_at H). reflexivity.
 Qed.
-
-Global Instance apply_mor {E F A} (σ : E ~> F) :
-  CDL.Morphism (@apply E F A σ).
-Proof.
-Admitted.
 
 (** ** Rewriting tactic *)
 
@@ -268,7 +249,7 @@ Hint Rewrite
   @apply_ret
   @apply_bind
   @apply_int_l
-  @apply_int
+  @apply_int_r
   @srun_bind
   @srun_int
   : intm.

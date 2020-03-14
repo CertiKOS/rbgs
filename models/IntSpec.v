@@ -312,6 +312,16 @@ Module ISpec.
 
   (** Properties of [apply]. *)
 
+  Lemma apply_ret {E F A} (f : subst E F) (a : A) :
+    apply f (ret a) = ret a.
+  Proof.
+    unfold apply, ret. rewrite FCD.ext_ana. cbn. auto.
+  Qed.
+
+  Lemma apply_bind {E F A B} (f : subst E F) (g : A -> t F B) (x : t F A) :
+    apply f (bind g x) = bind (fun a => apply f (g a)) (apply f x).
+  Admitted.
+
   Lemma apply_int_r {E F ar} (m : F ar) (f : subst E F) :
     apply f (int m) = f ar m.
   Proof.
