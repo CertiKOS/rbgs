@@ -626,7 +626,16 @@ Qed.
 Lemma dag_counit_natural {A B} (f : A --o B) :
    f @ dag_counit A = dag_counit B @ !f.
 Proof.
-Admitted.
+  apply lmap_ext. split.
+  - cbn. intros [a Ha1 Ha2].
+    inversion Ha1. subst.
+    eexists; repeat constructor; eauto.
+  - cbn. intros [a Ha1 Ha2].
+    inversion Ha2. subst.
+    inversion Ha1. subst.
+    inversion H3. subst.
+    eexists. constructor. assumption.
+Qed.
 
 (** Comultiplication *)
 
@@ -668,27 +677,172 @@ Next Obligation.
       eapply suffix_coh; eauto.
 Qed.
 
+Lemma dag_lmaps_app {A B} (f : A --o B) a1 a2 b1 b2:
+  !f a1 b1 -> !f a2 b2 -> !f (a1 ++ a2) (b1 ++ b2).
+Proof.
+  cbn. induction 1.
+  - intuition.
+  - intros Hx.
+    apply IHdag_lmaps in Hx.
+    rewrite <- app_comm_cons.
+    rewrite <- app_comm_cons.
+    constructor. assumption. assumption.
+Qed.
+
+Lemma dag_lmaps_app_inv {A B} (f : A --o B) a b1 b2:
+  !f a (b1 ++ b2) -> exists a1 a2, a = a1 ++ a2 /\ !f a1 b1 /\ !f a2 b2.
+Proof.
+  cbn.
+  revert a b2.
+  induction b1.
+  - intros. exists nil. exists a.
+    split. reflexivity.
+    split. constructor.
+    exact H.
+  - intros.
+    rewrite <- app_comm_cons in H.
+    inversion H. subst.
+    apply IHb1 in H4 as [xa1 [xa2 [app_eq [Hxa1 Hxa2]]]].
+    exists (a1::xa1). exists xa2.
+    split. subst aa. apply app_comm_cons.
+    split. constructor. assumption. assumption. assumption.
+Qed.
+
 Lemma dag_comult_natural {A B} (f : A --o B) :
   !!f @ dag_comult A = dag_comult B @ !f. 
 Proof.
-Admitted.
+  apply lmap_ext. split.
+  - cbn. intros [a Ha1 Ha2].
+    revert y Ha2.
+    induction Ha1.
+    + inversion 1. eexists; constructor.
+    + inversion 1. subst.
+      eapply IHHa1 in H3 as [sb Hb1 Hb2].
+      inversion Ha2. subst.
+      exists (b ++ sb). apply dag_lmaps_app; assumption.
+      constructor. assumption.
+  - cbn. intros [a Ha1 Ha2].
+    revert x Ha1.
+    induction Ha2.
+    + inversion 1. eexists; constructor.
+    + intros x Hx.
+      apply dag_lmaps_app_inv in Hx as [a1 [a2 [? [Hxa1 Hxa2]]]].
+      subst. apply IHHa2 in Hxa2 as [xa Hxa3 Hxa4].
+      exists (a1 :: xa). constructor. assumption.
+      constructor. assumption. assumption.
+Qed.
 
 (** Properties *)
 
 Lemma dag_comult_counit {A} :
   !(dag_counit A) @ (dag_comult A) = @lmap_id !A.
 Proof.
-Admitted.
+  apply lmap_ext. split.
+  - cbn. intros [a Ha1 Ha2].
+    revert y Ha2. induction Ha1.
+    + inversion 1. reflexivity.
+    + inversion 1. subst.
+      apply IHHa1 in H3.
+      inversion H1. subst. reflexivity.
+  - cbn. intros <-.
+    exists (map (fun x => x::nil) x).
+    + induction x.
+      * cbn. constructor.
+      * cbn.
+        replace (a :: x) with ((a :: nil) ++ x).
+        constructor. assumption.
+        reflexivity.
+    + induction x.
+      * cbn. constructor.
+      * cbn. constructor.
+        constructor. assumption.
+Qed.
 
 Lemma dag_counit_comult {A} :
   (dag_counit !A) @ (dag_comult A) = @lmap_id !A.
 Proof.
-Admitted.
+  apply lmap_ext. split.
+  - cbn. intros [a Ha1 Ha2].
+    inversion Ha2. subst.
+    inversion Ha1. subst. inversion H1.
+    apply app_nil_r.
+  - cbn. intros <-.
+    exists (x::nil).
+    replace x with (x ++ nil) at 1.
+    constructor. constructor.
+    apply app_nil_r.
+    constructor.
+Qed.
+
+Lemma dag_comult_app {A} x y xs ys:
+  (dag_comult A) x xs ->
+  (dag_comult A) y ys ->
+  (dag_comult A) (x ++ y) (xs ++ ys).
+Proof.
+  revert y ys.
+  induction 1.
+  - trivial.
+  - intros Hy.
+    apply IHdag_comult_lmaps in Hy.
+    replace ((s++a)++y) with (s++(a++y)).
+    rewrite <- app_comm_cons.
+    constructor. assumption.
+    apply app_assoc.
+Qed.
+
+Lemma dag_comult_app_inv {A} a xs ys:
+  (dag_comult A) a (xs ++ ys) ->
+  exists x y, a = x ++ y /\ (dag_comult A) x xs /\ (dag_comult A) y ys.
+Proof.
+  revert a ys.
+  induction xs as [| x].
+  - intros a ys Hys.
+    exists nil. exists a.
+    split. reflexivity.
+    split. constructor.
+    apply Hys.
+  - intros a ys Hys.
+    SearchAbout cons app.
+    rewrite <- app_comm_cons in Hys.
+    inversion Hys. subst.
+    apply IHxs in H1 as [x0 [y0 [app_eq [x_comult y_comult]]]].
+    exists (x ++ x0).
+    exists y0.
+    split. subst a0.
+    SearchAbout app.
+    apply app_assoc.
+    split. constructor. assumption. assumption.
+Qed.
 
 Lemma dag_comult_comult {A} :
   !(dag_comult A) @ (dag_comult A) = (dag_comult !A) @ (dag_comult A).
 Proof.
-Admitted.
+  apply lmap_ext. split.
+  - cbn. intros [aa Haa1 Haa2].
+    revert y Haa2.
+    induction Haa1.
+    + inversion 1. eexists.
+      constructor. constructor.
+    + intros y Hsaa.
+      inversion Hsaa. subst.
+      apply IHHaa1 in H3 as [xaa Hxaa1 Hxaa2].
+      exists (b++xaa).
+      apply dag_comult_app. assumption. assumption.
+      constructor. assumption.
+  - cbn. intros [aa Haa1 Haa2].
+    revert x Haa1.
+    induction Haa2.
+    + inversion 1.
+      eexists. constructor.
+      constructor.
+    + intros xa Hxa.
+      apply dag_comult_app_inv in Hxa as [xa1 [xa2 [app_eq [xa1_comult xa2_comult]]]].
+      apply IHHaa2 in xa2_comult as [b Hb1 Hb2].
+      exists (xa1::b).
+      subst xa.
+      constructor. assumption.
+      constructor. assumption. assumption.
+Qed.
 
 (** Kleisli extension *)
 
