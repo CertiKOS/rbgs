@@ -227,6 +227,69 @@ Proof.
 *)
 
 
+(** * Simple constructions *)
+
+(** ** Output *)
+
+(** The covariant functor from [Set]. *)
+
+Program Definition output (X : Type) :=
+  {|
+    token := X;
+    coh := eq;
+  |}.
+
+Program Definition omap {X Y} (f : X -> Y) : output X --o output Y :=
+  {|
+    lmaps x y := f x = y;
+  |}.
+
+Lemma omap_id X :
+  omap (fun x:X => x) = lmap_id.
+Proof.
+  apply lmap_ext. cbn. tauto.
+Qed.
+
+Lemma omap_compose {X Y Z} (f : X -> Y) (g : Y -> Z) :
+  omap (fun x:X => g (f x)) = omap g @ omap f.
+Proof.
+  apply lmap_ext. cbn. split.
+  - intros [ ]. exists (f x); auto.
+  - intros [_ [ ] [ ]]. auto.
+Qed.
+
+(** Here we could prove that the functor preserves products, coproducts, etc. *)
+
+(** ** Input *)
+
+(** The contravariant functor from [Set]. *)
+
+Program Definition input (X : Type) :=
+  {|
+    token := X;
+    coh x1 x2 := True;
+  |}.
+
+Program Definition imap {X Y} (f : X -> Y) : input Y --o input X :=
+  {|
+    lmaps y x := f x = y;
+  |}.
+
+Lemma imap_id X :
+  imap (fun x:X => x) = lmap_id.
+Proof.
+  apply lmap_ext. cbn. firstorder.
+Qed.
+
+Lemma imap_compose {X Y Z} (f : X -> Y) (g : Y -> Z) :
+  imap (fun x:X => g (f x)) = imap f @ imap g.
+Proof.
+  apply lmap_ext. cbn. split.
+  - intros [ ]. eexists; eauto.
+  - intros [_ [ ] [ ]]. auto.
+Qed.
+
+
 (** * Cartesian structure *)
 
 (** ** Binary product *)
