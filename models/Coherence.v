@@ -377,6 +377,93 @@ Proof.
   inversion 1; congruence.
 Qed.
 
+(** ** Binary coproducts *)
+
+(** *** Definition *)
+
+Inductive cssum_coh {A B} (RA : relation A) (RB : relation B) : relation (A + B) :=
+  | sum_inl_coh x y : RA x y -> cssum_coh RA RB (inl x) (inl y)
+  | sum_inr_coh x y : RB x y -> cssum_coh RA RB (inr x) (inr y).
+
+Program Definition cssum (A B : space) : space :=
+  {|
+    token := token A + token B;
+    coh := cssum_coh coh coh;
+  |}.
+Next Obligation.
+  intros A B [ | ]; constructor; reflexivity.
+Qed.
+Next Obligation.
+  destruct 1; constructor; symmetry; auto.
+Qed.
+
+Infix "+" := cssum : coh_scope.
+
+Program Definition csi1 {A B : space} : A --o A + B :=
+  {|
+    lmaps a x := inl a = x;
+  |}.
+Next Obligation.
+  intros A B a1 a2 _ _ Ha [ ] [ ].
+  constructor; auto.
+Qed.
+
+Program Definition csi2 {A B : space} : B --o A + B :=
+  {|
+    lmaps b x := inr b = x;
+  |}.
+Next Obligation.
+  intros A B a1 a2 _ _ Ha [ ] [ ].
+  constructor; auto.
+Qed.
+
+Program Definition copair {A B X : space} (f : A --o X) (g : B --o X) : A + B --o X :=
+  {|
+    lmaps x y :=
+      match x with
+        | inl a => lmaps f a y
+        | inr b => lmaps g b y
+      end;
+  |}.
+Next Obligation.
+  intros A B X f g ab1 ab2 x1 x2 H H1 H2.
+  destruct H; eauto using lmaps_coh.
+Qed.
+Next Obligation.
+  intros A B X f g ab1 ab2 x1 x2 H H1 H2 Hx.
+  destruct H; f_equal; eauto using lmaps_det.
+Qed.
+
+Notation "[ x , y ]" := (copair x y) (x at level 99) : lmap_scope.
+
+(** *** Universal property *)
+
+Lemma copair_csi1 {A B X} (f : A --o X) (g : B --o X) :
+  [f, g] @ csi1 = f.
+Proof.
+  apply lmap_ext. cbn. intros a x. split.
+  - intros [_ [ ] H]. auto.
+  - intros H. exists (inl a); auto.
+Qed.
+
+Lemma copair_csi2 {A B X} (f : A --o X) (g : B --o X) :
+  [f, g] @ csi2 = g.
+Proof.
+  apply lmap_ext. cbn. intros b x. split.
+  - intros [_ [ ] H]. auto.
+  - intros H. exists (inr b); auto.
+Qed.
+
+Lemma copair_uniq {A B X} (h : A + B --o X) :
+  [h @ csi1, h @ csi2] = h.
+Proof.
+  apply lmap_ext. intros [a | b] x; cbn; split.
+  - intros [_ [ ] H]; auto.
+  - eexists; eauto.
+  - intros [_ [ ] H]; auto.
+  - eexists; eauto.
+Qed.
+
 (** ** Terminal object *)
 
 (** *** Definition *)
@@ -526,6 +613,44 @@ Next Obligation.
   inversion 1; clear H; subst.
   f_equal; eauto using lmaps_coh, lmaps_det, (reflexivity (R := coh)).
 Qed.
+
+
+(** * Sequential constructions *)
+
+(** ** Composition *)
+
+Program Definition seq (A B : space) : space :=
+  {|
+    token := token A * token B;
+    coh '(a1, b1) '(a2, b2) := coh a1 a2 /\ (a1 = a2 -> coh b1 b2);
+  |}.
+Next Obligation.
+  intros A B [a b].
+  split; reflexivity.
+Qed.
+Next Obligation.
+  intros A B [a1 b1] [a2 b2] [Ha Hb].
+  split; symmetry; auto.
+Qed.
+
+Infix ";;" := seq (at level 40, left associativity) : coh_scope.
+
+Program Definition seq_lmap {A B C D} (f g : _ --o _) : (A ;; C) --o (B ;; D) :=
+  {|
+    lmaps '(a, c) '(b, d) := f a b /\ g c d;
+  |}.
+Next Obligation.
+  intros A B C D f g [a1 c1] [a2 c2] [b1 d1] [b2 d2]. cbn.
+  intros [Ha Hc] [Hab1 Hab2] [Hcd1 Hcd2].
+  split; eauto 10 using lmaps_coh, lmaps_det.
+Qed.
+Next Obligation.
+  intros A B C D f g [a1 c1] [a2 c2] [b1 d1] [b2 d2]. cbn.
+  intros [Ha Hc] [Hab1 Hab2] [Hcd1 Hcd2]. inversion 1; clear H.
+  f_equal; eauto using lmaps_coh, lmaps_det.
+Qed.
+
+Infix ";;" := seq_lmap : lmap_scope.
 
 (** ** Exponential *)
 
