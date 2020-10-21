@@ -1,0 +1,272 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>examples.CompCertSem</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library examples.CompCertSem</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Relations.Relations.html#"><span class="id" title="library">Relations</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Classes.RelationClasses.html#"><span class="id" title="library">RelationClasses</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Lists.List.html#"><span class="id" title="library">List</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">compcert.common.LanguageInterface</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">compcert.common.Events</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">compcert.common.Globalenvs</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">compcert.common.Smallstep</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="models.Coherence.html#"><span class="id" title="library">models.Coherence</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Unset</span> <span class="id" title="var">Program</span> <span class="id" title="var">Cases</span>.<br/>
+<span class="id" title="keyword">Local</span> <span class="id" title="keyword">Obligation</span> <span class="id" title="keyword">Tactic</span> := <span class="id" title="var">cbn</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab82"></a><h1 class="section">Coherence spaces for CompCertO semantics</h1>
+
+<div class="paragraph"> </div>
+
+<a name="lab83"></a><h2 class="section">Language interfaces</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Coercion</span> <span class="id" title="var">li_space</span> (<span class="id" title="var">li</span> : <span class="id" title="record">language_interface</span>) : <a class="idref" href="models.Coherence.html#space"><span class="id" title="record">space</span></a> :=<br/>
+&nbsp;&nbsp;<a class="idref" href="models.Coherence.html#input"><span class="id" title="definition">input</span></a> (<span class="id" title="projection">query</span> <a class="idref" href="examples.CompCertSem.html#li"><span class="id" title="variable">li</span></a>) <a class="idref" href="models.Coherence.html#aaeee440dd7b94913520d579fa0dae6c"><span class="id" title="notation">;;</span></a> <a class="idref" href="models.Coherence.html#output"><span class="id" title="definition">output</span></a> (<span class="id" title="projection">reply</span> <a class="idref" href="examples.CompCertSem.html#li"><span class="id" title="variable">li</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab84"></a><h2 class="section">CompCert events</h2>
+
+</div>
+<div class="code">
+
+<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab85"></a><h1 class="section">CompCert semantics</h1>
+
+<div class="paragraph"> </div>
+
+ Note that Reddy's object semantics have a rather coarse-grained
+  handling of undefined behaviors, which is inherited by our CompCert
+  semantics. Silent divergence and undefined behaviors are also
+  conflated.
+
+<div class="paragraph"> </div>
+
+  The preliminary definition below loses information about the domains
+  of component, which would make it impossible to define mutually
+  recursive horizontal composition in a satisfactory way. However for
+  now we don't need it so we don't care. Ultimately we could
+  incoroporate it in the type of the semantics by using
+  <span class="inlinecode"><a class="idref" href="models.Coherence.html#input"><span class="id" title="definition">input</span></a></span> <span class="inlinecode">(<span class="id" title="projection">query</span></span> <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#li"><span class="id" title="variable">li</span></a>)</span> <span class="inlinecode">;;</span> <span class="inlinecode">(1</span> <span class="inlinecode">+</span> <span class="inlinecode"><a class="idref" href="models.Coherence.html#output"><span class="id" title="definition">output</span></a></span> <span class="inlinecode">(<span class="id" title="projection">reply</span></span> <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#li"><span class="id" title="variable">li</span></a>)</span> instead of <span class="inlinecode"><span class="id" title="var">li_space</span></span>
+  for the codomain.
+
+<div class="paragraph"> </div>
+
+  Finally, everything in CompCertO happens in the context of a global
+  symbol table, so we need to specify one to get the component's
+  semantics. Again this could be an <span class="inlinecode"><a class="idref" href="models.Coherence.html#input"><span class="id" title="definition">input</span></a></span> <span class="inlinecode"><span class="id" title="var">Genv.symtbl</span></span> <span class="inlinecode">;;</span> <span class="inlinecode">...</span> component
+  in the interaction but for now this is the simpler approach. 
+<div class="paragraph"> </div>
+
+<a name="lab86"></a><h2 class="section">Semantics of transition systems</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a name="LTS"><span class="id" title="section">LTS</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">liA</span> <span class="id" title="var">liB</span> <span class="id" title="var">S</span>} (<span class="id" title="var">L</span> : <span class="id" title="record">lts</span> <a class="idref" href="examples.CompCertSem.html#liA"><span class="id" title="variable">liA</span></a> <a class="idref" href="examples.CompCertSem.html#liB"><span class="id" title="variable">liB</span></a> <a class="idref" href="examples.CompCertSem.html#S"><span class="id" title="variable">S</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<span class="inlinecode"><a class="idref" href="examples.CompCertSem.html#lts_trace"><span class="id" title="inductive">lts_trace</span></a></span> <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#s"><span class="id" title="variable">s</span></a></span> <span class="inlinecode"><a class="idref" href="models.IntSpec.html#ISpec.t"><span class="id" title="definition">t</span></a></span> <span class="inlinecode"><a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a></span> asserts that the transition system <span class="inlinecode"><a class="idref" href="structures.Lattice.html#L"><span class="id" title="variable">L</span></a></span> reaches
+    a final state with reply <span class="inlinecode"><a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a></span> from the state <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#s"><span class="id" title="variable">s</span></a></span>, with the sequence
+    of external calls encoded by the trace <span class="inlinecode"><a class="idref" href="models.IntSpec.html#ISpec.t"><span class="id" title="definition">t</span></a></span>. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Inductive</span> <a name="lts_trace"><span class="id" title="inductive">lts_trace</span></a> : <a class="idref" href="examples.CompCertSem.html#LTS.S"><span class="id" title="variable">S</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="models.Coherence.html#token"><span class="id" title="projection">token</span></a> <a class="idref" href="models.Coherence.html#fb73b0c60b28fbc3d200c5fa7e87c73e"><span class="id" title="notation">!</span></a><a class="idref" href="examples.CompCertSem.html#LTS.liA"><span class="id" title="variable">liA</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="projection">reply</span> <a class="idref" href="examples.CompCertSem.html#LTS.liB"><span class="id" title="variable">liB</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| <a name="lts_trace_final"><span class="id" title="constructor">lts_trace_final</span></a> (<span class="id" title="var">s</span> : <a class="idref" href="examples.CompCertSem.html#LTS.S"><span class="id" title="variable">S</span></a>) (<span class="id" title="var">r</span> : <span class="id" title="projection">reply</span> <a class="idref" href="examples.CompCertSem.html#LTS.liB"><span class="id" title="variable">liB</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="projection">final_state</span> <a class="idref" href="examples.CompCertSem.html#LTS.L"><span class="id" title="variable">L</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#lts_trace"><span class="id" title="inductive">lts_trace</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#nil"><span class="id" title="constructor">nil</span></a> <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| <a name="lts_trace_step"><span class="id" title="constructor">lts_trace_step</span></a> (<span class="id" title="var">s</span> <span class="id" title="var">s'</span> : <a class="idref" href="examples.CompCertSem.html#LTS.S"><span class="id" title="variable">S</span></a>) (<span class="id" title="var">t</span> : <a class="idref" href="models.Coherence.html#token"><span class="id" title="projection">token</span></a> <a class="idref" href="models.Coherence.html#fb73b0c60b28fbc3d200c5fa7e87c73e"><span class="id" title="notation">!</span></a><a class="idref" href="examples.CompCertSem.html#LTS.liA"><span class="id" title="variable">liA</span></a>) (<span class="id" title="var">r</span> : <span class="id" title="projection">reply</span> <a class="idref" href="examples.CompCertSem.html#LTS.liB"><span class="id" title="variable">liB</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="notation">Step</span> <a class="idref" href="examples.CompCertSem.html#LTS.L"><span class="id" title="variable">L</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <span class="id" title="definition">E0</span> <a class="idref" href="examples.CompCertSem.html#s'"><span class="id" title="variable">s'</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#lts_trace"><span class="id" title="inductive">lts_trace</span></a> <a class="idref" href="examples.CompCertSem.html#s'"><span class="id" title="variable">s'</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a> <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#lts_trace"><span class="id" title="inductive">lts_trace</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a> <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| <a name="lts_trace_external"><span class="id" title="constructor">lts_trace_external</span></a> <span class="id" title="var">s</span> <span class="id" title="var">qx</span> <span class="id" title="var">rx</span> <span class="id" title="var">s'</span> <span class="id" title="var">t</span> <span class="id" title="var">r</span> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="projection">at_external</span> <a class="idref" href="examples.CompCertSem.html#LTS.L"><span class="id" title="variable">L</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="examples.CompCertSem.html#qx"><span class="id" title="variable">qx</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="projection">after_external</span> <a class="idref" href="examples.CompCertSem.html#LTS.L"><span class="id" title="variable">L</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="examples.CompCertSem.html#rx"><span class="id" title="variable">rx</span></a> <a class="idref" href="examples.CompCertSem.html#s'"><span class="id" title="variable">s'</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#lts_trace"><span class="id" title="inductive">lts_trace</span></a> <a class="idref" href="examples.CompCertSem.html#s'"><span class="id" title="variable">s'</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a> <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#lts_trace"><span class="id" title="inductive">lts_trace</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">(</span></a><a class="idref" href="examples.CompCertSem.html#qx"><span class="id" title="variable">qx</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">,</span></a> <a class="idref" href="examples.CompCertSem.html#rx"><span class="id" title="variable">rx</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#cbcf67aac0c2a85b8d93d37de9969adf"><span class="id" title="notation">::</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a>) <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Inductive</span> <a name="lts_lmaps"><span class="id" title="inductive">lts_lmaps</span></a> : <a class="idref" href="models.Coherence.html#token"><span class="id" title="projection">token</span></a> <a class="idref" href="models.Coherence.html#fb73b0c60b28fbc3d200c5fa7e87c73e"><span class="id" title="notation">!</span></a><a class="idref" href="examples.CompCertSem.html#LTS.liA"><span class="id" title="variable">liA</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <a class="idref" href="models.Coherence.html#token"><span class="id" title="projection">token</span></a> <a class="idref" href="examples.CompCertSem.html#LTS.liB"><span class="id" title="variable">liB</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;| <a name="lts_lmaps_intro"><span class="id" title="constructor">lts_lmaps_intro</span></a> <span class="id" title="var">q</span> <span class="id" title="var">s</span> <span class="id" title="var">t</span> <span class="id" title="var">r</span> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="projection">valid_query</span> <a class="idref" href="examples.CompCertSem.html#LTS.L"><span class="id" title="variable">L</span></a> <a class="idref" href="examples.CompCertSem.html#q"><span class="id" title="variable">q</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#true"><span class="id" title="constructor">true</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="projection">initial_state</span> <a class="idref" href="examples.CompCertSem.html#LTS.L"><span class="id" title="variable">L</span></a> <a class="idref" href="examples.CompCertSem.html#q"><span class="id" title="variable">q</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#lts_trace"><span class="id" title="inductive">lts_trace</span></a> <a class="idref" href="examples.CompCertSem.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a> <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#lts_lmaps"><span class="id" title="inductive">lts_lmaps</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">(</span></a><a class="idref" href="examples.CompCertSem.html#q"><span class="id" title="variable">q</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">,</span></a> <a class="idref" href="examples.CompCertSem.html#r"><span class="id" title="variable">r</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#e6756e10c36f149b18b4a8741ed83079"><span class="id" title="notation">)</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="examples.CompCertSem.html#LTS"><span class="id" title="section">LTS</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a name="SEMANTICS"><span class="id" title="section">SEMANTICS</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">liA</span> <span class="id" title="var">liB</span>} (<span class="id" title="var">L</span> : <span class="id" title="record">semantics</span> <a class="idref" href="examples.CompCertSem.html#liA"><span class="id" title="variable">liA</span></a> <a class="idref" href="examples.CompCertSem.html#liB"><span class="id" title="variable">liB</span></a>) (<span class="id" title="var">HL</span> : <span class="id" title="definition">determinate</span> <a class="idref" href="examples.CompCertSem.html#L"><span class="id" title="variable">L</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Program Definition</span> <a name="compcerto_lmap"><span class="id" title="definition">compcerto_lmap</span></a> <span class="id" title="var">se</span> : <a class="idref" href="models.Coherence.html#fb73b0c60b28fbc3d200c5fa7e87c73e"><span class="id" title="notation">!</span></a><a class="idref" href="examples.CompCertSem.html#SEMANTICS.liA"><span class="id" title="variable">liA</span></a> <a class="idref" href="models.Coherence.html#3cfdb2f0528fdd92c533a130112eda45"><span class="id" title="notation">--</span></a><a class="idref" href="models.Coherence.html#3cfdb2f0528fdd92c533a130112eda45"><span class="id" title="notation">o</span></a> <a class="idref" href="examples.CompCertSem.html#SEMANTICS.liB"><span class="id" title="variable">liB</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{|<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="models.Coherence.html#Build_lmap"><span class="id" title="constructor">lmaps</span></a> <a class="idref" href="models.Coherence.html#Build_lmap"><span class="id" title="constructor">:=</span></a> <a class="idref" href="models.Coherence.html#Build_lmap"><span class="id" title="constructor">lts_lmaps</span></a> <a class="idref" href="models.Coherence.html#Build_lmap"><span class="id" title="constructor">(</span></a><a class="idref" href="models.Coherence.html#Build_lmap"><span class="id" title="constructor">L</span></a> <a class="idref" href="models.Coherence.html#Build_lmap"><span class="id" title="constructor">se</span></a><a class="idref" href="models.Coherence.html#Build_lmap"><span class="id" title="constructor">);</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;|}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Next</span> <span class="id" title="keyword">Obligation</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Next</span> <span class="id" title="keyword">Obligation</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+XXX ^ this is probably a situation where grouping the two
+    properties of linear maps would be useful so that we only have to
+    do the funky induction once, event though it would make it a hint
+    more complicated. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="examples.CompCertSem.html#SEMANTICS"><span class="id" title="section">SEMANTICS</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab87"></a><h2 class="section">Clight semantics</h2>
+
+<div class="paragraph"> </div>
+
+ As an example, here is the semantics of Clight programs in terms
+  of linear maps. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="library">Clight</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+We will need to prove this or the result may not be a linear map. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a name="clight_determinate"><span class="id" title="lemma">clight_determinate</span></a> <span class="id" title="var">p</span> :<br/>
+&nbsp;&nbsp;<span class="id" title="definition">determinate</span> (<span class="id" title="definition">Clight.semantics1</span> <a class="idref" href="examples.CompCertSem.html#p"><span class="id" title="variable">p</span></a>).<br/>
+<span class="id" title="keyword">Proof</span>.<br/>
+<span class="id" title="var">Admitted</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a name="clight"><span class="id" title="definition">clight</span></a> (<span class="id" title="var">p</span> : <span class="id" title="definition">Clight.program</span>) <span class="id" title="var">se</span> : <a class="idref" href="models.Coherence.html#fb73b0c60b28fbc3d200c5fa7e87c73e"><span class="id" title="notation">!</span></a><span class="id" title="definition">li_c</span> <a class="idref" href="models.Coherence.html#3cfdb2f0528fdd92c533a130112eda45"><span class="id" title="notation">--</span></a><a class="idref" href="models.Coherence.html#3cfdb2f0528fdd92c533a130112eda45"><span class="id" title="notation">o</span></a> <span class="id" title="definition">li_c</span> :=<br/>
+&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#compcerto_lmap"><span class="id" title="definition">compcerto_lmap</span></a> (<span class="id" title="definition">Clight.semantics1</span> <a class="idref" href="examples.CompCertSem.html#p"><span class="id" title="variable">p</span></a>) (<a class="idref" href="examples.CompCertSem.html#clight_determinate"><span class="id" title="axiom">clight_determinate</span></a> <a class="idref" href="examples.CompCertSem.html#p"><span class="id" title="variable">p</span></a>) <a class="idref" href="examples.CompCertSem.html#se"><span class="id" title="variable">se</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a name="lab88"></a><h2 class="section">Soundness of forward simulations</h2>
+
+<div class="paragraph"> </div>
+
+ Since for now, our model doesn't support abstraction, we can only
+  consider simulations which use the <span class="inlinecode"><span class="id" title="var">cc_id</span></span> simulation convention. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a name="FSIM"><span class="id" title="section">FSIM</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<span class="id" title="var">liA</span> <span class="id" title="var">liB</span>} (<span class="id" title="var">L1</span> <span class="id" title="var">L2</span> : <span class="id" title="record">semantics</span> <a class="idref" href="examples.CompCertSem.html#liA"><span class="id" title="variable">liA</span></a> <a class="idref" href="examples.CompCertSem.html#liB"><span class="id" title="variable">liB</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> (<span class="id" title="var">H1</span> : <span class="id" title="definition">determinate</span> <a class="idref" href="examples.CompCertSem.html#FSIM.L1"><span class="id" title="variable">L1</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> (<span class="id" title="var">H2</span> : <span class="id" title="definition">determinate</span> <a class="idref" href="examples.CompCertSem.html#FSIM.L2"><span class="id" title="variable">L2</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> (<span class="id" title="var">FSIM</span> : <span class="id" title="definition">forward_simulation</span> 1 1 <a class="idref" href="examples.CompCertSem.html#FSIM.L1"><span class="id" title="variable">L1</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.L2"><span class="id" title="variable">L2</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> (<span class="id" title="var">se</span> : <span class="id" title="record">Genv.symtbl</span>) (<span class="id" title="var">Hse</span> : <span class="id" title="definition">Genv.valid_for</span> (<span class="id" title="projection">skel</span> <a class="idref" href="examples.CompCertSem.html#FSIM.L1"><span class="id" title="variable">L1</span></a>) <a class="idref" href="examples.CompCertSem.html#se"><span class="id" title="variable">se</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+XXX: we need a notion of refinement on linear maps themselves,
+    or perhaps just define linear maps as cliques in the function
+    space. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a name="fsim_sound"><span class="id" title="lemma">fsim_sound</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <span class="id" title="var">t</span> <span class="id" title="var">u</span>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#compcerto_lmap"><span class="id" title="definition">compcerto_lmap</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.L1"><span class="id" title="variable">L1</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.H1"><span class="id" title="variable">H1</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.se"><span class="id" title="variable">se</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a> <a class="idref" href="examples.CompCertSem.html#u"><span class="id" title="variable">u</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#1c93e43e07fbeaeb6a625cb6614beb5d"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="examples.CompCertSem.html#compcerto_lmap"><span class="id" title="definition">compcerto_lmap</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.L2"><span class="id" title="variable">L2</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.H2"><span class="id" title="variable">H2</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.se"><span class="id" title="variable">se</span></a> <a class="idref" href="examples.CompCertSem.html#t"><span class="id" title="variable">t</span></a> <a class="idref" href="examples.CompCertSem.html#u"><span class="id" title="variable">u</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span> <span class="id" title="var">t</span> <span class="id" title="var">u</span> <span class="id" title="var">Ht</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">destruct</span> <a class="idref" href="examples.CompCertSem.html#FSIM.FSIM"><span class="id" title="variable">FSIM</span></a> <span class="id" title="keyword">as</span> [[<span class="id" title="var">ind</span> <span class="id" title="var">ord</span> <span class="id" title="var">match_states</span> <span class="id" title="var">_</span> <span class="id" title="var">H</span> <span class="id" title="var">_</span>]]. <span class="id" title="var">cbn</span> <span class="id" title="tactic">in</span> ×.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">specialize</span> (<span class="id" title="var">H</span> <a class="idref" href="examples.CompCertSem.html#FSIM.se"><span class="id" title="variable">se</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.se"><span class="id" title="variable">se</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Datatypes.html#tt"><span class="id" title="constructor">tt</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.9.1/stdlib//Coq.Init.Logic.html#eq_refl"><span class="id" title="constructor">eq_refl</span></a> <a class="idref" href="examples.CompCertSem.html#FSIM.Hse"><span class="id" title="variable">Hse</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">destruct</span> <span class="id" title="var">Ht</span> <span class="id" title="keyword">as</span> [<span class="id" title="var">q</span> <span class="id" title="var">s1</span> <span class="id" title="var">t1</span> <span class="id" title="var">r</span> <span class="id" title="var">Hq1</span> <span class="id" title="var">Hs1</span> <span class="id" title="var">Ht1</span>].<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">edestruct</span> @<span class="id" title="projection">fsim_match_initial_states</span> <span class="id" title="keyword">as</span> (<span class="id" title="var">i</span> &amp; <span class="id" title="var">s2</span> &amp; <span class="id" title="var">Hs2</span> &amp; <span class="id" title="var">Hs</span>);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">eauto</span>; <span class="id" title="tactic">try</span> <span class="id" title="tactic">reflexivity</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">econstructor</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="var">erewrite</span> <span class="id" title="projection">fsim_match_valid_query</span>; <span class="id" title="tactic">eauto</span>. <span class="id" title="tactic">reflexivity</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">clear</span> - <span class="id" title="var">H</span> <span class="id" title="var">Hs</span> <span class="id" title="var">Ht1</span>. <span class="id" title="var">revert</span> <span class="id" title="var">i</span> <span class="id" title="var">s2</span> <span class="id" title="var">Hs</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">induction</span> <span class="id" title="var">Ht1</span>; <span class="id" title="var">cbn</span>; <span class="id" title="tactic">intros</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">edestruct</span> @<span class="id" title="projection">fsim_match_final_states</span> <span class="id" title="keyword">as</span> (<span class="id" title="var">xr</span> &amp; <span class="id" title="var">Hs2</span> &amp; <span class="id" title="var">Hxr</span>); <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">destruct</span> <span class="id" title="var">Hxr</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">constructor</span>; <span class="id" title="tactic">auto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">edestruct</span> @<span class="id" title="lemma">simulation_star</span> <span class="id" title="keyword">as</span> (<span class="id" title="var">j</span> &amp; <span class="id" title="var">s2'</span> &amp; <span class="id" title="var">Hs2'</span> &amp; <span class="id" title="var">Hs'</span>); <span class="id" title="tactic">eauto</span> <span class="id" title="keyword">using</span> <span class="id" title="lemma">star_one</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">revert</span> <span class="id" title="var">Hs'</span>. <span class="id" title="tactic">pattern</span> <span class="id" title="var">s2</span>, <span class="id" title="var">s2'</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> <span class="id" title="lemma">star_E0_ind</span>; <span class="id" title="tactic">eauto</span> <span class="id" title="keyword">using</span> <a class="idref" href="examples.CompCertSem.html#lts_trace_step"><span class="id" title="constructor">lts_trace_step</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">edestruct</span> @<span class="id" title="projection">fsim_match_external</span> <span class="id" title="keyword">as</span> (<span class="id" title="var">w</span> &amp; <span class="id" title="var">xq</span> &amp; <span class="id" title="var">Hq2</span> &amp; <span class="id" title="var">Hxq</span> &amp; <span class="id" title="var">_</span> &amp; <span class="id" title="var">Hrx</span>); <span class="id" title="tactic">eauto</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">destruct</span> <span class="id" title="var">Hxq</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="var">edestruct</span> <span class="id" title="var">Hrx</span> <span class="id" title="keyword">as</span> (<span class="id" title="var">j</span> &amp; <span class="id" title="var">s2'</span> &amp; <span class="id" title="var">Hs2'</span> &amp; <span class="id" title="var">Hs'</span>); <span class="id" title="var">cbn</span>; <span class="id" title="tactic">eauto</span> <span class="id" title="keyword">using</span> <a class="idref" href="examples.CompCertSem.html#lts_trace_external"><span class="id" title="constructor">lts_trace_external</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="examples.CompCertSem.html#FSIM"><span class="id" title="section">FSIM</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
