@@ -6,7 +6,7 @@ Require Import RelationClasses.
 Require Import List.
 
 Unset Program Cases.
-Obligation Tactic := cbn.
+Local Obligation Tactic := cbn.
 
 
 (** * Preliminaries *)
@@ -127,8 +127,8 @@ Delimit Scope lmap_scope with lmap.
 Bind Scope lmap_scope with lmap.
 Open Scope lmap_scope.
 
-Obligation Tactic :=
-  try firstorder (eauto using lmaps_coh, lmaps_det; congruence).
+Local Obligation Tactic :=
+  cbn; try firstorder (eauto using lmaps_coh, lmaps_det; congruence).
 
 Lemma lmap_ext {A B} (f g : A --o B):
   (forall x y, f x y <-> g x y) -> f = g.
@@ -150,7 +150,7 @@ Program Definition lmap_compose {A B C : space} (f : B --o C) (g : A --o B) :=
     lmaps := rcomp (lmaps g) (lmaps f);
   |}.
 
-Infix "@" := lmap_compose (at level 55, right associativity) : lmap_scope.
+Infix "@" := lmap_compose (at level 30, right associativity) : lmap_scope.
 
 Lemma lmap_compose_id_left {A B} (f : A --o B) :
   f @ lmap_id = f.
@@ -284,7 +284,7 @@ Next Obligation.
   destruct b1, b2; cbn; inversion 4; eauto using lmaps_det.
 Qed.
 
-Notation "{ x , y }" := (cspair x y) : lmap_scope.
+Notation "{ x , y }" := (cspair x y) (x at level 99) : lmap_scope.
 
 (** *** Universal property *)
 
@@ -306,7 +306,7 @@ Proof.
   - intros Hxb. exists (inr b); cbn; auto.
 Qed.
 
-Lemma cspair_uniq {X A B} (f : X --o A) (g : X --o B) (h : X --o A && B) :
+Lemma cspair_uniq {X A B} (h : X --o A && B) :
   {csp1 @ h, csp2 @ h} = h.
 Proof.
   apply lmap_ext.
@@ -337,9 +337,10 @@ Proof.
   apply lmap_ext. contradiction.
 Qed.
 
-(** ** Tensor product *)
 
-(** *** Definition *)
+(** * Tensor product *)
+
+(** ** Definition *)
 
 Program Definition cstens (A B : space) : space :=
   {|
@@ -355,7 +356,7 @@ Qed.
 
 Infix "*" := cstens : coh_scope.
 
-(** *** Functoriality *)
+(** ** Functoriality *)
 
 Program Definition cstens_lmap {A B C D} (f : A --o B) (g : C --o D) : A*C --o B*D :=
   {|
@@ -390,7 +391,7 @@ Proof.
   - intros [[? ?] [? ?] [? ?]]. eauto using rcomp_intro.
 Qed.
 
-(** *** Unit *)
+(** ** Unit *)
 
 Program Definition csunit : space :=
   {|
