@@ -35,7 +35,7 @@ Delimit Scope coh_scope with coh.
 
 (** A point in a coherence space is a set of pairwise coherent tokens. *)
 
-Record point (A : space) :=
+Record clique (A : space) :=
   {
     has : token A -> Prop;
     has_coh a b : has a -> has b -> coh a b;
@@ -45,7 +45,7 @@ Arguments has {A}.
 
 (* Points are ordered by inclusion and form a DCPPO. *)
 
-Definition ref {A} : relation (point A) :=
+Definition ref {A} : relation (clique A) :=
   fun x y => forall a, has x a -> has y a.
 
 Instance ref_preo A :
@@ -55,7 +55,7 @@ Proof.
 Qed.
 
 Instance ref_po A :
-  Antisymmetric (point A) eq (@ref A).
+  Antisymmetric (clique A) eq (@ref A).
 Proof.
   intros [x Hx] [y Hy] Hxy Hyx. red in Hxy, Hyx. cbn in *.
   assert (x = y).
@@ -67,7 +67,7 @@ Proof.
   apply proof_irrelevance.
 Qed.
 
-Program Definition bot A : point A :=
+Program Definition bot A : clique A :=
   {|
     has a := False;
   |}.
@@ -83,10 +83,10 @@ Qed.
 
 (** Directed supremum *)
 
-Definition directed {A I} (x : I -> point A) :=
+Definition directed {A I} (x : I -> clique A) :=
   forall i j, exists y, forall z, ref (x i) z /\ ref (x j) z <-> ref y z.
 
-Program Definition lim {A I} (x : I -> point A) (Hx : directed x) :=
+Program Definition lim {A I} (x : I -> clique A) (Hx : directed x) :=
   {|
     has a := exists i, has (x i) a;
   |}.
@@ -98,7 +98,7 @@ Next Obligation.
   eapply (has_coh _ y); auto.
 Qed.
 
-Lemma lim_sup {A I} (x : I -> point A) (Hx : directed x) (y : point A) :
+Lemma lim_sup {A I} (x : I -> clique A) (Hx : directed x) (y : clique A) :
   (forall i, ref (x i) y) <-> ref (lim x Hx) y.
 Proof.
   split.
