@@ -90,19 +90,11 @@ Section SEMANTICS.
 
   Program Definition compcerto_lmap se : !liA --o liB :=
     {|
-      lmaps := lts_lmaps (L se);
+      has '(t, u) := lts_lmaps (L se) t u;
     |}.
   Next Obligation.
     (* ... *)
   Admitted.
-  Next Obligation.
-    (* ... *)
-  Admitted.
-
-  (** XXX ^ this is probably a situation where grouping the two
-    properties of linear maps would be useful so that we only have to
-    do the funky induction once, event though it would make it a hint
-    more complicated. *)
 
 End SEMANTICS.
 
@@ -140,11 +132,9 @@ Section FSIM.
     space. *)
 
   Lemma fsim_sound :
-    forall t u,
-      compcerto_lmap L1 H1 se t u ->
-      compcerto_lmap L2 H2 se t u.
+    ref (compcerto_lmap L1 H1 se) (compcerto_lmap L2 H2 se).
   Proof.
-    intros t u Ht.
+    intros [t u] Ht. cbn in *.
     destruct FSIM as [[ind ord match_states _ H _]]. cbn in *.
     specialize (H se se tt eq_refl Hse).
     destruct Ht as [q s1 t1 r Hq1 Hs1 Ht1].
