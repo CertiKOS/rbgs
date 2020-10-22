@@ -9,12 +9,6 @@ Unset Program Cases.
 Local Obligation Tactic := cbn.
 
 
-(** * Preliminaries *)
-
-Inductive rcomp {A B C} (R: A-> B-> Prop) (S: B-> C-> Prop) a c: Prop :=
-  rcomp_intro (b : B) : R a b -> S b c -> rcomp R S a c.
-
-
 (** * Coherence spaces *)
 
 (** ** Definition *)
@@ -44,6 +38,9 @@ Record clique (A : space) :=
   }.
     
 Arguments has {A}.
+Bind Scope clique_scope with clique.
+Delimit Scope clique_scope with clique.
+Open Scope clique_scope.
 
 (** ** Ordering *)
 
@@ -119,71 +116,86 @@ Qed.
 
 (** ** Linear maps *)
 
-Record lmap (A B : space) : Type :=
-  {
-    lmaps :> token A -> token B -> Prop;
-    lmaps_coh a1 a2 b1 b2 :
-      coh a1 a2 -> lmaps a1 b1 -> lmaps a2 b2 -> coh b1 b2;
-    lmaps_det a1 a2 b1 b2 :
-      coh a1 a2 -> lmaps a1 b1 -> lmaps a2 b2 -> b1 = b2 -> a1 = a2;
-  }.
+Program Definition lmap (A B : space) : space :=
+  {|
+    token := token A * token B;
+    coh '(a1, b1) '(a2, b2) :=
+      coh a1 a2 -> coh b1 b2 /\ (b1 = b2 -> a1 = a2);
+  |}.
+Next Obligation.
+  intros A B [a b].
+  eauto using reflexivity.
+Qed.
+Next Obligation.
+  intros A B [a1 b1] [a2 b2] H Ha.
+  split; symmetry; apply H; symmetry; auto.
+Qed.
 
-Arguments lmaps {A B}.
-Arguments lmaps_coh {A B}.
-Infix "--o" := lmap (at level 55, right associativity) : type_scope.
-Delimit Scope lmap_scope with lmap.
-Bind Scope lmap_scope with lmap.
-Open Scope lmap_scope.
+Infix "--o" := lmap (at level 55, right associativity) : coh_scope.
+Notation "A --o B" := (clique (A --o B)) : type_scope.
 
-Local Obligation Tactic :=
-  cbn; try firstorder (eauto using lmaps_coh, lmaps_det; congruence).
+Lemma lmap_coh {A B} (f : A --o B) (a1 a2 : token A) (b1 b2 : token B) :
+  coh a1 a2 -> has f (a1, b1) -> has f (a2, b2) -> coh b1 b2.
+Proof.
+  intros Ha H1 H2.
+  apply (has_coh _ f (a1, b1) (a2, b2)); auto.
+Qed.
+
+Lemma lmap_det {A B} (f : A --o B) (a1 a2 : token A) (b1 b2 : token B) :
+  coh a1 a2 -> has f (a1, b1) -> has f (a2, b2) -> b1 = b2 -> a1 = a2.
+Proof.
+  intros Ha H1 H2 Hb.
+  apply (has_coh _ f (a1, b1) (a2, b2)); auto.
+Qed.
 
 Lemma lmap_ext {A B} (f g : A --o B):
-  (forall x y, f x y <-> g x y) -> f = g.
+  (forall x y, has f (x, y) <-> has g (x, y)) -> f = g.
 Proof.
-  destruct f as [f Hf], g as [g Hg]; cbn. intro H.
-  assert (f=g) by auto using functional_extensionality, propositional_extensionality.
-  subst; f_equal; apply proof_irrelevance.
+  intros H.
+  apply antisymmetry; intros [a b]; firstorder.
 Qed.
+
+Ltac process_obligation :=
+  intros;
+  repeat match goal with x : _ * _ |- _ => destruct x end;
+  firstorder (eauto using lmap_coh, lmap_det; try congruence).
+
+Local Obligation Tactic :=
+  cbn; try solve [process_obligation].
 
 (** ** Identity and composition *)
 
 Program Definition lmap_id {A : space} : A --o A :=
   {|
-    lmaps := eq;
+    has '(x, y) := x = y;
   |}.
 
-Program Definition lmap_compose {A B C : space} (f : B --o C) (g : A --o B) :=
+Program Definition lmap_compose {A B C} (g : B --o C) (f : A --o B) : A --o C :=
   {|
-    lmaps := rcomp (lmaps g) (lmaps f);
+    has '(x, z) := exists y, has f (x, y) /\ has g (y, z);
   |}.
 
-Infix "@" := lmap_compose (at level 30, right associativity) : lmap_scope.
+Infix "@" := lmap_compose (at level 30, right associativity) : clique_scope.
 
 Lemma lmap_compose_id_left {A B} (f : A --o B) :
   f @ lmap_id = f.
 Proof.
-  apply lmap_ext; intros x y; cbn.
-  split; eauto using rcomp_intro.
-  intros [_ [ ] H]. auto.
+  apply lmap_ext; cbn.
+  firstorder congruence.
 Qed.
 
 Lemma lmap_compose_id_right {A B} (f : A --o B) :
    lmap_id @ f = f.
 Proof.
-  apply lmap_ext; intros x y; cbn.
-  split; eauto using rcomp_intro.
-  intros [? H [ ]]. auto.
+  apply lmap_ext; cbn.
+  firstorder congruence.
 Qed.
 
-Lemma lmap_compose_assoc {A B C D}:
-  forall (h : C --o D) (g : B --o C) (f : A --o B),
-    (h @ g) @ f = h @ (g @ f).
+Lemma lmap_compose_assoc {A B C D} (h : C --o D) (g : B --o C) (f : A --o B) :
+  (h @ g) @ f = h @ (g @ f).
 Proof.
-  intros. apply lmap_ext; intros; cbn.
-  split.
-  - intros [b Hxb [c Hbc Hcy]]. eauto using rcomp_intro.
-  - intros [c [b Hxb Hbc] Hcy]. eauto using rcomp_intro.
+  apply lmap_ext; cbn.
+  firstorder.
 Qed.
 
 (** ** Linear isomorphisms *)
@@ -249,21 +261,21 @@ Program Definition output (X : Type) :=
 
 Program Definition omap {X Y} (f : X -> Y) : output X --o output Y :=
   {|
-    lmaps x y := f x = y;
+    has '(x, y) := f x = y;
   |}.
 
 Lemma omap_id X :
   omap (fun x:X => x) = lmap_id.
 Proof.
-  apply lmap_ext. cbn. tauto.
+  apply lmap_ext; cbn.
+  tauto.
 Qed.
 
 Lemma omap_compose {X Y Z} (f : X -> Y) (g : Y -> Z) :
   omap (fun x:X => g (f x)) = omap g @ omap f.
 Proof.
-  apply lmap_ext. cbn. split.
-  - intros [ ]. exists (f x); auto.
-  - intros [_ [ ] [ ]]. auto.
+  apply lmap_ext; cbn.
+  firstorder congruence.
 Qed.
 
 (** Here we could prove that the functor preserves products, coproducts, etc. *)
@@ -280,7 +292,7 @@ Program Definition input (X : Type) :=
 
 Program Definition imap {X Y} (f : X -> Y) : input Y --o input X :=
   {|
-    lmaps y x := f x = y;
+    has '(y, x) := f x = y;
   |}.
 
 Lemma imap_id X :
@@ -292,9 +304,8 @@ Qed.
 Lemma imap_compose {X Y Z} (f : X -> Y) (g : Y -> Z) :
   imap (fun x:X => g (f x)) = imap f @ imap g.
 Proof.
-  apply lmap_ext. cbn. split.
-  - intros [ ]. eexists; eauto.
-  - intros [_ [ ] [ ]]. auto.
+  apply lmap_ext; cbn.
+  firstorder congruence.
 Qed.
 
 
@@ -326,36 +337,38 @@ Infix "&&" := csprod : coh_scope.
 
 Program Definition csp1 {A B : space} : A && B --o A :=
   {|
-    lmaps x a := inl a = x;
+    has '(x, a) := inl a = x;
   |}.
 Next Obligation.
-  inversion 1; subst; firstorder congruence.
+  process_obligation.
+  destruct H1; firstorder congruence.
 Qed.
 
 Program Definition csp2 {A B : space} : A && B --o B :=
   {|
-    lmaps x b := inr b = x;
+    has '(x, b) := inr b = x;
   |}.
 Next Obligation.
-  inversion 1; subst; firstorder congruence.
+  process_obligation.
+  destruct H1; firstorder congruence.
 Qed.
 
-Program Definition cspair {X A B : space} (f : X --o A) (g : X --o B) : X --o A && B :=
+Program Definition cspair {X A B: space} (f: X --o A) (g: X --o B): X --o A&&B :=
   {|
-    lmaps x y :=
+    has '(x, y) :=
       match y with
-        | inl a => lmaps f x a
-        | inr b => lmaps g x b
+        | inl a => has f (x, a)
+        | inr b => has g (x, b)
       end;
   |}.
 Next Obligation.
-  destruct b1, b2; cbn; constructor; eauto using lmaps_coh.
-Qed.
-Next Obligation.
-  destruct b1, b2; cbn; inversion 4; eauto using lmaps_det.
+  intros X A B f g [a1 b1] [a2 b2] H1 H2 H.
+  split.
+  - destruct b1, b2; cbn; constructor; eauto using lmap_coh.
+  - destruct b1, b2; cbn; inversion 1; eauto using lmap_det.
 Qed.
 
-Notation "{ x , y }" := (cspair x y) (x at level 99) : lmap_scope.
+Notation "{ x , y }" := (cspair x y) (x at level 99) : clique_scope.
 
 (** *** Universal property *)
 
@@ -364,7 +377,7 @@ Lemma cspair_csp1 {X A B} (f : X --o A) (g : X --o B) :
 Proof.
   apply lmap_ext; intros x a.
   split.
-  - intros [y Hxy Hya]. destruct y; cbn in *; congruence.
+  - intros (y & Hxy & Hya). destruct y; cbn in *; congruence.
   - intros Hxa. exists (inl a); cbn; auto.
 Qed.
 
@@ -373,23 +386,22 @@ Lemma cspair_csp2 {X A B} (f : X --o A) (g : X --o B) :
 Proof.
   apply lmap_ext; intros x b.
   split.
-  - intros [y Hxy Hyb]. destruct y; cbn in *; congruence.
+  - intros (y & Hxy & Hyb). destruct y; cbn in *; congruence.
   - intros Hxb. exists (inr b); cbn; auto.
 Qed.
 
 Lemma cspair_uniq {X A B} (h : X --o A && B) :
   {csp1 @ h, csp2 @ h} = h.
 Proof.
-  apply lmap_ext.
-  intros x [a | b]; cbn; split; eauto using rcomp_intro;
-  inversion 1; congruence.
+  apply lmap_ext; cbn.
+  destruct y; firstorder congruence.
 Qed.
 
 (** ** Binary coproducts *)
 
 (** *** Definition *)
 
-Inductive cssum_coh {A B} (RA : relation A) (RB : relation B) : relation (A + B) :=
+Inductive cssum_coh {A B} (RA: relation A) (RB: relation B): relation (A + B) :=
   | sum_inl_coh x y : RA x y -> cssum_coh RA RB (inl x) (inl y)
   | sum_inr_coh x y : RB x y -> cssum_coh RA RB (inr x) (inr y).
 
@@ -409,48 +421,46 @@ Infix "+" := cssum : coh_scope.
 
 Program Definition csi1 {A B : space} : A --o A + B :=
   {|
-    lmaps a x := inl a = x;
+    has '(a, x) := inl a = x;
   |}.
 Next Obligation.
-  intros A B a1 a2 _ _ Ha [ ] [ ].
+  intros A B [a1 _] [a2 _] [ ] [ ] Ha.
+  split; try congruence.
   constructor; auto.
 Qed.
 
 Program Definition csi2 {A B : space} : B --o A + B :=
   {|
-    lmaps b x := inr b = x;
+    has '(b, x) := inr b = x;
   |}.
 Next Obligation.
-  intros A B a1 a2 _ _ Ha [ ] [ ].
+  intros A B [a1 _] [a2 _] [ ] [ ] Ha.
+  split; try congruence.
   constructor; auto.
 Qed.
 
-Program Definition copair {A B X : space} (f : A --o X) (g : B --o X) : A + B --o X :=
+Program Definition copair {A B X: space} (f: A --o X) (g: B --o X) : A+B --o X :=
   {|
-    lmaps x y :=
+    has '(x, y) :=
       match x with
-        | inl a => lmaps f a y
-        | inr b => lmaps g b y
+        | inl a => has f (a, y)
+        | inr b => has g (b, y)
       end;
   |}.
 Next Obligation.
-  intros A B X f g ab1 ab2 x1 x2 H H1 H2.
-  destruct H; eauto using lmaps_coh.
-Qed.
-Next Obligation.
-  intros A B X f g ab1 ab2 x1 x2 H H1 H2 Hx.
-  destruct H; f_equal; eauto using lmaps_det.
+  intros A B X f g [ab1 x1] [ab2 x2] H1 H2 H.
+  destruct H; eauto using lmap_coh, lmap_det, f_equal.
 Qed.
 
-Notation "[ x , y ]" := (copair x y) (x at level 99) : lmap_scope.
+Notation "[ x , y ]" := (copair x y) (x at level 99) : clique_scope.
 
 (** *** Universal property *)
 
 Lemma copair_csi1 {A B X} (f : A --o X) (g : B --o X) :
   [f, g] @ csi1 = f.
 Proof.
-  apply lmap_ext. cbn. intros a x. split.
-  - intros [_ [ ] H]. auto.
+  apply lmap_ext; cbn. intros a x. split.
+  - intros (_ & [ ] & H). auto.
   - intros H. exists (inl a); auto.
 Qed.
 
@@ -458,7 +468,7 @@ Lemma copair_csi2 {A B X} (f : A --o X) (g : B --o X) :
   [f, g] @ csi2 = g.
 Proof.
   apply lmap_ext. cbn. intros b x. split.
-  - intros [_ [ ] H]. auto.
+  - intros (_ & [ ] & H). auto.
   - intros H. exists (inr b); auto.
 Qed.
 
@@ -466,9 +476,9 @@ Lemma copair_uniq {A B X} (h : A + B --o X) :
   [h @ csi1, h @ csi2] = h.
 Proof.
   apply lmap_ext. intros [a | b] x; cbn; split.
-  - intros [_ [ ] H]; auto.
+  - intros (_ & [ ] & H); auto.
   - eexists; eauto.
-  - intros [_ [ ] H]; auto.
+  - intros (_ & [ ] & H); auto.
   - eexists; eauto.
 Qed.
 
@@ -486,7 +496,7 @@ Program Definition csterm :=
 
 Program Definition discard A : A --o csterm :=
   {|
-    lmaps x y := False;
+    has '(x, y) := False;
   |}.
 
 Lemma discard_uniq {A} (f : A --o csterm) :
@@ -518,18 +528,16 @@ Infix "*" := cstens : coh_scope.
 
 Program Definition cstens_lmap {A B C D} (f : A --o B) (g : C --o D) : A*C --o B*D :=
   {|
-    lmaps '(a, c) '(b, d) := f a b /\ g c d;
+    has '((a, c), (b, d)) := has f (a, b) /\ has g (c, d);
   |}.
 Next Obligation.
-  intros A B C D f g [a1 c1] [a2 c2] [b1 d1] [b2 d2] [Ha Hc] [Hab1 Hcd1] [Hab2 Hcd2].
-  cbn; eauto using lmaps_coh.
-Qed.
-Next Obligation.
-  intros A B C D f g [a1 c1] [a2 c2] [b1 d1] [b2 d2] [Ha Hc] [Hab1 Hcd1] [Hab2 Hcd2].
-  inversion 1; f_equal; eauto using lmaps_det.
+  intros A B C D f g [[a1 c1] [b1 d1]] [[a2 c2] [b2 d2]].
+  intros [Hab1 Hcd1] [Hab2 Hcd2] [Ha Hc].
+  intuition eauto using lmap_coh.
+  inversion H. f_equal; eauto using lmap_det.
 Qed.
 
-Infix "*" := cstens_lmap : lmap_scope.
+Infix "*" := cstens_lmap : clique_scope.
 
 Lemma cstens_id {A B} :
   (@lmap_id A) * (@lmap_id B) = lmap_id.
@@ -545,8 +553,8 @@ Lemma cstens_compose {A1 B1 C1} {A2 B2 C2} :
 Proof.
   intros. apply lmap_ext. intros [a1 a2] [c1 c2]. cbn.
   split.
-  - intros [[? ? ?] [? ? ?]]. eexists (_, _); eauto.
-  - intros [[? ?] [? ?] [? ?]]. eauto using rcomp_intro.
+  - intros [(? & ? & ?) (? & ? & ?)]. eexists (_, _); eauto.
+  - intros ([? ?] & [? ?] & [? ?]). eauto 10.
 Qed.
 
 (** ** Unit *)
@@ -610,16 +618,14 @@ Qed.
 
 Program Definition lmap_flip {A B} (f : A --o B) : lneg B --o lneg A :=
   {|
-    lmaps '(ln x) '(ln y) := f y x;
+    has '((ln x), (ln y)) := has f (y, x);
   |}.
 Next Obligation.
-  intros A B f _ _ [b1] [b2] [a1 a2 Ha12] Hba1 Hba2. constructor. intro.
-  eauto using lmaps_coh, lmaps_det.
-Qed.
-Next Obligation.
-  intros A B f _ _ [b1] [b2] [a1 a2 Ha12] Hba1 Hba2.
-  inversion 1; clear H; subst.
-  f_equal; eauto using lmaps_coh, lmaps_det, (reflexivity (R := coh)).
+  intros A B f [? [a1]] [? [a2]] H1 H2. destruct 1 as [b1 b2 Ha].
+  split.
+  - constructor. eauto using lmap_coh, lmap_det.
+  - inversion 1; clear H; subst.
+    eauto using f_equal, lmap_coh, (reflexivity (R:=coh)).
 Qed.
 
 
@@ -645,17 +651,14 @@ Infix ";;" := seq (at level 40, left associativity) : coh_scope.
 
 Program Definition seq_lmap {A B C D} (f g : _ --o _) : (A ;; C) --o (B ;; D) :=
   {|
-    lmaps '(a, c) '(b, d) := f a b /\ g c d;
+    has '((a, c), (b, d)) := has f (a, b) /\ has g (c, d);
   |}.
 Next Obligation.
-  intros A B C D f g [a1 c1] [a2 c2] [b1 d1] [b2 d2]. cbn.
-  intros [Ha Hc] [Hab1 Hab2] [Hcd1 Hcd2].
-  split; eauto 10 using lmaps_coh, lmaps_det.
-Qed.
-Next Obligation.
-  intros A B C D f g [a1 c1] [a2 c2] [b1 d1] [b2 d2]. cbn.
-  intros [Ha Hc] [Hab1 Hab2] [Hcd1 Hcd2]. inversion 1; clear H.
-  f_equal; eauto using lmaps_coh, lmaps_det.
+  intros A B C D f g [[a1 c1] [b1 d1]] [[a2 c2] [b2 d2]].
+  intros [Hab1 Hab2] [Hcd1 Hcd2] [Ha Hc].
+  split; eauto 10 using lmap_coh, lmap_det.
+  inversion 1; clear H.
+  f_equal; eauto using lmap_coh, lmap_det.
 Qed.
 
 Infix ";;" := seq_lmap : lmap_scope.
@@ -688,7 +691,8 @@ Next Obligation.
   symmetry; auto.
 Qed.
 
-Notation "! A" := (dag A) (at level 8, right associativity, format "'!' A") : coh_scope.
+Notation "! A" := (dag A)
+  (at level 8, right associativity, format "'!' A") : coh_scope.
 
 (** *** Comonad structure *)
 
@@ -735,45 +739,36 @@ Inductive dag_lmaps {A B} (f : A --o B) : token !A -> token !B -> Prop :=
   | dag_lmaps_nil :
       dag_lmaps f nil nil
   | dag_lmaps_cons a b aa bb :
-      lmaps f a b ->
+      has f (a, b) ->
       dag_lmaps f aa bb ->
       dag_lmaps f (a :: aa) (b :: bb).
 
 Program Definition dag_lmap {A B} (f : A --o B) : !A --o !B :=
   {|
-    lmaps := dag_lmaps f;
+    has '(aa, bb) := dag_lmaps f aa bb;
   |}.
 Next Obligation.
-  intros A B f aa1 aa2 bb1 bb2 Hxx H1 H2.
-  revert bb1 bb2 H1 H2.
-  induction Hxx.
-  - inversion 1. constructor.
-  - inversion 2. constructor.
-  - intros.
-    inversion H2; clear H2; subst.
-    inversion H3; clear H3; subst.
-    constructor; eauto using lmaps_coh.
-    intros. apply H1; eauto. eapply lmaps_det; eauto.
-Qed.
-Next Obligation.
-  intros A B f aa1 aa2 bb1 bb2 Hxx H1 H2.
-  revert bb1 bb2 H1 H2.
-  induction Hxx.
-  - intros.
-    inversion H1; clear H1; subst.
-    inversion H2; clear H2; subst.
-    auto.
-  - intros.
-    inversion H2; clear H2; subst.
-    inversion H1; clear H1; subst.
-    auto.
-  - intros.
-    inversion H2; clear H2; subst.
-    inversion H3; clear H3; subst.
-    f_equal; eauto using lmaps_det.
+  intros A B f [aa1 bb1] [aa2 bb2] Hab1 Hab2 Hxx.
+  revert bb1 bb2 Hab1 Hab2.
+  induction Hxx; intros.
+  - inversion Hab1; clear Hab1; subst.
+    split; [constructor | ].
+    inversion 1; inversion Hab2; congruence.
+  - inversion Hab2; clear Hab2; subst.
+    split; [constructor | ].
+    inversion 1; inversion Hab1; congruence.
+  - inversion Hab1; clear Hab1; subst.
+    inversion Hab2; clear Hab2; subst.
+    split.
+    + constructor; eauto using lmap_coh.
+      intros. apply H1; eauto. eapply lmap_det; eauto.
+    + inversion 1; subst.
+      f_equal; eauto using lmap_det.
+      edestruct H1; eauto using lmap_det.
 Qed.
 
-Notation "! f" := (dag_lmap f) (at level 8, right associativity, format "'!' f") : lmap_scope.
+Notation "! f" := (dag_lmap f)
+  (at level 8, right associativity, format "'!' f") : clique_scope.
 
 Lemma dag_id {A} :
   !(@lmap_id A) = @lmap_id !A.
@@ -790,10 +785,10 @@ Lemma dag_compose {A B C} (f : A --o B) (g : B --o C) :
 Proof.
   apply lmap_ext. split.
   - induction 1.
-    + exists nil; constructor.
-    + destruct H, IHdag_lmaps.
-      eexists; constructor; eauto.
-  - intros [u Hxu Huy]. revert y Huy.
+    + exists nil; split; constructor.
+    + destruct H as (? & ? & ?), IHdag_lmaps as (? & ? & ?).
+      exists (x :: x0). split; constructor; auto.
+  - intros (u & Hxu & Huy). revert y Huy.
     induction Hxu.
     + inversion 1. constructor.
     + inversion 1; subst.
@@ -809,29 +804,26 @@ Inductive dag_counit_lmaps A : token !A -> token A -> Prop :=
 
 Program Definition dag_counit A : !A --o A :=
   {|
-    lmaps := dag_counit_lmaps A;
+    has '(aa, a) := dag_counit_lmaps A aa a;
   |}.
 Next Obligation.
-  intros A x1 x2 a1 a2 Hx Hx1 Hx2.
-  destruct Hx1, Hx2. inversion Hx; auto.
-Qed.
-Next Obligation.
-  intros A x1 x2 a1 a2 Hx Hx1 Hx2 H.
-  destruct Hx1, Hx2; congruence.
+  intros A [x1 a1] [x2 a2] Hx1 Hx2 Hx.
+  destruct Hx1, Hx2. inversion Hx; clear Hx; subst.
+  split; auto; congruence.
 Qed.
 
 Lemma dag_counit_natural {A B} (f : A --o B) :
    f @ dag_counit A = dag_counit B @ !f.
 Proof.
   apply lmap_ext. split.
-  - intros [a Ha1 Ha2].
+  - intros (a & Ha1 & Ha2).
     inversion Ha1. subst.
     eexists; repeat constructor; eauto.
-  - intros [a Ha1 Ha2].
+  - intros (a & Ha1 & Ha2).
     inversion Ha2. subst.
     inversion Ha1 as [ | ? ? ? ? ? H]. subst.
     inversion H. subst.
-    eexists; eauto; constructor.
+    eexists; split; eauto; constructor.
 Qed.
 
 (** Comultiplication *)
@@ -845,37 +837,34 @@ Inductive dag_comult_lmaps {A} : token !A -> token !!A -> Prop :=
 
 Program Definition dag_comult A : !A --o !!A :=
   {|
-    lmaps := dag_comult_lmaps;
+    has '(a, aa) := dag_comult_lmaps a aa;
   |}.
 Next Obligation.
-  intros A a1 a2 aa1 aa2 Ha H1 H2.
+  intros A [a1 aa1] [a2 aa2] H1 H2 Ha.
   revert a2 aa2 Ha H2.
   induction H1 as [ | s1 a1 aa1 H1].
-  - constructor.
+  - split; [constructor | ].
+    intros; subst. inversion H2. auto.
   - intros a2 aa2 Ha H2.
     induction H2 as [ | s2 a2 aa2 H2].
-    + constructor.
-    + constructor.
-      * eapply prefix_coh; eauto.
-      * destruct 1.
+    + split.
+      * constructor.
+      * congruence.
+    + split.
+      * constructor.
+        -- eapply prefix_coh; eauto.
+        -- destruct 1.
+           eapply IHH1; eauto.
+           eapply suffix_coh; eauto.
+      * inversion 1; subst. f_equal.
         eapply IHH1; eauto.
         eapply suffix_coh; eauto.
 Qed.
-Next Obligation.
-  intros A a1 a2 aa1 aa2 Ha H1 H2.
-  revert a2 aa2 Ha H2.
-  induction H1 as [ | s1 a1 aa1 H1].
-  - intros. subst. inversion H2. auto.
-  - intros a2 aa2 Ha H2.
-    induction H2 as [ | s2 a2 aa2 H2].
-    + discriminate.
-    + inversion 1; subst. f_equal.
-      eapply IHH1; eauto.
-      eapply suffix_coh; eauto.
-Qed.
 
 Lemma dag_lmaps_app {A B} (f : A --o B) a1 a2 b1 b2:
-  !f a1 b1 -> !f a2 b2 -> !f (a1 ++ a2) (b1 ++ b2).
+  has !f (a1, b1) ->
+  has !f (a2, b2) ->
+  has !f (a1 ++ a2, b1 ++ b2).
 Proof.
   induction 1.
   - intuition.
@@ -886,7 +875,11 @@ Proof.
 Qed.
 
 Lemma dag_lmaps_app_inv {A B} (f : A --o B) a b1 b2:
-  !f a (b1 ++ b2) -> exists a1 a2, a = a1 ++ a2 /\ !f a1 b1 /\ !f a2 b2.
+  has !f (a, b1 ++ b2) ->
+  exists a1 a2,
+    a = a1 ++ a2 /\
+    has !f (a1, b1) /\
+    has !f (a2, b2).
 Proof.
   revert a b2. induction b1 as [ | b1x b1xs].
   - intros a ? ?.
@@ -907,21 +900,21 @@ Lemma dag_comult_natural {A B} (f : A --o B) :
   !!f @ dag_comult A = dag_comult B @ !f. 
 Proof.
   apply lmap_ext. split.
-  - intros [a Ha1 Ha2].
+  - intros (a & Ha1 & Ha2).
     revert y Ha2. induction Ha1 as [ | s a aa Ha IHaa].
-    + inversion 1. eexists; constructor.
+    + inversion 1. eexists; split; constructor.
     + inversion 1 as [ | ? b ? ys Hy Hys]. subst.
-      eapply IHaa in Hys as [bs Hb1 Hb2].
+      eapply IHaa in Hys as (bs & Hb1 & Hb2).
       inversion Ha2. subst.
-      exists (b ++ bs). apply dag_lmaps_app; assumption.
+      exists (b ++ bs). split. apply dag_lmaps_app; assumption.
       constructor. assumption.
-  - intros [b Hb1 Hb2].
+  - intros (b & Hb1 & Hb2).
     revert x Hb1. induction Hb2 as [ | s b bb Hb IHbb].
-    + inversion 1. eexists; constructor.
+    + inversion 1. eexists; split; constructor.
     + intros x Hx.
       apply dag_lmaps_app_inv in Hx as [a1 [a2 [? [Ha1 Ha2]]]].
-      subst x. apply IHbb in Ha2 as [xa ? ?].
-      exists (a1 :: xa). constructor. assumption.
+      subst x. apply IHbb in Ha2 as (xa & ? & ?).
+      exists (a1 :: xa); split. constructor. assumption.
       constructor; assumption.
 Qed.
 
@@ -931,14 +924,14 @@ Lemma dag_comult_counit {A} :
   !(dag_counit A) @ (dag_comult A) = @lmap_id !A.
 Proof.
   apply lmap_ext. split.
-  - cbn. intros [a Ha1 Ha2].
+  - cbn. intros (a & Ha1 & Ha2).
     revert y Ha2. induction Ha1.
     + inversion 1. reflexivity.
     + inversion 1 as [ | ? ? ? ? Hsb Hab]. subst.
       apply IHHa1 in Hab.
       inversion Hsb. subst. reflexivity.
   - cbn. intros <-.
-    exists (map (fun x => x::nil) x).
+    exists (map (fun x => x::nil) x); split.
     + induction x.
       * constructor.
       * replace (a :: x) with ((a :: nil) ++ x) by reflexivity.
@@ -951,20 +944,20 @@ Lemma dag_counit_comult {A} :
   (dag_counit !A) @ (dag_comult A) = @lmap_id !A.
 Proof.
   apply lmap_ext. split.
-  - cbn. intros [a Ha1 Ha2].
+  - cbn. intros (a & Ha1 & Ha2).
     inversion Ha2. subst.
     inversion Ha1 as [ | ? ? ? H]. subst.
     inversion H. apply app_nil_r.
   - cbn. intros <-.
-    exists (x::nil).
-    replace x with (x ++ nil) at 1 by apply app_nil_r; repeat constructor.
-    constructor.
+    exists (x::nil); split.
+    + replace x with (x ++ nil) at 1 by apply app_nil_r; repeat constructor.
+    + constructor.
 Qed.
 
 Lemma dag_comult_app {A} x y xs ys:
-  (dag_comult A) x xs ->
-  (dag_comult A) y ys ->
-  (dag_comult A) (x ++ y) (xs ++ ys).
+  has (dag_comult A) (x, xs) ->
+  has (dag_comult A) (y, ys) ->
+  has (dag_comult A) (x ++ y, xs ++ ys).
 Proof.
   revert y ys.
   induction 1 as [ | s a aa H IH].
@@ -977,8 +970,11 @@ Proof.
 Qed.
 
 Lemma dag_comult_app_inv {A} a xs ys:
-  (dag_comult A) a (xs ++ ys) ->
-  exists x y, a = x ++ y /\ (dag_comult A) x xs /\ (dag_comult A) y ys.
+  has (dag_comult A) (a, xs ++ ys) ->
+  exists x y,
+    a = x ++ y /\
+    has (dag_comult A) (x, xs) /\
+    has (dag_comult A) (y, ys).
 Proof.
   revert a ys.
   induction xs as [| x ? IHxs].
@@ -1001,24 +997,25 @@ Lemma dag_comult_comult {A} :
   !(dag_comult A) @ (dag_comult A) = (dag_comult !A) @ (dag_comult A).
 Proof.
   apply lmap_ext. split.
-  - cbn. intros [aa Haa1 Haa2].
+  - cbn. intros (aa & Haa1 & Haa2).
     revert y Haa2.
     induction Haa1 as [ | s a aa ? IH].
-    + inversion 1. eexists; constructor.
+    + inversion 1. eexists; split; constructor.
     + intros y Hsaa.
       inversion Hsaa as [ | ? b ? bb Hb Hbb]. subst.
-      apply IH in Hbb as [xaa Hxaa1 Hxaa2].
-      exists (b++xaa).
-      apply dag_comult_app; assumption.
-      constructor. assumption.
-  - cbn. intros [aa Haa1 Haa2].
+      apply IH in Hbb as (xaa & Hxaa1 & Hxaa2).
+      exists (b++xaa); split.
+      * apply dag_comult_app; assumption.
+      * constructor. assumption.
+  - cbn. intros (aa & Haa1 & Haa2).
     revert x Haa1.
     induction Haa2 as [ | s a aa ? IH].
-    + inversion 1. eexists; constructor.
+    + inversion 1. eexists; split; constructor.
     + intros xa Hxa.
-      apply dag_comult_app_inv in Hxa as [xa1 [xa2 [app_eq [xa1_comult xa2_comult]]]].
-      apply IH in xa2_comult as [b Hb1 Hb2].
-      exists (xa1::b); subst; constructor; assumption.
+      apply dag_comult_app_inv in Hxa
+        as (xa1 & xa2 & app_eq & xa1_comult & xa2_comult).
+      apply IH in xa2_comult as (b & Hb1 & Hb2).
+      exists (xa1::b); split; subst; constructor; assumption.
 Qed.
 
 (** Kleisli extension *)
