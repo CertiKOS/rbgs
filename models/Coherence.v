@@ -17,7 +17,7 @@ Inductive rcomp {A B C} (R: A-> B-> Prop) (S: B-> C-> Prop) a c: Prop :=
 
 (** * Coherence spaces *)
 
-(** First we formalize coherence spaces as webs. *)
+(** ** Definition *)
 
 Record space :=
   {
@@ -33,6 +33,8 @@ Existing Instance coh_symm.
 Bind Scope coh_scope with space.
 Delimit Scope coh_scope with coh.
 
+(** ** Cliques *)
+
 (** A point in a coherence space is a set of pairwise coherent tokens. *)
 
 Record clique (A : space) :=
@@ -42,6 +44,8 @@ Record clique (A : space) :=
   }.
     
 Arguments has {A}.
+
+(** ** Ordering *)
 
 (* Points are ordered by inclusion and form a DCPPO. *)
 
@@ -67,6 +71,10 @@ Proof.
   apply proof_irrelevance.
 Qed.
 
+(** ** DCPPO structure *)
+
+(** *** Least element *)
+
 Program Definition bot A : clique A :=
   {|
     has a := False;
@@ -81,7 +89,7 @@ Proof.
   intros x a [ ].
 Qed.
 
-(** Directed supremum *)
+(** *** Directed supremum *)
 
 Definition directed {A I} (x : I -> clique A) :=
   forall i j, exists y, forall z, ref (x i) z /\ ref (x j) z <-> ref y z.
