@@ -64,118 +64,118 @@ Section BIGSTEP.
  
   Let li_trace : Type := token (dag li_c).
   Let li_event : Type := token li_c.
-  Inductive exec_stmt: env -> temp_env -> mem ->
-                       statement -> trace -> temp_env ->
-                       mem -> li_trace ->
-                       outcome -> Prop :=
+  Inductive exec_stmt: env -> temp_env -> mem -> statement ->
+                       temp_env -> mem -> li_trace -> outcome -> Prop :=
   | exec_Sskip: forall e le m,
       exec_stmt e le m Sskip
-                E0 le m nil Out_normal
+                le m nil Out_normal
   | exec_Sassign: forall e le m a1 a2 loc ofs v2 v m',
       eval_lvalue ge e le m a1 loc ofs ->
       eval_expr ge e le m a2 v2 ->
       sem_cast v2 (typeof a2) (typeof a1) m = Some v ->
       assign_loc ge (typeof a1) m loc ofs v m' ->
       exec_stmt e le m (Sassign a1 a2)
-                E0 le m' nil Out_normal
+                le m' nil Out_normal
   | exec_Sset: forall e le m id a v,
       eval_expr ge e le m a v ->
       exec_stmt e le m (Sset id a)
-                E0 (PTree.set id v le) m nil Out_normal
-  | exec_Scall: forall e le m optid a al tyargs tyres cconv vf vargs f t m' vres tr,
+                (PTree.set id v le) m nil Out_normal
+  | exec_Scall: forall e le m optid a al tyargs tyres cconv vf vargs f m' vres tr,
       classify_fun (typeof a) = fun_case_f tyargs tyres cconv ->
       eval_expr ge e le m a vf ->
       eval_exprlist ge e le m al tyargs vargs ->
       Genv.find_funct ge vf = Some f ->
       type_of_fundef f = Tfunction tyargs tyres cconv ->
-      eval_funcall m vf vargs t m' tr vres ->
+      eval_funcall m vf vargs m' tr vres ->
       exec_stmt e le m (Scall optid a al)
-                t (set_opttemp optid vres le) m' tr Out_normal
-  | exec_Sbuiltin:   forall e le m optid ef al tyargs vargs t m' vres,
+                (set_opttemp optid vres le) m' tr Out_normal
+  | exec_Sbuiltin:   forall e le m optid ef al tyargs vargs m' vres,
       eval_exprlist ge e le m al tyargs vargs ->
-      external_call ef ge vargs m t vres m' ->
+      external_call ef ge vargs m E0 vres m' ->
       exec_stmt e le m (Sbuiltin optid ef tyargs al)
-                t (set_opttemp optid vres le) m' nil Out_normal
-  | exec_Sseq_1:   forall e le m s1 s2 t1 le1 m1 t2 le2 m2 out tr1 tr2,
-      exec_stmt e le m s1 t1 le1 m1 tr1 Out_normal ->
-      exec_stmt e le1 m1 s2 t2 le2 m2 tr2 out ->
+                (set_opttemp optid vres le) m' nil Out_normal
+  | exec_Sseq_1:   forall e le m s1 s2 le1 m1 le2 m2 out tr1 tr2,
+      exec_stmt e le m s1 le1 m1 tr1 Out_normal ->
+      exec_stmt e le1 m1 s2 le2 m2 tr2 out ->
       exec_stmt e le m (Ssequence s1 s2)
-                (t1 ** t2) le2 m2 (tr1 ++ tr2) out
-  | exec_Sseq_2:   forall e le m s1 s2 t1 le1 m1 out tr,
-      exec_stmt e le m s1 t1 le1 m1 tr out ->
+                le2 m2 (tr1 ++ tr2) out
+  | exec_Sseq_2:   forall e le m s1 s2 le1 m1 out tr,
+      exec_stmt e le m s1 le1 m1 tr out ->
       out <> Out_normal ->
       exec_stmt e le m (Ssequence s1 s2)
-                t1 le1 m1 tr out
-  | exec_Sifthenelse: forall e le m a s1 s2 v1 b t le' m' out tr,
+                le1 m1 tr out
+  | exec_Sifthenelse: forall e le m a s1 s2 v1 b le' m' out tr,
       eval_expr ge e le m a v1 ->
       bool_val v1 (typeof a) m = Some b ->
-      exec_stmt e le m (if b then s1 else s2) t le' m' tr out ->
+      exec_stmt e le m (if b then s1 else s2) le' m' tr out ->
       exec_stmt e le m (Sifthenelse a s1 s2)
-                t le' m' tr out
+                le' m' tr out
   | exec_Sreturn_none:   forall e le m,
       exec_stmt e le m (Sreturn None)
-                E0 le m nil (Out_return None)
+                le m nil (Out_return None)
   | exec_Sreturn_some: forall e le m a v,
       eval_expr ge e le m a v ->
       exec_stmt e le m (Sreturn (Some a))
-                E0 le m nil (Out_return (Some (v, typeof a)))
+                le m nil (Out_return (Some (v, typeof a)))
   | exec_Sbreak:   forall e le m,
       exec_stmt e le m Sbreak
-                E0 le m nil Out_break
+                le m nil Out_break
   | exec_Scontinue:   forall e le m,
       exec_stmt e le m Scontinue
-                E0 le m nil Out_continue
-  | exec_Sloop_stop1: forall e le m s1 s2 t le' m' out' out tr,
-      exec_stmt e le m s1 t le' m' tr out' ->
+                le m nil Out_continue
+  | exec_Sloop_stop1: forall e le m s1 s2 le' m' out' out tr,
+      exec_stmt e le m s1 le' m' tr out' ->
       out_break_or_return out' out ->
       exec_stmt e le m (Sloop s1 s2)
-                t le' m' tr out
-  | exec_Sloop_stop2: forall e le m s1 s2 t1 le1 m1 out1 t2 le2 m2 out2 out tr1 tr2,
-      exec_stmt e le m s1 t1 le1 m1 tr1 out1 ->
+                le' m' tr out
+  | exec_Sloop_stop2: forall e le m s1 s2 le1 m1 out1 le2 m2 out2 out tr1 tr2,
+      exec_stmt e le m s1 le1 m1 tr1 out1 ->
       out_normal_or_continue out1 ->
-      exec_stmt e le1 m1 s2 t2 le2 m2 tr2 out2 ->
+      exec_stmt e le1 m1 s2 le2 m2 tr2 out2 ->
       out_break_or_return out2 out ->
       exec_stmt e le m (Sloop s1 s2)
-                (t1**t2) le2 m2 (tr1++tr2) out
-  | exec_Sloop_loop: forall e le m s1 s2 t1 le1 m1 out1 t2 le2 m2 t3 le3 m3 out tr1 tr2 tr3,
-      exec_stmt e le m s1 t1 le1 m1 tr1 out1 ->
+                le2 m2 (tr1++tr2) out
+  | exec_Sloop_loop: forall e le m s1 s2 le1 m1 out1 le2 m2 le3 m3 out tr1 tr2 tr3,
+      exec_stmt e le m s1 le1 m1 tr1 out1 ->
       out_normal_or_continue out1 ->
-      exec_stmt e le1 m1 s2 t2 le2 m2 tr2 Out_normal ->
-      exec_stmt e le2 m2 (Sloop s1 s2) t3 le3 m3 tr3 out ->
+      exec_stmt e le1 m1 s2 le2 m2 tr2 Out_normal ->
+      exec_stmt e le2 m2 (Sloop s1 s2) le3 m3 tr3 out ->
       exec_stmt e le m (Sloop s1 s2)
-                (t1**t2**t3) le3 m3 (tr1++tr2++tr3) out
-  | exec_Sswitch:   forall e le m a t v n sl le1 m1 out tr,
+                le3 m3 (tr1++tr2++tr3) out
+  | exec_Sswitch:   forall e le m a v n sl le1 m1 out tr,
       eval_expr ge e le m a v ->
       sem_switch_arg v (typeof a) = Some n ->
-      exec_stmt e le m (seq_of_labeled_statement (select_switch n sl)) t le1 m1 tr out ->
+      exec_stmt e le m (seq_of_labeled_statement (select_switch n sl)) le1 m1 tr out ->
       exec_stmt e le m (Sswitch a sl)
-                t le1 m1 tr (outcome_switch out)
+                le1 m1 tr (outcome_switch out)
 
   (** [eval_funcall m1 fd args t m2 res] describes the invocation of
   function [fd] with arguments [args].  [res] is the value returned
   by the call.  *)
 
-  with eval_funcall: mem -> val -> list val -> trace ->
+  with eval_funcall: mem -> val -> list val ->
                      mem -> li_trace -> val -> Prop :=
-  | eval_funcall_internal: forall le m f vargs t e m1 m2 m3 out vres m4 tr vf,
+  | eval_funcall_internal: forall le m f vargs e m1 m2 m3 out vres m4 tr vf,
       Genv.find_funct ge vf = Some (Internal f) ->
       alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
       list_norepet (var_names f.(fn_params) ++ var_names f.(fn_vars)) ->
       bind_parameters ge e m1 f.(fn_params) vargs m2 ->
-      exec_stmt e (create_undef_temps f.(fn_temps)) m2 f.(fn_body) t le m3 tr out ->
+      exec_stmt e (create_undef_temps f.(fn_temps)) m2 f.(fn_body) le m3 tr out ->
       outcome_result_value out f.(fn_return) vres m3 ->
       Mem.free_list m3 (blocks_of_env ge e) = Some m4 ->
-      eval_funcall m vf vargs t m4 tr vres
-  | eval_funcall_external: forall m ef targs tres cconv vargs t vres m' vf,
+      eval_funcall m vf vargs m4 tr vres
+  | eval_funcall_external: forall m ef targs tres cconv vargs vres m' vf,
       Genv.find_funct ge vf = Some (External ef targs tres cconv) ->
-      external_call ef ge vargs m t vres m' ->
-      eval_funcall m vf vargs t m' nil vres
+      (* require the trace to be empty because we don't want undeterministic behaviour  *)
+      (* predefined external calls that generate events are treated as undefined behaviour *)
+      external_call ef ge vargs m E0 vres m' ->
+      eval_funcall m vf vargs m' nil vres
   | eval_funcall_ef : forall name sg targs tres cconv vf vargs m vres m' qx rx,
       let f := External (EF_external name sg) targs tres cconv in
       qx = cq vf sg vargs m ->
       rx = cr vres m' ->
       Genv.find_funct ge vf = Some f ->
-      eval_funcall m vf vargs E0 m' ((qx, rx) :: nil) vres.
+      eval_funcall m vf vargs m' ((qx, rx) :: nil) vres.
 
   Scheme exec_stmt_ind2 := Minimality for exec_stmt Sort Prop
     with eval_funcall_ind2 := Minimality for eval_funcall Sort Prop.
@@ -200,136 +200,133 @@ Section BIGSTEP.
         (Out_return (Some (v,typeof a))) (State f (Sreturn (Some a)) k' e le m).
 
    Inductive bigstep_lmaps : li_trace  -> li_event -> Prop :=
-   | bigstep_lmaps_intro tr q r m t m' vf vargs vres targs tres tcc f:
+   | bigstep_lmaps_intro tr q r m m' vf vargs vres targs tres tcc f:
        (* valid query *)
        Genv.is_internal ge (entry q) = true ->
-      (* initial state *)
-      q = cq vf (signature_of_type targs tres tcc) vargs m ->
-      Genv.find_funct ge vf = Some (Internal f) ->
-      type_of_function f = Tfunction targs tres tcc ->
-      val_casted_list vargs targs ->
-      Ple (Genv.genv_next ge) (Mem.nextblock m) ->
-      (* eval function body *)
-      eval_funcall m vf vargs t m' tr vres ->
-      (* final state *)
-      r = cr vres m' ->
-      bigstep_lmaps tr (q, r).
+       (* initial state *)
+       q = cq vf (signature_of_type targs tres tcc) vargs m ->
+       Genv.find_funct ge vf = Some (Internal f) ->
+       type_of_function f = Tfunction targs tres tcc ->
+       val_casted_list vargs targs ->
+       Ple (Genv.genv_next ge) (Mem.nextblock m) ->
+       (* eval function body *)
+       eval_funcall m vf vargs m' tr vres ->
+       (* final state *)
+       r = cr vres m' ->
+       bigstep_lmaps tr (q, r).
 End BIGSTEP.
 
-Section MONOID.
-Class MONOID.
-  Variable A : Type.
-  Class Monoid :=
-    {
-      empty : A;
-      append : A -> A -> A;
-
-      left_neutrality : forall x, append empty x = x;
-      right_neutrality : forall x, append x empty = x;
-      associativity : forall x y z, append x (append y z) = append (append x y) z
-    }.
-End MONOID.
-
-Section CLOSURES.
-  Variable genv: Type.
-  Variable state: Type.
-  Context (acc : Type) {H : Monoid acc}.
-  Variable step: genv -> state -> trace -> acc -> state -> Prop.
-
-  (** Zero, one or several transitions.  Also known as Kleene closure,
-    or reflexive transitive closure. *)
-  Notation " '[]' " := (empty acc) (at level 1).
-  Notation " x '~~' y " := (append acc x y) (at level 1).
-  Hint Rewrite (left_neutrality acc).
-  Hint Rewrite (right_neutrality acc).
-  Hint Resolve (left_neutrality acc).
-  Hint Resolve (right_neutrality acc).
-  Hint Resolve (associativity acc).
-  Inductive star (ge: genv): state -> trace -> acc -> state -> Prop :=
-  | star_refl: forall s,
-      star ge s E0 [] s
-  | star_step: forall s1 t1 tr1 s2 t2 tr2 s3 t tr,
-      step ge s1 t1 tr1 s2 -> star ge s2 t2 tr2 s3 -> t = t1 ** t2 -> tr = tr1 ~~ tr2 ->
-      star ge s1 t tr s3.
-
-  Lemma star_one:
-    forall ge s1 t tr s2, step ge s1 t tr s2 -> star ge s1 t tr s2.
-  Proof.
-    intros. eapply star_step; eauto. apply star_refl. traceEq.
-  Qed.
-
-  Lemma star_two:
-    forall ge s1 t1 tr1 s2 t2 tr2 s3 t tr,
-      step ge s1 t1 tr1 s2 -> step ge s2 t2 tr2 s3 -> t = t1 ** t2 -> tr = tr1 ~~ tr2 ->
-      star ge s1 t tr s3.
-  Proof.
-    intros. eapply star_step; eauto. apply star_one; auto.
-  Qed.
-
-  Lemma star_trans:
-    forall ge s1 t1 tr1 s2, star ge s1 t1 tr1 s2 ->
-                            forall t2 tr2 s3 t tr, star ge s2 t2 tr2 s3 ->
-                                                   t = t1 ** t2 ->
-                                                   tr = tr1 ~~ tr2 ->
-                                                   star ge s1 t tr s3.
-  Proof.
-    induction 1; intros.
-    rewrite H1. rewrite H2. autorewrite with core. auto.
-    eapply star_step; eauto. traceEq. subst. autorewrite with core. auto.
-  Qed.
-
-  Lemma star_left:
-    forall ge s1 t1 tr1 s2 t2 tr2 s3 t tr,
-      step ge s1 t1 tr1 s2 -> star ge s2 t2 tr2 s3 -> t = t1 ** t2 -> tr = tr1 ~~ tr2 ->
-      star ge s1 t tr s3.
-  Proof star_step.
-
-  Lemma star_right:
-    forall ge s1 t1 tr1 s2 t2 tr2 s3 t tr,
-      star ge s1 t1 tr1 s2 -> step ge s2 t2 tr2 s3 -> t = t1 ** t2 -> tr = tr1 ~~ tr2 ->
-      star ge s1 t tr s3.
-  Proof.
-    intros. eapply star_trans. eauto. apply star_one. eauto. auto. auto.
-  Qed.
-End CLOSURES.
-
-Section TRANSITIONS.
-  Context {liA liB S} (L : lts liA liB S).
-  (* Have to fit into the specific type required by the star operator *)
-  Inductive transition_step (ge : genvtype L) : S -> trace -> token (dag liA) -> S -> Prop :=
-  | silent_step s s' t :
-      Step L s t s' ->
-      transition_step ge s t nil s'
-  | external_step s s' q r :
-      Smallstep.at_external L s q ->
-      Smallstep.after_external L s r s' ->
-      transition_step ge s E0 ((q, r) :: nil) s'.
-  Local Hint Resolve app_nil_r.
-  Local Hint Resolve app_assoc.
-  Program Instance trace_monoid : Monoid (token (dag liA)) :=
-    {
-      empty := nil;
-      append x y := x ++ y
-    }.
-  Inductive transition : token (dag liA) -> token liB -> Prop :=
-  | transition_intro s s' tr q r t:
-      (* initial state *)
-      valid_query L q = true ->
-      Smallstep.initial_state L q s ->
-      (* transition steps *)
-      (star _ _ _ transition_step) (Smallstep.globalenv L) s t tr s' ->
-      (* final state *)
-      Smallstep.final_state L s' r ->
-      transition tr (q, r).
-End TRANSITIONS.
 
 Section BIGSTEP_TO_TRANSITIONS.
+  Hint Resolve app_nil_r app_assoc.    
+  Section MONOID.
+    Class Monoid (A : Type) :=
+      {
+        empty : A;
+        append : A -> A -> A;
+
+        left_neutrality : forall x, append empty x = x;
+        right_neutrality : forall x, append x empty = x;
+        associativity : forall x y z, append x (append y z) = append (append x y) z
+      }.
+    Global Program Instance list_monoid {A} : Monoid (list A) :=
+      {
+        empty := nil;
+        append x y := x ++ y
+      }.
+  End MONOID.
+  Section CLOSURES.
+    Variable genv: Type.
+    Variable state: Type.
+    Context (acc : Type) {H : Monoid acc}.
+    Variable step: genv -> state -> acc -> state -> Prop.
+
+    (** Zero, one or several transitions.  Also known as Kleene closure,
+    or reflexive transitive closure. *)
+    Notation " '[]' " := empty (at level 1).
+    Notation " x '~~' y " := (append x y) (at level 1).
+    Hint Rewrite left_neutrality right_neutrality.
+    Hint Resolve left_neutrality right_neutrality associativity.
+
+    Inductive star (ge: genv): state -> acc -> state -> Prop :=
+    | star_refl: forall s,
+        star ge s [] s
+    | star_step: forall s1 tr1 s2 tr2 s3 tr,
+        step ge s1 tr1 s2 -> star ge s2 tr2 s3 -> tr = tr1 ~~ tr2 ->
+        star ge s1 tr s3.
+
+    Lemma star_one:
+      forall ge s1 tr s2, step ge s1 tr s2 -> star ge s1 tr s2.
+    Proof.
+      intros. eapply star_step; eauto. apply star_refl.
+    Qed.
+    Lemma star_trans:
+      forall ge s1 tr1 s2, star ge s1 tr1 s2 ->
+                           forall tr2 s3 tr, star ge s2 tr2 s3 ->
+                                             tr = tr1 ~~ tr2 ->
+                                             star ge s1 tr s3.
+    Proof.
+      induction 1; intros.
+      rewrite H1. autorewrite with core. auto.
+      eapply star_step; eauto. subst. autorewrite with core. auto.
+    Qed.
+
+    Lemma star_left:
+      forall ge s1 tr1 s2 tr2 s3 tr,
+        step ge s1 tr1 s2 -> star ge s2 tr2 s3 -> tr = tr1 ~~ tr2 ->
+        star ge s1 tr s3.
+    Proof star_step.
+
+    Lemma star_right:
+      forall ge s1 tr1 s2 tr2 s3 tr,
+        star ge s1 tr1 s2 -> step ge s2 tr2 s3 -> tr = tr1 ~~ tr2 ->
+        star ge s1 tr s3.
+    Proof.
+      intros. eapply star_trans. eauto. apply star_one. eauto. auto.
+    Qed.
+  End CLOSURES.
+
+  Section TRANSITION.
+    Context {liA liB S} (L : lts liA liB S).
+    (* Have to fit into the specific type required by the star operator *)
+    Inductive transition_step (ge : genvtype L) : S -> token (dag liA) -> S -> Prop :=
+    | silent_step s s':
+        Step L s E0 s' ->
+        transition_step ge s nil s'
+    | external_step s s' q r:
+        Smallstep.at_external L s q ->
+        Smallstep.after_external L s r s' ->
+        transition_step ge s ((q, r) :: nil) s'.
+    Inductive transition : token (dag liA) -> token liB -> Prop :=
+    | transition_intro s s' tr q r:
+        (* initial state *)
+        valid_query L q = true ->
+        Smallstep.initial_state L q s ->
+        (* transition steps *)
+        (star _ _ _ transition_step) (Smallstep.globalenv L) s tr s' ->
+        (* final state *)
+        Smallstep.final_state L s' r ->
+        transition tr (q, r).
+    Hint Unfold list_monoid.
+    Lemma transition_sound t q r:
+      transition t (q, r) -> lts_lmaps L t (q, r).
+    Proof.
+      inversion 1. subst.
+      econstructor; [ auto | eauto | ].
+      clear H H2 H3. induction H5.
+      - apply lts_trace_final. auto.
+      - specialize (IHstar H6).
+        inversion H; subst.
+        + eapply lts_trace_step; eauto.
+        + eapply lts_trace_external; eauto.
+    Qed.
+  End TRANSITION.
+  
   Variable p : program.
-  Let sem := Clight.semantics1 p.
   Variable se : Genv.symtbl.
+  Let sem : semantics li_c li_c := Clight.semantics1 p.
   Let lts : lts li_c li_c state := sem se.
-  Let ge := Smallstep.globalenv lts.
-  Existing Instance trace_monoid.
+  Let ge : genv := Smallstep.globalenv lts.
   Let star_transition := (star _ _ _ (transition_step lts)) ge.
 
   Lemma is_call_cont_call_cont:
@@ -340,23 +337,21 @@ Section BIGSTEP_TO_TRANSITIONS.
 
   (* exec_stmt and eval_funcall correspond to transition steps *)
   Hint Constructors outcome_state_match.
-  Hint Rewrite left_neutrality.
-  Hint Rewrite right_neutrality.
-  Hint Resolve left_neutrality.
-  Hint Resolve right_neutrality.
-  Hint Resolve associativity.
+  Hint Unfold append list_monoid.
+  Hint Rewrite app_nil_r app_assoc.
+  Ltac auto' := autounfold; try autorewrite with core; auto.
   Lemma exec_stmt_eval_funcall_steps:
-    (forall e le m s t le' m' tr out,
-        exec_stmt ge e le m s t le' m' tr out ->
+    (forall e le m s le' m' tr out,
+        exec_stmt ge e le m s le' m' tr out ->
         forall f k, exists S,
-            star_transition (State f s k e le m) t tr S /\
+            star_transition (State f s k e le m) tr S /\
             outcome_state_match ge e le' m' f k out S)
     /\
-    (forall m vf args t m' tr res,
-        eval_funcall ge m vf args t m' tr res ->
+    (forall m vf args m' tr res,
+        eval_funcall ge m vf args m' tr res ->
         forall k,
           is_call_cont k ->
-          star_transition (Callstate vf args k m) t tr (Returnstate res k m')).
+          star_transition (Callstate vf args k m) tr (Returnstate res k m')).
   Proof.
     apply exec_stmt_funcall_ind; intros.
 
@@ -370,9 +365,8 @@ Section BIGSTEP_TO_TRANSITIONS.
     - eexists. split.
       eapply star_left. apply silent_step. econstructor; eauto.
       eapply star_right. apply H5. simpl; auto.
-      apply silent_step. econstructor. reflexivity. reflexivity. traceEq.
-      autorewrite with core. auto.
-      auto.
+      apply silent_step. econstructor. reflexivity.
+      auto'. auto.
 (* builtin *)
     - eexists. split. apply star_one. apply silent_step. econstructor; eauto. auto.
 (* sequence 2 *)
@@ -382,9 +376,7 @@ Section BIGSTEP_TO_TRANSITIONS.
       eapply star_left. apply silent_step. econstructor.
       eapply star_trans. eexact A1.
       eapply star_left. apply silent_step. constructor. eexact A2.
-      reflexivity. reflexivity. reflexivity. reflexivity. traceEq.
-      autorewrite with core. auto.
-      auto.
+      reflexivity. reflexivity. auto'. auto.
 (* sequence 1 *)
     - destruct (H0 f (Kseq s2 k)) as [S1 [A1 B1]].
       set (S2 :=
@@ -402,16 +394,14 @@ Section BIGSTEP_TO_TRANSITIONS.
           apply star_one; apply silent_step; apply step_continue_seq |
           apply star_refl |
           apply star_refl ].
-      reflexivity. reflexivity. traceEq.
-      autorewrite with core. auto.
+      reflexivity. auto'.
       unfold S2; inv B1; congruence || econstructor; eauto.
 (* ifthenelse *)
     - destruct (H2 f k) as [S1 [A1 B1]].
       exists S1; split.
       eapply star_left. 2: eexact A1.
       apply silent_step.
-      eapply step_ifthenelse; eauto. traceEq.
-      auto. auto.
+      eapply step_ifthenelse; eauto. auto'. auto.
 (* return none *)
     - econstructor; split. apply star_refl. constructor. auto.
 (* return some *)
@@ -433,8 +423,7 @@ Section BIGSTEP_TO_TRANSITIONS.
       unfold S2. inversion H1; subst.
       inv B1. apply star_one. apply silent_step. constructor.
       apply star_refl.
-      reflexivity. reflexivity. traceEq.
-      autorewrite with core. auto. 
+      reflexivity. auto'.
       unfold S2. inversion H1; subst. constructor. inv B1; econstructor; eauto.
 (* loop stop 2 *)
     - destruct (H0 f (Kloop1 s1 s2 k)) as [S1 [A1 B1]].
@@ -452,8 +441,7 @@ Section BIGSTEP_TO_TRANSITIONS.
       eapply star_trans. eexact A2.
       unfold S3. inversion H4; subst.
       inv B2. apply star_one. apply silent_step. constructor. apply star_refl.
-      reflexivity. reflexivity. reflexivity. reflexivity. reflexivity. reflexivity.
-      traceEq. autorewrite with core. auto.
+      reflexivity. reflexivity. reflexivity. auto'.
       unfold S3. inversion H4; subst. constructor. inv B2; econstructor; eauto.
 (* loop loop *)
     - destruct (H0 f (Kloop1 s1 s2 k)) as [S1 [A1 B1]].
@@ -468,10 +456,8 @@ Section BIGSTEP_TO_TRANSITIONS.
       eapply star_left with (s2 := State f (Sloop s1 s2) k e le2 m2).
       inversion H4; subst; inv B2; apply silent_step; constructor; auto.
       eexact A3.
-      reflexivity. reflexivity. reflexivity. reflexivity. reflexivity. reflexivity.
-      reflexivity. reflexivity.
-      traceEq. autorewrite with core. auto.
-      auto.
+      reflexivity. reflexivity. reflexivity. reflexivity.
+      auto'. auto.
 (* switch *)
     - destruct (H2 f (Kswitch k)) as [S1 [A1 B1]].
       set (S2 :=
@@ -490,8 +476,7 @@ Section BIGSTEP_TO_TRANSITIONS.
       apply star_one. apply silent_step. constructor.
       apply star_refl.
       apply star_refl.
-      reflexivity. reflexivity.
-      traceEq. autorewrite with core. auto.
+      reflexivity.  auto'.
       unfold S2. inv B1; simpl; econstructor; eauto.
 (* call internal *)
     - destruct (H4 f k) as [S1 [A1 B1]].
@@ -515,8 +500,7 @@ Section BIGSTEP_TO_TRANSITIONS.
           rewrite <- (is_call_cont_call_cont k H7). rewrite <- H8.
           apply silent_step. eapply step_return_1; eauto.
       }
-      reflexivity. reflexivity. 
-      traceEq. autorewrite with core. auto.
+      reflexivity. auto'.
 (* call external *)
     - apply star_one. apply silent_step. eapply step_external_function; eauto.
 (* query and reply *)
@@ -527,17 +511,39 @@ Section BIGSTEP_TO_TRANSITIONS.
       apply after_external_intro.
   Qed.
   Hint Unfold is_call_cont.
-  Inductive transition_lmaps : token (dag li_c) -> token li_c -> Prop :=
-  | transition_lmaps_intro tr q r :
-      transition lts tr (q, r) ->
-      transition_lmaps tr (q, r).
-  Lemma bigstep_soundnes tr q r:
-    bigstep_lmaps ge tr (q, r) -> transition_lmaps tr (q, r).
+  Lemma bigstep_lmaps_soundness tr q r:
+    bigstep_lmaps ge tr (q, r) -> lts_lmaps lts tr (q, r).
   Proof.
-    induction 1; subst. econstructor. econstructor. auto.
-    - econstructor; eauto.
-    - eapply (proj2 exec_stmt_eval_funcall_steps); eauto.
-    - constructor.
+    intros bigstep.
+    apply transition_sound.
+    inversion bigstep. subst.
+    econstructor;
+      [ auto |
+        econstructor; eauto |
+        eapply (proj2 exec_stmt_eval_funcall_steps); eauto |
+        constructor ].
   Qed.
-  
 End BIGSTEP_TO_TRANSITIONS.
+
+Section BIGSTEP_COH_SPACE.
+  Variable se : Genv.symtbl.
+  Variable p : program.
+  Let ge := globalenv se p.
+  Local Obligation Tactic := idtac.
+  Program Definition c_bigstep_lmaps : (dag li_c) --o li_c :=
+    {|
+      has '(t, u) := bigstep_lmaps ge t u
+    |}.
+  Next Obligation.
+    
+  Admitted.
+End BIGSTEP_COH_SPACE.
+
+Definition clight_bigstep (p : Clight.program) se : (dag li_c) --o li_c :=
+  c_bigstep_lmaps se p.
+Theorem bigstep_soundness (p : Clight.program) se:
+  forall tr q r,
+    has (clight_bigstep p se) (tr, (q, r)) -> has (clight p se) (tr, (q, r)).
+Proof.
+  apply bigstep_lmaps_soundness.
+Qed.
