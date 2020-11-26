@@ -17,6 +17,7 @@ Require Import Cop.
 Require Import Clight.
 Require Import models.Coherence.
 Require Import CompCertSem.
+
 Section BIGSTEP.
 
   Variable ge: genv.
@@ -61,7 +62,7 @@ Section BIGSTEP.
   [m1] is the initial memory state, [m2] the final memory state.
   [t] is the trace of input/output events performed during this
   evaluation. *)
- 
+  
   Let li_trace : Type := token (dag li_c).
   Let li_event : Type := token li_c.
   Inductive exec_stmt: env -> temp_env -> mem -> statement ->
@@ -91,6 +92,8 @@ Section BIGSTEP.
                 (set_opttemp optid vres le) m' tr Out_normal
   | exec_Sbuiltin:   forall e le m optid ef al tyargs vargs m' vres,
       eval_exprlist ge e le m al tyargs vargs ->
+      (* require the trace to be empty because we don't want undeterministic behaviour  *)
+      (* predefined external calls that generate events are treated as undefined behaviour *)
       external_call ef ge vargs m E0 vres m' ->
       exec_stmt e le m (Sbuiltin optid ef tyargs al)
                 (set_opttemp optid vres le) m' nil Out_normal
@@ -181,8 +184,8 @@ Section BIGSTEP.
     with eval_funcall_ind2 := Minimality for eval_funcall Sort Prop.
   Combined Scheme exec_stmt_funcall_ind from exec_stmt_ind2, eval_funcall_ind2.
 
-   Inductive outcome_state_match
-       (e: env) (le: temp_env) (m: mem) (f: function) (k: cont): outcome -> state -> Prop :=
+  Inductive outcome_state_match
+            (e: env) (le: temp_env) (m: mem) (f: function) (k: cont): outcome -> state -> Prop :=
   | osm_normal:
       outcome_state_match e le m f k Out_normal (State f Sskip k e le m)
   | osm_break:
@@ -192,33 +195,33 @@ Section BIGSTEP.
   | osm_return_none: forall k',
       call_cont k' = call_cont k ->
       outcome_state_match e le m f k
-        (Out_return None) (State f (Sreturn None) k' e le m)
+                          (Out_return None) (State f (Sreturn None) k' e le m)
   | osm_return_some: forall a v k',
       call_cont k' = call_cont k ->
       eval_expr ge e le m a v ->
       outcome_state_match e le m f k
-        (Out_return (Some (v,typeof a))) (State f (Sreturn (Some a)) k' e le m).
+                          (Out_return (Some (v,typeof a))) (State f (Sreturn (Some a)) k' e le m).
 
-   Inductive bigstep_lmaps : li_trace  -> li_event -> Prop :=
-   | bigstep_lmaps_intro tr q r m m' vf vargs vres targs tres tcc f:
-       (* valid query *)
-       Genv.is_internal ge (entry q) = true ->
-       (* initial state *)
-       q = cq vf (signature_of_type targs tres tcc) vargs m ->
-       Genv.find_funct ge vf = Some (Internal f) ->
-       type_of_function f = Tfunction targs tres tcc ->
-       val_casted_list vargs targs ->
-       Ple (Genv.genv_next ge) (Mem.nextblock m) ->
-       (* eval function body *)
-       eval_funcall m vf vargs m' tr vres ->
-       (* final state *)
-       r = cr vres m' ->
-       bigstep_lmaps tr (q, r).
+  Inductive bigstep_lmaps : li_trace  -> li_event -> Prop :=
+  | bigstep_lmaps_intro tr q r m m' vf vargs vres targs tres tcc f:
+      (* valid query *)
+      Genv.is_internal ge (entry q) = true ->
+      (* initial state *)
+      q = cq vf (signature_of_type targs tres tcc) vargs m ->
+      Genv.find_funct ge vf = Some (Internal f) ->
+      type_of_function f = Tfunction targs tres tcc ->
+      val_casted_list vargs targs ->
+      Ple (Genv.genv_next ge) (Mem.nextblock m) ->
+      (* eval function body *)
+      eval_funcall m vf vargs m' tr vres ->
+      (* final state *)
+      r = cr vres m' ->
+      bigstep_lmaps tr (q, r).
 End BIGSTEP.
 
 
 Section BIGSTEP_TO_TRANSITIONS.
-  Hint Resolve app_nil_r app_assoc.    
+  Hint Resolve app_nil_r app_assoc.
   Section MONOID.
     Class Monoid (A : Type) :=
       {
@@ -234,7 +237,11 @@ Section BIGSTEP_TO_TRANSITIONS.
         empty := nil;
         append x y := x ++ y
       }.
+
   End MONOID.
+  Hint Rewrite app_nil_r app_assoc : list_rewrite.
+  Hint Unfold empty append list_monoid.
+  Ltac monoid_solve := autounfold; autorewrite with list_rewrite; auto.
   Section CLOSURES.
     Variable genv: Type.
     Variable state: Type.
@@ -337,9 +344,6 @@ Section BIGSTEP_TO_TRANSITIONS.
 
   (* exec_stmt and eval_funcall correspond to transition steps *)
   Hint Constructors outcome_state_match.
-  Hint Unfold append list_monoid.
-  Hint Rewrite app_nil_r app_assoc.
-  Ltac auto' := autounfold; try autorewrite with core; auto.
   Lemma exec_stmt_eval_funcall_steps:
     (forall e le m s le' m' tr out,
         exec_stmt ge e le m s le' m' tr out ->
@@ -355,29 +359,29 @@ Section BIGSTEP_TO_TRANSITIONS.
   Proof.
     apply exec_stmt_funcall_ind; intros.
 
-(* skip *)
+    (* skip *)
     - eexists. split. apply star_refl. auto.
-(* assign *)
+    (* assign *)
     - eexists. split. apply star_one. apply silent_step. econstructor; eauto. auto.
-(* set *)
+    (* set *)
     - eexists. split. apply star_one. apply silent_step. econstructor; eauto. auto.
-(* call *)
+    (* call *)
     - eexists. split.
       eapply star_left. apply silent_step. econstructor; eauto.
       eapply star_right. apply H5. simpl; auto.
       apply silent_step. econstructor. reflexivity.
-      auto'. auto.
-(* builtin *)
+      monoid_solve. auto.
+    (* builtin *)
     - eexists. split. apply star_one. apply silent_step. econstructor; eauto. auto.
-(* sequence 2 *)
+    (* sequence 2 *)
     - destruct (H0 f (Kseq s2 k)) as [S1 [A1 B1]]. inv B1.
       destruct (H2 f k) as [S2 [A2 B2]].
       eexists. split.
       eapply star_left. apply silent_step. econstructor.
       eapply star_trans. eexact A1.
       eapply star_left. apply silent_step. constructor. eexact A2.
-      reflexivity. reflexivity. auto'. auto.
-(* sequence 1 *)
+      reflexivity. reflexivity. monoid_solve. auto.
+    (* sequence 1 *)
     - destruct (H0 f (Kseq s2 k)) as [S1 [A1 B1]].
       set (S2 :=
              match out with
@@ -394,23 +398,23 @@ Section BIGSTEP_TO_TRANSITIONS.
           apply star_one; apply silent_step; apply step_continue_seq |
           apply star_refl |
           apply star_refl ].
-      reflexivity. auto'.
+      reflexivity. monoid_solve.
       unfold S2; inv B1; congruence || econstructor; eauto.
-(* ifthenelse *)
+    (* ifthenelse *)
     - destruct (H2 f k) as [S1 [A1 B1]].
       exists S1; split.
       eapply star_left. 2: eexact A1.
       apply silent_step.
-      eapply step_ifthenelse; eauto. auto'. auto.
-(* return none *)
+      eapply step_ifthenelse; eauto. monoid_solve. auto.
+    (* return none *)
     - econstructor; split. apply star_refl. constructor. auto.
-(* return some *)
+    (* return some *)
     - econstructor; split. apply star_refl. econstructor; eauto.
-(* break *)
+    (* break *)
     - econstructor; split. apply star_refl. constructor.
-(* continue *)
+    (* continue *)
     - econstructor; split. apply star_refl. constructor.
-(* loop stop 1 *)
+    (* loop stop 1 *)
     - destruct (H0 f (Kloop1 s1 s2 k)) as [S1 [A1 B1]].
       set (S2 :=
              match out' with
@@ -423,9 +427,9 @@ Section BIGSTEP_TO_TRANSITIONS.
       unfold S2. inversion H1; subst.
       inv B1. apply star_one. apply silent_step. constructor.
       apply star_refl.
-      reflexivity. auto'.
+      reflexivity. monoid_solve.
       unfold S2. inversion H1; subst. constructor. inv B1; econstructor; eauto.
-(* loop stop 2 *)
+    (* loop stop 2 *)
     - destruct (H0 f (Kloop1 s1 s2 k)) as [S1 [A1 B1]].
       destruct (H3 f (Kloop2 s1 s2 k)) as [S2 [A2 B2]].
       set (S3 :=
@@ -441,9 +445,9 @@ Section BIGSTEP_TO_TRANSITIONS.
       eapply star_trans. eexact A2.
       unfold S3. inversion H4; subst.
       inv B2. apply star_one. apply silent_step. constructor. apply star_refl.
-      reflexivity. reflexivity. reflexivity. auto'.
+      reflexivity. reflexivity. reflexivity. monoid_solve.
       unfold S3. inversion H4; subst. constructor. inv B2; econstructor; eauto.
-(* loop loop *)
+    (* loop loop *)
     - destruct (H0 f (Kloop1 s1 s2 k)) as [S1 [A1 B1]].
       destruct (H3 f (Kloop2 s1 s2 k)) as [S2 [A2 B2]].
       destruct (H5 f k) as [S3 [A3 B3]].
@@ -457,8 +461,8 @@ Section BIGSTEP_TO_TRANSITIONS.
       inversion H4; subst; inv B2; apply silent_step; constructor; auto.
       eexact A3.
       reflexivity. reflexivity. reflexivity. reflexivity.
-      auto'. auto.
-(* switch *)
+      monoid_solve. auto.
+    (* switch *)
     - destruct (H2 f (Kswitch k)) as [S1 [A1 B1]].
       set (S2 :=
              match out with
@@ -476,34 +480,34 @@ Section BIGSTEP_TO_TRANSITIONS.
       apply star_one. apply silent_step. constructor.
       apply star_refl.
       apply star_refl.
-      reflexivity.  auto'.
+      reflexivity.  monoid_solve.
       unfold S2. inv B1; simpl; econstructor; eauto.
-(* call internal *)
+    (* call internal *)
     - destruct (H4 f k) as [S1 [A1 B1]].
       eapply star_left. apply silent_step.
       eapply step_internal_function; eauto. econstructor; eauto.
       eapply star_right. eexact A1.
       {
         inv B1; simpl in H5; try contradiction.
-  (* Out_normal *)
+        (* Out_normal *)
         + assert (fn_return f = Tvoid /\ vres = Vundef).
           destruct (fn_return f); auto || contradiction.
           destruct H8. subst vres. apply silent_step. apply step_skip_call; auto.
-  (* Out_return None *)
+        (* Out_return None *)
         + assert (fn_return f = Tvoid /\ vres = Vundef).
           destruct (fn_return f); auto || contradiction.
           destruct H9. subst vres.
           rewrite <- (is_call_cont_call_cont k H7). rewrite <- H8.
           apply silent_step. apply step_return_0; auto.
-  (* Out_return Some *)
+        (* Out_return Some *)
         + destruct H5.
           rewrite <- (is_call_cont_call_cont k H7). rewrite <- H8.
           apply silent_step. eapply step_return_1; eauto.
       }
-      reflexivity. auto'.
-(* call external *)
+      reflexivity. monoid_solve.
+    (* call external *)
     - apply star_one. apply silent_step. eapply step_external_function; eauto.
-(* query and reply *)
+    (* query and reply *)
     - apply star_one. apply external_step.
       rewrite H.
       eapply at_external_intro. subst f. apply H1.
@@ -535,8 +539,16 @@ Section BIGSTEP_COH_SPACE.
       has '(t, u) := bigstep_lmaps ge t u
     |}.
   Next Obligation.
-    
-  Admitted.
+    intros p1 p2.
+    destruct p1 as [tr1 [q1 r1]].
+    destruct p2 as [tr2 [q2 r2]].
+    simpl. intros bigstep1 bigstep2 coh.
+    exploit (has_coh _ (clight p se) (tr1, (q1, r1)) (tr2, (q2, r2))).
+    - apply bigstep_lmaps_soundness. apply bigstep1.
+    - apply bigstep_lmaps_soundness. apply bigstep2.
+    - apply coh.
+    - auto.
+  Qed.
 End BIGSTEP_COH_SPACE.
 
 Definition clight_bigstep (p : Clight.program) se : (dag li_c) --o li_c :=
