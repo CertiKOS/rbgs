@@ -63,10 +63,8 @@ Section BIGSTEP.
   [t] is the trace of input/output events performed during this
   evaluation. *)
   
-  Let li_trace : Type := token (dag li_c).
-  Let li_event : Type := token li_c.
   Inductive exec_stmt: env -> temp_env -> mem -> statement ->
-                       temp_env -> mem -> li_trace -> outcome -> Prop :=
+                       temp_env -> mem -> token (!li_c) -> outcome -> Prop :=
   | exec_Sskip: forall e le m,
       exec_stmt e le m Sskip
                 le m nil Out_normal
@@ -157,7 +155,7 @@ Section BIGSTEP.
   by the call.  *)
 
   with eval_funcall: mem -> val -> list val ->
-                     mem -> li_trace -> val -> Prop :=
+                     mem -> token (!li_c) -> val -> Prop :=
   | eval_funcall_internal: forall le m f vargs e m1 m2 m3 out vres m4 tr vf,
       Genv.find_funct ge vf = Some (Internal f) ->
       alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
@@ -202,7 +200,7 @@ Section BIGSTEP.
       outcome_state_match e le m f k
                           (Out_return (Some (v,typeof a))) (State f (Sreturn (Some a)) k' e le m).
 
-  Inductive bigstep_lmaps : li_trace  -> li_event -> Prop :=
+  Inductive bigstep_lmaps : token (!li_c)  -> token li_c -> Prop :=
   | bigstep_lmaps_intro tr q r m m' vf vargs vres targs tres tcc f:
       (* valid query *)
       Genv.is_internal ge (entry q) = true ->
@@ -218,7 +216,6 @@ Section BIGSTEP.
       r = cr vres m' ->
       bigstep_lmaps tr (q, r).
 End BIGSTEP.
-
 
 Section BIGSTEP_TO_TRANSITIONS.
   Hint Resolve app_nil_r app_assoc.
@@ -237,11 +234,12 @@ Section BIGSTEP_TO_TRANSITIONS.
         empty := nil;
         append x y := x ++ y
       }.
-
   End MONOID.
+  
   Hint Rewrite app_nil_r app_assoc : list_rewrite.
   Hint Unfold empty append list_monoid.
   Ltac monoid_solve := autounfold; autorewrite with list_rewrite; auto.
+  
   Section CLOSURES.
     Variable genv: Type.
     Variable state: Type.
@@ -277,13 +275,11 @@ Section BIGSTEP_TO_TRANSITIONS.
       rewrite H1. autorewrite with core. auto.
       eapply star_step; eauto. subst. autorewrite with core. auto.
     Qed.
-
     Lemma star_left:
       forall ge s1 tr1 s2 tr2 s3 tr,
         step ge s1 tr1 s2 -> star ge s2 tr2 s3 -> tr = tr1 ~~ tr2 ->
         star ge s1 tr s3.
     Proof star_step.
-
     Lemma star_right:
       forall ge s1 tr1 s2 tr2 s3 tr,
         star ge s1 tr1 s2 -> step ge s2 tr2 s3 -> tr = tr1 ~~ tr2 ->
@@ -294,9 +290,9 @@ Section BIGSTEP_TO_TRANSITIONS.
   End CLOSURES.
 
   Section TRANSITION.
+    (* A transition system that fits into the star operator, and is sound w.r.t. lts in CompCertSem.v *)
     Context {liA liB S} (L : lts liA liB S).
-    (* Have to fit into the specific type required by the star operator *)
-    Inductive transition_step (ge : genvtype L) : S -> token (dag liA) -> S -> Prop :=
+    Inductive transition_step (ge : genvtype L) : S -> token (!liA) -> S -> Prop :=
     | silent_step s s':
         Step L s E0 s' ->
         transition_step ge s nil s'
@@ -304,7 +300,7 @@ Section BIGSTEP_TO_TRANSITIONS.
         Smallstep.at_external L s q ->
         Smallstep.after_external L s r s' ->
         transition_step ge s ((q, r) :: nil) s'.
-    Inductive transition : token (dag liA) -> token liB -> Prop :=
+    Inductive transition : token (!liA) -> token liB -> Prop :=
     | transition_intro s s' tr q r:
         (* initial state *)
         valid_query L q = true ->
@@ -534,7 +530,7 @@ Section BIGSTEP_COH_SPACE.
   Variable p : program.
   Let ge := globalenv se p.
   Local Obligation Tactic := idtac.
-  Program Definition c_bigstep_lmaps : (dag li_c) --o li_c :=
+  Program Definition c_bigstep_lmaps : !li_c --o li_c :=
     {|
       has '(t, u) := bigstep_lmaps ge t u
     |}.
@@ -551,7 +547,7 @@ Section BIGSTEP_COH_SPACE.
   Qed.
 End BIGSTEP_COH_SPACE.
 
-Definition clight_bigstep (p : Clight.program) se : (dag li_c) --o li_c :=
+Definition clight_bigstep (p : Clight.program) se : !li_c --o li_c :=
   c_bigstep_lmaps se p.
 Theorem bigstep_soundness (p : Clight.program) se:
   forall tr q r,
