@@ -1,7 +1,7 @@
 Require Import Relations RelationClasses Relators.
 Require Import List.
 Require Import Coqlib.
-Require Import LanguageInterface Events Globalenvs Smallstep.
+Require Import LanguageInterface Events Globalenvs SmallstepLinking Smallstep.
 
 Section FLAT_COMP.
   Context {li} (L1 L2: semantics li li).
@@ -71,15 +71,6 @@ Section FLAT_COMP.
     skel := sk;
     |}.
 
-End FLAT_COMP.
-
-Require Import SmallstepLinking.
-
-Arguments st1 {_ _ _}.
-Arguments st2 {_ _ _}.
-
-Section APPROX.
-  Context {li} (L1 L2: Smallstep.semantics li li).
   Notation L := (fun i => match i with true => L1 | false => L2 end).
 
   Hypothesis zero_way_query: forall se q,
@@ -106,16 +97,13 @@ Section APPROX.
       easy.
   Qed.
 
-  Inductive state_match: state L1 L2 -> list (SmallstepLinking.frame L) -> Prop :=
+  Inductive state_match: state -> list (SmallstepLinking.frame L) -> Prop :=
   | state_match1 s:
       state_match (st1 s) (st L true s :: nil)
   | state_match2 s:
       state_match (st2 s) (st L false s :: nil).
 
-  Context (sk: AST.program unit unit).
-
-  Lemma catcomp_approx: forward_simulation 1 1 (Top.semantics L1 L2 sk)
-                                           (SmallstepLinking.semantics L sk).
+  Lemma catcomp_approx: forward_simulation 1 1 semantics (SmallstepLinking.semantics L sk).
   Proof.
     constructor. econstructor; eauto.
     instantiate (1 := fun _ _ _ => _). cbn beta.
@@ -145,4 +133,5 @@ Section APPROX.
         eexists; split; constructor; auto.
     - apply well_founded_ltof.
   Qed.
-End APPROX.
+End FLAT_COMP.
+
