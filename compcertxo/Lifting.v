@@ -77,14 +77,6 @@ Record krel {K1 K2: Type}: Type :=
     }.
 Arguments krel: clear implicits.
 
-Program Definition krel_comp {K1 K2 K3} (R1: krel K1 K2) (R2: krel K2 K3) :=
-  {|
-  Rk k1 '(k3, m3) := exists '(k2, m2), Rk R1 k1 (k2, m2) /\ Rk R2 k2 (k3, m3);
-  G b ofs := G R1 b ofs /\ G R2 b ofs;
-  |}.
-Next Obligation.
-Admitted.
-
 Section SIM_REL.
   Context {K1 K2} (R: krel K1 K2).
 
