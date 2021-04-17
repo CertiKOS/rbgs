@@ -28,6 +28,9 @@ Section ABS_CKLR.
     match_intro: forall se k1 m1 m2,
       Mem.extends m1 m2 -> Rr R k1 m2 -> no_perm_on m1 (G R) ->
       abs_mm (absw se k1) m1 m2.
+  Inductive abs_match_se: abs_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
+    match_se_intro: forall se k,
+      abs_match_se (absw se k) se se.
 
   Program Definition memabs: cklr :=
     {|
@@ -35,7 +38,7 @@ Section ABS_CKLR.
     wacc := eq;
     mi w := inject_id;
     match_mem := abs_mm;
-    match_stbls w := eq;
+    match_stbls := abs_match_se;
     |}.
   (* mi_acc *)
   Next Obligation.
@@ -47,11 +50,12 @@ Section ABS_CKLR.
   Qed.
   (* match_stbls_proj *)
   Next Obligation.
-    intros se1 se2 <-. apply Genv.match_stbls_id.
+    intros se1 se2 Hse. inv Hse.
+    apply Genv.match_stbls_id.
   Qed.
   (* match_stbls_nextblock *)
   Next Obligation.
-    inv H0. erewrite <- Mem.mext_next; eauto.
+    inv H. inv H0. erewrite <- Mem.mext_next; eauto.
   Qed.
   (* cklr_alloc *)
   Next Obligation.
@@ -175,3 +179,145 @@ Section ABS_CKLR.
     intuition xomega.
   Qed.
 End ABS_CKLR.
+
+Require Import Clight.
+Require Import Lifting.
+Require Import Clightrel.
+Require Import Linking.
+
+(* The self-simulation property for program p given that the scope of p is
+   disjoint from the scope of the abstraction relation R *)
+Section SIMULATION.
+  Context {K1 K2} (R: krel K1 K2).
+  Inductive kcc_c_query cc_query:
+    abs_world -> query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
+    kcc_c_query_intro se q1 k1 q2 k2:
+      cc_query (absw se k1) q1 q2 -> Rr R k1 (cq_mem q2) -> Rk R k1 k2 ->
+      kcc_c_query cc_query (absw se k1) (q1, k1) (q2, k2).
+  Inductive kcc_c_reply cc_reply:
+    abs_world -> reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
+    kcc_c_reply_intro se r1 k1 r2 k2:
+      cc_reply (absw se k1) r1 r2 -> Rr R k1 (cr_mem r2) -> Rk R k1 k2 ->
+      kcc_c_reply cc_reply (absw se k1) (r1, k1) (r2, k2).
+
+  (* Promoting an abstraction relation to a memory extension based calling
+     convention *)
+  Local Notation " 'mr' " := (memabs R) (at level 1).
+  Program Definition kcc_c: callconv (li_c @ K1) (li_c @ K2) :=
+    {|
+    ccworld := world mr;
+    match_senv := match_stbls mr;
+    match_query := kcc_c_query (cc_c_query mr);
+    (* For simplicity, symbol table should be preserved. We can't use
+    accessibility here because that requires the abstract data stays intact *)
+    match_reply w r1 r2 :=
+      match w with
+      | absw se _ => exists k, kcc_c_reply (cc_c_reply mr) (absw se k) r1 r2
+      end;
+    |}.
+  Next Obligation.
+    inv H. reflexivity.
+  Qed.
+  Next Obligation.
+    inv H. auto.
+  Qed.
+
+  Lemma val_casted_list_inject f vargs vargs' targs:
+    Cop.val_casted_list vargs targs ->
+    Val.inject_list f vargs vargs' ->
+    Cop.val_casted_list vargs' targs.
+  Proof.
+    intro H. revert vargs'.
+    induction H; inversion 1; subst; constructor; eauto.
+    eapply val_casted_inject; eauto.
+  Qed.
+
+  Lemma list_inject_subrel' f:
+    Related (Val.inject_list f) (list_rel (Val.inject f)) subrel.
+  Proof.
+    intros x y H. induction H; constructor; auto.
+  Qed.
+
+  Lemma cont_match_mr w w' k1 k2:
+    cont_match mr w k1 k2 ->
+    cont_match mr w' k1 k2.
+  Proof.
+    induction 1; try constructor; auto.
+  Qed.
+
+  (* for the self-simulation it is not necessary to require disjoint scope. If p
+     and G interfere with each other, the source program would fail. *)
+  Lemma clight_sim p:
+    forward_simulation kcc_c kcc_c
+                       (Clight.semantics1 p @ K1) (Clight.semantics1 p @ K2).
+  Proof.
+    constructor. econstructor; eauto. instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros ? se w Hse Hse1. inv Hse. cbn -[semantics1] in *.
+    pose (ms := fun '(s1, k1) '(s2, k2) =>
+                  state_match mr (absw se k1) s1 s2 /\ Rk R k1 k2).
+    apply forward_simulation_step with (match_states := ms).
+    - intros [q1 ?] [q2 ?] Hq. inv Hq. inv H4. cbn in *.
+      eapply Genv.is_internal_match; eauto.
+      + instantiate (1 := p).
+        repeat apply conj; auto.
+        induction (AST.prog_defs (_ p)) as [ | [id [f|v]] defs IHdefs];
+          repeat (econstructor; eauto).
+        * apply incl_refl.
+        * apply linkorder_refl.
+        * instantiate (1 := fun _ => eq). reflexivity.
+        * instantiate (1 := eq). destruct v; constructor; auto.
+      + apply Genv.match_stbls_id.
+      + cbn. congruence.
+    - intros [q1 k1] [q2 k2] [s1 k1'] Hq Hs1. inv Hq. inv Hs1.
+      cbn in *. subst k1'. inv H. inv H4. cbn in *.
+      exists (Callstate vf2 vargs2 Kstop m2, k2). split.
+      + constructor; auto. cbn.
+        econstructor; eauto.
+        * unfold globalenv. cbn.
+          exploit (@find_funct_inject p mr (absw se k1) (globalenv se p)).
+          split; cbn; eauto.
+          eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
+          constructor. eauto. intro Hx. apply Hx.
+        * eapply val_casted_list_inject; eauto.
+        * simpl. eapply match_stbls_nextblock; eauto.
+          instantiate (2 := mr). instantiate (1 := absw se k1).
+          constructor. apply H13.
+      + split; auto.
+        constructor; auto. cbn.
+        apply list_inject_subrel'.
+        auto. constructor.
+    - intros [s1 k1] [s2 k2] [r1 k1'] (Hs & Hk) Hfinal.
+      inv Hfinal. cbn in *. subst k1'. inv H. inv Hs.
+      eexists (_, k2). split. split; cbn; auto.
+      + inv H4. econstructor.
+      + exists k1. constructor; cbn; auto.
+        constructor; eauto.
+        inv H5. auto.
+    - intros [s1 k1] [s2 k2] [q1 k1'] (Hs & Hk) Hext.
+      inv Hext. cbn in *. subst k1'. inv H. inv Hs.
+      eexists (absw se k1), (_, _). repeat apply conj; cbn; eauto.
+      + cbn. econstructor.
+        exploit (@find_funct_inject p mr (absw se k1) (globalenv se p)).
+        split; cbn; eauto.
+        eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
+        constructor. eauto. intros Hx. subst f. apply Hx.
+      + constructor; cbn; auto.
+        constructor; auto. cbn in *.
+        eapply list_inject_subrel. auto.
+        destruct vf; cbn in *; congruence.
+        inv H8. auto.
+      + constructor.
+      + intros [r1 kr1] [r2 kr2] [s1' k1'] [w' Hr] Hafter.
+        inv Hafter. cbn in *. subst k1'. inv H. inv Hr. inv H9.
+        cbn in *. eexists (_, kr2). split. split; auto.
+        cbn. econstructor. split; auto.
+        constructor; auto. eapply cont_match_mr. eauto.
+    - intros [s1 k1] t [s1' k1'] Hstep [s2 k2] [Hs Hk].
+      inv Hstep. cbn in H2.
+      exploit step1_rel; eauto. unfold genv_match.
+      eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
+      constructor. intros (s2' & Hstep' & w' & Hw' & Hs').
+      exists (s2', k2). inv Hw'. split; split; auto.
+    - apply well_founded_ltof.
+  Qed.
+End SIMULATION.

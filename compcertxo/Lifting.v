@@ -59,78 +59,10 @@ Delimit Scope sem_scope with sem.
 Bind Scope sem_scope with semantics.
 Notation "L @ K" := (lifted_semantics K L): sem_scope.
 
-Require Import Memory Values.
-
-Definition no_perm_on (m: mem) (vars: block -> Z -> Prop): Prop :=
-  forall b ofs, vars b ofs -> ~ Mem.perm m b ofs Max Nonempty.
-
-Record krel {K1 K2: Type}: Type :=
-  mk_krel {
-      Rk: K1 -> K2 * mem -> Prop;    (* a simulation relation *)
-      G: block -> Z -> Prop;         (* private variables *)
-
-      Rkm '(k1, m1) '(k2, m2) :=
-        Rk k1 (k2, m2) /\ no_perm_on m1 G /\ Mem.extends m1 m2;
-      G_unchanged:
-        forall k1 k2 m m',
-          Rk k1 (k2, m)  -> Mem.unchanged_on G m m' -> Rk k1 (k2, m');
-    }.
-Arguments krel: clear implicits.
-
-Section SIM_REL.
-  Context {K1 K2} (R: krel K1 K2).
-
-  Inductive kcc_ext_query: query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
-  | kcc_query_intro vf sg vargs1 vargs2 m1 m2 k1 k2:
-      Val.lessdef_list vargs1 vargs2 -> vf <> Vundef ->
-      Rkm R (k1, m1) (k2, m2) ->
-      kcc_ext_query (cq vf sg vargs1 m1, k1) (cq vf sg vargs2 m2, k2).
-
-  Inductive kcc_ext_reply: reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
-  | kcc_ext_reply_intro vres1 vres2 m1 m2 k1 k2:
-      Val.lessdef vres1 vres2 -> Rkm R (k1, m1) (k2, m2) ->
-      kcc_ext_reply (cr vres1 m1, k1) (cr vres2 m2, k2).
-
-  Program Definition kcc_ext :=
-    {|
-    ccworld := unit;
-    match_senv w := eq;
-    match_query w := kcc_ext_query;
-    match_reply w := kcc_ext_reply;
-    |}.
-
-End SIM_REL.
-
-Require Import Clight.
-
-Inductive state_match {K1 K2} (R: krel K1 K2): rel (state * K1) (state * K2) :=
-| State_match f s k e te m1 m2 k1 k2:
-    Rkm R (k1, m1) (k2, m2) ->
-    state_match R (State f s k e te m1, k1) (State f s k e te m2, k2)
-| Callstate_match v vs k m1 m2 k1 k2:
-    (* less_def on arguments? *)
-    Rkm R (k1, m1) (k2, m2) ->
-    state_match R (Callstate v vs k m1, k1) (Callstate v vs k m2, k2)
-| Returnstate_match v k m1 m2 k1 k2:
-    Rkm R (k1, m1) (k2, m2) ->
-    state_match R (Returnstate v k m1, k1) (Returnstate v k m2, k2).
-
-Lemma clight_lifted {K1 K2} p R:
-  forward_simulation (kcc_ext R) (kcc_ext R)
-                     ((semantics1 p) @ K1) ((semantics1 p) @ K2).
-Proof.
-  constructor. econstructor; eauto. instantiate (1  := fun _ _ _ => _). cbn beta.
-  intros se ? [ ] [ ] Hsk.
-  apply forward_simulation_step with (match_states := state_match R).
-  - intros. simpl. admit.
-  -
-
-Admitted.
-
 Notation " 'layer' K " := (Smallstep.semantics li_null (li_c @ K)) (at level 1).
 
-Definition layer_sim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
-           (R: krel K1 K2) := forward_simulation 1 (kcc_ext R) L1 L2.
+(* Definition layer_sim {K1 K2: Type} (L1: layer K1) (L2: layer K2) *)
+(*            (R: krel K1 K2) := forward_simulation 1 (kcc_ext R) L1 L2. *)
 
 (* Section Layer_Lifting. *)
 (*   Variable K: Type. *)
@@ -194,55 +126,3 @@ Definition layer_sim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
 
 (*   (* TODO: proved equivalence *) *)
 (* End LTS_CLOSED. *)
-
-
-Require Import CatComp.
-Require Import Linking.
-
-
-Definition layer_combine {K} (M: Clight.program) (L: layer K) sk :=
-  (* let L' := CatComp.semantics (semantics1 M @ K) (closed_sem_conv L (li_c @ K)) sk *)
-  (* in closed_sem_conv L' li_null. *)
-  layer_comp (semantics1 M @ K) L sk.
-Record prog_ksim {K1 K2: Type} :=
-  mk_prog_ksim {
-      L1: layer K1;
-      L2: layer K2;
-      M: Clight.program;
-      R: krel K1 K2;
-      sk: AST.program unit unit;
-
-      layer_sim: forward_simulation 1 (kcc_ext R) L1 (layer_combine M L2 sk);
-      link_sk: link (skel (semantics1 M)) (skel L2) = Some sk;
-    }.
-
-Section PROG_SIM.
-  Context {K1 K2} (pksim: @prog_ksim K1 K2).
-  Program Definition prog_sim_coercion: @Ksim.ksim K1 K2 :=
-    {|Ksim.L1 := L1 pksim;
-      Ksim.L2 := layer_combine (M pksim) (L2 pksim) (sk pksim);
-      Ksim.R := R pksim; |}.
-  Next Obligation.
-    exact (layer_sim pksim).
-  Qed.
-End PROG_SIM.
-Coercion prog_sim_coercion : prog_ksim >-> Ksim.ksim.
-
-Section VCOMP.
-
-  Context {K1 K2 K3 L1 L2 L3} {M N: Clight.program}
-          {R: krel K1 K2} {S: krel K2 K3} {sk1 sk2}
-          (Hsk1: link (skel L2) (skel (semantics1 M)) = Some sk1)
-          (Hsk2: link (skel L3) (skel (semantics1 N)) = Some sk2)
-          (HL1: forward_simulation 1 (kcc_ext R) L1 (layer_combine M L2 sk1))
-          (HL2: forward_simulation 1 (kcc_ext S) L2 (layer_combine N L3 sk2)).
-  Context (p: Clight.program) (Hlk: link M N = Some p).
-
-  Theorem layer_vcomp:
-    forward_simulation 1 (kcc_ext (krel_comp R S)) L1 (layer_combine p L3 sk2).
-  Proof.
-
-End VCOMP.
-
-
-Require Import FlatComp.
