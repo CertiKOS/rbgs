@@ -386,3 +386,5 @@ Section LAYER_COMP_SIM.
   Qed.
 
 End LAYER_COMP_SIM.
+
+Require Import Linking SmallstepLinking.

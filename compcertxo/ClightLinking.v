@@ -153,19 +153,23 @@ Section linking.
         match_cont ks k k' ->
         match_states (st L i (Returnstate res k m) :: ks) (Returnstate res k' m).
 
-    Lemma ce_eq i id:
-      (prog_comp_env (p_ i))!id = (prog_comp_env p)!id.
+    Variable tyck: composite_env -> expr -> Prop.
+    Hypothesis tyck_sizeof:
+      forall ce ce' e (extends: forall id co, ce!id = Some co -> ce'!id = Some co),
+        tyck ce e -> sizeof ce (typeof e) = sizeof ce' (typeof e).
+    Hypothesis tyck_sizeof_pointer:
+      forall ce ce' e ty attr (extends: forall id co, ce!id = Some co -> ce'!id = Some co),
+        tyck ce e -> typeof e = Tpointer ty attr ->
+        sizeof ce ty = sizeof ce' ty.
+
+    Lemma l1 i t1 t2 ty si:
+      Cop.classify_add (typeof t1) (typeof t2) = Cop.add_case_pi ty si ->
+      sizeof (prog_comp_env p) ty = sizeof (prog_comp_env (p_ i)) ty.
     Proof.
-    Admitted.
-    (* The linker on types should ensure both env have the same types?  Maybe
-       not... For example, the type might be present in one program but not the
-       other *)
-    Lemma size_of_eq i t:
-      sizeof (globalenv se (p_ i)) t = sizeof (globalenv se p) t.
-    Proof.
-      induction t; try easy.
-      - cbn in *. now rewrite IHt.
-      - cbn.
+      intros H. unfold Cop.classify_add in H. unfold typeconv in H.
+      destruct (typeof t1) eqn: Ht1; destruct (typeof t2) eqn: Ht2;
+        cbn in *; try destruct i1; try destruct i0; inv H; auto.
+
     Admitted.
 
     Lemma eval_expr_lvalue_match i env le m:
@@ -181,9 +185,44 @@ Section linking.
         destruct op; auto.
         + cbn in *.
           unfold Cop.sem_add in *.
-          destruct Cop.classify_add; auto.
-          SearchAbout Cop.sem_add_ptr_int.
+          destruct Cop.classify_add eqn: Hadd; auto.
+          * unfold Cop.sem_add_ptr_int in *.
+            destruct v1; destruct v2; try congruence.
+            -- destruct Archi.ptr64; try congruence.
+               inv H3. do 5 f_equal.
+               eapply l1. eauto.
+            -- admit.
+            -- admit.
+          * admit.
+          * admit.
+          * admit.
+        + admit.
+      - econstructor; eauto.
+      - admit.
+      - admit.
+      - econstructor; eauto.
+      - econstructor; eauto.
+        admit. admit.
+      - admit.
     Admitted.
+
+    Lemma assign_loc_match i e m loc ofs v m':
+      assign_loc (globalenv se (p_ i)) (typeof e) m loc ofs v m' ->
+      assign_loc (globalenv se p) (typeof e) m loc ofs v m'.
+    Proof.
+      inversion 1. subst.
+      - eapply assign_loc_value; eauto.
+      - eapply assign_loc_copy; subst; eauto.
+        admit.
+    Admitted.
+
+    Lemma eval_exprlist_match i e le m es tys vs:
+      eval_exprlist (globalenv se (p_ i)) e le m es tys vs ->
+      eval_exprlist (globalenv se p) e le m es tys vs.
+    Proof.
+      induction 1; econstructor; eauto.
+      eapply eval_expr_lvalue_match. eauto.
+    Qed.
 
     Lemma step_match i s k s' s1 t:
       match_states (st L i s :: k) s' ->
@@ -198,10 +237,32 @@ Section linking.
           econstructor; eauto.
           eapply eval_expr_lvalue_match. eauto.
           eapply eval_expr_lvalue_match. eauto.
-          instantiate (1 := m'). admit.
-          constructor.
-        +
-          (* Asm only uses the symtbl but Clight uses the genv *)
+          eapply assign_loc_match; eauto.
+          constructor; auto.
+        + eexists. split.
+          econstructor; eauto.
+          eapply eval_expr_lvalue_match; eauto.
+          constructor; auto.
+        + eexists. split.
+          eapply find_funct_linkorder in H11 as (fd' & Hfd & Hfdlk); eauto.
+          econstructor; eauto.
+          eapply eval_expr_lvalue_match. eauto.
+          eapply eval_exprlist_match. eauto.
+          (* The external call in one component that matches an internal call in
+             the other component has to have the same signature with it *)
+          (* But we don't know this information from link order... *)
+          (* It's an interesting scenario if the types don't match. Component A
+             has an external call f with signature s and component B has an
+             internalfunction f with signature t. Both are fine when they are
+             separate but if we try to link them together, it has undefined
+             behavior when A calls f on both semantics linking and syntactic
+             linking. But there is still some subtle difference: on semantics
+             linking, the call state prepares arguments according to signature s
+             and fails once transferred to the other component, whereas the
+             linked one fails on preparing the callstate, for example. *)
+          (* By preparing the arguments, I meant casting the arguments to the
+             desired types *)
+          unfold linkorder in Hfdlk.
     Admitted.
 
   End se.
@@ -281,31 +342,27 @@ Section linking.
         eexists _, (Returnstate vres _ m'). repeat apply conj; auto.
         * constructor.
         * constructor. auto.
-    - (* simulation *)
-      intros s1 t s1' Hstep1 idx s2 [Hidx Hs]. subst. cbn in *.
-      inv Hstep1; cbn in *.
-      + (* internal step *)
-        edestruct step_match as (? & ? & ?); eauto.
-        eexists _, _. intuition eauto.
-      + (* push *)
-        inv H. inv H1. inv Hs. cbn in *.
-        eexists _, _. repeat apply conj; eauto.
-        right. split.
-        * eapply star_refl.
-        * red. cbn. rewrite H2. rewrite H6. subst f. red. xomega.
-        * constructor. constructor. auto.
-      + (* pop *)
-        inv H. inv H0. inv Hs.
-        eexists _, _. repeat apply conj; eauto.
-        right. split.
-        * eapply star_refl.
-        * red. cbn. xomega.
-        * constructor. inv H5. auto.
-    - apply well_founded_ltof.
+          (* - (* simulation *) *)
+          (*   intros s1 t s1' Hstep1 idx s2 [Hidx Hs]. subst. cbn in *. *)
+          (*   inv Hstep1; cbn in *. *)
+          (*   + (* internal step *) *)
+          (*     edestruct step_match as (? & ? & ?); eauto. *)
+          (*     eexists _, _. intuition eauto. *)
+          (*   + (* push *) *)
+          (*     inv H. inv H1. inv Hs. cbn in *. *)
+          (*     eexists _, _. repeat apply conj; eauto. *)
+          (*     right. split. *)
+          (*     * eapply star_refl. *)
+          (*     * red. cbn. rewrite H2. rewrite H6. subst f. red. xomega. *)
+          (*     * constructor. constructor. auto. *)
+          (*   + (* pop *) *)
+          (*     inv H. inv H0. inv Hs. *)
+          (*     eexists _, _. repeat apply conj; eauto. *)
+          (*     right. split. *)
+          (*     * eapply star_refl. *)
+          (*     * red. cbn. xomega. *)
+          (*     * constructor. inv H5. auto. *)
+          (* - apply well_founded_ltof. *)
 
   Admitted.
-
-
-
-
 End linking.
