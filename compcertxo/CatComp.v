@@ -30,7 +30,12 @@ Module CAT_COMP.
           step (st2 s1 s2) t (st2 s1 s2')
       | step_push s1 q s2:
           Smallstep.at_external (L1 se) s1 q ->
-          valid_query (L2 se) q = true ->
+          (* Don't check the domain. Otherwise it can't call into identity
+             component, which has empty domain *)
+          (* valid_query (L2 se) q = true -> *)
+          (* How to understand this? The condition is required by escaping
+             calls *)
+          valid_query (L1 se) q = false ->
           Smallstep.initial_state (L2 se) q s2 ->
           step (st1 s1) E0 (st2 s1 s2)
       | step_pop s1 r s2 s1':
@@ -40,13 +45,16 @@ Module CAT_COMP.
 
       Inductive initial_state (q: query li): state -> Prop :=
       | initial_state_intro s:
-          valid_query (L1 se) q = true ->
+          (* For the same reason as above *)
+          (* valid_query (L1 se) q = true -> *)
           Smallstep.initial_state (L1 se) q s ->
           initial_state q (st1 s).
 
       Inductive at_external: state -> query li -> Prop :=
       | at_external_intro s1 s2 q:
+          (* Escaping calls *)
           valid_query (L2 se) q = false ->
+          valid_query (L1 se) q = false ->
           Smallstep.at_external (L2 se) s2 q ->
           at_external (st2 s1 s2) q.
 
@@ -79,50 +87,186 @@ Module CAT_COMP.
         |};
       skel := sk;
       |}.
+  End CAT_COMP.
 
-    Notation L := (fun i => match i with true => L1 | false => L2 end).
-    Hypothesis one_way_query: forall se q,
-        Smallstep.valid_query (L2 se) q = false ->
-        Smallstep.valid_query (L1 se) q = false.
+  Section Property.
+    Context (sk sk1 sk2: AST.program unit unit).
+    Context {li} (L1 L2 L3: Smallstep.semantics li li).
 
-    Inductive state_match: state -> list (SmallstepLinking.frame L) -> Prop :=
-    | state_match1 s:
-        state_match (st1 s) (st L true s :: nil)
-    | state_match2 s1 s2:
-        state_match (st2 s1 s2) (st L false s2 :: st L true s1 :: nil).
+    Arguments st1 {_ _ _} _.
+    Arguments st2 {_ _ _} _ _.
 
-    Lemma catcomp_approx: forward_simulation 1 1 semantics (SmallstepLinking.semantics L sk).
+    Inductive state_match1: state (semantics L1 L2 sk1) L3 ->
+                            state L1 (semantics L2 L3 sk2) ->
+                            Prop :=
+    | st_match1 s:
+        state_match1 (@st1 _ (semantics L1 L2 sk1) _ (st1 s)) (st1 s)
+    | st_match2 s1 s2:
+        state_match1 (@st1 _ (semantics L1 L2 sk1) _ (st2 s1 s2)) (@st2 _ _ (semantics L2 L3 sk2) s1 (st1 s2))
+    | st_match3 s1 s2 s3:
+        state_match1 (@st2 _ (semantics L1 L2 sk1) _ (st2 s1 s2) s3) (@st2 _ _ (semantics L2 L3 sk2) s1 (st2 s2 s3)).
+
+    Lemma catcomp_assoc1: forward_simulation
+                            1 1
+                            (semantics (semantics L1 L2 sk1) L3 sk)
+                            (semantics L1 (semantics L2 L3 sk2) sk).
     Proof.
-      constructor. econstructor; eauto.
+      constructor. econstructor; auto.
       instantiate (1 := fun _ _ _ => _). cbn beta.
       intros se ? [ ] [ ] Hsk.
-      apply forward_simulation_step with (match_states := state_match).
-      - intros q ? [ ]. reflexivity.
-      - intros q ? s1 [ ] Hq.
-        inv Hq. exists (st L true s :: nil).
-        split; constructor; auto.
-      - intros s1 s2 r Hs Hr.
-        inv Hr. inv Hs. exists r.
-        split; constructor; auto.
-      - intros s1 s2 q Hs Hq.
-        inv Hq. inv Hs.
-        exists tt. exists q. repeat apply conj; try constructor; auto.
-        + intros j. destruct j; auto.
-        + intros r1 ? s1' [ ] Hr.
-          inv Hr. exists (st L false s2' :: st L true s0 :: nil).
-          split; constructor; auto.
-      - intros sx t sx' Hstep sy Hs.
-        inv Hstep; inv Hs.
-        + exists (st L true s1' :: nil).
-          split; constructor; auto.
-        + exists (st L false s2' :: st L true s1 :: nil).
-          split; constructor; auto.
-        + exists (st L false s2 :: st L true s1 :: nil).
-          split; econstructor; eauto.
-        + exists (st L true s1' :: nil).
-          split; econstructor; eauto.
+      apply forward_simulation_step with (match_states := state_match1).
+      - intros q ? [ ]. cbn.
+        now rewrite orb_assoc.
+      - intros s1 s2 r Hs Hr. inv Hr. inv Hs. inv H.
+        eexists. split. constructor. eauto. constructor.
+      - intros s1 s2 r Hs Hf. inv Hf. inv H. inv Hs.
+        eexists. split. constructor. eauto. constructor.
+      - intros s1 s2 q Hs He. inv He. inv Hs.
+        eexists _, _. apply orb_false_elim in H0 as [? ?].
+        repeat apply conj.
+        + econstructor.
+          cbn. erewrite H2. rewrite H. reflexivity.
+          rewrite H0. reflexivity.
+          constructor; auto.
+        + constructor.
+        + constructor.
+        + intros r1 r2 s1' Hr Ha.
+          inv Hr. inv Ha.
+          eexists. split.
+          constructor. constructor. eauto. constructor.
+      - intros s1 t s1' Hstep s2 Hs.
+        inv Hstep.
+        + inv H.
+          * inv Hs. eexists. split.
+            constructor. eauto. constructor.
+          * inv Hs. eexists. split.
+            constructor. constructor. eauto. constructor.
+          * inv Hs. eexists. split.
+            eapply step_push; eauto. constructor. eauto.
+            constructor.
+          * inv Hs. eexists. split.
+            eapply step_pop; eauto. constructor. eauto.
+            constructor.
+        + inv Hs. eexists. split.
+          eapply step2. eapply step2. eauto. constructor.
+        + inv H. inv Hs. eexists.
+          split. econstructor. eapply step_push; eauto.
+          constructor.
+        + inv H0. inv Hs. eexists.
+          split. econstructor. eapply step_pop; eauto.
+          constructor.
       - apply well_founded_ltof.
+        Unshelve. exact tt.
     Qed.
+
+    Lemma catcomp_assoc2: forward_simulation
+                            1 1
+                            (semantics L1 (semantics L2 L3 sk2) sk)
+                            (semantics (semantics L1 L2 sk1) L3 sk).
+    Proof.
+      constructor. econstructor; auto.
+      instantiate (1 := fun _ _ _ => _). cbn beta.
+      intros se ? [ ] [ ] Hsk.
+      apply forward_simulation_step with
+          (match_states := fun s1 s2 => state_match1 s2 s1).
+      - intros q ? [ ]. cbn.
+        now rewrite orb_assoc.
+      - intros q1 q2 s Hq Hi. inv Hi. inv Hq.
+        eexists. split. constructor. constructor. eauto. constructor.
+      - intros s1 s2 r Hs Hf. inv Hf. inv Hs.
+        eexists. split. constructor. constructor. eauto. constructor.
+      - intros s1 s2 q Hs He. inv He. inv H1. inv Hs.
+        eexists _, _. apply orb_false_elim in H as [? ?].
+        repeat apply conj.
+        + econstructor; eauto. cbn. rewrite H0. easy.
+        + constructor.
+        + constructor.
+        + intros r1 r2 s1' Hr Ha.
+          inv Hr. inv Ha. inv H9.
+          eexists. split.
+          constructor. eauto. constructor.
+      - intros s1 t s1' Hstep s2 Hs.
+        inv Hstep.
+        + inv Hs. eexists. split.
+          apply step1. apply step1. eauto.
+          constructor.
+        + inv H.
+          * inv Hs. eexists. split.
+            constructor. apply step2. eauto.
+            constructor.
+          * inv Hs. eexists. split.
+            constructor. eauto. constructor.
+          * inv Hs. eexists. split.
+            eapply step_push. constructor.
+
+            inv H.
+          * inv Hs. eexists. split.
+            constructor. eauto. constructor.
+          * inv Hs. eexists. split.
+            constructor. constructor. eauto. constructor.
+          * inv Hs. eexists. split.
+            eapply step_push; eauto. constructor. eauto.
+            constructor.
+          * inv Hs. eexists. split.
+            eapply step_pop; eauto. constructor. eauto.
+            constructor.
+        + inv Hs. eexists. split.
+          eapply step2. eapply step2. eauto. constructor.
+        + inv H. inv Hs. eexists.
+          split. econstructor. eapply step_push; eauto.
+          constructor.
+        + inv H0. inv Hs. eexists.
+          split. econstructor. eapply step_pop; eauto.
+          constructor.
+      - apply well_founded_ltof.
+        Unshelve. exact tt.
+    Qed.
+
+  End Property.
+
+  Notation L := (fun i => match i with true => L1 | false => L2 end).
+  Hypothesis one_way_query: forall se q,
+      Smallstep.valid_query (L2 se) q = false ->
+      Smallstep.valid_query (L1 se) q = false.
+
+  Inductive state_match: state -> list (SmallstepLinking.frame L) -> Prop :=
+  | state_match1 s:
+      state_match (st1 s) (st L true s :: nil)
+  | state_match2 s1 s2:
+      state_match (st2 s1 s2) (st L false s2 :: st L true s1 :: nil).
+
+  Lemma catcomp_approx: forward_simulation 1 1 semantics (SmallstepLinking.semantics L sk).
+  Proof.
+    constructor. econstructor; eauto.
+    instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros se ? [ ] [ ] Hsk.
+    apply forward_simulation_step with (match_states := state_match).
+    - intros q ? [ ]. reflexivity.
+    - intros q ? s1 [ ] Hq.
+      inv Hq. exists (st L true s :: nil).
+      split; constructor; auto.
+    - intros s1 s2 r Hs Hr.
+      inv Hr. inv Hs. exists r.
+      split; constructor; auto.
+    - intros s1 s2 q Hs Hq.
+      inv Hq. inv Hs.
+      exists tt. exists q. repeat apply conj; try constructor; auto.
+      + intros j. destruct j; auto.
+      + intros r1 ? s1' [ ] Hr.
+        inv Hr. exists (st L false s2' :: st L true s0 :: nil).
+        split; constructor; auto.
+    - intros sx t sx' Hstep sy Hs.
+      inv Hstep; inv Hs.
+      + exists (st L true s1' :: nil).
+        split; constructor; auto.
+      + exists (st L false s2' :: st L true s1 :: nil).
+        split; constructor; auto.
+      + exists (st L false s2 :: st L true s1 :: nil).
+        split; econstructor; eauto.
+      + exists (st L true s1' :: nil).
+        split; econstructor; eauto.
+    - apply well_founded_ltof.
+  Qed.
   End CAT_COMP.
 End CAT_COMP.
 

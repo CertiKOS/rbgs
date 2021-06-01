@@ -26,6 +26,12 @@ Section Lifting.
       after_external L s r s' ->
       after_external' (s, a) (r, a') (s, a').
 
+  (* int inc() { v <- get(); set(v+1) } : C @ K_int -> C @ K_cnt*)
+  (* layer integer @ trace (get + set) : 1 -> C @ K_int *)
+  (* layer counter @ trace (inc + dec) *)
+  (* counter <= impl + integer  *)
+  (* 1 -> C @ K_cnt *)
+
   Definition lifted_lts: lts liAX liBX stateX :=
     {|
     genvtype := genvtype L;

@@ -5,6 +5,7 @@ Require Import LanguageInterface Events Globalenvs Smallstep.
 Require Import Memory Values.
 Require Import Clight Linking.
 Require Import AbsRel ClightLinking Lifting CatComp.
+Require Import Maps.
 
 Set Implicit Arguments.
 Set Asymmetric Patterns.
@@ -33,6 +34,41 @@ Coercion absrel_to_cc : rel_adt >-> callconv.
 
 Definition layer_combine {K} (M: Clight.program) (L: layer K) sk :=
   layer_comp (semantics1 M @ K) L sk.
+
+
+(* E@K1    -–M-->    F@K2 *)
+
+(*               C_F@K2 *)
+(*                 |    *)
+(*                 R    *)
+(*                 |    *)
+(* C_E@K1 --M--> C_F@K1 *)
+
+(*
+
+  underlay -> (L2 : !E or 1 -> E)
+  strategy -> M (Clight.program) or F (linear map E --o F)
+  overlay -> F o L2
+
+  K1 ~ trace F
+
+  K2 ~ trace E + memory
+
+  M_cnt o L_int
+
+
+  1 |- M_int : L_int
+  L_int |- M_cnt : L_cnt
+------------------------------vcomp
+  1 |- M_int + M_cnt : L_cnt
+
+
+
+
+  counter:  L_cnt <=_R  M_cnt o L_int
+  getter/setter:  L_int <= M_int
+
+*)
 
 Definition prog_ksim {K1 K2: Type} (L1: layer K1)
            (L2: layer K2) (M: Clight.program) (R: rel_adt K1 K2) :=
