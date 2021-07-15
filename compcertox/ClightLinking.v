@@ -153,6 +153,8 @@ Section linking.
         match_cont ks k k' ->
         match_states (st L i (Returnstate res k m) :: ks) (Returnstate res k' m).
 
+    (* types are well formed
+       in particular, the type of a pointer has to be either a primitive or a type in scope *)
     Variable tyck: composite_env -> expr -> Prop.
     Hypothesis tyck_sizeof:
       forall ce ce' e (extends: forall id co, ce!id = Some co -> ce'!id = Some co),
@@ -162,11 +164,31 @@ Section linking.
         tyck ce e -> typeof e = Tpointer ty attr ->
         sizeof ce ty = sizeof ce' ty.
 
+    Ltac DestructCases :=
+      match goal with
+      | [H: match match ?x with _ => _ end with _ => _ end = Some _ |- _ ] => destruct x eqn:?; DestructCases
+      | [H: match ?x with _ => _ end = Some _ |- _ ] => destruct x eqn:?; DestructCases
+      | [H: Some _ = Some _ |- _ ] => inv H; DestructCases
+      | [H: None = Some _ |- _ ] => discriminate
+      | _ => idtac
+      end.
+
+    Ltac DestructMatch :=
+      match goal with
+      | [ H: match match ?x with _ => _ end with _ => _ end = _ |- _] => destruct x eqn:?; DestructMatch
+      | [ |- match match ?x with _ => _ end with _ => _ end ] => destruct x; DestructMatch
+      | [ |- match ?x with _ => _ end ] => destruct x; DestructMatch
+      | _ => idtac
+      end.
+
     Lemma l1 i t1 t2 ty si:
       Cop.classify_add (typeof t1) (typeof t2) = Cop.add_case_pi ty si ->
       sizeof (prog_comp_env p) ty = sizeof (prog_comp_env (p_ i)) ty.
     Proof.
       intros H. unfold Cop.classify_add in H. unfold typeconv in H.
+      (* DestructMatch; cbn in *; try inv H; DestructMatch; cbn in *; try inv H1; try easy. *)
+      (* - admit. *)
+      (* - admit. *)
       destruct (typeof t1) eqn: Ht1; destruct (typeof t2) eqn: Ht2;
         cbn in *; try destruct i1; try destruct i0; inv H; auto.
 
