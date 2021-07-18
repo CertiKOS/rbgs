@@ -1,9 +1,11 @@
 Require Import Relations RelationClasses Relators.
 Require Import List.
 Require Import Coqlib.
-Require Import LanguageInterface Events Globalenvs Smallstep.
+Require Import LanguageInterface_ Events Globalenvs Smallstep_.
 
+(* Definitions *)
 Section Lifting.
+  (* Lifting a language interface with abstract data of type K *)
   Variable K: Type.
   Definition lifted_li li: language_interface :=
     {|
@@ -12,123 +14,150 @@ Section Lifting.
     entry '(q, _) := entry q
     |}.
 
+  (* Lifting an LTS with abstract data of type K. The lifted LTS simply
+     passes the abstract state through without modifying it *)
   Context {liA liB state} (L: lts liA liB state).
   Let stateX := (state * K)%type.
   Let liBX := lifted_li liB.
   Let liAX := lifted_li liA.
 
-  Inductive step' ge: stateX -> trace -> stateX -> Prop :=
-  | step'_intro: forall s s' a t,
-      step L ge s t s' ->
-      step' ge (s, a) t (s', a).
-  Inductive after_external': stateX -> reply liAX -> stateX -> Prop :=
-  | after_external'_intro: forall s a r a' s',
-      after_external L s r s' ->
-      after_external' (s, a) (r, a') (s, a').
-
-  (* int inc() { v <- get(); set(v+1) } : C @ K_int -> C @ K_cnt*)
-  (* layer integer @ trace (get + set) : 1 -> C @ K_int *)
-  (* layer counter @ trace (inc + dec) *)
-  (* counter <= impl + integer  *)
-  (* 1 -> C @ K_cnt *)
-
-  Definition lifted_lts: lts liAX liBX stateX :=
+  Program Definition lifted_lts: lts liAX liBX stateX :=
     {|
-    genvtype := genvtype L;
-    step ge := step' ge;
-    valid_query := fun (q: query liBX) => valid_query L (fst q);
-    initial_state := (initial_state L) * eq;
-    at_external := fun s (q: query liAX) => ((at_external L) * eq) s q;
-    after_external s := (after_external L (fst s)) * eq;
-    final_state := (final_state L) * eq;
-    globalenv := globalenv L
+      genvtype := genvtype L;
+      step p ge '(s, a) t '(s', a') := step L p ge s t s' /\ a = a';
+      initial_state := (initial_state L) * eq;
+      at_external := fun s (q: query liAX) => ((at_external L) * eq) s q;
+      after_external s := (after_external L (fst s)) * eq;
+      final_state := (final_state L) * eq;
+      globalenv := globalenv L
     |}%rel.
+  Next Obligation.
+    destruct s, s'. split.
+    eapply steps_monotone; now eauto.
+    easy.
+  Qed.
+
 End Lifting.
 
+Definition lifted_semantics {liA liB} (K: Type) (L: semantics liA liB) :=
+  {|
+    skel := skel L;
+    activate se := lifted_lts K (L se);
+    footprint := footprint L;
+  |}.
+
+(* Notations *)
 Delimit Scope li_scope with li.
 Bind Scope li_scope with language_interface.
-Delimit Scope lts_scope with lts.
-Bind Scope lts_scope with lts.
+(* Delimit Scope lts_scope with lts. *)
+(* Bind Scope lts_scope with lts. *)
 
 (* Note since we are overloading the @ operator, the right associativity and
    precedence level will be inherited *)
 Notation "li @ K" := (lifted_li K li): li_scope.
-Notation "L @ K" := (lifted_lts K L): lts_scope.
+(* Notation "L @ K" := (lifted_lts K L): lts_scope. *)
 
-Definition lifted_semantics {liA liB} (K: Type) (L: semantics liA liB) :=
-  {|
-  skel := skel L;
-  activate se := (L se @ K)%lts;
-  |}.
+Delimit Scope lts_scope with lts.
+Bind Scope lts_scope with semantics.
+Notation "L @ K" := (lifted_semantics K L): lts_scope.
 
-Delimit Scope sem_scope with sem.
-Bind Scope sem_scope with semantics.
-Notation "L @ K" := (lifted_semantics K L): sem_scope.
+Notation " 'layer' K " := (Smallstep_.semantics li_null (li_c @ K)) (at level 1).
 
-Notation " 'layer' K " := (Smallstep.semantics li_null (li_c @ K)) (at level 1).
+(* Properties *)
+Require Import CategoricalComp.
 
-(* Definition layer_sim {K1 K2: Type} (L1: layer K1) (L2: layer K2) *)
-(*            (R: krel K1 K2) := forward_simulation 1 (kcc_ext R) L1 L2. *)
+Section CAT_COMP_LIFT.
+  Variable K: Type.
+  Context {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB).
+  Variable (sk: AST.program unit unit).
 
-(* Section Layer_Lifting. *)
-(*   Variable K: Type. *)
-(*   Context {li state} (L: lts li_null li state). *)
+  Local Inductive state_match: (comp_state L1 L2 * K) -> comp_state (L1 @ K) (L2 @ K) -> Prop :=
+  | state_match1 s1 k:
+      state_match (st1 _ _ s1, k) (st1 (L1@K) (L2@K) (s1, k))
+  | state_match2 s1 s2 k k':
+      state_match (st2 _ _ s1 s2, k) (st2 (L1@K) (L2@K) (s1, k') (s2, k)).
 
-(*   Definition lifted_lts_layer: lts li_null (li @ K) (state * K) := *)
-(*     {| *)
-(*     genvtype := genvtype L; *)
-(*     step ge := step' K L ge; *)
-(*     valid_query := fun (q: query (li @ K)) => valid_query L (fst q); *)
-(*     initial_state := (initial_state L) * eq; *)
-(*     at_external '(s, _) := at_external L s; *)
-(*     after_external '(s, _) r '(s', _) := after_external L s r s'; *)
-(*     final_state := (final_state L) * eq; *)
-(*     globalenv := globalenv L *)
-(*     |}%rel. *)
-(* End Layer_Lifting. *)
+  Lemma lift_categorical_comp1:
+    (comp_semantics' L1 L2 sk) @ K ≤ comp_semantics' (L1 @ K) (L2 @ K) sk.
+  Proof.
+    constructor. econstructor. reflexivity. intros i. reflexivity.
+    intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := state_match).
+    - intros q _ s1 [ ] Hq. destruct s1 as [s1 ks].
+      inv Hq. inv H. destruct q as [q k]. cbn in *. subst.
+      eexists _. split; repeat constructor; auto.
+    - intros [s1 k] s2 [r kr] Hs Hr.
+      inv Hr. inv H. cbn in *. subst. inv Hs.
+      eexists. split; eauto. constructor. constructor; cbn; auto.
+    - intros [s1 k] s2 [q1 kq] Hs Hq.
+      eexists tt, _. repeat apply conj; try constructor.
+      inv Hq. inv H. cbn in *. subst. inv Hs. constructor; auto.
+      constructor; auto.
+      intros [r1 kr1] [r2 kr2] [s1' k1'] [ ] Hr. inv Hr. inv H.
+      inv Hq. inv H. cbn in *. subst. inv Hs. inv H8.
+      eexists; split; repeat econstructor; eauto.
+    - intros [s1 k1] t [s1' k1'] Hstep s2 Hs.
+      inv Hstep. inv H; inv Hs.
+      + eexists. split. apply step1.
+        instantiate (1 := (_, _)). econstructor; eauto.
+        constructor.
+      + eexists. split. apply step2.
+        instantiate (1 := (_, _)). econstructor; eauto.
+        constructor.
+      + eexists. split. eapply step_push.
+        instantiate (1 := (_, _)). constructor; cbn; eauto.
+        instantiate (1 := (_, _)). econstructor; cbn; eauto.
+        auto. auto. constructor.
+      + eexists. split. eapply  step_pop.
+        instantiate (1 := (_, _)). econstructor; cbn; eauto.
+        instantiate (1 := (_, _)). econstructor; cbn; eauto.
+        constructor.
+    - apply well_founded_ltof.
+  Qed.
 
-(* Definition lifted_semantics_layer {li} (K: Type) (L: semantics li_null li) := *)
-(*   {| *)
-(*   skel := skel L; *)
-(*   activate se := lifted_lts_layer K (L se); *)
-(*   |}. *)
+  Lemma lift_categorical_comp2:
+    comp_semantics' (L1 @ K) (L2 @ K) sk ≤ (comp_semantics' L1 L2 sk) @ K.
+  Proof.
+    constructor. econstructor. reflexivity. intros i. reflexivity.
+    intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step
+      with (match_states := fun s1 s2 => state_match s2 s1).
+    - intros [q1 kq] _ s [ ] H. inv H. inv H0.
+      destruct s0. cbn in *. subst.
+      eexists (_, _). split; repeat (cbn; econstructor); auto.
+    - intros s1 [s2 ks] [r kr] Hs H. inv H. inv H0.
+      destruct s. cbn in *. subst. inv Hs.
+      eexists (_, _). split; repeat (cbn; econstructor); auto.
+    - intros s1 [s2 ks] [q kq] Hs H. inv H. inv H2.
+      cbn in *. subst. inv Hs. cbn in *.
+      eexists _, (_, _).
+      repeat apply conj; repeat constructor; eauto.
+      intros [r1 kr1] [r2 kr2] s1' <- Hr. inv Hr. inv H6.
+      destruct s2'. cbn in *. subst.
+      eexists; split; repeat (cbn; econstructor); eauto.
+      cbn. constructor; auto.
+    - intros s1 t s1' Hstep [s2 ks] Hs.
+      inv Hstep; inv Hs.
+      + destruct s1'0. inv H.
+        eexists (_, _); split; constructor; auto.
+        apply step1. auto.
+      + destruct s2'. inv H.
+        eexists (_, _); split; constructor; auto.
+        apply step2. auto.
+      + destruct q, s3. inv H. inv H0. cbn in *. subst.
+        eexists (_, _); split; constructor; auto.
+        eapply step_push; eauto.
+      + destruct r, s1'0. inv H. inv H0. cbn in *. subst.
+        eexists (_, _); split; constructor; auto.
+        eapply step_pop; eauto.
+    - apply well_founded_ltof.
+      Unshelve. exact tt.
+  Qed.
 
-(* Notation "L @ K" := (lifted_semantics_layer K L): sem_scope. *)
+  Lemma lift_categorical_comp:
+    (comp_semantics' L1 L2 sk) @ K ≡ comp_semantics' (L1 @ K) (L2 @ K) sk.
+  Proof.
+    split; [ exact lift_categorical_comp1 | exact lift_categorical_comp2 ].
+  Qed.
 
-
-
-(* TODO: move this to somewhere else *)
-(* Definition lts_closed {liA liB} (L: Smallstep.semantics liA liB) := *)
-(*   forall se s q, ~ (Smallstep.at_external (L se)) s q. *)
-
-(* Lemma li_null_closed {li} (L: semantics li_null li): lts_closed L. *)
-(* Proof. *)
-(*   unfold lts_closed. *)
-(*   intros. inversion q. *)
-(* Qed. *)
-
-(* Section LTS_CLOSED. *)
-
-(*   Context {liA liB} (L: semantics liA liB). *)
-(*   Context (HL: lts_closed L). *)
-
-(*   Variable liX: language_interface. *)
-(*   Definition lts' se: lts liX liB (state L) := *)
-(*     {| *)
-(*     genvtype := genvtype (L se); *)
-(*     step ge := step (L se) ge; *)
-(*     valid_query := valid_query (L se); *)
-(*     initial_state := initial_state (L se); *)
-(*     at_external := fun s q => False; *)
-(*     after_external := fun q s r => False; *)
-(*     final_state := final_state (L se); *)
-(*     globalenv := globalenv (L se) *)
-(*     |}. *)
-(*   Definition closed_sem_conv := *)
-(*     {| *)
-(*     skel := skel L; *)
-(*     activate se := lts' se; *)
-(*     |}. *)
-
-(*   (* TODO: proved equivalence *) *)
-(* End LTS_CLOSED. *)
+End CAT_COMP_LIFT.
