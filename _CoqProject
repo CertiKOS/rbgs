@@ -4,6 +4,7 @@
 -R lattices lattices
 -R models models
 -R examples examples
+-R interfaces interfaces
 
 structures/Poset.v
 structures/Lattice.v
@@ -20,3 +21,7 @@ models/IntSpec.v
 models/Coherence.v
 examples/CAL.v
 examples/CompCertSem.v
+interfaces/Category.v
+interfaces/Functor.v
+interfaces/MonoidalCategory.v
+interfaces/ConcreteCategory.v
