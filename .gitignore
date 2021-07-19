@@ -5,3 +5,4 @@ Makefile.conf
 *.glob
 .*.aux
 *.d
+*.vio
