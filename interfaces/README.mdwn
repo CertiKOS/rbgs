@@ -1,8 +1,8 @@
 The files in this directory define general categorical interfaces and
 constructions using Coq's module system. The idea is less to formalize
-the categorical concepts, and more to ensure models with similar
-structures follow a uniform interface, and to make moderate amounts
-of code reuse possible.
+the categorical concepts, and more to ensure that models with similar
+structures follow a uniform interface, and that moderate amounts
+of code reuse are possible.
 
 Ultimately, I want us to be able to write things like this,
 enumerating the structures we need for a particular application:
@@ -15,7 +15,7 @@ enumerating the structures we need for a particular application:
                <+ EffectAlgebras
                <+ Enriched CDLat.
 
-Then we could carry out their work independently of a concrete model:
+Then we could carry out our work independently of a concrete model:
 
     Module MyThing (C : ObjSem).
       Import C.
