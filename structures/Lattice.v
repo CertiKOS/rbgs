@@ -81,10 +81,41 @@ Section PROPERTIES.
     - apply inf_glb.
   Qed.
 
+  Require Import Coq.Logic.Classical.
+  Require Import Coq.Logic.ChoiceFacts.
+
+  Local Lemma l {I J} (x : forall i:I, J i -> L) (F: (forall i: I, J i) -> I):
+    exists (i: I), forall j: J i, exists f: (forall i: I, J i), x i j = x (F f) (f (F f)).
+  Proof.
+    apply NNPP. intros contra.
+    assert (forall f, exists i, x i (f i) = x (F f) (f (F f))).
+    {
+      intros f. eexists. reflexivity.
+    }
+    assert (exists f, forall i, ~ x i (f i) = x (F f) (f (F f))).
+    {
+      admit.
+    }
+    firstorder.
+  Admitted.
+
   Lemma inf_sup {I J} (x : forall i:I, J i -> L) :
     inf i, sup j, x i j = sup f, inf i, x i (f i).
   Proof.
-  Admitted.
+    rewrite sup_inf. apply antisymmetry.
+    - rewrite inf_iff. intro F.
+      pose proof (l x F) as [i Hi].
+      apply (inf_at i).
+      rewrite sup_iff.
+      intros j. specialize (Hi j) as [f Hf].
+      eapply sup_at.
+      rewrite Hf. reflexivity.
+    - rewrite inf_iff. intros i.
+      eapply inf_at. instantiate (1 := fun _ => i). cbn.
+      rewrite sup_iff. intros f.
+      eapply sup_at. instantiate (1 := f i).
+      reflexivity.
+  Qed.
 
 End PROPERTIES.
 
@@ -215,7 +246,7 @@ Section OPS.
     - rewrite <- H. apply join_ub_l.
   Qed.
 
-  (** ** Greatest element *)  
+  (** ** Greatest element *)
 
   Definition top : L :=
     inf i : Empty_set, match i with end.

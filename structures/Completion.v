@@ -1,5 +1,6 @@
 Require Import coqrel.LogicalRelations.
 Require Import structures.Lattice.
+Require Import Coq.Program.Basics.
 
 (** We construct various kinds of strategy models by defining the
   plays they use and a corresponding prefix ordering, then choosing
@@ -103,14 +104,27 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
   Lemma ext_emb {A : poset} (x : CS.F A) :
     CS.ext CS.emb x = x.
   Proof.
-  Admitted.
+    symmetry. replace x with (id x); eauto.
+    apply CS.ext_unique. apply LC.id_mor.
+    reflexivity.
+  Qed.
 
   Lemma ext_ext {A B : poset} {L : cdlattice} :
     forall {f : A -> CS.F B} `{!PosetMorphism f},
     forall {g : B -> L} `{!PosetMorphism g},
     forall (x : CS.F A), CS.ext g (CS.ext f x) = CS.ext (fun a => CS.ext g (f a)) x.
   Proof.
-  Admitted.
+    intros.
+    replace (CS.ext g (CS.ext f x))
+      with ((compose (CS.ext g) (CS.ext f)) x); eauto.
+    eapply CS.ext_unique. unfold compose.
+    apply LC.compose_mor; apply CS.ext_mor.
+    intros y. unfold compose. f_equal.
+    apply CS.ext_ana.
+    Unshelve.
+    apply pos_comp_morphism; auto.
+    apply LC.mor_ref. apply CS.ext_mor.
+  Qed.
 
   Global Instance emb_params : Params (@CS.emb) 1.
   Global Instance ext_params : Params (@CS.ext) 1.
