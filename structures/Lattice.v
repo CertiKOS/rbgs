@@ -1,5 +1,8 @@
 Require Export structures.Poset.
+Require Import Coq.Logic.Classical.
+Require Import Coq.Logic.ChoiceFacts.
 
+Axiom dep_choice : DependentFunctionalChoice.
 
 (** * Completely distributive lattices *)
 
@@ -81,8 +84,18 @@ Section PROPERTIES.
     - apply inf_glb.
   Qed.
 
-  Require Import Coq.Logic.Classical.
-  Require Import Coq.Logic.ChoiceFacts.
+  Local Lemma not_exists_forall {I J} {P: forall i : I, J i -> Prop}:
+    (~ (exists i : I, forall j : J i, P i j)) <-> forall i : I, exists j : J i, ~ P i j.
+  Proof.
+    split; firstorder.
+    eapply not_all_ex_not in H. apply H.
+  Qed.
+
+  Local Lemma not_exists {A} {P : A -> Prop}:
+    (~ exists x, P x) <-> (forall x, ~ P x).
+  Proof.
+    split; firstorder.
+  Qed.
 
   Local Lemma l {I J} (x : forall i:I, J i -> L) (F: (forall i: I, J i) -> I):
     exists (i: I), forall j: J i, exists f: (forall i: I, J i), x i j = x (F f) (f (F f)).
@@ -94,10 +107,14 @@ Section PROPERTIES.
     }
     assert (exists f, forall i, ~ x i (f i) = x (F f) (f (F f))).
     {
-      admit.
+      rewrite not_exists_forall in contra.
+      apply dep_choice in contra.
+      destruct contra as [f Hf].
+      exists f. intros i. specialize (Hf i).
+      rewrite not_exists in Hf. apply Hf.
     }
     firstorder.
-  Admitted.
+  Qed.
 
   Lemma inf_sup {I J} (x : forall i:I, J i -> L) :
     inf i, sup j, x i j = sup f, inf i, x i (f i).
@@ -200,7 +217,9 @@ Section OPS.
 
   Lemma bot_lb x :
     ref bot x.
-  Admitted.
+  Proof.
+    unfold bot. rewrite sup_iff. intros [ ].
+  Qed.
 
   (** ** Binary joins *)
 
@@ -209,15 +228,21 @@ Section OPS.
 
   Lemma join_ub_l x y :
     ref x (join x y).
-  Admitted.
+  Proof.
+    unfold join. apply sup_at with (i := true). reflexivity.
+  Qed.
 
   Lemma join_ub_r x y :
     ref y (join x y).
-  Admitted.
+    unfold join. apply sup_at with (i := false). reflexivity.
+  Qed.
 
   Lemma join_lub x y z :
     ref x z -> ref y z -> ref (join x y) z.
-  Admitted.
+  Proof.
+    intros Hx Hy. unfold join.
+    rewrite sup_iff. intros [|]; auto.
+  Qed.
 
   Lemma join_l x y z :
     ref x y ->
@@ -253,7 +278,9 @@ Section OPS.
 
   Lemma top_ub x :
     ref x top.
-  Admitted.
+  Proof.
+    unfold top. rewrite inf_iff. intros [ ].
+  Qed.
 
   (** ** Binary meets *)
 
@@ -262,15 +289,22 @@ Section OPS.
 
   Lemma meet_lb_l x y :
     ref (meet x y) x.
-  Admitted.
+  Proof.
+    unfold meet. apply inf_at with (i := true). reflexivity.
+  Qed.
 
   Lemma meet_lb_r x y :
     ref (meet x y) y.
-  Admitted.
+  Proof.
+    unfold meet. apply inf_at with (i := false). reflexivity.
+  Qed.
 
   Lemma meet_glb x y z :
     ref x y -> ref x z -> ref x (meet y z).
-  Admitted.
+  Proof.
+    intros Hy Hz. unfold meet.
+    rewrite inf_iff. intros [|]; auto.
+  Qed.
 
   Lemma meet_l x y z :
     ref x z ->
@@ -299,37 +333,93 @@ Section OPS.
     - rewrite <- H. apply meet_lb_r.
   Qed.
 
+  Hint Resolve join_ub_r
+       join_ub_l
+       join_lub
+       meet_lb_r
+       meet_lb_l
+       meet_glb
+       bot_lb
+       top_ub.
+
   (** ** Properties *)
 
   Lemma join_bot_l x :
     join bot x = x.
-  Admitted.
+  Proof.
+    apply antisymmetry; auto. apply join_lub; easy.
+  Qed.
 
   Lemma join_top_l x :
     join top x = top.
-  Admitted.
+  Proof.
+    apply antisymmetry; auto.
+  Qed.
 
   Lemma join_meet_l x y z :
     join (meet x y) z = meet (join x z) (join y z).
-  Admitted.
+  Proof.
+    replace (join (meet x y) z) with
+        (sup (i : bool), inf (j : bool), (if i then (if j then x else y) else z)).
+    - rewrite sup_inf. apply antisymmetry.
+      + apply meet_glb; eapply inf_at.
+        * instantiate (1 := fun _ => true). cbn. reflexivity.
+        * instantiate (1 := fun _ => false). cbn. reflexivity.
+      + rewrite inf_iff. intros f.
+        destruct (f true) eqn: Ht; destruct (f false) eqn: Hf.
+        * apply meet_l. eapply sup_iff.
+          intros [|]; eapply sup_at.
+          -- instantiate (1 := true). cbn. rewrite Ht. reflexivity.
+          -- instantiate (1 := false). cbn. reflexivity.
+        * apply meet_l. eapply sup_iff.
+          intros [|]; eapply sup_at.
+          -- instantiate (1 := true). cbn. rewrite Ht. reflexivity.
+          -- instantiate (1 := false). cbn. reflexivity.
+        * apply meet_r. eapply sup_iff.
+          intros [|]; eapply sup_at.
+          -- instantiate (1 := true). cbn. rewrite Ht. reflexivity.
+          -- instantiate (1 := false). cbn. reflexivity.
+        * apply meet_r. eapply sup_iff.
+          intros [|]; eapply sup_at.
+          -- instantiate (1 := true). cbn. rewrite Ht. reflexivity.
+          -- instantiate (1 := false). cbn. reflexivity.
+    - unfold join, meet. apply antisymmetry.
+      + rewrite sup_iff. intros [|]; eapply sup_at.
+        * instantiate (1 := true). cbn. reflexivity.
+        * instantiate (1 := false). cbn.
+          apply inf_at. exact true. reflexivity.
+      + rewrite sup_iff. intros [|]; eapply sup_at.
+        * instantiate (1 := true). cbn. reflexivity.
+        * instantiate (1 := false). cbn.
+          rewrite inf_iff. intros. reflexivity.
+  Qed.
 
   (* ... foo_bar_l, foo_bar_r ... *)
 
+
   Lemma join_comm x y :
     join x y = join y x.
-  Admitted.
+  Proof.
+    apply antisymmetry; apply join_lub; auto.
+  Qed.
 
   Lemma meet_comm x y :
     meet x y = meet y x.
-  Admitted.
+  Proof.
+    apply antisymmetry; apply meet_glb; auto.
+  Qed.
 
   Lemma join_idemp x :
     join x x = x.
-  Admitted.
+  Proof.
+    now rewrite <- ref_join.
+  Qed.
 
   Lemma meet_idemp x :
     meet x x = x.
-  Admitted.
+  Proof.
+    now rewrite <- ref_meet.
+  Qed.
 
   (** These properties are more than enough to completely define the
     derived operations, so that relying on their concrete definition
