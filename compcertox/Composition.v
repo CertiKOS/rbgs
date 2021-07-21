@@ -1,11 +1,11 @@
 Require Import Relations RelationClasses Relators.
-Require Import List.
+Require Import List Maps.
 Require Import Coqlib.
+Require Import CallconvAlgebra_.
 Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp.
 Require Import Memory Values.
 Require Import Clight_ Linking.
 Require Import AbstractStateRel Lifting.
-Require Import Maps.
 
 Set Implicit Arguments.
 Set Asymmetric Patterns.
@@ -62,6 +62,41 @@ Definition ksim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
            (M: cmodule) (R: rel_adt K1 K2) :=
   forward_simulation 1 R L1 (layer_comp M L2 (skel L1)).
 
+Lemma cmodule_simulation {M N : cmodule} {sk1 sk2 sk: AST.program unit unit}:
+  comp_semantics' (semantics M sk1) (semantics N sk2) sk ≤
+                  semantics (M ⊕ N) sk.
+Proof.
+Admitted.
+
+(* A special case of categorical_compose_simulation *)
+Lemma categorical_compose_simulation'
+      {liA1 liA2 liB1 liB2 liC1 liC2}
+      (cc1: callconv liA1 liA2) (cc2: callconv liB1 liB2) (cc3: callconv liC1 liC2)
+      L1a L1b L1 L2a L2b L2 sk:
+  forward_simulation cc2 cc3 L1a L2a ->
+  forward_simulation cc1 cc2 L1b L2b ->
+  comp_semantics' L1a L1b sk = L1 ->
+  comp_semantics' L2a L2b sk = L2 ->
+  forward_simulation cc1 cc3 L1 L2.
+Proof.
+Admitted.
+
+Lemma clight_krel {K1 K2} (R: rel_adt K1 K2) p:
+  forward_simulation R R (Clight_.semantics1 p @ K1) (Clight_.semantics1 p @ K2).
+Proof.
+Admitted.
+
+Lemma cmodule_krel {K1 K2} (R: rel_adt K1 K2) M sk:
+  forward_simulation R R (semantics M sk @ K1) (semantics M sk @ K2).
+Proof.
+Admitted.
+
+Lemma lifting_simulation {K li1 li2}
+      {L1 L2: Smallstep_.semantics li1 li2}:
+  L1 ≤ L2 -> L1 @ K ≤ L2 @ K.
+Proof.
+Admitted.
+
 Section VCOMP.
 
   Context {K1 K2 K3 L1 L2 L3} {M N: cmodule}
@@ -70,6 +105,48 @@ Section VCOMP.
 
   Theorem layer_vcomp: ksim L1 L3 (M ⊕ N) (R ∘ S).
   Proof.
-  Admitted.
+    unfold ksim in *.
+    pose proof (cmodule_krel S M (skel L1)) as Hsim1.
+    exploit @categorical_compose_simulation'.
+    exact Hsim1. exact HL2. reflexivity. reflexivity.
+    instantiate (1 := (skel L1)).
+    intros Hsim2.
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. reflexivity.
+    cbn. eapply compose_forward_simulations.
+    apply HL1. unfold layer_comp.
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations. apply Hsim2.
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_left.
+    eapply compose_forward_simulations.
+    unfold layer_comp. apply assoc1.
+
+    eapply categorical_compose_simulation';
+      [ | apply identity_forward_simulation
+        | reflexivity
+        | reflexivity
+      ].
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_left.
+    eapply compose_forward_simulations.
+    apply lift_categorical_comp2.
+    apply lifting_simulation.
+    apply cmodule_simulation.
+  Qed.
 
 End VCOMP.
+
+Section HCOMP.
+
+  Context {K1 K2 L1 L2 L3} {M N: cmodule} {R: rel_adt K1 K2}
+          (HL1: ksim L1 L3 M R) (HL2: ksim L2 L3 N R).
+
+  (* Theorem layer_hcomp: ksim (L1 ⊎ L2) L3 (M ⊕ N) R. *)
+
+End HCOMP.

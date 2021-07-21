@@ -4,6 +4,7 @@
 -R lattices lattices
 -R models models
 -R examples examples
+-R compcertox compcertox
 
 structures/Poset.v
 structures/Lattice.v
@@ -20,3 +21,6 @@ models/IntSpec.v
 models/Coherence.v
 examples/CAL.v
 examples/CompCertSem.v
+compcertox/Lifting.v
+compcertox/AbstractStateRel.v
+compcertox/Composition.v
