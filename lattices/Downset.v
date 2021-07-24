@@ -5,7 +5,10 @@ Require Import PropExtensionality.
 Require Import coqrel.LogicalRelations.
 Require Import structures.Lattice.
 Require Import structures.Completion.
+Require Import Coq.Logic.Classical.
+Require Import Coq.Logic.ChoiceFacts.
 
+Axiom dep_choice : DependentFunctionalChoice.
 
 (** * Interface *)
 
@@ -117,9 +120,9 @@ Module Downset : LatticeCompletion Sup.
 
     Program Definition F : cdlattice :=
       {|
-        cdl_poset := Fpos;
-        lsup I x := {| has c := exists i, has (x i) c |};
-        linf I x := {| has c := forall i, has (x i) c |};
+      cdl_poset := Fpos;
+      lsup I x := {| has c := exists i, has (x i) c |};
+      linf I x := {| has c := forall i, has (x i) c |};
       |}.
 
     (** [sup] is downward closed. *)
@@ -139,8 +142,17 @@ Module Downset : LatticeCompletion Sup.
       intros.
       apply (antisymmetry (A := Fpos)); cbn.
       - firstorder.
-      - admit.
-    Admitted.
+      - intros. apply NNPP. intros contra.
+        assert (X: forall i : I, exists j : J i, ~ has (x i j) c).
+        {
+          clear -contra.
+          intros i.
+          apply not_ex_all_not with (n:=i) in contra.
+          apply not_all_ex_not in contra. apply contra.
+        }
+        clear contra.
+        apply dep_choice in X. firstorder.
+    Qed.
 
     (** ** Embedding *)
 
@@ -162,11 +174,25 @@ Module Downset : LatticeCompletion Sup.
 
     Lemma emb_join_dense :
       forall x, x = sup {c : C | emb c [= x}, emb c.
-    Admitted.
+    Proof.
+      intros x. apply antisymmetry.
+      - cbn. intros.
+        eexists (exist _ _ _). cbn.
+        reflexivity.
+        Unshelve. cbn.
+        intros. eapply closed; eauto.
+      - now apply fsup_lub.
+    Qed.
 
     Lemma emb_join_prime {I} c (x : I -> F) :
       emb c [= lsup x <-> exists i, emb c [= x i.
-    Admitted.
+    Proof.
+      split.
+      - intros H. cbn in *.
+        specialize (H c). edestruct H as [i Hi]. reflexivity.
+        exists i. intros. eapply closed; eauto.
+      - firstorder. eapply sup_at. eauto.
+    Qed.
 
     (** ** Simulator *)
 
@@ -200,8 +226,8 @@ Module Downset : LatticeCompletion Sup.
       apply antisymmetry.
       - apply sup_lub. intros [c Hc].
         rstep. apply emb_mor. assumption.
-      - admit. (* version of sup_ub with predicate *)
-    Admitted.
+      - apply fsup_ub. reflexivity.
+    Qed.
 
     Lemma ext_unique (g : F -> L) `{Hg : !Sup.Morphism g} :
       (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
@@ -210,8 +236,18 @@ Module Downset : LatticeCompletion Sup.
       rewrite (emb_join_dense x).
       unfold fsup. rewrite Sup.mor.
       unfold ext.
-      (* maybe use emb_join_prime *)
-    Admitted.
+      apply antisymmetry.
+      - apply sup_lub.
+        intros (i & Hi). rewrite Hgf.
+        eapply fsup_ub. cbn. intros.
+        eexists (exist _ _ _). cbn. reflexivity.
+        Unshelve. cbn. intros. apply Hi. cbn. etransitivity; eauto.
+      - apply fsup_lub. intros.
+        eapply sup_at. rewrite Hgf. instantiate (1 := exist _ _ _).
+        rstep. cbn. reflexivity.
+        Unshelve. cbn in *. intros.
+        edestruct H as [[ ] ]. eauto. cbn in *. apply h. auto.
+    Qed.
 
   End DOWNSETS.
 
