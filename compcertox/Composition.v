@@ -2,7 +2,7 @@ Require Import Relations RelationClasses Relators.
 Require Import List Maps.
 Require Import Coqlib.
 Require Import CallconvAlgebra_.
-Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp.
+Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp FlatComp.
 Require Import Memory Values.
 Require Import Clight_ Linking.
 Require Import AbstractStateRel Lifting.
@@ -39,11 +39,12 @@ Coercion absrel_to_cc : rel_adt >-> callconv.
    compilation is not supported. However, here a module is nothing but a list of
    programs and the semantics is given by the horizontal composition of the
    Clight programs *)
-Definition cmodule := list Clight_.program.
+Notation cmodule := (list Clight_.program).
 
 Fixpoint semantics (cmod: cmodule) sk: semantics li_c li_c :=
   match cmod with
   | nil => id_semantics sk
+  | (p :: nil) => Clight_.semantics1 p
   | (p :: ps) =>
     let L b := match b with
                | true =>  semantics ps sk
@@ -52,7 +53,7 @@ Fixpoint semantics (cmod: cmodule) sk: semantics li_c li_c :=
     in SmallstepLinking_.semantics L sk
   end.
 
-Definition cmod_combine := app.
+Notation cmod_combine := app.
 Notation " M ⊕ N " := (cmod_combine M N) (left associativity, at level 50).
 
 Definition layer_comp {K} (M: cmodule) (L: layer K) sk :=
@@ -62,10 +63,42 @@ Definition ksim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
            (M: cmodule) (R: rel_adt K1 K2) :=
   forward_simulation 1 R L1 (layer_comp M L2 (skel L1)).
 
-Lemma cmodule_simulation {M N : cmodule} {sk1 sk2 sk: AST.program unit unit}:
-  comp_semantics' (semantics M sk1) (semantics N sk2) sk ≤
-                  semantics (M ⊕ N) sk.
+Section LIST_IND.
+  Variable A: Type.
+  Variable P: list A -> Prop.
+  Variable P1: forall x, P (x :: nil).
+  Variable Pcons: forall x xs, P xs -> P (x :: xs).
+
+  Theorem list_ind1: forall xs, (List.length xs >= 1)%nat -> P xs.
+  Proof.
+    set (Q := fun l => (Datatypes.length l >= 1)%nat -> P l).
+    apply (@list_ind A Q).
+    - unfold Q. inversion 1.
+    - subst Q. cbn. intros.
+      destruct l.
+      + apply P1.
+      + apply Pcons. apply H. cbn. firstorder.
+  Qed.
+End LIST_IND.
+
+Instance fsim_transitive {li1 li2: language_interface}:
+  Transitive (forward_simulation (@cc_id li1) (@cc_id li2)).
 Proof.
+  intros L1 L2 L3 HL1 HL2.
+  eapply open_fsim_ccref. apply cc_compose_id_left.
+  unfold flip. apply cc_compose_id_left.
+  eapply compose_forward_simulations; eauto.
+Qed.
+
+(* M has to be non-empty is due to the fact that we can't prove id ∘ L ≡ L *)
+Lemma cmodule_simulation {M N : cmodule} {sk1 sk2 sk: AST.program unit unit}:
+  (* (List.length M >= 1)%nat -> *)
+  comp_semantics' (semantics M sk1) (semantics N sk2) sk ≤ semantics (M ⊕ N) sk.
+Proof.
+  (* set (P := fun l => comp_semantics' (semantics l sk1) (semantics N sk2) sk ≤ semantics (l ⊕ N) sk). *)
+  (* apply (@list_ind1 _ P); subst P; cbn beta. *)
+  (* - intros p. etransitivity. *)
+  (*   apply categorical_compose_approximation. *)
 Admitted.
 
 (* A special case of categorical_compose_simulation *)
@@ -147,6 +180,15 @@ Section HCOMP.
   Context {K1 K2 L1 L2 L3} {M N: cmodule} {R: rel_adt K1 K2}
           (HL1: ksim L1 L3 M R) (HL2: ksim L2 L3 N R).
 
-  (* Theorem layer_hcomp: ksim (L1 ⊎ L2) L3 (M ⊕ N) R. *)
+  Theorem layer_hcomp L:
+    L1 ⊎ L2 = Some L -> ksim L L3 (M ⊕ N) R.
+  Admitted.
+
+  (* Naming convention:
+     xxx is the composition definition or lemma with linked skeleton
+     xxx' is the same with a provided code skeleton *)
+  Theorem layer_hcomp' sk:
+    ksim (flat_comp_semantics' L1 L2 sk) L3 (M ⊕ N) R.
+  Admitted.
 
 End HCOMP.
