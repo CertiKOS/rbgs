@@ -344,3 +344,35 @@ Section SIMULATION.
     - apply well_founded_ltof.
   Qed.
 End SIMULATION.
+
+Inductive rel_adt: Type -> Type -> Type :=
+| empty_rel K: rel_adt K K
+| singleton_rel {K1 K2} : krel K1 K2 -> rel_adt K1 K2
+| vcomp_rel {K1 K2 K3} : rel_adt K1 K2 -> rel_adt K2 K3 -> rel_adt K1 K3.
+
+(* Why asymmetric patterns flag doesn't work? *)
+Fixpoint absrel_to_cc {K1 K2} (rel: rel_adt K1 K2):
+  callconv (li_c @ K1) (li_c @ K2) :=
+  match rel with
+  | empty_rel _ => cc_id
+  | singleton_rel _ _ r => kcc_c r
+  | vcomp_rel _ _ _ r1 r2 => (absrel_to_cc r1) @ (absrel_to_cc r2)
+  end.
+
+Delimit Scope krel_scope with krel.
+Bind Scope krel_scope with rel_adt.
+
+Notation "[ R ]" := (singleton_rel R) (at level 30): krel_scope.
+Notation "R1 ∘ R2" := (vcomp_rel R1 R2): krel_scope.
+
+Coercion absrel_to_cc : rel_adt >-> callconv.
+
+Lemma clight_krel {K1 K2} (R: rel_adt K1 K2) p:
+  forward_simulation R R (Clight_.semantics1 p @ K1) (Clight_.semantics1 p @ K2).
+Proof.
+  induction R; simpl.
+  - apply lifting_simulation.
+    apply identity_forward_simulation.
+  - apply clight_sim.
+  - eapply compose_forward_simulations; eauto.
+Qed.

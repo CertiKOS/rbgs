@@ -24,3 +24,5 @@ examples/CompCertSem.v
 compcertox/Lifting.v
 compcertox/AbstractStateRel.v
 compcertox/Composition.v
+compcertox/CModule.v
+compcertox/CompCertO.v
