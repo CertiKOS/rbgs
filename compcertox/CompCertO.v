@@ -217,8 +217,6 @@ Section HCOMP_ASSOC.
             destruct i.
             (* internal step of L1 *)
             - destruct Hs as [fm [Hs1 Hs2]].
-              inv Hs1.
-              inv Hs.
               admit.
             (* internal step of L2 *)
             - admit.
