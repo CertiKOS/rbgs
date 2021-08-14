@@ -1,6 +1,7 @@
 Require Import Relations RelationClasses Relators.
 Require Import List.
 Require Import Coqlib.
+Require Import CallconvAlgebra_.
 Require Import LanguageInterface_ Events Globalenvs.
 Require Import CategoricalComp.
 Require Import SmallstepLinking_.
@@ -29,7 +30,7 @@ Section Lifting.
   Program Definition lifted_lts: lts liAX liBX stateX :=
     {|
       genvtype := genvtype L;
-      step p ge '(s, a) t '(s', a') := step L p ge s t s' /\ a = a';
+      step p ge '(s, a) t '(s', a') := (step L p ge s t s' /\ a = a')%type;
       initial_state := (initial_state L) * eq;
       at_external := fun s (q: query liAX) => ((at_external L) * eq) s q;
       after_external s := (after_external L (fst s)) * eq;
@@ -167,285 +168,115 @@ Section CAT_COMP_LIFT.
 End CAT_COMP_LIFT.
 
 Section HCOMP_LIFT.
+
   Variable K: Type.
-  Context {li} (L1: Smallstep_.semantics li li)
-          (L2: Smallstep_.semantics li li).
+  Context {I li} (L: I -> Smallstep_.semantics li li).
   Variable (sk: AST.program unit unit).
-
-  Let L := fun b => match b with | true => L1 | false => L2 end.
-  Let LK := fun b => match b with | true => L1@K | false => L2@K end.
-
-  (* if i remains a variable, it won't type check *)
-  Inductive match_cont: list (frame L) -> list (frame LK) -> Prop :=
-  | match_cont_nil: match_cont nil nil
-  | match_cont_t s k cont kcont:
-      match_cont cont kcont ->
-      match_cont (st L true s :: cont) (st LK true (s, k) :: kcont)
-  | match_cont_f s k cont kcont:
-      match_cont cont kcont ->
-      match_cont (st L false s :: cont) (st LK false (s, k) :: kcont).
+  Let LK := fun i => (L i)@K.
 
   Inductive state_match_hcomp: (list (frame L) * K) -> list (frame LK) -> Prop :=
-
-  | state_match_hcomp_t s k cont kcont:
-      match_cont cont kcont ->
-      state_match_hcomp (st L true s :: cont, k) (st LK true (s, k) :: kcont)
-  | state_match_hcomp_f s k cont kcont:
-      match_cont cont kcont ->
-      state_match_hcomp (st L false s :: cont, k) (st LK false (s, k) :: kcont).
-
-  Hint Constructors state_match_hcomp match_cont.
+  | state_match_hcomp_nil k: state_match_hcomp (nil, k) nil
+  | state_match_hcomp_cons i s k k' cont kcont:
+      state_match_hcomp (cont, k') kcont ->
+      state_match_hcomp (st L i s :: cont, k) (st LK i (s, k) :: kcont).
 
   Lemma lift_horizontal_comp1:
-    (SmallstepLinking_.semantics L sk)@K ≤ SmallstepLinking_.semantics LK sk.
+    (SmallstepLinking_.semantics' L sk)@K ≤ SmallstepLinking_.semantics' LK sk.
   Proof.
-    constructor. econstructor. reflexivity. intros i. reflexivity.
+    constructor. econstructor. reflexivity.
+    intros i. reflexivity.
     intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step with (match_states := state_match_hcomp).
-    - intros [q kq] ? [s ks] [ ] H. inv H. inv H0.
-      cbn in *. subst.
-      destruct i; eexists.
-      + split; eauto. constructor. firstorder. now constructor.
-      + split; eauto. constructor. firstorder. now constructor.
-    - intros [s1 ks1] s2 [r ks] Hs H. inv H. inv H0.
-      inv Hs; cbn in *; subst.
-      + inv H2. SmallstepLinking_.subst_dep. inv H5.
-        eexists; split; eauto. repeat constructor. auto.
-      + inv H2. SmallstepLinking_.subst_dep. inv H5.
-        eexists; split; eauto. repeat constructor. auto.
-    - intros [s1 ks1] s2 [q kq] Hs H. inv H. inv H0.
-      inv Hs; cbn in *; subst.
-      + inv H3. SmallstepLinking_.subst_dep.
-        eexists _, (_, _). repeat apply conj; auto.
-        constructor.
-        * constructor; cbn; auto.
-        * intros j. specialize (H2 j). intros Hvq. apply H2.
-          destruct j; firstorder.
-        * intros [r1 kr1] [r2 kr2] [s1' ks1'] <- Haft.
-          inv Haft. inv H0. cbn in *. SmallstepLinking_.subst_dep.
-          eexists; split; eauto. constructor. now constructor.
-      + inv H3. SmallstepLinking_.subst_dep.
-        eexists _, (_, _). repeat apply conj; auto.
-        constructor.
-        * constructor; cbn; auto.
-        * intros j. specialize (H2 j). intros Hvq. apply H2.
-          destruct j; firstorder.
-        * intros [r1 kr1] [r2 kr2] [s1' ks1'] <- Haft.
-          inv Haft. inv H0. cbn in *. SmallstepLinking_.subst_dep.
-          eexists; split; eauto. constructor. now constructor.
-    - intros [s1 ks1] t [s1' ks1'] Hstep s2 Hs. inv Hstep.
-      inv H; inv Hs; SmallstepLinking_.subst_dep.
-      + eexists; split; eauto.
-        apply step_internal. constructor; auto.
-      + eexists; split; eauto.
-        apply step_internal. constructor; auto.
-      + destruct j; eexists; split.
-        * eapply step_push with (q0 := (_, _)) (j := true) (s'0 := (_, _));
-            try split; cbn; eauto; try firstorder; auto.
-        * auto.
-        * eapply step_push with (q0 := (_, _)) (j := false) (s'0 := (_, _));
-            try split; cbn; eauto; try firstorder; auto.
-        * auto.
-      + destruct j; eexists; split.
-        * eapply step_push with (q0 := (_, _)) (j := true) (s'0 := (_, _));
-            try split; cbn; eauto; try firstorder; auto.
-        * auto.
-        * eapply step_push with (q0 := (_, _)) (j := false) (s'0 := (_, _));
-            try split; cbn; eauto; try firstorder; auto.
-        * auto.
-      + inv H6; SmallstepLinking_.subst_dep; eexists; split.
+    - intros [q kq] ? [s ks] [ ] H. inv H. cbn in *. subst.
+      inv H0. eexists. split.
+      + constructor. instantiate (1 := i).
+        unfold LK. apply H.
+        instantiate (1 := (_, _)). constructor; cbn; eauto.
+      + repeat econstructor.
+    - intros [s1 ks1] s2 [r kr] Hs H. inv H. cbn in *; subst.
+      inv H0. inv Hs. subst_dep. inv H5.
+      eexists (_, _). split; eauto.
+      constructor. constructor; cbn; auto.
+    - intros [s1 ks1] s2 [q kq] Hs H. inv H. cbn in *; subst.
+      inv H0. inv Hs. subst_dep.
+      eexists tt, (_, _). repeat apply conj; eauto.
+      + repeat (constructor; auto).
+      + intros [r1 kr1] [r2 kr2] [s' ks'] Hr Hx. inv Hr.
+        inv Hx. cbn in *; subst. inv H0. subst_dep.
+        eexists; split. constructor.
+        instantiate (1 := (_, _)). constructor; cbn; eauto.
+        econstructor. eauto.
+    - intros [s1 ks1] t [s1' k1] Hstep s2 Hs. inv Hstep. inv H.
+      + inv Hs. subst_dep. eexists; split.
+        * constructor. instantiate (1 := (_, _)).
+          constructor; eauto.
+        * econstructor. eauto.
+      + inv Hs. subst_dep. eexists; split.
+        * eapply step_push with (q0 := (_, _)) (j0 := j) (s'0 := (_, _));
+            [ constructor | | constructor]; cbn; eauto.
+        * repeat econstructor. eauto.
+      + inv Hs. subst_dep. inv H6. subst_dep. eexists; split.
         * eapply step_pop with (r0 := (_, _)) (s'0 := (_, _));
             constructor; cbn; eauto.
-        * auto.
-        * eapply step_pop with (r0 := (_, _)) (s'0 := (_, _));
-            constructor; cbn; eauto.
-        * auto.
-      + inv H6; SmallstepLinking_.subst_dep; eexists; split.
-        * eapply step_pop with (r0 := (_, _)) (s'0 := (_, _));
-            constructor; cbn; eauto.
-        * auto.
-        * eapply step_pop with (r0 := (_, _)) (s'0 := (_, _));
-            constructor; cbn; eauto.
-        * auto.
+        * econstructor. eauto.
     - apply well_founded_ltof.
-      Unshelve. exact tt. exact tt.
-  Qed.
-
-  (* Goal forall s0 s k, *)
-  (*     state_match_hcomp (st L true s0 :: nil, k) (st LK true (s, k) :: nil) *)
-  (*     -> s = s0. *)
-  (* Proof. *)
-  (*   intros. remember (st LK true (s, k)) as ss. *)
-  (*   inversion H. subst. *)
-  (*   unfold LK in *. *)
-  (* Admitted. *)
-
-  (* Goal forall s0 s, (st L true s) = (st L true s0) -> s0 = s. *)
-  (*   intros. inversion H. *)
-  (* Admitted. *)
-
-  Lemma foo: forall s0 s, (st LK true s0) = (st LK true s) -> s0 = s.
-  Proof.
-    intros. inversion H.
-    SmallstepLinking_.subst_dep. reflexivity.
-  Qed.
-
-  Lemma foo': forall s0 s, (st LK false s0) = (st LK false s) -> s0 = s.
-  Proof.
-    intros. inversion H.
-    SmallstepLinking_.subst_dep. reflexivity.
-  Qed.
-
-  Lemma destruct_ms1 s k cont' s' k':
-    state_match_hcomp (s, k) (st LK true (s', k') :: cont') ->
-    exists cont, s = st L true s' :: cont /\ match_cont cont cont' /\ k = k'.
-  Proof.
-    intros. remember (st LK true (s', k') :: cont') as ss. inv H.
-    - remember (st LK true (s0, k)) as sst.
-      remember (st LK true (s', k')) as st'.
-      inv H1.
-      (* remember (s', k') as sk'. *)
-      (* remember (s0, k) as sk0. *)
-      apply foo in H0. inv H0. eexists; repeat apply conj; eauto.
-    - remember (st LK false (s0, k)) as sst.
-      remember (st LK true (s', k')) as st'.
-      inv H1. inv H0.
-  Qed.
-
-  Lemma destruct_ms2 s k cont' s' k':
-    state_match_hcomp (s, k) (st LK false (s', k') :: cont') ->
-    exists cont, s = st L false s' :: cont /\ match_cont cont cont' /\ k = k'.
-  Proof.
-    intros. remember (st LK false (s', k') :: cont') as ss. inv H.
-    - remember (st LK true (s0, k)) as sst.
-      remember (st LK false (s', k')) as st'.
-      inv H1. inv H0.
-    - remember (st LK false (s0, k)) as sst.
-      remember (st LK false (s', k')) as st'.
-      inv H1.
-      apply foo' in H0. inv H0. eexists; repeat apply conj; eauto.
-  Qed.
-
-  Lemma destruct_mcont1 x s k cont:
-    match_cont x (st LK true (s, k) :: cont) ->
-    exists kk, x = st L true s :: kk  /\ match_cont kk cont.
-  Proof.
-    intros. remember (st LK true (s, k) :: cont) as ss. inv H.
-    - inv H1.
-    - remember (st LK true (s0, k0)) as st0.
-      remember (st LK true (s, k)) as skk.
-      inv H2. apply foo in H1. inv H1.
-      eexists; split; eauto.
-    - inv H2.
-  Qed.
-
-  Lemma destruct_mcont2 x s k cont:
-    match_cont x (st LK false (s, k) :: cont) ->
-    exists kk, x = st L false s :: kk /\ match_cont kk cont.
-  Proof.
-    intros. remember (st LK false (s, k) :: cont) as ss. inv H.
-    - inv H1.
-    - inv H2.
-    - remember (st LK false (s0, k0)) as st0.
-      remember (st LK false (s, k)) as skk.
-      inv H2. apply foo' in H1. inv H1.
-      eexists; split; eauto.
+      Unshelve. exact ks.
   Qed.
 
   Lemma lift_horizontal_comp2:
-    SmallstepLinking_.semantics LK sk ≤ (SmallstepLinking_.semantics L sk)@K.
+    SmallstepLinking_.semantics' LK sk ≤ (SmallstepLinking_.semantics' L sk)@K.
   Proof.
-    constructor. econstructor. reflexivity. intros i. reflexivity.
+    constructor. econstructor. reflexivity.
+    intros i. reflexivity.
     intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step
       with (match_states := fun s1 s2 => state_match_hcomp s2 s1).
-    - intros [q1 kq1] [? ?] s1 [ ] H. inv H.
-      destruct i; destruct s; eexists (_, _); split; eauto.
-      * inv H1. cbn in *; subst. constructor; auto.
-        constructor; cbn; firstorder.
-      * inv H1. cbn in *; subst. constructor; auto.
-        constructor; cbn; firstorder.
-    - intros s1 [s2 ks2] [r kr] Hs H. inv H.
-      destruct i; destruct s; inv H0.
-      + apply destruct_ms1 in Hs as (?&?&?&?).
-        cbn in *. inv H2.
-        eexists; split; repeat constructor; auto.
-      + apply destruct_ms2 in Hs as (?&?&?&?).
-        cbn in *. inv H2.
-        eexists; split; repeat constructor; auto.
-    - intros s1 [s2 ks2] [q kq] Hs H. inv H.
-      destruct i; destruct s; inv H0.
-      + apply destruct_ms1 in Hs as (?&?&?&?).
+    - intros [q1 kq1] [q2 kq2] s1 [ ] H. inv H. inv H1.
+      destruct s. cbn in *; subst.
+      eexists (_, _). repeat apply conj; cbn; eauto.
+      constructor; eauto. apply H0. econstructor. constructor.
+    - intros s1 [s ks] [r kr] Hs H. inv H. inv H0.
+      inv Hs. destruct s0. cbn in *; subst_dep. inv H5. inv H2.
+      eexists (_, _). split; eauto.
+      constructor; eauto. cbn. constructor. eauto.
+    - intros s1 [s ks] [q kq] Hs H. inv H. inv H0.
+      inv Hs. destruct s0. cbn in *. subst_dep. inv H6.
+      eexists tt, (_, _). repeat apply conj; cbn; eauto.
+      + constructor; eauto.
+      + intros [r1 kr1] [r2 kr2] s' Hr Hx. inv Hr. inv Hx.
+        destruct s'0, s2. subst_dep. inv H4. inv H7.
         cbn in *; subst.
-        eexists tt, (_, _). repeat apply conj; try constructor; cbn; auto.
-        * intros j. specialize (H1 j). destruct j; firstorder.
-        * intros [r1 kr1] [r2 kr2] s1' <- Haft.
-          inv Haft. SmallstepLinking_.subst_dep. inv H7.
-          destruct s'. cbn in *; subst.
-          eexists (_, _); split; eauto. repeat constructor. apply H0.
-      + apply destruct_ms2 in Hs as (?&?&?&?).
-        cbn in *; subst.
-        eexists tt, (_, _). repeat apply conj; try constructor; cbn; auto.
-        * intros j. specialize (H1 j). destruct j; firstorder.
-        * intros [r1 kr1] [r2 kr2] s1' <- Haft.
-          inv Haft. SmallstepLinking_.subst_dep. inv H7.
-          destruct s'. cbn in *; subst.
-          eexists (_, _); split; eauto. repeat constructor. apply H0.
-    - intros s1 t s1' Hstep [s2 ks2] Hs.
-      inv Hstep; destruct i; destruct s.
-      + destruct s'. inv H.
-        apply destruct_ms1 in Hs as (?&?&?&?). subst.
-        eexists (_, _); split; eauto.
-        constructor; auto.
-        eapply step_internal; auto.
-      + destruct s'. inv H.
-        apply destruct_ms2 in Hs as (?&?&?&?). subst.
-        eexists (_, _); split; eauto.
-        constructor; auto.
-        eapply step_internal; auto.
-      + destruct q. inv H.
-        apply destruct_ms1 in Hs as (?&?&?&?). cbn in *; subst.
-        destruct j; destruct s'; inv H1.
-        * eexists (_, _); repeat apply conj; eauto.
-          eapply step_push; eauto.
-        * eexists (_, _); repeat apply conj; eauto.
-          eapply step_push; eauto.
-      + destruct q. inv H.
-        apply destruct_ms2 in Hs as (?&?&?&?). cbn in *; subst.
-        destruct j; destruct s'; inv H1.
-        * eexists (_, _); repeat apply conj; eauto.
-          eapply step_push; eauto.
-        * eexists (_, _); repeat apply conj; eauto.
-          eapply step_push; eauto.
-      + destruct r. inv H. cbn in *; subst.
-        apply destruct_ms1 in Hs as (?&?&?&?).
-        destruct j; destruct s'; destruct sk0; destruct H0; cbn in *; subst.
-        * apply destruct_mcont1 in H2 as (?&?&?). subst.
-          eexists (_, _); repeat apply conj; eauto.
-          eapply step_pop; eauto.
-        * apply destruct_mcont2 in H2 as (?&?&?). subst.
-          eexists (_, _); repeat apply conj; eauto.
-          eapply step_pop; eauto.
-      + destruct r. inv H. cbn in *; subst.
-        apply destruct_ms2 in Hs as (?&?&?&?).
-        destruct j; destruct s'; destruct sk0; destruct H0; cbn in *; subst.
-        * apply destruct_mcont1 in H2 as (?&?&?). subst.
-          eexists (_, _); repeat apply conj; eauto.
-          eapply step_pop; eauto.
-        * apply destruct_mcont2 in H2 as (?&?&?). subst.
-          eexists (_, _); repeat apply conj; eauto.
-          eapply step_pop; eauto.
+        eexists (_, _). repeat apply conj; cbn; eauto.
+        constructor. eauto.
+        econstructor. eauto.
+    - intros s1 t s1' Hstep [s ks] Hs. inv Hstep.
+      + inv Hs. destruct s0, s'. inv H. subst_dep. inv H4.
+        eexists. split.
+        instantiate (1 := (_, _)). constructor; eauto.
+        apply step_internal. eauto.
+        econstructor. eauto.
+      + inv Hs. destruct s0, q, s'. inv H. inv H1.
+        cbn in *. subst_dep. inv H6.
+        eexists (_, _); repeat apply conj; eauto.
+        eapply step_push; eauto. apply H0.
+        econstructor. econstructor. eauto.
+      + inv Hs. destruct sk0, s0, r, s'. inv H. inv H0.
+        cbn in *. subst_dep. inv H5. inv H2. subst_dep.
+        eexists (_, _). repeat apply conj; eauto.
+        eapply step_pop; eauto.
+        econstructor. eauto.
     - apply well_founded_ltof.
+      Unshelve. exact k.
   Qed.
 
   Lemma lift_horizontal_comp:
-    (SmallstepLinking_.semantics L sk)@K ≡ SmallstepLinking_.semantics LK sk.
+    (SmallstepLinking_.semantics' L sk)@K ≡ SmallstepLinking_.semantics' LK sk.
   Proof.
     split; [ exact lift_horizontal_comp1 | exact lift_horizontal_comp2 ].
   Qed.
+
 End HCOMP_LIFT.
 
-(* TODO: move this to lifting.v *)
 Lemma lifting_step_star {liA liB K} (L: Smallstep_.semantics liA liB) se qset s1 t s2 k:
   Star (L se) qset s1 t s2 ->
   Star(lifted_lts K (L se)) qset (s1, k) t (s2, k).
