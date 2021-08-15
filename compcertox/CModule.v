@@ -152,6 +152,52 @@ Section APP.
 
 End APP.
 
+Section LIFT_COMPONENT.
+  Generalizable All Variables.
+  Context `{L1: Smallstep_.semantics liB liC}
+          `{L2: Smallstep_.semantics liA liB}.
+  Variable (sk sk': AST.program unit unit).
+
+  Let L2' := skel_extend L2 sk'.
+  Inductive state_match: comp_state L1 L2' -> comp_state L1 L2 -> Prop :=
+  | match1 s1: state_match (st1 L1 L2' s1) (st1 L1 L2 s1)
+  | match2 s1 s2: state_match (st2 L1 L2' s1 s2) (st2 L1 L2 s1 s2).
+  Hint Constructors state_match.
+
+  Lemma lift_comp_component:
+    comp_semantics' L1 (skel_extend L2 sk') sk ≤ comp_semantics' L1 L2 sk.
+  Proof.
+    constructor. econstructor. reflexivity. intros. reflexivity.
+    intros se ? [ ] qset [ ] Hse.
+    instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := state_match).
+    - intros. inv H. inv H0. eexists; split; try constructor; eauto.
+    - intros. inv H0. inv H. eexists; split; try constructor; eauto.
+    - intros. inv H0. inv H. eexists tt, _.
+      repeat apply conj; try constructor; eauto.
+      intros. inv H. inv H0. eexists; split; try constructor; eauto.
+    - intros. inv H; inv H0.
+      + eexists; split. apply CategoricalComp.step1; eauto. auto.
+      + eexists; split. apply CategoricalComp.step2; eauto. auto.
+      + eexists; split. eapply CategoricalComp.step_push; eauto. auto.
+      + eexists; split. eapply CategoricalComp.step_pop; eauto. auto.
+    - apply well_founded_ltof.
+  Qed.
+End LIFT_COMPONENT.
+
+Lemma cmodule_app_simulation' M N sk sk':
+  linkorder sk' sk ->
+  comp_semantics' (semantics M sk) (semantics N sk') sk ≤ semantics (M ++ N) sk.
+Proof.
+  intros Hsk.
+  etransitivity. 2:{ apply cmodule_app_simulation. }
+  etransitivity. 2:{ apply lift_comp_component. }
+  eapply categorical_compose_simulation';
+                   [ apply identity_forward_simulation
+                   | apply identity_forward_simulation
+                   | apply linkorder_refl | auto ].
+Qed.
+
 Definition skel_module_compatible (M: cmodule) (sk: AST.program unit unit) :=
   Forall (fun (p: Clight_.program) => linkorder (AST.erase_program p) sk) M.
 

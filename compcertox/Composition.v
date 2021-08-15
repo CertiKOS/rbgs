@@ -13,13 +13,13 @@ Definition layer_comp {K} (M: cmodule) (L: layer K) sk :=
 Definition ksim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
            (M: cmodule) (R: rel_adt K1 K2) :=
   linkorder (skel L2) (skel L1) /\
-  skel_module_compatible (skel L1) M /\
+  skel_module_compatible M (skel L1) /\
   forward_simulation 1 R L1 (layer_comp M L2 (skel L1)).
 
 Lemma compatible_app sk M N:
-  skel_module_compatible sk M ->
-  skel_module_compatible sk N ->
-  skel_module_compatible sk (M ++ N).
+  skel_module_compatible M sk ->
+  skel_module_compatible N sk ->
+  skel_module_compatible (M ++ N) sk.
 Proof.
   unfold skel_module_compatible.
   rewrite !Forall_forall.
@@ -29,8 +29,8 @@ Qed.
 
 Lemma compatible_trans sk1 sk2 N:
   linkorder sk1 sk2 ->
-  skel_module_compatible sk1 N ->
-  skel_module_compatible sk2 N.
+  skel_module_compatible N sk1 ->
+  skel_module_compatible N sk2.
 Proof.
   unfold skel_module_compatible.
   rewrite !Forall_forall.
@@ -52,12 +52,6 @@ Section SKEL_EXT.
       exists tt, q1. intuition (subst; eauto).
   - apply well_founded_ltof.
   Qed.
-
-  Lemma skel_extend_component sk sk':
-    comp_semantics' (skel_extend L1 sk) L2 sk' ≤ comp_semantics' L1 L2 sk'.
-  Proof.
-  Admitted.
-
 End SKEL_EXT.
 
 Section VCOMP.
@@ -65,48 +59,30 @@ Section VCOMP.
   Context {K1 K2 K3 L1 L2 L3} {M N: cmodule}
           {R: rel_adt K1 K2} {S: rel_adt K2 K3}
           (HL1: ksim L1 L2 M R) (HL2: ksim L2 L3 N S).
-  Hypothesis HM: (List.length M >= 1)%nat.
-  Hypothesis HN: (List.length N >= 1)%nat.
 
   Theorem layer_vcomp: ksim L1 L3 (M ++ N) (R ∘ S).
   Proof.
     unfold ksim in *.
-    destruct HL1 as [Hsk1 [Hmod1 H1]].
-    destruct HL2 as [Hsk2 [Hmod2 H2]].
+    destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
+    destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
     split. eapply linkorder_trans; eauto.
     split. apply compatible_app; eauto.
     eapply compatible_trans; eauto.
 
-    assert (HX1: forward_simulation 1 R L1
-                 (layer_comp M (skel_extend L2 (skel L1)) (skel L1))).
-    { admit. }
-    assert (HX2: forward_simulation 1 S (skel_extend L2 (skel L1))
-                 (layer_comp N L3 (skel L1))).
-    {
-      eapply skel_extend_fsim in H2; eauto.
-      eapply open_fsim_ccref. apply cc_compose_id_left.
-      unfold flip. apply cc_compose_id_right.
-      eapply compose_forward_simulations. apply H2.
-      unfold layer_comp. etransitivity.
-      apply skel_extend_compose.
-
-      admit.
-    }
-    edestruct (cmodule_krel S M (skel L1) HM). auto.
+    edestruct (cmodule_krel S M (skel L1)). auto.
     exploit @categorical_compose_simulation'.
-    constructor. exact X. apply HX2.
-
-    instantiate (1 := (skel L1)). admit.
-    cbn. apply linkorder_refl. intros Hsim2.
+    constructor. exact X. apply H2.
+    instantiate (1 := (skel L1)). apply linkorder_refl. auto.
+    clear X. intros X.
 
     eapply open_fsim_ccref. apply cc_compose_id_left.
     unfold flip. reflexivity.
     cbn. eapply compose_forward_simulations.
-    apply HX1. unfold layer_comp.
+    apply H1. unfold layer_comp.
 
     eapply open_fsim_ccref. apply cc_compose_id_left.
     unfold flip. apply cc_compose_id_right.
-    eapply compose_forward_simulations. apply Hsim2.
+    eapply compose_forward_simulations. apply X. clear X.
 
     eapply open_fsim_ccref. apply cc_compose_id_left.
     unfold flip. apply cc_compose_id_left.
@@ -124,25 +100,25 @@ Section VCOMP.
     eapply compose_forward_simulations.
     apply lift_categorical_comp2.
     apply lifting_simulation.
-    apply cmodule_simulation; eauto.
+    apply cmodule_app_simulation'; eauto.
   Qed.
 
 End VCOMP.
 
-Section HCOMP.
+(* Section HCOMP. *)
 
-  Context {K1 K2 L1 L2 L3} {M N: cmodule} {R: rel_adt K1 K2}
-          (HL1: ksim L1 L3 M R) (HL2: ksim L2 L3 N R).
+(*   Context {K1 K2 L1 L2 L3} {M N: cmodule} {R: rel_adt K1 K2} *)
+(*           (HL1: ksim L1 L3 M R) (HL2: ksim L2 L3 N R). *)
 
-  Theorem layer_hcomp L:
-    L1 ⊎ L2 = Some L -> ksim L L3 (M ⊕ N) R.
-  Admitted.
+(*   Theorem layer_hcomp L: *)
+(*     L1 ⊎ L2 = Some L -> ksim L L3 (M ⊕ N) R. *)
+(*   Admitted. *)
 
-  (* Naming convention:
-     xxx is the composition definition or lemma with linked skeleton
-     xxx' is the same with a provided code skeleton *)
-  Theorem layer_hcomp' sk:
-    ksim (flat_comp_semantics' L1 L2 sk) L3 (M ⊕ N) R.
-  Admitted.
+(*   (* Naming convention: *)
+(*      xxx is the composition definition or lemma with linked skeleton *)
+(*      xxx' is the same with a provided code skeleton *) *)
+(*   Theorem layer_hcomp' sk: *)
+(*     ksim (flat_comp_semantics' L1 L2 sk) L3 (M ⊕ N) R. *)
+(*   Admitted. *)
 
-End HCOMP.
+(* End HCOMP. *)
