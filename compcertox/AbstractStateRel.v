@@ -287,7 +287,7 @@ Section SIMULATION.
       (*   + cbn. congruence. *)
     }
     instantiate (1 := fun _ _ _ => _). cbn beta.
-    intros ? se w qset Hse Hse1. inv Hse. cbn -[semantics1] in *.
+    intros ? se w Hse Hse1. inv Hse. cbn -[semantics1] in *.
     pose (ms := fun '(s1, k1) '(s2, k2) =>
                   Clightrel_.state_match R (absw se k1) s1 s2 /\ Rk R k1 k2).
     apply forward_simulation_step with (match_states := ms).

@@ -7,7 +7,6 @@ Require Import CategoricalComp.
 Require Import SmallstepLinking_.
 Require Import Smallstep_.
 Require Import Linking.
-Require Import CompCertO.
 
 (* Definitions *)
 Section Lifting.
@@ -30,18 +29,13 @@ Section Lifting.
   Program Definition lifted_lts: lts liAX liBX stateX :=
     {|
       genvtype := genvtype L;
-      step p ge '(s, a) t '(s', a') := (step L p ge s t s' /\ a = a')%type;
+      step ge '(s, a) t '(s', a') := (step L ge s t s' /\ a = a')%type;
       initial_state := (initial_state L) * eq;
       at_external := fun s (q: query liAX) => ((at_external L) * eq) s q;
       after_external s := (after_external L (fst s)) * eq;
       final_state := (final_state L) * eq;
       globalenv := globalenv L
     |}%rel.
-  Next Obligation.
-    destruct s, s'. split.
-    eapply steps_monotone; now eauto.
-    easy.
-  Qed.
 
 End Lifting.
 
@@ -86,7 +80,7 @@ Section CAT_COMP_LIFT.
     (comp_semantics' L1 L2 sk) @ K ≤ comp_semantics' (L1 @ K) (L2 @ K) sk.
   Proof.
     constructor. econstructor. reflexivity. intros i. reflexivity.
-    intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step with (match_states := state_match).
     - intros q _ s1 [ ] Hq. destruct s1 as [s1 ks].
       inv Hq. inv H. destruct q as [q k]. cbn in *. subst.
@@ -99,7 +93,7 @@ Section CAT_COMP_LIFT.
       inv Hq. inv H. cbn in *. subst. inv Hs. constructor; auto.
       constructor; auto.
       intros [r1 kr1] [r2 kr2] [s1' k1'] [ ] Hr. inv Hr. inv H.
-      inv Hq. inv H. cbn in *. subst. inv Hs. inv H8.
+      inv Hq. inv H. cbn in *. subst. inv Hs. inv H6.
       eexists; split; repeat econstructor; eauto.
     - intros [s1 k1] t [s1' k1'] Hstep s2 Hs.
       inv Hstep. inv H; inv Hs.
@@ -124,7 +118,7 @@ Section CAT_COMP_LIFT.
     comp_semantics' (L1 @ K) (L2 @ K) sk ≤ (comp_semantics' L1 L2 sk) @ K.
   Proof.
     constructor. econstructor. reflexivity. intros i. reflexivity.
-    intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step
       with (match_states := fun s1 s2 => state_match s2 s1).
     - intros [q1 kq] _ s [ ] H. inv H. inv H0.
@@ -133,11 +127,11 @@ Section CAT_COMP_LIFT.
     - intros s1 [s2 ks] [r kr] Hs H. inv H. inv H0.
       destruct s. cbn in *. subst. inv Hs.
       eexists (_, _). split; repeat (cbn; econstructor); auto.
-    - intros s1 [s2 ks] [q kq] Hs H. inv H. inv H2.
+    - intros s1 [s2 ks] [q kq] Hs H. inv H. inv H0.
       cbn in *. subst. inv Hs. cbn in *.
-      eexists _, (_, _).
+      eexists tt, (_, _).
       repeat apply conj; repeat constructor; eauto.
-      intros [r1 kr1] [r2 kr2] s1' <- Hr. inv Hr. inv H6.
+      intros [r1 kr1] [r2 kr2] s1' <- Hr. inv Hr. inv H4.
       destruct s2'. cbn in *. subst.
       eexists; split; repeat (cbn; econstructor); eauto.
       cbn. constructor; auto.
@@ -156,7 +150,6 @@ Section CAT_COMP_LIFT.
         eexists (_, _); split; constructor; auto.
         eapply CategoricalComp.step_pop; eauto.
     - apply well_founded_ltof.
-      Unshelve. exact tt.
   Qed.
 
   Lemma lift_categorical_comp:
@@ -185,7 +178,7 @@ Section HCOMP_LIFT.
   Proof.
     constructor. econstructor. reflexivity.
     intros i. reflexivity.
-    intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step with (match_states := state_match_hcomp).
     - intros [q kq] ? [s ks] [ ] H. inv H. cbn in *. subst.
       inv H0. eexists. split.
@@ -228,7 +221,7 @@ Section HCOMP_LIFT.
   Proof.
     constructor. econstructor. reflexivity.
     intros i. reflexivity.
-    intros se _ [ ] ? [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step
       with (match_states := fun s1 s2 => state_match_hcomp s2 s1).
     - intros [q1 kq1] [q2 kq2] s1 [ ] H. inv H. inv H1.
@@ -277,17 +270,17 @@ Section HCOMP_LIFT.
 
 End HCOMP_LIFT.
 
-Lemma lifting_step_star {liA liB K} (L: Smallstep_.semantics liA liB) se qset s1 t s2 k:
-  Star (L se) qset s1 t s2 ->
-  Star(lifted_lts K (L se)) qset (s1, k) t (s2, k).
+Lemma lifting_step_star {liA liB K} (L: Smallstep_.semantics liA liB) se s1 t s2 k:
+  Star (L se) s1 t s2 ->
+  Star(lifted_lts K (L se)) (s1, k) t (s2, k).
 Proof.
   induction 1; [eapply star_refl | eapply star_step]; eauto.
   constructor; auto.
 Qed.
 
-Lemma lifting_step_plus {liA liB K} (L: Smallstep_.semantics liA liB) se qset s1 t s2 k:
-  Plus (L se) qset s1 t s2 ->
-  Plus (lifted_lts K (L se)) qset (s1, k) t (s2, k).
+Lemma lifting_step_plus {liA liB K} (L: Smallstep_.semantics liA liB) se s1 t s2 k:
+  Plus (L se) s1 t s2 ->
+  Plus (lifted_lts K (L se)) (s1, k) t (s2, k).
 Proof.
   destruct 1; econstructor; eauto using lifting_step_star.
   split; eauto.
@@ -304,8 +297,8 @@ Proof.
   - apply (fsim_skel H).
   - intros i. apply (fsim_footprint H).
   - destruct H as [? ? ? ? ? Hf ?]. cbn. clear -Hf.
-    intros se1 se2 [ ] qset Hse Hse'.
-    specialize (Hf se1 se2 tt qset Hse Hse'). subst.
+    intros se1 se2 [ ] Hse Hse'.
+    specialize (Hf se1 se2 tt Hse Hse'). subst.
     econstructor.
     + intros [q kq] ? [s1 ks] [ ] Hi. inv Hi. cbn in *; subst.
       exploit (fsim_match_initial_states Hf); eauto. econstructor.
@@ -337,9 +330,9 @@ Qed.
 
 Definition skel_extend {liA liB} (L: Smallstep_.semantics liA liB) sk :=
   {|
-  activate se := L se;
-  skel := sk;
-  footprint := footprint L;
+    activate se := L se;
+    skel := sk;
+    footprint := footprint L;
   |}.
 
 (* Lifting a code skeleton *)

@@ -6,7 +6,6 @@ Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp F
 Require Import Memory Values.
 Require Import Clight_ Linking.
 Require Import AbstractStateRel Lifting.
-Require Import CompCertO.
 Require Coq.omega.Omega.
 Require Import Ctypes.
 
@@ -40,14 +39,15 @@ Definition semantics (M: cmodule) sk: Smallstep_.semantics li_c li_c :=
 Require Import FunctionalExtensionality.
 Require Import FinFun.
 
-Lemma cmodule_initial_state_valid sk M:
-  forall se s q, Smallstep_.initial_state (semantics M sk se) q s ->
-            valid_query (semantics M sk) se q.
+Global Instance cmod_progrom_sem M sk: ProgramSem (semantics M sk).
 Proof.
-  intros. inv H. destruct H0 as (?&?&?&?).
-  split; eauto.
-  eexists; split; eauto.
+  split.
+  - intros. inv H. destruct H0 as (?&?&?&?).
+  split; eauto. eexists; split; eauto.
   cbn. eexists; eauto.
+  - intros. inv H. intros [Hq [x [Hx1 Hx2]]].
+    destruct Hx1 as [j1 Hj]. apply (H1 j1).
+    split; auto. exists x; split; auto.
 Qed.
 
 Section APP.
@@ -132,16 +132,13 @@ Section APP.
         * cbn in *. apply IHps.
   Qed.
 
+  Context `{!CategoricalLinkable (semantics M sk) (semantics N sk)}.
+
   Lemma cmodule_app_simulation:
     comp_semantics' (semantics M sk) (semantics N sk) sk ≤ semantics (M ++ N) sk.
   Proof.
     etransitivity.
-    {
-      apply categorical_compose_approximation.
-      intros [|] se q s H.
-      eapply cmodule_initial_state_valid; eauto.
-      eapply cmodule_initial_state_valid; eauto.
-    }
+    apply categorical_compose_approximation; typeclasses eauto.
     fold L. rewrite Leq.
     etransitivity. apply level_simulation1.
     etransitivity. eapply bijective_map_simulation1 with (F := F).
@@ -168,7 +165,7 @@ Section LIFT_COMPONENT.
     comp_semantics' L1 (skel_extend L2 sk') sk ≤ comp_semantics' L1 L2 sk.
   Proof.
     constructor. econstructor. reflexivity. intros. reflexivity.
-    intros se ? [ ] qset [ ] Hse.
+    intros se ? [ ] [ ] Hse.
     instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step with (match_states := state_match).
     - intros. inv H. inv H0. eexists; split; try constructor; eauto.
@@ -186,11 +183,11 @@ Section LIFT_COMPONENT.
 End LIFT_COMPONENT.
 
 Lemma cmodule_app_simulation' M N sk sk':
-  linkorder sk' sk ->
+  CategoricalLinkable (semantics M sk) (semantics N sk) -> linkorder sk' sk ->
   comp_semantics' (semantics M sk) (semantics N sk') sk ≤ semantics (M ++ N) sk.
 Proof.
   intros Hsk.
-  etransitivity. 2:{ apply cmodule_app_simulation. }
+  etransitivity. 2:{ apply cmodule_app_simulation; auto. }
   etransitivity. 2:{ apply lift_comp_component. }
   eapply categorical_compose_simulation';
                    [ apply identity_forward_simulation
