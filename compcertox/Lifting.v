@@ -3,7 +3,7 @@ Require Import List.
 Require Import Coqlib.
 Require Import CallconvAlgebra_.
 Require Import LanguageInterface_ Events Globalenvs.
-Require Import CategoricalComp.
+Require Import CategoricalComp FlatComp.
 Require Import SmallstepLinking_.
 Require Import Smallstep_.
 Require Import Linking.
@@ -270,6 +270,69 @@ Section HCOMP_LIFT.
 
 End HCOMP_LIFT.
 
+Section FLAT_LIFT.
+
+  Variable K: Type.
+  Context {I li} (L: I -> Smallstep_.semantics li li).
+  Variable (sk: AST.program unit unit).
+  Let LK := fun i => (L i)@K.
+
+  Inductive flat_state_match: flat_state L * K -> flat_state LK -> Prop :=
+  | flat_state_match_intro i s k:
+      flat_state_match (flat_st L i s, k) (flat_st LK i (s, k)).
+  Hint Constructors flat_state_match.
+
+  Lemma lift_flat_comp1:
+    (flat_comp_semantics' L sk)@K ≤ flat_comp_semantics' LK sk.
+  Proof.
+    constructor. econstructor. reflexivity. intros i. reflexivity.
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := flat_state_match).
+    - intros [] [] [] Hq H. inv Hq. inv H. cbn in *; subst. inv H0.
+      eexists. split; constructor. now constructor.
+    - intros [] s [] Hs H. inv H. cbn in *; subst. inv H0.
+      inv Hs. subst_dep.
+      eexists. split; constructor. now constructor.
+    - intros [] s [] Hs H. inv H. cbn in *; subst. inv H0.
+      inv Hs. subst_dep.
+      eexists tt, (_, _). repeat apply conj; try constructor.
+      + now constructor.
+      + intros [] [] [] Hr [H1 H2]. inv Hr.
+        cbn in *; subst. inv H1. subst_dep.
+        eexists. split; constructor. now constructor.
+    - intros [] t [] Hstep s Hs.
+      inv Hstep; inv H; inv Hs. subst_dep.
+      eexists. split; constructor. now constructor.
+    - apply well_founded_ltof.
+  Qed.
+
+  Lemma lift_flat_comp2:
+    flat_comp_semantics' LK sk ≤ (flat_comp_semantics' L sk)@K.
+  Proof.
+    constructor. econstructor. reflexivity. intros i. reflexivity.
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step
+      with (match_states := fun s1 s2 => flat_state_match s2 s1).
+    - intros [] [] s Hq H. inv Hq. inv H. inv H0.
+      destruct s0. cbn in *; subst.
+      eexists (_, _). split; constructor; auto. now constructor.
+    - intros s [] [] Hs H. inv H. destruct s0. inv H0.
+      cbn in *; subst. inv Hs. subst_dep.
+      eexists (_, _). split; constructor; auto. now constructor.
+    - intros s [] [] Hs H. inv H. destruct s0. inv H0.
+      cbn in *; subst. inv Hs. subst_dep.
+      eexists tt, (_, _). repeat apply conj; try constructor; auto.
+      intros [] [] s' Hr Hx. inv Hr. inv Hx. inv H4.
+      destruct s'0.  destruct s2. subst_dep. cbn in *. subst. inv H2.
+      eexists. split; constructor; auto. now constructor.
+    - intros ? t ? Hstep [] Hs. inv Hstep. inv Hs.
+      destruct s. subst_dep. inv H4. destruct s'. inv H.
+      eexists (_, _). split; constructor; eauto. now constructor.
+    - apply well_founded_ltof.
+  Qed.
+
+End FLAT_LIFT.
+
 Lemma lifting_step_star {liA liB K} (L: Smallstep_.semantics liA liB) se s1 t s2 k:
   Star (L se) s1 t s2 ->
   Star(lifted_lts K (L se)) (s1, k) t (s2, k).
@@ -380,3 +443,93 @@ Section SKEL_EXT_LIFT.
     - apply (fsim_order_wf H).
   Qed.
 End SKEL_EXT_LIFT.
+
+Lemma skel_extend_same {liA liB} (L: Smallstep_.semantics liA liB):
+  skel_extend L (skel L) = L.
+Proof.
+  unfold skel_extend. destruct L. reflexivity.
+Qed.
+
+Section LIFT_COMPONENT.
+  Generalizable All Variables.
+  Context `{L1: Smallstep_.semantics liB liC}
+          `{L2: Smallstep_.semantics liA liB}.
+  Variable (sk sk1 sk2: AST.program unit unit).
+
+  Let L1' := skel_extend L1 sk1.
+  Let L2' := skel_extend L2 sk2.
+  Inductive lift_match: comp_state L1' L2' -> comp_state L1 L2 -> Prop :=
+  | match1 s1: lift_match (st1 L1' L2' s1) (st1 L1 L2 s1)
+  | match2 s1 s2: lift_match (st2 L1' L2' s1 s2) (st2 L1 L2 s1 s2).
+  Hint Constructors lift_match.
+
+  Lemma lift_comp_component:
+    comp_semantics' (skel_extend L1 sk1) (skel_extend L2 sk2) sk ≤ comp_semantics' L1 L2 sk.
+  Proof.
+    constructor. econstructor. reflexivity. intros. reflexivity.
+    intros se ? [ ] [ ] Hse.
+    instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := lift_match).
+    - intros. inv H. inv H0. eexists; split; try constructor; eauto.
+    - intros. inv H0. inv H. eexists; split; try constructor; eauto.
+    - intros. inv H0. inv H. eexists tt, _.
+      repeat apply conj; try constructor; eauto.
+      intros. inv H. inv H0. eexists; split; try constructor; eauto.
+    - intros. inv H; inv H0.
+      + eexists; split. apply CategoricalComp.step1; eauto. auto.
+      + eexists; split. apply CategoricalComp.step2; eauto. auto.
+      + eexists; split. eapply CategoricalComp.step_push; eauto. auto.
+      + eexists; split. eapply CategoricalComp.step_pop; eauto. auto.
+    - apply well_founded_ltof.
+  Qed.
+
+End LIFT_COMPONENT.
+
+Global Instance fsim_refl {li1 li2}:
+  Reflexive (forward_simulation (@cc_id li1) (@cc_id li2)).
+Proof.
+  intros x. apply identity_forward_simulation.
+Qed.
+
+Lemma lift_comp_component1 {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB) sk sk1:
+  comp_semantics' (skel_extend L1 sk1) L2 sk ≤ comp_semantics' L1 L2 sk.
+Proof.
+  etransitivity. 2: { apply lift_comp_component. }
+  rewrite (skel_extend_same L2). reflexivity.
+Qed.
+
+Lemma lift_comp_component2 {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB) sk sk2:
+  comp_semantics' L1 (skel_extend L2 sk2) sk ≤ comp_semantics' L1 L2 sk.
+Proof.
+  etransitivity. 2: { apply lift_comp_component. }
+  rewrite (skel_extend_same L1). reflexivity.
+Qed.
+
+Section EXTEND_SKEL_FLAT_COMP.
+  Generalizable All Variables.
+  Context {I} `{L: I -> Smallstep_.semantics liA liB}.
+  Variable (sk sk': AST.program unit unit).
+
+  Let L' := fun i => skel_extend (L i) sk.
+  Inductive flat_match: flat_state L -> flat_state L' -> Prop :=
+  | flat_match_intro i s: flat_match (flat_st L i s) (flat_st L' i s).
+  Hint Constructors flat_match.
+
+  Lemma lift_flat_comp_component:
+    flat_comp_semantics' L sk ≤ flat_comp_semantics' L' sk.
+  Proof.
+    constructor. econstructor. reflexivity. intros i. reflexivity.
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := flat_match).
+    - intros. inv H. inv H0. eexists; split; now constructor.
+    - intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+      eexists; split; now constructor.
+    - intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+      eexists tt, _. repeat apply conj; try constructor; auto.
+      intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+      eexists; split; now constructor.
+    - intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+      eexists; split; now constructor.
+    - apply well_founded_ltof.
+  Qed.
+End EXTEND_SKEL_FLAT_COMP.

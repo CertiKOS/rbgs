@@ -107,23 +107,40 @@ Section VCOMP.
 
 End VCOMP.
 
+Lemma layer_comp_extend_skel {K} M L sk sk':
+  linkorder sk' sk -> linkorder (skel L) sk ->
+  skel_extend (layer_comp M L sk') sk ≤ layer_comp (K := K) M L sk.
+Proof.
+  unfold layer_comp.
+  replace (skel_extend (comp_semantics' (semantics M sk' @ K) L sk') sk)
+    with (comp_semantics' (semantics M sk' @ K) L sk) by reflexivity.
+  etransitivity. 2: { apply lift_comp_component1. }
+  eapply categorical_compose_simulation';
+                   [ apply identity_forward_simulation
+                   | reflexivity | .. ]; auto.
+Qed.
+
+Lemma if_rewrite {A B} (f: A -> B) a b:
+  (fun (i : bool) => f (if i then a else b)) = (fun i => if i then f a else f b).
+Proof.
+  apply Axioms.functional_extensionality; intros [|]; auto.
+Qed.
+
 Section HCOMP.
 
   Generalizable All Variables.
-  Context `{R: rel_adt K1 K2}
-          {M N: cmodule} `(HL1: ksim L1 L3 M R) `(HL2: ksim L2 L3 N R).
+  Context `{R: rel_adt K1 K2} {M N: cmodule}
+          `(HL1: ksim L1 L3 M R) `(HL2: ksim L2 L3 N R).
   Variable (sk: AST.program unit unit).
   Hypothesis (Hk1: linkorder (skel L1) sk)
              (Hk2: linkorder (skel L2) sk).
-  (* Theorem layer_hcomp L: *)
-  (*   L1 ⊎ L2 = Some L -> ksim L L3 (M ⊕ N) R. *)
-  (* Admitted. *)
+  Let Mi := (fun i : bool => if i then semantics M sk else semantics N sk).
+  Context `{!FlatLinkable Mi}.
 
-  (* Naming convention: *)
-  (*      xxx is the composition definition or lemma with linked skeleton *)
-  (*      xxx' is the same with a provided code skeleton *)
-  Theorem layer_hcomp':
-    ksim (flat_comp_semantics' L1 L2 sk) L3 (M ++ N) R.
+  Let L i := match i with true => L1 | false => L2 end.
+
+  Theorem layer_hcomp:
+    ksim (flat_comp_semantics' L sk) L3 (M ++ N) R.
   Proof.
     unfold ksim in *.
     destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
@@ -131,8 +148,52 @@ Section HCOMP.
     split. eapply linkorder_trans; eauto.
     split. apply compatible_app; (eapply compatible_trans; [ | eauto]); eauto.
 
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations.
 
+    set (Ls := fun i => match i with true => layer_comp M L3 (skel L1)
+                             | false => layer_comp N L3 (skel L2) end).
+    apply (flat_composition_simulation' _ _ _ Ls); try (intros [|]; auto). cbn.
 
-  Admitted.
+    (* To use the distributivity, we first unify the code skeleton of the
+       individual components being flat composed *)
+    etransitivity. apply lift_flat_comp_component. cbn.
+    rewrite if_rewrite with (f := fun x => skel_extend x sk).
+
+    set (Ls := fun i => match i with true => layer_comp M L3 sk | false => layer_comp N L3 sk end).
+    etransitivity. instantiate (1 := flat_comp_semantics' Ls sk).
+    {
+      apply flat_composition_simulation'.
+      - intros [|]; apply layer_comp_extend_skel; auto;
+          eapply linkorder_trans; eauto.
+      - intros [|]; apply linkorder_refl.
+    }
+
+    subst Ls. unfold layer_comp.
+    rewrite <- if_rewrite with (f := fun x => comp_semantics' x L3 sk).
+    etransitivity.  apply distributivity2. constructor. exact true.
+    eapply categorical_compose_simulation';
+      [ | apply identity_forward_simulation
+        | apply linkorder_refl
+        | eapply linkorder_trans; eauto ].
+
+    rewrite <- if_rewrite.
+    etransitivity. apply lift_flat_comp2.
+    apply lifting_simulation.
+    apply cmodule_flat_comp_simulation; auto.
+  Qed.
 
 End HCOMP.
+
+Section TCOMP.
+
+  Generalizable All Variables.
+  Context {M N: cmodule}
+          `{R: rel_adt Kr1 Kr2} `{S: rel_adt Ks1 Ks2}
+          `(HL1: ksim L1 L3 M R) `(HL2: ksim L2 L4 N S).
+  Variable (sk: AST.program unit unit).
+  Hypothesis (Hk1: linkorder (skel L1) sk) (Hk2: linkorder (skel L2) sk)
+             (Hk3: linkorder (skel L3) sk) (Hk4: linkorder (skel L4) sk).
+
+End TCOMP.
