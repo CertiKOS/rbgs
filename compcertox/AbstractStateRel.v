@@ -349,28 +349,12 @@ Inductive rel_adt: Type -> Type -> Type :=
 | empty_rel K: rel_adt K K
 | singleton_rel {K1 K2} : krel K1 K2 -> rel_adt K1 K2
 | vcomp_rel {K1 K2 K3} : rel_adt K1 K2 -> rel_adt K2 K3 -> rel_adt K1 K3
-| tcomp_rel {K1 K2 K3 K4} : rel_adt K1 K2 -> rel_adt K3 K4 -> rel_adt (K1 * K3) (K2 * K4).
+| tcomp_rel {K1 K2} : (forall (i: bool), rel_adt (K1 i) (K2 i)) -> rel_adt (forall i, K1 i) (forall i, K2 i).
 
-Program Definition kcc_both {liA liB K1 K2 K3 K4}
-        (cc1: callconv (liA@K1) (liB@K2)) (cc2: callconv (liA@K3) (liB@K4))
-  : callconv (liA@(K1*K3)) (liB@(K2*K4)) :=
-  {|
-    ccworld := ccworld cc1 * ccworld cc2;
-    match_senv := fun '(w1, w2) => match_senv cc1 w1 /\ match_senv cc2 w2;
-    match_query '(w1, w2) '(q1, k1) '(q2, k2) :=
-      (match_query cc1 w1 (q1, fst k1) (q2, fst k2)
-      /\ match_query cc2 w2 (q1, snd k1) (q2, snd k2))%type;
-    match_reply '(w1, w2) '(q1, k1) '(q2, k2) :=
-      (match_reply cc1 w1 (q1, fst k1) (q2, fst k2)
-       /\ match_reply cc2 w2 (q1, snd k1) (q2, snd k2))%type;
-  |}%rel.
-Next Obligation.
-Admitted.
-Next Obligation.
-Admitted.
-Next Obligation.
-Admitted.
-Next Obligation.
+Program Definition kcc_both {liA liB KA KB}
+        (cc1: callconv (liA@(KA true)) (liB@(KB true)))
+        (cc2: callconv (liA@(KA false)) (liB@(KB false)))
+  : callconv (liA@(forall i, KA i)) (liB@(forall i, KB i)).
 Admitted.
 
 Fixpoint absrel_to_cc {K1 K2} (rel: rel_adt K1 K2):
@@ -379,7 +363,7 @@ Fixpoint absrel_to_cc {K1 K2} (rel: rel_adt K1 K2):
   | empty_rel _ => cc_id
   | singleton_rel _ _ r => kcc_c r
   | vcomp_rel _ _ _ r1 r2 => (absrel_to_cc r1) @ (absrel_to_cc r2)
-  | tcomp_rel _ _ _ _ r1 r2 => kcc_both (absrel_to_cc r1) (absrel_to_cc r2)
+  | tcomp_rel _ _ r => kcc_both (absrel_to_cc (r true)) (absrel_to_cc (r false))
   end.
 
 Delimit Scope krel_scope with krel.
@@ -387,7 +371,7 @@ Bind Scope krel_scope with rel_adt.
 
 Notation "[ R ]" := (singleton_rel R) (at level 30): krel_scope.
 Notation "R1 ∘ R2" := (vcomp_rel R1 R2): krel_scope.
-Notation "R1 ⊗ R2" := (tcomp_rel R1 R2) (at level 50): krel_scope.
+(* Notation "R1 ⊗ R2" := (tcomp_rel R1 R2) (at level 50): krel_scope. *)
 
 Coercion absrel_to_cc : rel_adt >-> callconv.
 

@@ -6,6 +6,16 @@ Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp F
 Require Import Memory Values.
 Require Import Clight_ Linking.
 Require Import AbstractStateRel Lifting CModule.
+Require Import Ctypes.
+
+Definition prog_layer_comp {K} (p: Clight_.program) (L: layer K) sk :=
+  comp_semantics' (Clight_.semantics2 p @ K) L sk.
+
+Definition prog_ksim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
+           (p: Clight_.program) (R: rel_adt K1 K2) :=
+  linkorder (skel L2) (skel L1) /\
+  linkorder (AST.erase_program p) (skel L1) /\
+  forward_simulation 1 R L1 (prog_layer_comp p L2 (skel L1)).
 
 Definition layer_comp {K} (M: cmodule) (L: layer K) sk :=
   comp_semantics' (semantics M sk @ K) L sk.
@@ -15,6 +25,11 @@ Definition ksim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
   linkorder (skel L2) (skel L1) /\
   skel_module_compatible M (skel L1) /\
   forward_simulation 1 R L1 (layer_comp M L2 (skel L1)).
+
+Lemma singleton_ksim {K1 K2} L1 L2 p (R: rel_adt K1 K2):
+  prog_ksim L1 L2 p R -> ksim L1 L2 (p :: nil) R.
+Proof.
+Admitted.
 
 Lemma compatible_app sk M N:
   skel_module_compatible M sk ->
@@ -186,6 +201,8 @@ Section HCOMP.
 
 End HCOMP.
 
+Require Import TensorComp.
+
 Section TCOMP.
 
   Generalizable All Variables.
@@ -195,5 +212,20 @@ Section TCOMP.
   Variable (sk: AST.program unit unit).
   Hypothesis (Hk1: linkorder (skel L1) sk) (Hk2: linkorder (skel L2) sk)
              (Hk3: linkorder (skel L3) sk) (Hk4: linkorder (skel L4) sk).
+
+  Let K1 := fun (i : bool) => if i then Kr1 else Ks1.
+  Let K2 := fun (i : bool) => if i then Kr2 else Ks2.
+
+  Let La := Tensor.tensor_semantics' K1 (fun (i: bool) => match i with true => L1 | false => L2 end) sk.
+  Let Lb := Tensor.tensor_semantics' K2 (fun (i: bool) => match i with true => L3 | false => L4 end) sk.
+
+  Definition RS: rel_adt (forall i, K1 i) (forall i, K2 i).
+  Proof.
+    apply tcomp_rel. intros [|]; eauto.
+  Qed.
+
+  Lemma layer_tcomp:
+    ksim La Lb (M ++ N) RS.
+  Admitted.
 
 End TCOMP.
