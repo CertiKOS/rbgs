@@ -54,7 +54,7 @@ Section APP.
 
   Context (M N: cmodule).
   Variable (sk: AST.program unit unit).
-
+  (* TODO: maybe we could use different sk for M and N *)
   Let L := fun (b: bool) => match b with | true => (semantics M sk) | false => (semantics N sk) end.
   Let J := fun (b: bool) => match b with | true => pos M | false => pos N end.
   Definition Lij: forall (b: bool), J b -> Smallstep_.semantics li_c li_c.
@@ -132,10 +132,20 @@ Section APP.
         * cbn in *. apply IHps.
   Qed.
 
+  Lemma cmodule_app_simulation:
+    SmallstepLinking_.semantics' L sk ≤ semantics (M ++ N) sk.
+  Proof.
+    rewrite Leq.
+    etransitivity. apply level_simulation1.
+    etransitivity. eapply bijective_map_simulation1 with (F := F).
+    apply FG_bij. unfold semantics. rewrite <- LFeq.
+    reflexivity.
+  Qed.
+
   Section CAT_APP.
     Context `{!CategoricalLinkable (semantics M sk) (semantics N sk)}.
 
-    Lemma cmodule_app_simulation:
+    Lemma cmodule_categorical_comp_simulation:
       comp_semantics' (semantics M sk) (semantics N sk) sk ≤ semantics (M ++ N) sk.
     Proof.
       etransitivity.
@@ -174,7 +184,7 @@ Lemma cmodule_app_simulation' M N sk sk':
   comp_semantics' (semantics M sk) (semantics N sk') sk ≤ semantics (M ++ N) sk.
 Proof.
   intros Hsk.
-  etransitivity. 2:{ apply cmodule_app_simulation; auto. }
+  etransitivity. 2:{ apply cmodule_categorical_comp_simulation; auto. }
   etransitivity. 2:{ apply lift_comp_component2. }
   eapply categorical_compose_simulation';
                    [ reflexivity

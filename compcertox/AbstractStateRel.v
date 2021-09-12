@@ -345,25 +345,63 @@ Section SIMULATION.
   Qed.
 End SIMULATION.
 
+Generalizable All Variables.
+
+Class Inhabited (I: Type) := inhabited_prop: inhabited I.
+
+Global Instance bool_inhabited: Inhabited bool.
+Proof.
+  split. exact true.
+Qed.
+
 Inductive rel_adt: Type -> Type -> Type :=
 | empty_rel K: rel_adt K K
-| singleton_rel {K1 K2} : krel K1 K2 -> rel_adt K1 K2
-| vcomp_rel {K1 K2 K3} : rel_adt K1 K2 -> rel_adt K2 K3 -> rel_adt K1 K3
-| tcomp_rel {K1 K2} : (forall (i: bool), rel_adt (K1 i) (K2 i)) -> rel_adt (forall i, K1 i) (forall i, K2 i).
+| singleton_rel `(krel K1 K2): rel_adt K1 K2
+| vcomp_rel `(rel_adt K1 K2) `(rel_adt K2 K3): rel_adt K1 K3
+(* | tcomp_rel {I} {K1 K2: I -> Type} `{Inhabited I} *)
+(*             `(forall i, rel_adt (K1 i) (K2 i)): rel_adt (forall i, K1 i) (forall i, K2 i). *)
+| tcomp_rel `(rel_adt K1 K3) `(rel_adt K2 K4): rel_adt (K1*K2) (K3*K4).
 
-Program Definition kcc_both {liA liB KA KB}
-        (cc1: callconv (liA@(KA true)) (liB@(KB true)))
-        (cc2: callconv (liA@(KA false)) (liB@(KB false)))
-  : callconv (liA@(forall i, KA i)) (liB@(forall i, KB i)).
-Admitted.
+Program Definition kcc_tensor
+        `(cc1: callconv (liA@K1) (liB@K3))
+        `(cc2: callconv (liA@K2) (liB@K4))
+  : callconv (liA@(K1*K2)) (liB@(K3*K4)) :=
+  {|
+    ccworld := ccworld cc1 * ccworld cc2;
+    match_senv '(w1, w2) se1 se2 :=
+      match_senv cc1 w1 se1 se2 /\ match_senv cc2 w2 se1 se2;
+    match_query '(w1, w2) '(qa, ka) '(qb, kb) :=
+      let '(k1, k2) := ka in
+      let '(k3, k4) := kb in
+      match_query cc1 w1 (qa, k1) (qb, k3) /\
+      match_query cc2 w2 (qa, k2) (qb, k4);
+    match_reply '(w1, w2) '(ra, ka) '(rb, kb) :=
+      let '(k1, k2) := ka in
+      let '(k3, k4) := kb in
+      match_reply cc1 w1 (ra, k1) (rb, k3) /\
+      match_reply cc2 w2 (ra, k2) (rb, k4);
+  |}.
+Next Obligation.
+  eapply match_senv_public_preserved in H. eauto.
+Qed.
+Next Obligation.
+  eapply match_senv_valid_for in H; eauto.
+Qed.
+Next Obligation.
+  eapply match_senv_symbol_address in H0; eauto.
+Qed.
+Next Obligation.
+  eapply match_query_defined in H; eauto.
+Qed.
 
 Fixpoint absrel_to_cc {K1 K2} (rel: rel_adt K1 K2):
   callconv (li_c @ K1) (li_c @ K2) :=
   match rel with
   | empty_rel _ => cc_id
   | singleton_rel _ _ r => kcc_c r
-  | vcomp_rel _ _ _ r1 r2 => (absrel_to_cc r1) @ (absrel_to_cc r2)
-  | tcomp_rel _ _ r => kcc_both (absrel_to_cc (r true)) (absrel_to_cc (r false))
+  | vcomp_rel _ _ r1 _ r2 => (absrel_to_cc r1) @ (absrel_to_cc r2)
+  | tcomp_rel _ _ r1 _ _ r2 =>
+    kcc_tensor (absrel_to_cc r1) (absrel_to_cc r2)
   end.
 
 Delimit Scope krel_scope with krel.
@@ -371,7 +409,6 @@ Bind Scope krel_scope with rel_adt.
 
 Notation "[ R ]" := (singleton_rel R) (at level 30): krel_scope.
 Notation "R1 ∘ R2" := (vcomp_rel R1 R2): krel_scope.
-(* Notation "R1 ⊗ R2" := (tcomp_rel R1 R2) (at level 50): krel_scope. *)
 
 Coercion absrel_to_cc : rel_adt >-> callconv.
 
@@ -383,4 +420,36 @@ Proof.
     apply identity_forward_simulation.
   - apply clight_sim.
   - eapply compose_forward_simulations; eauto.
+  -
 Admitted.
+(* FIXME: this a different kind of problem than the tensor product
+   composition. I haven't thought it through, though *)
+
+
+(* Program Definition kcc_tensor {I} {K1 K2: I -> Type} *)
+(*         {Hi: Inhabited I} `(cc: forall i, callconv (liA@(K1 i)) (liB@(K2 i))) *)
+(*   : callconv (liA@(forall i, K1 i)) (liB@(forall i, K2 i)) := *)
+(*   {| *)
+(*     ccworld := forall i, ccworld (cc i); *)
+(*     match_senv w se1 se2 := forall i, match_senv (cc i) (w i) se1 se2; *)
+(*     match_query w '(qa, ka) '(qb, kb) := *)
+(*       forall i, match_query (cc i) (w i) (qa, ka i) (qb, kb i); *)
+(*     match_reply w '(ra, ka) '(rb, kb) := *)
+(*       forall i, match_reply (cc i) (w i) (ra, ka i) (rb, kb i); *)
+(*   |}. *)
+(* Next Obligation. *)
+(*   inv Hi. eapply match_senv_public_preserved in H; eauto. *)
+(*   Unshelve. exact X. *)
+(* Qed. *)
+(* Next Obligation. *)
+(*   inv Hi. eapply match_senv_valid_for in H; eauto. *)
+(*   Unshelve. exact X. *)
+(* Qed. *)
+(* Next Obligation. *)
+(*   inv Hi. eapply match_senv_symbol_address in H0; eauto. *)
+(*   Unshelve. exact X. *)
+(* Qed. *)
+(* Next Obligation. *)
+(*   inv Hi. eapply match_query_defined in H; eauto. *)
+(*   Unshelve. exact X. *)
+(* Qed. *)
