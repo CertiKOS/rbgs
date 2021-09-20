@@ -9,6 +9,102 @@ Require Import Lifting AbstractStateRel.
 
 Generalizable All Variables.
 
+(* A li_func convert from one language interface to another. This is useful
+   because equivalence on the level of language interfaces can't be defined
+   as definitional equality. *)
+Record li_func (liA liB: language_interface) :=
+  mk_li_func {
+      query_func: query liB -> query liA;
+      reply_func: reply liB -> reply liA;
+    }.
+Arguments query_func {liA liB} _ _.
+Arguments reply_func {liA liB} _ _.
+
+Section APPLY.
+
+  Context {liA1 liA2 liB1 liB2 S} (L: lts liA1 liB1 S)
+          (FA: li_func liA1 liA2) (FB: li_func liB1 liB2).
+
+  Definition lts_map_outgoing: lts liA1 liB2 S :=
+    {|
+      genvtype := genvtype L;
+      globalenv := globalenv L;
+      step := step L;
+      initial_state q s := initial_state L (query_func FB q) s;
+      at_external := at_external L;
+      after_external := after_external L;
+      final_state s r := final_state L s (reply_func FB r);
+    |}.
+
+  Definition lts_map_incoming: lts liA2 liB1 S :=
+    {|
+      genvtype := genvtype L;
+      globalenv := globalenv L;
+      step := step L;
+      initial_state := initial_state L;
+      at_external s q := at_external L s (query_func FA q);
+      after_external s r s' := after_external L s (reply_func FA r) s';
+      final_state := final_state L;
+    |}.
+
+End APPLY.
+
+Definition map_outgoing {liA liB1 liB2} (L: semantics liA liB1) (F: li_func liB1 liB2) :=
+  {|
+    skel := skel L;
+    activate se := lts_map_outgoing (L se) F;
+    footprint := footprint L;
+  |}.
+
+Definition map_incoming {liA1 liA2 liB} (L: semantics liA1 liB) (F: li_func liA1 liA2) :=
+  {|
+    skel := skel L;
+    activate se := lts_map_incoming (L se) F;
+    footprint := footprint L;
+  |}.
+
+Infix "##" := map_incoming (at level 50): lts_scope.
+Infix "$$" := map_outgoing (at level 50): lts_scope.
+
+(* The generated definition looks funky
+   Try use idtac as default *)
+Program Definition li_func_null {K}: li_func (li_null @ K) li_null :=
+  {|
+    query_func q := match q with end;
+    reply_func r := match r with end;
+  |}.
+
+Program Definition li_func_k {li K1 K2}: li_func ((li@K1)@K2) (li@(K1*K2)) :=
+  {|
+    query_func '(q, k) := ((q, fst k), snd k);
+    reply_func '(r, k) := ((r, fst k), snd k);
+  |}.
+
+Definition lift_layer {li K} (L: semantics li_null li): semantics li_null (li@K) :=
+  L@K ## li_func_null.
+
+Definition lift_layer_k {li K1 K2} (L: semantics li_null (li@K1)): semantics li_null (li@(K1*K2)) :=
+  L@K2 ## li_func_null $$ li_func_k.
+
+Infix "⊗" := kcc_tensor (at level 50, left associativity) : cc_scope.
+
+Section TENSOR.
+
+  Context {K1 K2} (L1: semantics li_null (li_c@K1)) (L2: semantics li_null (li_c@K2)).
+  Context {J1 J2} (jcc: crel J1 J2) (kcc: callconv (li_c@K1) (li_c@K2)).
+  Context (HL: fsim_components 1 kcc L1 L2).
+
+  (* One more condition we need from crel maybe match_query implies match_reply
+     if the memory is unchanged on the blocks in the crel *)
+
+  Inductive state_match:
+
+  Lemma lift_layer_fsim: forward_simulation 1 (kcc ⊗ jcc) (lift_layer_k L1) (lift_layer_k L2).
+  Proof.
+
+
+End TENSOR.
+
 Class mem_ops: Type :=
   {
     split: mem -> mem * mem;

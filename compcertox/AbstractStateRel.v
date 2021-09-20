@@ -11,6 +11,18 @@ Require Import Lifting.
 Definition no_perm_on (m: mem) (vars: block -> Z -> Prop): Prop :=
   forall b ofs, vars b ofs -> ~ Mem.perm m b ofs Max Nonempty.
 
+(* The KRel relation defines the abstraction relation for certified abstraction
+   layers. The relation corresponds to the following diagram:
+
+   m1    k1
+   |    /|
+   |   / |
+   | Rr  Rk
+   | /   |
+   m2    k2
+
+   where part of the concrete values in the target program memory m2 are abstracted
+   into the abstract data in k1 *)
 Record krel {K1 K2: Type}: Type :=
   mk_krel {
       Rk: K1 -> K2 -> Prop;
@@ -22,13 +34,19 @@ Record krel {K1 K2: Type}: Type :=
     }.
 Arguments krel: clear implicits.
 
+(* The CKLR is indexed by k1 with accessibility condition simply being equality
+   so that the internal steps won't mess up the blocks in the memory that are
+   abstracted according to the KRel *)
 Section ABS_CKLR.
   Context {K1 K2} (R: @krel K1 K2).
 
   Inductive abs_world := absw (se: Genv.symtbl) (k1: K1).
   Inductive abs_mm: abs_world -> mem -> mem -> Prop :=
     match_intro: forall se k1 m1 m2,
-      Mem.extends m1 m2 -> Rr R k1 m2 -> no_perm_on m1 (G R) ->
+      Mem.extends m1 m2 -> Rr R k1 m2 ->
+      (* The source program would crash if it tries to manipulate data on blocks
+         defined in G *)
+      no_perm_on m1 (G R) ->
       abs_mm (absw se k1) m1 m2.
   Inductive abs_match_se: abs_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
     match_se_intro: forall se k,
@@ -198,7 +216,7 @@ Section ABS_CKLR.
 End ABS_CKLR.
 
 (* The self-simulation property for program p given that the scope of p is
-   disjoint from the scope of the abstraction relation R *)
+   disjoint from the scope of the abstraction relation R. *)
 Section SIMULATION.
   Context {K1 K2} (R: krel K1 K2).
   Inductive kcc_c_query cc_query:
@@ -347,29 +365,11 @@ End SIMULATION.
 
 Generalizable All Variables.
 
-Class Inhabited (I: Type) := inhabited_prop: inhabited I.
-
-Global Instance bool_inhabited: Inhabited bool.
-Proof.
-  split. exact true.
-Qed.
-
-Inductive rel_adt: Type -> Type -> Type :=
-| empty_rel K: rel_adt K K
-| singleton_rel `(krel K1 K2): rel_adt K1 K2
-| vcomp_rel `(rel_adt K1 K2) `(rel_adt K2 K3): rel_adt K1 K3
-(* | tcomp_rel {I} {K1 K2: I -> Type} `{Inhabited I} *)
-(*             `(forall i, rel_adt (K1 i) (K2 i)): rel_adt (forall i, K1 i) (forall i, K2 i). *)
-| tcomp_rel `(rel_adt K1 K3) `(rel_adt K2 K4): rel_adt (K1*K2) (K3*K4).
-
-Program Definition kcc_tensor
-        `(cc1: callconv (liA@K1) (liB@K3))
-        `(cc2: callconv (liA@K2) (liB@K4))
-  : callconv (liA@(K1*K2)) (liB@(K3*K4)) :=
+Program Definition kcc_tensor `(cc1: callconv (liA@K1) (liB@K3))
+        `(cc2: callconv (liA@K2) (liB@K4)) : callconv (liA@(K1*K2)) (liB@(K3*K4)) :=
   {|
     ccworld := ccworld cc1 * ccworld cc2;
-    match_senv '(w1, w2) se1 se2 :=
-      match_senv cc1 w1 se1 se2 /\ match_senv cc2 w2 se1 se2;
+    match_senv '(w1, w2) se1 se2 := match_senv cc1 w1 se1 se2 /\ match_senv cc2 w2 se1 se2;
     match_query '(w1, w2) '(qa, ka) '(qb, kb) :=
       let '(k1, k2) := ka in
       let '(k3, k4) := kb in
@@ -393,6 +393,123 @@ Qed.
 Next Obligation.
   eapply match_query_defined in H; eauto.
 Qed.
+
+Section CREL.
+  (* Compositional Abstraction Relation *)
+  Record crel (K1 K2: Type) :=
+    {
+      cc :> callconv (li_c@K1) (li_c@K2);
+      vars : block -> Z -> Prop;
+      other := fun b ofs => ~ vars b ofs;
+      (* kmrel is compositional even though krel does not compose *)
+      kmrel : mem * K1 -> mem * K2 -> Prop;
+      mem_index : ccworld cc -> mem;
+
+      (* an alternative would that cc refines (kcc_c krel) for some krel *)
+      self_simulation: forall p, forward_simulation cc cc (semantics1 p @ K1) (semantics1 p @ K2);
+      memory_separation w q1 kq1 r1 kr1 q2 kq2 r2 kr2:
+        match_query cc w (q1, kq1) (q2, kq2) ->
+        match_reply cc w (r1, kr1) (r2, kr2) ->
+        Mem.unchanged_on other (cq_mem q2) (cr_mem r2);
+      query_kmrel w q1 k1 q2 k2:
+        match_query cc w (q1, k1) (q2, k2) -> kmrel (cq_mem q1, k1) (cq_mem q2, k2);
+      reply_kmrel w r1 k1 r2 k2:
+        kmrel (cr_mem r1, k1) (cr_mem r2, k2) ->
+        (* Assumed the identity injection here. It could be an extra field in
+           this structure though. *)
+        Val.inject inject_id (cr_retval r1) (cr_retval r2) ->
+        Mem.unchanged_on vars (mem_index w) (cr_mem r2) ->
+        match_reply cc w (r1, k1) (r2, k2);
+      kmrel_invariant m1 k1 m2 k2 m3:
+        kmrel (m1, k1) (m2, k2) -> Mem.unchanged_on vars m2 m3 -> kmrel (m1, k1) (m3, k2);
+      reply_valinj w r1 k1 r2 k2:
+        match_reply cc w (r1, k1) (r2, k2) -> Val.inject inject_id (cr_retval r1) (cr_retval r2);
+    }.
+
+  (* TODO: crel can be composed both vertically and horizontally *)
+
+  (* TODO: make sure memory separation is good enough for the horizontal and
+     vertical composition. *)
+
+  (* TODO: derive a crel from krel *)
+
+  Section KCC.
+    Context {K1 K2} (R: krel K1 K2).
+
+    Let krel_world := mem.
+    Instance krel_kframe: KripkeFrame unit krel_world :=
+      {|
+        acc _ := Mem.unchanged_on (fun b ofs => ~ G R b ofs)
+      |}.
+
+    Inductive krel_query: krel_world -> query (li_c@K1) -> query (li_c@K2) -> Prop :=
+    | krel_query_intro vf1 sg1 vargs1 m1 vf2 sg2 vargs2 m2 k1 k2:
+        Val.inject inject_id vf1 vf2 ->
+        Val.inject_list inject_id vargs1 vargs2 ->
+        vf1 <> Vundef ->
+        Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
+        Rr R k1 m2 -> Rk R k1 k2 ->
+        krel_query m2 (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
+
+    Inductive krel_reply: krel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
+    | krel_reply_intro retval1 m1 retval2 m2 k1 k2:
+        Val.inject inject_id retval1 retval2 ->
+        Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
+        Rr R k1 m2 -> Rk R k1 k2 ->
+        krel_reply m2 (cr retval1 m1, k1) (cr retval2 m2, k2).
+
+    Program Definition krel_cc: callconv (li_c@K1) (li_c@K2) :=
+      {|
+        ccworld := krel_world;
+        match_senv _ := eq;
+        match_query := krel_query;
+        match_reply := (<> krel_reply)%klr;
+      |}.
+    Next Obligation.
+      inv H0. cbn. apply val_inject_id in H4. now inv H4.
+    Qed.
+    Next Obligation.
+      inv H. cbn. apply val_inject_id in H4. now inv H4.
+    Qed.
+
+    Program Definition krel_crel: crel K1 K2 :=
+      {|
+        cc := krel_cc;
+        vars := G R;
+        kmrel '(m1, k1) '(m2, k2) := Mem.extends m1 m2 /\ Rr R k1 m2 /\ Rk R k1 k2;
+        mem_index := id;
+      |}.
+    Next Obligation.
+      (* Prove that krel_cc is a refinement of the above calling convention
+         defined in terms of CKLR *)
+    Admitted.
+    Next Obligation.
+      inv H. destruct H0 as [w' [Hw Hr]]. now inv Hr.
+    Qed.
+    Next Obligation.
+      now inv H.
+    Qed.
+    Next Obligation.
+      eexists. split. cbn. apply H1.
+
+
+
+
+  End KCC.
+End CREL.
+
+Class Inhabited (I: Type) := inhabited_prop: inhabited I.
+
+Global Instance bool_inhabited: Inhabited bool.
+Proof.
+  split. exact true.
+Qed.
+
+Inductive rel_adt: Type -> Type -> Type :=
+| empty_rel K: rel_adt K K
+| singleton_rel `(krel K1 K2): rel_adt K1 K2
+| vcomp_rel `(rel_adt K1 K2) `(rel_adt K2 K3): rel_adt K1 K3
+| tcomp_rel `(rel_adt K1 K3) `(rel_adt K2 K4): rel_adt (K1*K2) (K3*K4).
 
 Fixpoint absrel_to_cc {K1 K2} (rel: rel_adt K1 K2):
   callconv (li_c @ K1) (li_c @ K2) :=
