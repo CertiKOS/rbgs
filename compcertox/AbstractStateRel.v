@@ -394,109 +394,70 @@ Next Obligation.
   eapply match_query_defined in H; eauto.
 Qed.
 
-Section CREL.
-  (* Compositional Abstraction Relation *)
-  Record crel (K1 K2: Type) :=
-    {
-      cc :> callconv (li_c@K1) (li_c@K2);
-      vars : block -> Z -> Prop;
-      other := fun b ofs => ~ vars b ofs;
-      (* kmrel is compositional even though krel does not compose *)
-      kmrel : mem * K1 -> mem * K2 -> Prop;
-      mem_index : ccworld cc -> mem;
+Section KCC.
+  Context {K1 K2} (R: krel K1 K2).
 
-      (* an alternative would that cc refines (kcc_c krel) for some krel *)
-      self_simulation: forall p, forward_simulation cc cc (semantics1 p @ K1) (semantics1 p @ K2);
-      memory_separation w q1 kq1 r1 kr1 q2 kq2 r2 kr2:
-        match_query cc w (q1, kq1) (q2, kq2) ->
-        match_reply cc w (r1, kr1) (r2, kr2) ->
-        Mem.unchanged_on other (cq_mem q2) (cr_mem r2);
-      query_kmrel w q1 k1 q2 k2:
-        match_query cc w (q1, k1) (q2, k2) -> kmrel (cq_mem q1, k1) (cq_mem q2, k2);
-      reply_kmrel w r1 k1 r2 k2:
-        kmrel (cr_mem r1, k1) (cr_mem r2, k2) ->
-        (* Assumed the identity injection here. It could be an extra field in
-           this structure though. *)
-        Val.inject inject_id (cr_retval r1) (cr_retval r2) ->
-        Mem.unchanged_on vars (mem_index w) (cr_mem r2) ->
-        match_reply cc w (r1, k1) (r2, k2);
-      kmrel_invariant m1 k1 m2 k2 m3:
-        kmrel (m1, k1) (m2, k2) -> Mem.unchanged_on vars m2 m3 -> kmrel (m1, k1) (m3, k2);
-      reply_valinj w r1 k1 r2 k2:
-        match_reply cc w (r1, k1) (r2, k2) -> Val.inject inject_id (cr_retval r1) (cr_retval r2);
-    }.
+  Let krel_world := mem.
+  (* The memory in the source program is unchanged through the computation *)
+  Instance krel_kframe: KripkeFrame unit krel_world :=
+    {|
+      acc _ := Mem.unchanged_on (fun b ofs => ~ G R b ofs)
+    |}.
 
-  (* TODO: crel can be composed both vertically and horizontally *)
+  Inductive krel_query: krel_world -> query (li_c@K1) -> query (li_c@K2) -> Prop :=
+  | krel_query_intro vf1 sg1 vargs1 m1 vf2 sg2 vargs2 m2 k1 k2:
+      Val.inject inject_id vf1 vf2 ->
+      Val.inject_list inject_id vargs1 vargs2 ->
+      vf1 <> Vundef ->
+      Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
+      Rr R k1 m2 -> Rk R k1 k2 ->
+      krel_query m2 (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
 
-  (* TODO: make sure memory separation is good enough for the horizontal and
-     vertical composition. *)
+  (* Add the source memory to the index if we need to prove the permissions
+       are preserved *)
+  Inductive krel_reply: krel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
+  | krel_reply_intro retval1 m1 retval2 m2 k1 k2:
+      Val.inject inject_id retval1 retval2 ->
+      Mem.extends m1 m2 -> (* no_perm_on m1 (G R) -> *)
+      Rr R k1 m2 -> Rk R k1 k2 ->
+      krel_reply m2 (cr retval1 m1, k1) (cr retval2 m2, k2).
 
-  (* TODO: derive a crel from krel *)
+  Program Definition krel_cc: callconv (li_c@K1) (li_c@K2) :=
+    {|
+      ccworld := krel_world;
+      match_senv _ := eq;
+      match_query := krel_query;
+      match_reply := (<> krel_reply)%klr;
+    |}.
+  Next Obligation.
+    inv H0. cbn. apply val_inject_id in H4. now inv H4.
+  Qed.
+  Next Obligation.
+    inv H. cbn. apply val_inject_id in H4. now inv H4.
+  Qed.
 
-  Section KCC.
-    Context {K1 K2} (R: krel K1 K2).
+End KCC.
 
-    Let krel_world := mem.
-    Instance krel_kframe: KripkeFrame unit krel_world :=
-      {|
-        acc _ := Mem.unchanged_on (fun b ofs => ~ G R b ofs)
-      |}.
+Section PROD.
+  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
+  Program Definition prod_krel: krel (K1*K3) (K2*K4) :=
+    {|
+      Rk '(k1, k3) '(k2, k4) := Rk R1 k1 k2 /\ Rk R2 k3 k4;
+      Rr '(k1, k3) m := Rr R1 k1 m /\ Rr R2 k3 m;
+      G b ofs := G R1 b ofs \/ G R2 b ofs;
+    |}.
+  Next Obligation.
+    split; eapply G_unchanged; eauto; eapply Mem.unchanged_on_implies; eauto;
+      intros; cbn; [left | right]; auto.
+  Qed.
+  Next Obligation.
+    destruct H0; [ eapply (G_valid R1) | eapply (G_valid R2) ]; eauto.
+  Qed.
 
-    Inductive krel_query: krel_world -> query (li_c@K1) -> query (li_c@K2) -> Prop :=
-    | krel_query_intro vf1 sg1 vargs1 m1 vf2 sg2 vargs2 m2 k1 k2:
-        Val.inject inject_id vf1 vf2 ->
-        Val.inject_list inject_id vargs1 vargs2 ->
-        vf1 <> Vundef ->
-        Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
-        Rr R k1 m2 -> Rk R k1 k2 ->
-        krel_query m2 (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
+End PROD.
 
-    Inductive krel_reply: krel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
-    | krel_reply_intro retval1 m1 retval2 m2 k1 k2:
-        Val.inject inject_id retval1 retval2 ->
-        Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
-        Rr R k1 m2 -> Rk R k1 k2 ->
-        krel_reply m2 (cr retval1 m1, k1) (cr retval2 m2, k2).
-
-    Program Definition krel_cc: callconv (li_c@K1) (li_c@K2) :=
-      {|
-        ccworld := krel_world;
-        match_senv _ := eq;
-        match_query := krel_query;
-        match_reply := (<> krel_reply)%klr;
-      |}.
-    Next Obligation.
-      inv H0. cbn. apply val_inject_id in H4. now inv H4.
-    Qed.
-    Next Obligation.
-      inv H. cbn. apply val_inject_id in H4. now inv H4.
-    Qed.
-
-    Program Definition krel_crel: crel K1 K2 :=
-      {|
-        cc := krel_cc;
-        vars := G R;
-        kmrel '(m1, k1) '(m2, k2) := Mem.extends m1 m2 /\ Rr R k1 m2 /\ Rk R k1 k2;
-        mem_index := id;
-      |}.
-    Next Obligation.
-      (* Prove that krel_cc is a refinement of the above calling convention
-         defined in terms of CKLR *)
-    Admitted.
-    Next Obligation.
-      inv H. destruct H0 as [w' [Hw Hr]]. now inv Hr.
-    Qed.
-    Next Obligation.
-      now inv H.
-    Qed.
-    Next Obligation.
-      eexists. split. cbn. apply H1.
-
-
-
-
-  End KCC.
-End CREL.
+Infix "*" := prod_krel.
+Coercion krel_cc : krel >-> callconv.
 
 Class Inhabited (I: Type) := inhabited_prop: inhabited I.
 
