@@ -7,6 +7,59 @@ Require Import Memory Values.
 Require Import Linking.
 Require Import Lifting AbstractStateRel.
 
+Section Properties.
+
+  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
+  Lemma prod_match_reply w r1 r2 k1 k2 k3 k4:
+    match_reply R1 w (r1, k1) (r2, k2) ->
+    Rk R2 k3 k4 -> Rr R2 k3 (cr_mem r2) ->
+    (* kmrel (krel_crel R2) (cr_mem r1, k3) (cr_mem r2, k4) -> *)
+    match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
+  Proof.
+    intros [w' [Hw' Hr]] H. exists w'; split.
+    - cbn in *. eapply Mem.unchanged_on_implies; eauto.
+      cbn in *. intros. intro contra. apply H1. now left.
+    - inv Hr. cbn in *. constructor; eauto.
+      + split; eauto.
+      + split; eauto.
+  Qed.
+
+  Lemma prod_match_query w q1 q2 k1 k2 k3 k4:
+    match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)) ->
+    match_query R1 w (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 k3 w.
+  Proof.
+    intros. inv H. repeat apply conj; cbn in *.
+    constructor; eauto.
+    - intros b ofs Hg. apply H9. now left.
+    - firstorder.
+    - firstorder.
+    - firstorder.
+    - firstorder.
+  Qed.
+
+  Lemma match_query_comm w q1 q2 k1 k2 k3 k4:
+    match_query (R2 * R1) w (q1, (k3, k1)) (q2, (k4, k2)) ->
+    match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)).
+  Proof.
+    intros. inv H. constructor; auto.
+    - intros b ofs Hg. apply H9. cbn in *. intuition.
+    - cbn in *. intuition.
+    - cbn in *. intuition.
+  Qed.
+
+  Lemma match_reply_comm w r1 r2 k1 k2 k3 k4:
+    match_reply (R2 * R1) w (r1, (k3, k1)) (r2, (k4, k2)) ->
+    match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
+  Proof.
+    intros [w' [Hw H]]. exists w'; split.
+    - cbn in *. eapply Mem.unchanged_on_implies. eauto. cbn. intuition.
+    - inv H. econstructor; auto.
+      + cbn in *. intuition.
+      + cbn in *. intuition.
+  Qed.
+
+End Properties.
+
 Generalizable All Variables.
 
 (* A li_func convert from one language interface to another. This is useful
@@ -93,37 +146,61 @@ Definition layer_comm {li K1 K2} (L: semantics li_null (li@(K2*K1))): semantics 
 Definition lts_comm {li K1 K2} (L: semantics (li@(K2*K1)) (li@(K2*K1))): semantics (li@(K1*K2)) (li@(K1*K2)) :=
   L %% li_func_comm.
 
-Section Properties.
+Lemma mapping_monotonicity1 {liA liB1 liB2} (L1 L2: semantics liA liB1) (F: li_func liB1 liB2):
+  L1 ≤ L2 -> L1 $$ F ≤ L2 $$ F.
+Proof.
+Admitted.
 
-  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
-  Lemma prod_match_reply w r1 r2 k1 k2 k3 k4:
-    match_reply R1 w (r1, k1) (r2, k2) ->
-    Rk R2 k3 k4 -> Rr R2 k3 (cr_mem r2) ->
-    (* kmrel (krel_crel R2) (cr_mem r1, k3) (cr_mem r2, k4) -> *)
-    match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
-  Proof.
-    intros [w' [Hw' Hr]] H. exists w'; split.
-    - cbn in *. eapply Mem.unchanged_on_implies; eauto.
-      cbn in *. intros. intro contra. apply H1. now left.
-    - inv Hr. cbn in *. constructor; eauto.
-      + split; eauto.
-      + split; eauto.
-  Qed.
+Lemma mapping_monotonicity2 {liA1 liA2 liB} (L1 L2: semantics liA1 liB) (F: li_func liA1 liA2):
+  L1 ≤ L2 -> L1 ## F ≤ L2 ## F.
+Proof.
+Admitted.
 
-  Lemma prod_match_query w q1 q2 k1 k2 k3 k4:
-    match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)) ->
-    match_query R1 w (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 k3 w.
-  Proof.
-    intros. inv H. repeat apply conj; cbn in *.
-    constructor; eauto.
-    - intros b ofs Hg. apply H9. now left.
-    - firstorder.
-    - firstorder.
-    - firstorder.
-    - firstorder.
-  Qed.
+Lemma mapping_monotonicity3 {liA1 liA2} (L1 L2: semantics liA1 liA1) (F: li_func liA1 liA2):
+  L1 ≤ L2 -> L1 %% F ≤ L2 %% F.
+Proof.
+Admitted.
 
-End Properties.
+Lemma mapping_comp1 {liA1 liA2 liB liC} (L1: semantics liB liC) (L2: semantics liA1 liB) (F: li_func liA1 liA2) sk:
+  (comp_semantics' L1 L2 sk) ## F ≤ comp_semantics' L1 (L2 ## F) sk.
+Proof.
+Admitted.
+
+Lemma mapping_comp2 {liA liB1 liB2} (L1: semantics liB1 liB1) (L2: semantics liA liB1) (F: li_func liB1 liB2) sk:
+  (comp_semantics' L1 L2 sk) $$ F ≤ comp_semantics' (L1 %% F) (L2 $$ F) sk.
+Proof.
+Admitted.
+
+Lemma layer_comm_simulation {K1 K2 K3 K4} (R: krel K1 K2) (S: krel K3 K4) L1 L2:
+  forward_simulation 1 (R * S) L1 L2 -> forward_simulation 1 (S * R) (layer_comm L1) (layer_comm L2).
+Proof.
+  intros [[]]. constructor. econstructor; eauto.
+  instantiate (1 := fsim_match_states).
+  intros. exploit fsim_lts; eauto. clear. intros HL.
+  constructor.
+  - intros [q1 [k3 k1]] [q [k4 k2]] s1 Hq H.
+    edestruct @fsim_match_initial_states as (idx & s2 & Hs2 & Hs); eauto.
+    apply match_query_comm; eauto. apply H.
+    eexists _, _. split. apply Hs2. apply Hs.
+  - intros idx s1 s2 [r [k3 k1]] Hs H.
+    edestruct @fsim_match_final_states as (r2 & Hr2 & Hr); eauto.
+    apply H. destruct r2 as [r2 [k2 k4]].
+    eexists (_, (_, _)). split. apply Hr2.
+    apply match_reply_comm. apply Hr.
+  - intros ? ? ? [ ].
+  - intros. edestruct @fsim_simulation as (idx' & s2' & Hs2' & Hs'); eauto.
+Qed.
+
+Lemma lts_lifting_assoc (K1 K2: Type) {li} (L: semantics li li):
+  (L @ K1) @ K2 %% li_func_k ≤ L @ (K1 * K2).
+Proof.
+Admitted.
+
+Lemma lts_lifting_comm (K1 K2: Type) {li} (L: semantics li li):
+  L @ (K1 * K2) %% li_func_comm ≤ L @ (K2 * K1).
+Proof.
+Admitted.
+
 
 Section TENSOR.
 
@@ -200,3 +277,130 @@ Section TENSOR.
   Definition tensor_comp_semantics' sk := flat_comp_semantics' LK sk.
 
 End TENSOR.
+
+Section MONOTONICITY.
+
+  Context {K1 K2 K3 K4: Type} (R: krel K1 K2) (S: krel K3 K4).
+  Context (L1: layer K1) (L2: layer K2) (L3: layer K3) (L4: layer K4).
+  Hypothesis (HL1: forward_simulation 1 R L1 L2) (HL2: forward_simulation 1 S L3 L4).
+  Variable (sk: AST.program unit unit).
+  Hypothesis (Hsk1: linkorder (skel L1) sk) (Hsk2: linkorder (skel L3) sk).
+  Hypothesis (Hdisjoint: forall b ofs, G R b ofs -> G S b ofs -> False).
+
+  Lemma tensor_compose_simulation:
+    forward_simulation 1 (R * S) (tensor_comp_semantics' L1 L3 sk) (tensor_comp_semantics' L2 L4 sk).
+  Proof.
+    unfold tensor_comp_semantics'. apply flat_composition_simulation'.
+    - intros [|].
+      + apply layer_lifting_simulation; eauto.
+      + apply layer_comm_simulation.
+        apply layer_lifting_simulation; eauto.
+    - intros [|]; auto.
+  Qed.
+
+End MONOTONICITY.
+
+Section INTERC.
+
+  Context {I: Type} {liA liB liC: language_interface}.
+  Context (L1: I -> semantics liB liC) (L2: I -> semantics liA liB).
+  Context (ski: I -> AST.program unit unit).
+  Variable (sk: AST.program unit unit).
+  Let LC i := comp_semantics' (L1 i) (L2 i) (ski i).
+
+  Lemma categorical_flat_interchangeable:
+    flat_comp_semantics' LC sk ≤ comp_semantics' (flat_comp_semantics' L1 sk) (flat_comp_semantics' L2 sk) sk.
+  Proof.
+  Admitted.
+
+End INTERC.
+
+Require Import CModule.
+Require Import Composition.
+Require Import FunctionalExtensionality.
+
+Section TCOMP.
+
+  Context {K1 K2 K3 K4: Type} (R: krel K1 K2) (S: krel K3 K4).
+  Context (L1: layer K1) (L2: layer K2) (L3: layer K3) (L4: layer K4).
+  Context (M N: cmodule).
+
+  Hypothesis (HL1: ksim L1 L2 M R) (HL2: ksim L3 L4 N S).
+  Variable (sk: AST.program unit unit).
+  Hypothesis (Hk1: linkorder (skel L1) sk) (Hk2: linkorder (skel L3) sk).
+  Let Mi := (fun i : bool => if i then semantics M sk else semantics N sk).
+  Context `{!FlatLinkable Mi}.
+  Hypothesis Hdisjoint: forall b ofs, AbstractStateRel.G S b ofs -> AbstractStateRel.G R b ofs -> False.
+
+  Lemma layer_tcomp: ksim (tensor_comp_semantics' L1 L3 sk)
+                          (tensor_comp_semantics' L2 L4 sk)
+                          (M ++ N) (R * S).
+  Proof.
+    unfold ksim in *.
+    destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
+    destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
+    split. eapply linkorder_refl.
+    split. apply compatible_app; (eapply compatible_trans; [ | eauto]); eauto.
+
+    exploit @tensor_compose_simulation; [exact H1 | exact H2 | .. ]; eauto. intros H.
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations. exact H.
+
+    unfold tensor_comp_semantics'. cbn.
+    unfold layer_comp.
+
+    etransitivity.
+    {
+      apply flat_composition_simulation'. instantiate (1 := fun i => match i with true => _ | false => _ end).
+      intros [|].
+      - instantiate (1 := comp_semantics' (semantics M (skel L1) @ (K2 * K4)) (lift_layer_k L2) (skel L1)).
+        etransitivity.
+        + apply mapping_monotonicity1. etransitivity.
+          * apply mapping_monotonicity2. apply lift_categorical_comp1.
+          * apply mapping_comp1.
+        + etransitivity.
+          * apply mapping_comp2.
+          * eapply categorical_compose_simulation'.
+            -- apply lts_lifting_assoc.
+            -- reflexivity.
+            -- apply linkorder_refl.
+            -- auto.
+      - instantiate (1 := comp_semantics' (semantics N (skel L3) @ (K2 * K4)) (layer_comm (lift_layer_k L4)) (skel L3)).
+        etransitivity.
+        + apply mapping_monotonicity1. etransitivity.
+          * apply mapping_monotonicity1. etransitivity.
+            -- apply mapping_monotonicity2. apply lift_categorical_comp1.
+            -- apply mapping_comp1.
+          * apply mapping_comp2.
+        + etransitivity.
+          * apply mapping_comp2.
+          * eapply categorical_compose_simulation'.
+            -- etransitivity.
+               ++ apply mapping_monotonicity3. apply lts_lifting_assoc.
+               ++ apply lts_lifting_comm.
+            -- reflexivity.
+            -- apply linkorder_refl.
+            -- auto.
+      - intros [|]; auto.
+    }
+
+    set (LX:= fun i:bool => if i then semantics M (skel L1) @ (K2 * K4) else semantics N (skel L3) @ (K2 * K4)).
+    set (LY:= fun i:bool => if i then lift_layer_k L2 else layer_comm (lift_layer_k L4)).
+    set (Lsk:= fun i:bool => if i then skel L1 else skel L3).
+    replace (flat_comp_semantics' _ sk) with (flat_comp_semantics' (fun i:bool => comp_semantics' (LX i) (LY i) (Lsk i)) sk).
+    2: {
+      subst LX  LY Lsk. cbn. f_equal. apply functional_extensionality.
+      intros [|]; reflexivity.
+    }
+
+    etransitivity. apply categorical_flat_interchangeable.
+    eapply categorical_compose_simulation'; [ | reflexivity | apply linkorder_refl | apply linkorder_refl ].
+    subst LX. rewrite <- if_rewrite with (f := fun x => x @ (K2 * K4)).
+    etransitivity. apply lift_flat_comp2. apply lifting_simulation.
+    etransitivity. 2: { apply cmodule_flat_comp_simulation. eauto. }
+    etransitivity. apply lift_flat_comp_component. cbn.
+    rewrite if_rewrite with (f := fun x => skel_extend x sk). reflexivity.
+  Qed.
+
+End TCOMP.
