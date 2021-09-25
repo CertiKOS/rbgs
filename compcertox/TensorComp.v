@@ -6,6 +6,7 @@ Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp F
 Require Import Memory Values.
 Require Import Linking.
 Require Import Lifting AbstractStateRel.
+Require Import Coq.Logic.FinFun.
 
 Section Properties.
 
@@ -73,6 +74,11 @@ Record li_func (liA liB: language_interface) :=
 Arguments query_func {liA liB} _ _.
 Arguments reply_func {liA liB} _ _.
 
+Class LiSurjective {liA liB} (F: li_func liA liB) :=
+  LiSurj: Surjective (query_func F) /\ Surjective (reply_func F).
+
+Arguments LiSurjective {_ _} _.
+
 Section APPLY.
 
   Context {liA1 liA2 liB1 liB2 S} (L: lts liA1 liB1 S)
@@ -91,31 +97,116 @@ Section APPLY.
 
 End APPLY.
 
-Definition semantics_map {liA1 liA2 liB1 liB2} (L: semantics liA1 liB1)
-           (F: li_func liA1 liA2) (G: li_func liB1 liB2) :=
+Definition semantics_map {liA1 liA2 liB1 liB2} (L: semantics liA1 liB1) F G: semantics liA2 liB2 :=
   {|
     skel := skel L;
     activate se := lts_map (L se) F G;
     footprint := footprint L;
   |}.
 
+Definition map_monotonicity {liA1 liA2 liB1 liB2} L1 L2 (F: li_func liA1 liA2) (G: li_func liB1 liB2):
+  L1 ≤ L2 -> semantics_map L1 F G ≤ semantics_map L2 F G.
+Proof.
+  intros [[]]. constructor. econstructor; eauto.
+  instantiate (1 := fsim_match_states).
+  intros. exploit fsim_lts; eauto. clear. intros HL.
+  constructor.
+  - intros q1 q2 s1 Hq H. inv Hq.
+    edestruct @fsim_match_initial_states as (idx & s2 & Hs2 & Hs); eauto.
+    reflexivity. apply H.
+    eexists _, _. split. apply Hs2. apply Hs.
+  - intros idx s1 s2 r Hs H.
+    edestruct @fsim_match_final_states as (r2 & Hr2 & Hr); eauto.
+    apply H. inv Hr. eexists. split.
+    apply Hr2. reflexivity.
+  - intros idx s1 s2 q1 Hs Ht. exists tt.
+    edestruct @fsim_match_external as (wx & qx2 & Hqx2 & Hqx & Hsex & H); eauto. apply Ht.
+    inv Hqx. inv Hsex. exists q1; repeat apply conj; try constructor. apply Hqx2.
+    intros r1 ? ? [ ] He. edestruct H as (idx' & s2' & Hs2' & Hs'); eauto. reflexivity.
+    apply He. eexists _, _. split. apply Hs2'. apply Hs'.
+  - intros. edestruct @fsim_simulation as (idx' & s2' & Hs2' & Hs'); eauto.
+Qed.
+
 Definition id_li_func {liA} := mk_li_func liA liA id id.
 
-Definition map_outgoing {liA liB1 liB2} (L: semantics liA liB1) (F: li_func liB1 liB2) :=
-  semantics_map L id_li_func F.
+Definition mapA {liA1 liA2 liB} (L: semantics liA1 liB) (F: li_func liA1 liA2) := semantics_map L F id_li_func.
+Notation "F >> L" := (mapA L F) (at level 50): lts_scope.
 
-Definition map_incoming {liA1 liA2 liB} (L: semantics liA1 liB) (F: li_func liA1 liA2) :=
-  semantics_map L F id_li_func.
+Lemma mapA_monotonicity {liA1 liA2 liB} (L1 L2: semantics liA1 liB) (F: li_func liA1 liA2):
+  L1 ≤ L2 -> F >> L1 ≤ F >> L2.
+Proof. apply map_monotonicity. Qed.
 
-Definition map_both {li1 li2} (L: semantics li1 li1) (F: li_func li1 li2) :=
-  semantics_map L F F.
+Definition mapB {liA liB1 liB2} (L: semantics liA liB1) (F: li_func liB1 liB2) := semantics_map L id_li_func F.
+Notation "L << F" := (mapB L F) (at level 50): lts_scope.
 
-Infix "##" := map_incoming (at level 50): lts_scope.
-Infix "$$" := map_outgoing (at level 50): lts_scope.
-Infix "%%" := map_both (at level 50): lts_scope.
+Lemma mapB_monotonicity {liA liB1 liB2} (L1 L2: semantics liA liB1) (F: li_func liB1 liB2):
+  L1 ≤ L2 -> L1 << F ≤ L2 << F.
+Proof. apply map_monotonicity. Qed.
 
-(* The generated definition looks funky
-   Try use idtac as default *)
+Definition map_both {li1 li2} (L: semantics li1 li1) (F: li_func li1 li2) := semantics_map L F F.
+Notation "F $$ L" := (map_both L F) (at level 50): lts_scope.
+Lemma map_both_monotonicity {liA1 liA2} (L1 L2: semantics liA1 liA1) (F: li_func liA1 liA2):
+  L1 ≤ L2 -> map_both L1 F ≤ map_both L2 F.
+Proof. apply map_monotonicity. Qed.
+
+
+Section MAPA_COMP.
+  Context {liA1 liA2 liB liC} (L1: semantics liB liC) (L2: semantics liA1 liB) (F: li_func liA1 liA2).
+
+  Inductive mapA_ms : comp_state L1 L2 -> comp_state L1 (F >> L2) -> Prop :=
+  | mapA_ms1 s: mapA_ms (st1 _ _ s) (st1 _ _ s)
+  | mapA_ms2 s1 s2: mapA_ms (st2 _ _ s1 s2) (st2 _ (F >> L2) s1 s2).
+
+  Lemma mapA_comp sk: F >> (comp_semantics' L1 L2 sk) ≤ comp_semantics' L1 (F >> L2) sk.
+  Proof.
+    constructor. econstructor; eauto. intros i. reflexivity.
+    intros se _ [ ] [ ] _. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := mapA_ms);
+      cbn; intros; subst; unfold id in *.
+    - inv H0. eexists; split; constructor. auto.
+    - inv H0; inv H. eexists; split; constructor; auto.
+    - inv H0; inv H. eexists _, _. intuition eauto.
+      constructor; auto. subst. inv H0. eexists; split; constructor. auto.
+    - inv H; inv H0; eexists; split;
+        [ apply step1 | | apply step2 | | eapply step_push | | eapply step_pop |  ]; repeat constructor; eauto.
+    - apply well_founded_ltof.
+      Unshelve. exact tt.
+  Qed.
+End MAPA_COMP.
+
+Section MAPB_COMP.
+
+  Context {liA liB1 liB2} (L1: semantics liB1 liB1) (L2: semantics liA liB1) (F: li_func liB1 liB2).
+
+  Inductive mapB_ms : comp_state L1 L2 -> comp_state (F $$ L1) (L2 << F) -> Prop :=
+  | mapB_ms1 s: mapB_ms (st1 _ _ s) (st1 (F $$ L1) _ s)
+  | mapB_ms2 s1 s2: mapB_ms (st2 _ _ s1 s2) (st2 (F $$ L1) (L2 << F) s1 s2).
+
+  Context `{HS: !LiSurjective F}.
+
+  Lemma mapB_comp' sk: (comp_semantics' L1 L2 sk) << F ≤ comp_semantics' (F $$ L1) (L2 << F) sk.
+  Proof.
+    constructor. econstructor; eauto. intros i. reflexivity.
+    intros se _ [ ] [ ] _. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := mapB_ms);
+      cbn; intros; subst; unfold id in *.
+    - inv H0. eexists; split; constructor. auto.
+    - inv H0; inv H. eexists; split; constructor; auto.
+    - inv H0; inv H. eexists _, _. intuition eauto.
+      constructor; auto. subst. inv H0. eexists; split; constructor. auto.
+    - inv H; inv H0; eexists; (split; [ |constructor]).
+      + apply step1. apply H1.
+      + apply step2. apply H1.
+      + specialize ((proj1 HS) q) as [q' Hq']. subst.
+        eapply step_push. apply H1. apply H2.
+      + specialize ((proj2 HS) r) as [r' Hr']. subst.
+        eapply step_pop. apply H1. apply H2.
+    - apply well_founded_ltof.
+      Unshelve. exact tt.
+  Qed.
+
+End MAPB_COMP.
+
 Program Definition li_func_null {K}: li_func (li_null @ K) li_null :=
   {|
     query_func q := match q with end;
@@ -128,48 +219,33 @@ Program Definition li_func_k {li K1 K2}: li_func ((li@K1)@K2) (li@(K1*K2)) :=
     reply_func '(r, k) := ((r, fst k), snd k);
   |}.
 
+Instance li_func_k_surj {li K1 K2}: LiSurjective (@li_func_k li K1 K2).
+Proof.
+  split; intros [[x k1] k2]; exists (x, (k1, k2)); reflexivity.
+Qed.
+
 Program Definition li_func_comm {li K1 K2}: li_func (li@(K1*K2)) (li@(K2*K1)) :=
   {|
     query_func '(q, (k1, k2)) := (q, (k2, k1));
     reply_func '(r, (k1, k2)) := (r, (k2, k1));
   |}.
 
+Instance li_func_comm_surj {li K1 K2}: LiSurjective (@li_func_comm li K1 K2).
+Proof.
+  split; intros [x [k1 k2]]; exists (x, (k2, k1)); reflexivity.
+Qed.
+
 Definition lift_layer {li K} (L: semantics li_null li): semantics li_null (li@K) :=
-  L@K ## li_func_null.
+  li_func_null >> L@K.
 
 Definition lift_layer_k {li K1 K2} (L: semantics li_null (li@K1)): semantics li_null (li@(K1*K2)) :=
-  L@K2 ## li_func_null $$ li_func_k.
+  li_func_null >> L@K2 << li_func_k.
 
 Definition layer_comm {li K1 K2} (L: semantics li_null (li@(K2*K1))): semantics li_null (li@(K1*K2)) :=
-  L $$ li_func_comm.
+  L << li_func_comm.
 
 Definition lts_comm {li K1 K2} (L: semantics (li@(K2*K1)) (li@(K2*K1))): semantics (li@(K1*K2)) (li@(K1*K2)) :=
-  L %% li_func_comm.
-
-Lemma mapping_monotonicity1 {liA liB1 liB2} (L1 L2: semantics liA liB1) (F: li_func liB1 liB2):
-  L1 ≤ L2 -> L1 $$ F ≤ L2 $$ F.
-Proof.
-Admitted.
-
-Lemma mapping_monotonicity2 {liA1 liA2 liB} (L1 L2: semantics liA1 liB) (F: li_func liA1 liA2):
-  L1 ≤ L2 -> L1 ## F ≤ L2 ## F.
-Proof.
-Admitted.
-
-Lemma mapping_monotonicity3 {liA1 liA2} (L1 L2: semantics liA1 liA1) (F: li_func liA1 liA2):
-  L1 ≤ L2 -> L1 %% F ≤ L2 %% F.
-Proof.
-Admitted.
-
-Lemma mapping_comp1 {liA1 liA2 liB liC} (L1: semantics liB liC) (L2: semantics liA1 liB) (F: li_func liA1 liA2) sk:
-  (comp_semantics' L1 L2 sk) ## F ≤ comp_semantics' L1 (L2 ## F) sk.
-Proof.
-Admitted.
-
-Lemma mapping_comp2 {liA liB1 liB2} (L1: semantics liB1 liB1) (L2: semantics liA liB1) (F: li_func liB1 liB2) sk:
-  (comp_semantics' L1 L2 sk) $$ F ≤ comp_semantics' (L1 %% F) (L2 $$ F) sk.
-Proof.
-Admitted.
+   li_func_comm $$ L.
 
 Lemma layer_comm_simulation {K1 K2 K3 K4} (R: krel K1 K2) (S: krel K3 K4) L1 L2:
   forward_simulation 1 (R * S) L1 L2 -> forward_simulation 1 (S * R) (layer_comm L1) (layer_comm L2).
@@ -191,16 +267,56 @@ Proof.
   - intros. edestruct @fsim_simulation as (idx' & s2' & Hs2' & Hs'); eauto.
 Qed.
 
-Lemma lts_lifting_assoc (K1 K2: Type) {li} (L: semantics li li):
-  (L @ K1) @ K2 %% li_func_k ≤ L @ (K1 * K2).
-Proof.
-Admitted.
+Ltac prod_crush :=
+  repeat
+    (match goal with
+     | [ H: ?a * ?b |- _ ] => destruct H;cbn [fst snd] in *; subst
+     | [ H: (?a, ?b) = (?c, ?d) |- _ ] => inv H
+     | [ H: (?x * ?y)%rel _ _ |- _] => destruct H; cbn [fst snd] in *; subst
+     | [ H: ?x /\ ?y |- _] => destruct H
+  end).
 
-Lemma lts_lifting_comm (K1 K2: Type) {li} (L: semantics li li):
-  L @ (K1 * K2) %% li_func_comm ≤ L @ (K2 * K1).
-Proof.
-Admitted.
+Section LIFT_ASSOC.
+  Context (K1 K2: Type) {li} (L: semantics li li).
+  Inductive assoc_match: (state L * K1) * K2 -> state L * (K1 * K2) -> Prop :=
+  | assoc_match_intro s k1 k2: assoc_match ((s, k1), k2) (s, (k1, k2)).
 
+Lemma lts_lifting_assoc: li_func_k $$ (L @ K1) @ K2 ≤ L @ (K1 * K2).
+Proof.
+  constructor. econstructor; eauto. intros i. reflexivity.
+  intros se _ [ ] [ ] _. instantiate (1 := fun _ _ _ => _). cbn beta.
+  eapply forward_simulation_step with (match_states := assoc_match);
+    cbn; intros; prod_crush.
+  - eexists; split; [ | constructor ]. split; auto.
+  - inv H. eexists; split; [ | constructor ]. split; auto.
+  - inv H. eexists tt, _. intuition eauto. split; auto.
+    prod_crush. eexists; split; [ | constructor ]. split; auto.
+  - inv H0. eexists (_, (_, _)). split; [ | constructor ]. split; auto.
+  - apply well_founded_ltof.
+Qed.
+
+End LIFT_ASSOC.
+
+Section LIFT_COMM.
+  Context  (K1 K2: Type) {li} (L: semantics li li).
+
+  Inductive comm_match: state L * (K1 * K2) -> state L * (K2 * K1) -> Prop :=
+  | comm_match_intro s k1 k2: comm_match (s, (k1, k2)) (s, (k2, k1)).
+
+  Lemma lts_lifting_comm: li_func_comm $$ L @ (K1 * K2) ≤ L @ (K2 * K1).
+  Proof.
+    constructor. econstructor; eauto. intros i. reflexivity.
+    intros se _ [ ] [ ] _. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := comm_match);
+      cbn; intros; prod_crush.
+    - eexists; split; [ | constructor ]. split; auto.
+    - inv H. eexists; split; [ | constructor ]. split; auto.
+    - inv H. eexists tt, _. intuition eauto. split; auto.
+      prod_crush. eexists; split; [ | constructor ]. split; auto.
+    - inv H0. eexists (_, (_, _)). split; [ | constructor ]. split; auto.
+    - apply well_founded_ltof.
+  Qed.
+End LIFT_COMM.
 
 Section TENSOR.
 
@@ -307,11 +423,36 @@ Section INTERC.
   Context (ski: I -> AST.program unit unit).
   Variable (sk: AST.program unit unit).
   Let LC i := comp_semantics' (L1 i) (L2 i) (ski i).
+  Let LF1 := flat_comp_semantics' L1 sk.
+  Let LF2 := flat_comp_semantics' L2 sk.
+
+  Inductive match_inter: flat_state LC -> comp_state LF1 LF2 -> Prop :=
+  | match_inter1 i s:
+      match_inter (flat_st LC i (st1 _ _ s)) (st1 LF1 _ (flat_st L1 i s))
+  | match_inter2 i s1 s2:
+      match_inter (flat_st LC i (st2 _ _ s1 s2)) (st2 LF1 LF2 (flat_st _ i s1) (flat_st _ i s2)).
 
   Lemma categorical_flat_interchangeable:
-    flat_comp_semantics' LC sk ≤ comp_semantics' (flat_comp_semantics' L1 sk) (flat_comp_semantics' L2 sk) sk.
+    flat_comp_semantics' LC sk ≤ comp_semantics' LF1 LF2 sk.
   Proof.
-  Admitted.
+    constructor. econstructor; [ reflexivity | intros; cbn; firstorder | ..].
+    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
+    apply forward_simulation_step with (match_states := match_inter).
+    - intros q1 _ s1 [ ] H. inv H. inv H0.
+      exists (st1 LF1 _ (flat_st L1 i s0)).
+      split; repeat constructor. auto.
+    - intros s1 s2 r1 Hs H. inv H. inv H0. inv Hs. SmallstepLinking_.subst_dep.
+      exists r1. split; repeat constructor. auto.
+    - intros s1 s2 q Hs H. exists tt.
+      inv H. inv H0. inv Hs. SmallstepLinking_.subst_dep.
+      exists q. repeat apply conj; try constructor. now constructor.
+      intros r1 _ s1' [ ] Ht. inv Ht. inv H4. SmallstepLinking_.subst_dep. inv H2.
+      eexists. split; repeat constructor. auto.
+    - intros. inv H.
+      inv H1; inv H0; SmallstepLinking_.subst_dep; eexists; split;
+        [ apply step1 | | apply step2 | | eapply step_push | | eapply step_pop |  ]; repeat constructor; eauto.
+    - apply well_founded_ltof.
+  Qed.
 
 End INTERC.
 
@@ -356,11 +497,11 @@ Section TCOMP.
       intros [|].
       - instantiate (1 := comp_semantics' (semantics M (skel L1) @ (K2 * K4)) (lift_layer_k L2) (skel L1)).
         etransitivity.
-        + apply mapping_monotonicity1. etransitivity.
-          * apply mapping_monotonicity2. apply lift_categorical_comp1.
-          * apply mapping_comp1.
+        + apply mapB_monotonicity. etransitivity.
+          * apply mapA_monotonicity. apply lift_categorical_comp1.
+          * apply mapA_comp.
         + etransitivity.
-          * apply mapping_comp2.
+          * apply mapB_comp'. typeclasses eauto.
           * eapply categorical_compose_simulation'.
             -- apply lts_lifting_assoc.
             -- reflexivity.
@@ -368,16 +509,16 @@ Section TCOMP.
             -- auto.
       - instantiate (1 := comp_semantics' (semantics N (skel L3) @ (K2 * K4)) (layer_comm (lift_layer_k L4)) (skel L3)).
         etransitivity.
-        + apply mapping_monotonicity1. etransitivity.
-          * apply mapping_monotonicity1. etransitivity.
-            -- apply mapping_monotonicity2. apply lift_categorical_comp1.
-            -- apply mapping_comp1.
-          * apply mapping_comp2.
+        + apply mapB_monotonicity. etransitivity.
+          * apply mapB_monotonicity. etransitivity.
+            -- apply mapA_monotonicity. apply lift_categorical_comp1.
+            -- apply mapA_comp.
+          * apply mapB_comp'. typeclasses eauto.
         + etransitivity.
-          * apply mapping_comp2.
+          * apply mapB_comp'. typeclasses eauto.
           * eapply categorical_compose_simulation'.
             -- etransitivity.
-               ++ apply mapping_monotonicity3. apply lts_lifting_assoc.
+               ++ apply map_both_monotonicity. apply lts_lifting_assoc.
                ++ apply lts_lifting_comm.
             -- reflexivity.
             -- apply linkorder_refl.
