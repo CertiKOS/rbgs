@@ -5,35 +5,61 @@ Require Import CallconvAlgebra_.
 Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp FlatComp.
 Require Import Memory Values.
 Require Import Clight_ Linking.
-Require Import AbstractStateRel Lifting CModule.
+Require Import AbstractStateRel Lifting CModule TensorComp.
 Require Import Ctypes.
 
-Definition prog_layer_comp {K} (p: Clight_.program) (L: layer K) sk :=
-  comp_semantics' (Clight_.semantics2 p @ K) L sk.
+Section PROG_LAYER_DEF.
+  (* L1 is the high level spec with K1 as the abstract data whereas the program
+     running on top of L2 is the low level spec *)
+  Context {K1 K2: Type} (L1: layer K1) (L2: layer K2) (p: Clight_.program).
 
-Definition prog_ksim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
-           (p: Clight_.program) (R: rel_adt K1 K2) :=
-  linkorder (skel L2) (skel L1) /\
-  linkorder (AST.erase_program p) (skel L1) /\
-  forward_simulation 1 R L1 (prog_layer_comp p L2 (skel L1)).
+  Definition prog_layer_comp sk := comp_semantics' (Clight_.semantics2 p @ K2) L2 sk.
 
-Definition layer_comp {K} (M: cmodule) (L: layer K) sk :=
-  comp_semantics' (semantics M sk @ K) L sk.
+  (* The version of certified abstraction layers for vertical composition *)
+  Definition prog_ksim (R: crel K1 K2) :=
+    linkorder (skel L2) (skel L1) /\ linkorder (AST.erase_program p) (skel L1) /\
+    forward_simulation 1 R L1 (prog_layer_comp (skel L1)).
 
-Definition ksim {K1 K2: Type} (L1: layer K1) (L2: layer K2)
-           (M: cmodule) (R: rel_adt K1 K2) :=
-  linkorder (skel L2) (skel L1) /\
-  skel_module_compatible M (skel L1) /\
-  forward_simulation 1 R L1 (layer_comp M L2 (skel L1)).
+  (* The version that is horizontally compositional *)
+  Definition prog_ksim_mcc (R: krel K1 K2) :=
+    linkorder (skel L2) (skel L1) /\ linkorder (AST.erase_program p) (skel L1) /\
+    forward_simulation 1 (krel_mcc R) L1 (prog_layer_comp (skel L1)).
 
-Lemma singleton_ksim {K1 K2} L1 L2 p (R: rel_adt K1 K2):
-  prog_ksim L1 L2 p R -> ksim L1 L2 (p :: nil) R.
+  Lemma prog_ksim_ref (R: krel K1 K2): prog_ksim_mcc R -> prog_ksim R.
+  Proof.
+    unfold prog_ksim, prog_ksim_mcc. intuition.
+    apply layer_fsim_refine. auto.
+  Qed.
+End PROG_LAYER_DEF.
+
+Section MOD_LAYER_DEF.
+
+  Context {K1 K2: Type} (L1: layer K1) (L2: layer K2) (M: cmodule).
+
+  Definition layer_comp sk := comp_semantics' (semantics M sk @ K2) L2 sk.
+
+  Definition ksim (R: crel K1 K2) :=
+    linkorder (skel L2) (skel L1) /\ skel_module_compatible M (skel L1) /\
+    forward_simulation 1 R L1 (layer_comp (skel L1)).
+
+  Definition ksim_mcc (R: krel K1 K2) :=
+    linkorder (skel L2) (skel L1) /\ skel_module_compatible M (skel L1) /\
+    forward_simulation 1 R L1 (layer_comp (skel L1)).
+
+  Definition ksim_ref (R: krel K1 K2): ksim_mcc R -> ksim R.
+  Proof.
+    unfold ksim, ksim_mcc. intuition.
+    apply layer_fsim_refine. auto.
+  Qed.
+
+End MOD_LAYER_DEF.
+
+Lemma singleton_ksim {K1 K2} L1 L2 p (R: crel K1 K2): prog_ksim L1 L2 p R -> ksim L1 L2 (p :: nil) R.
 Proof.
 Admitted.
 
 Lemma compatible_app sk M N:
-  skel_module_compatible M sk ->
-  skel_module_compatible N sk ->
+  skel_module_compatible M sk -> skel_module_compatible N sk ->
   skel_module_compatible (M ++ N) sk.
 Proof.
   unfold skel_module_compatible.
@@ -43,9 +69,7 @@ Proof.
 Qed.
 
 Lemma compatible_trans sk1 sk2 N:
-  linkorder sk1 sk2 ->
-  skel_module_compatible N sk1 ->
-  skel_module_compatible N sk2.
+  linkorder sk1 sk2 -> skel_module_compatible N sk1 -> skel_module_compatible N sk2.
 Proof.
   unfold skel_module_compatible.
   rewrite !Forall_forall.
@@ -53,11 +77,8 @@ Proof.
 Qed.
 
 Section SKEL_EXT.
-  Context {liA liB liC}
-          (L1: Smallstep_.semantics liB liC)
-          (L2: Smallstep_.semantics liA liB).
-  Lemma skel_extend_compose sk sk':
-    skel_extend (comp_semantics' L1 L2 sk) sk' ≤ comp_semantics' L1 L2 sk'.
+  Context {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB).
+  Lemma skel_extend_compose sk sk': skel_extend (comp_semantics' L1 L2 sk) sk' ≤ comp_semantics' L1 L2 sk'.
   Proof.
     constructor. eapply Forward_simulation with _ (fun _ _ _ => _); auto.
     - intros. reflexivity.
@@ -71,8 +92,7 @@ End SKEL_EXT.
 
 Section VCOMP.
 
-  Context {K1 K2 K3 L1 L2 L3} {M N: cmodule}
-          {R: rel_adt K1 K2} {S: rel_adt K2 K3}
+  Context {K1 K2 K3 L1 L2 L3} {M N: cmodule} {R: crel K1 K2} {S: crel K2 K3}
           (HL1: ksim L1 L2 M R) (HL2: ksim L2 L3 N S).
   (* FIXME: the linkable hypothesis should be simplified *)
   Context `{!CategoricalLinkable (semantics M (skel L1)) (semantics N (skel L1))}.
@@ -124,7 +144,7 @@ End VCOMP.
 
 Lemma layer_comp_extend_skel {K} M L sk sk':
   linkorder sk' sk -> linkorder (skel L) sk ->
-  skel_extend (layer_comp M L sk') sk ≤ layer_comp (K := K) M L sk.
+  skel_extend (layer_comp L M sk') sk ≤ layer_comp (K2 := K) L M sk.
 Proof.
   unfold layer_comp.
   replace (skel_extend (comp_semantics' (semantics M sk' @ K) L sk') sk)
@@ -144,8 +164,7 @@ Qed.
 Section HCOMP.
 
   Generalizable All Variables.
-  Context `{R: rel_adt K1 K2} {M N: cmodule}
-          `(HL1: ksim L1 L3 M R) `(HL2: ksim L2 L3 N R).
+  Context `{R: crel K1 K2} {M N: cmodule} `(HL1: ksim L1 L3 M R) `(HL2: ksim L2 L3 N R).
   Variable (sk: AST.program unit unit).
   Hypothesis (Hk1: linkorder (skel L1) sk)
              (Hk2: linkorder (skel L2) sk).
@@ -154,8 +173,7 @@ Section HCOMP.
 
   Let L i := match i with true => L1 | false => L2 end.
 
-  Theorem layer_hcomp:
-    ksim (flat_comp_semantics' L sk) L3 (M ++ N) R.
+  Theorem layer_hcomp: ksim (flat_comp_semantics' L sk) L3 (M ++ N) R.
   Proof.
     unfold ksim in *.
     destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
@@ -167,8 +185,8 @@ Section HCOMP.
     unfold flip. apply cc_compose_id_right.
     eapply compose_forward_simulations.
 
-    set (Ls := fun i => match i with true => layer_comp M L3 (skel L1)
-                             | false => layer_comp N L3 (skel L2) end).
+    set (Ls := fun i => match i with true => layer_comp L3 M (skel L1)
+                             | false => layer_comp L3 N (skel L2) end).
     apply (flat_composition_simulation' _ _ _ Ls); try (intros [|]; auto). cbn.
 
     (* To use the distributivity, we first unify the code skeleton of the
@@ -176,7 +194,7 @@ Section HCOMP.
     etransitivity. apply lift_flat_comp_component. cbn.
     rewrite if_rewrite with (f := fun x => skel_extend x sk).
 
-    set (Ls := fun i => match i with true => layer_comp M L3 sk | false => layer_comp N L3 sk end).
+    set (Ls := fun i => match i with true => layer_comp L3 M sk | false => layer_comp L3 N sk end).
     etransitivity. instantiate (1 := flat_comp_semantics' Ls sk).
     {
       apply flat_composition_simulation'.
@@ -201,105 +219,88 @@ Section HCOMP.
 
 End HCOMP.
 
-(* Require Import TensorComp. *)
-(* (* Overriding notations *) *)
-(* Import Smallstep_. *)
+Section TCOMP.
 
-(* (* Any call into the empty layer yields undefined behavior *) *)
+  Context {K1 K2 K3 K4: Type} (R: krel K1 K2) (S: krel K3 K4).
+  Context (L1: layer K1) (L2: layer K2) (L3: layer K3) (L4: layer K4).
+  Context (M N: cmodule).
 
-(* Definition empty_ident := 1%positive. *)
+  Hypothesis (HL1: ksim_mcc L1 L2 M R) (HL2: ksim_mcc L3 L4 N S).
+  Variable (sk: AST.program unit unit).
+  Hypothesis (Hk1: linkorder (skel L1) sk) (Hk2: linkorder (skel L3) sk).
+  Let Mi := (fun i : bool => if i then semantics M sk else semantics N sk).
+  Context `{!FlatLinkable Mi}.
+  Hypothesis Hdisjoint: forall b ofs, AbstractStateRel.G S b ofs -> AbstractStateRel.G R b ofs -> False.
 
-(* Definition empty_layer {K}: semantics li_null (li_c@K):= *)
-(*   {| *)
-(*     skel := AST.mkprogram nil nil empty_ident; *)
-(*     state := Empty_set; *)
-(*     footprint id := False; *)
-(*     activate se := *)
-(*       {| *)
-(*         genvtype := unit; *)
-(*         globalenv := tt; *)
-(*         step _ _ _ _ := False; *)
-(*         initial_state _ _ := False; *)
-(*         at_external _ _ := False; *)
-(*         after_external _ _ _ := False; *)
-(*         final_state _ _ := False; *)
-(*       |}; *)
-(*   |}. *)
+  Lemma layer_tcomp: ksim_mcc (tensor_comp_semantics' L1 L3 sk)
+                              (tensor_comp_semantics' L2 L4 sk)
+                              (M ++ N) (R * S).
+  Proof.
+    unfold ksim in *.
+    destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
+    destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
+    split. eapply linkorder_refl.
+    split. apply compatible_app; (eapply compatible_trans; [ | eauto]); eauto.
 
-(* Lemma empty_sk_bot {K}: forall sk, linkorder (skel (@empty_layer K)) sk. *)
-(* Admitted. *)
+    exploit @tensor_compose_simulation; [exact H1 | exact H2 | .. ]; eauto. intros H.
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations. exact H.
 
-(* Generalizable All Variables. *)
+    unfold tensor_comp_semantics'. cbn.
+    unfold layer_comp.
 
-(* Section APPROX. *)
-(*   Context {E1 E2: Type}. *)
-(*   Context (LM LN: semantics li_c li_c). *)
-(*   Let LMN i := match i with true => LM | false => LN end. *)
-(*   Context `(M: mem_ops). *)
-(*   Variable (sk: AST.program unit unit). *)
+    etransitivity.
+    {
+      apply flat_composition_simulation'. instantiate (1 := fun i => match i with true => _ | false => _ end).
+      intros [|].
+      - instantiate (1 := comp_semantics' (semantics M (skel L1) @ (K2 * K4)) (lift_layer_k L2) (skel L1)).
+        etransitivity.
+        + apply mapB_monotonicity. etransitivity.
+          * apply mapA_monotonicity. apply lift_categorical_comp1.
+          * apply mapA_comp.
+        + etransitivity.
+          * apply mapB_comp'. typeclasses eauto.
+          * eapply categorical_compose_simulation'.
+            -- apply lts_lifting_assoc.
+            -- reflexivity.
+            -- apply linkorder_refl.
+            -- auto.
+      - instantiate (1 := comp_semantics' (semantics N (skel L3) @ (K2 * K4)) (layer_comm (lift_layer_k L4)) (skel L3)).
+        etransitivity.
+        + apply mapB_monotonicity. etransitivity.
+          * apply mapB_monotonicity. etransitivity.
+            -- apply mapA_monotonicity. apply lift_categorical_comp1.
+            -- apply mapA_comp.
+          * apply mapB_comp'. typeclasses eauto.
+        + etransitivity.
+          * apply mapB_comp'. typeclasses eauto.
+          * eapply categorical_compose_simulation'.
+            -- etransitivity.
+               ++ apply map_both_monotonicity. apply lts_lifting_assoc.
+               ++ apply lts_lifting_comm.
+            -- reflexivity.
+            -- apply linkorder_refl.
+            -- auto.
+      - intros [|]; auto.
+    }
 
-(*   Let L1 := comp_semantics' (LM @ E1) empty_layer sk. *)
-(*   Let L2 := comp_semantics' (LN @ E2) empty_layer sk. *)
-(*   Let L := comp_semantics' ((SmallstepLinking_.semantics' LMN sk) @ (E1 * E2)) empty_layer sk. *)
+    set (LX:= fun i:bool => if i then semantics M (skel L1) @ (K2 * K4) else semantics N (skel L3) @ (K2 * K4)).
+    set (LY:= fun i:bool => if i then lift_layer_k L2 else layer_comm (lift_layer_k L4)).
+    set (Lsk:= fun i:bool => if i then skel L1 else skel L3).
+    replace (flat_comp_semantics' _ sk) with (flat_comp_semantics' (fun i:bool => comp_semantics' (LX i) (LY i) (Lsk i)) sk).
+    2: {
+      subst LX  LY Lsk. cbn. f_equal. apply Axioms.functional_extensionality.
+      intros [|]; reflexivity.
+    }
 
-(*   Lemma tensor_composition_approximation: *)
-(*     Layer.tensor_semantics' L1 L2 M sk ≤ L. *)
-(*   Admitted. *)
+    etransitivity. apply categorical_flat_interchangeable.
+    eapply categorical_compose_simulation'; [ | reflexivity | apply linkorder_refl | apply linkorder_refl ].
+    subst LX. rewrite <- if_rewrite with (f := fun x => x @ (K2 * K4)).
+    etransitivity. apply lift_flat_comp2. apply lifting_simulation.
+    etransitivity. 2: { apply cmodule_flat_comp_simulation. eauto. }
+    etransitivity. apply lift_flat_comp_component. cbn.
+    rewrite if_rewrite with (f := fun x => skel_extend x sk). reflexivity.
+  Qed.
 
-(* End APPROX. *)
-
-(* Notation "R1 ⊗ R2" := (tcomp_rel R1 R2) (left associativity, at level 50): krel_scope. *)
-
-(* Section TCOMP. *)
-
-(*   Context {M N: cmodule} *)
-(*           (* The C implement is supposed to be closed programs so E1 and E2 will *)
-(*              be abstract data of the unit type or a product of the unit type if *)
-(*              the implementation is a composition of several primitive layers *) *)
-(*           `{R: rel_adt K1 E1} `{S: rel_adt K2 E2} *)
-(*           `(HL1: ksim L1 empty_layer M R) `(HL2: ksim L2 empty_layer N S). *)
-(*   Variable (sk: AST.program unit unit). *)
-(*   Hypothesis (Hk1: linkorder (skel L1) sk) (Hk2: linkorder (skel L2) sk). *)
-(*   Context (INV: CallConv_Invariants R S). *)
-
-(*   (* The memory operations used in the layer composition is irrelevant because *)
-(*      the layer interface only updates the abstract data. So theoretically we *)
-(*      can feed whatever mem_ops to the definition and it should be provable *) *)
-(*   Let L := Layer.tensor_semantics' L1 L2 INV sk. *)
-
-(*   Lemma layer_tcomp: *)
-(*     ksim L empty_layer (M ++ N) (R ⊗ S). *)
-(*   Proof. *)
-(*     unfold ksim in *. *)
-(*     destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1. *)
-(*     destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2. *)
-(*     split. eapply linkorder_trans; eauto. *)
-(*     split. apply compatible_app; (eapply compatible_trans; [ | eauto]); eauto. *)
-(*     clear Hsk1 Hmod1 Hsk2 Hmod2. *)
-
-(*     eapply open_fsim_ccref. apply cc_compose_id_left. *)
-(*     unfold flip. apply cc_compose_id_right. *)
-(*     eapply compose_forward_simulations. *)
-(*     { *)
-(*       eapply Layer.tensor_compose_simulation'; eauto. *)
-(*     } *)
-
-(*     etransitivity. *)
-(*     { *)
-(*       replace (skel L1) with sk. *)
-(*       replace (skel L2) with sk. *)
-(*       apply tensor_composition_approximation. *)
-(*       admit. *)
-(*       admit. *)
-(*     } *)
-
-(*     unfold layer_comp. *)
-
-(*     eapply categorical_compose_simulation'. *)
-(*     - apply lifting_simulation. eapply cmodule_app_simulation. *)
-(*     - reflexivity. *)
-(*     - apply linkorder_refl. *)
-(*     - apply empty_sk_bot. *)
-(*   Admitted. *)
-
-(* End TCOMP. *)
+End TCOMP.

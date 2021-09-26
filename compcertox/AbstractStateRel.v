@@ -37,41 +37,36 @@ Arguments krel: clear implicits.
 (* The CKLR is indexed by k1 with accessibility condition simply being equality
    so that the internal steps won't mess up the blocks in the memory that are
    abstracted according to the KRel *)
-Section ABS_CKLR.
+Section KREL_CKLR.
   Context {K1 K2} (R: @krel K1 K2).
 
-  Inductive abs_world := absw (se: Genv.symtbl) (k1: K1).
-  Inductive abs_mm: abs_world -> mem -> mem -> Prop :=
+  Inductive krel_world := krelw (se: Genv.symtbl) (k1: K1).
+  Inductive krel_mm: krel_world -> mem -> mem -> Prop :=
     match_intro: forall se k1 m1 m2,
       Mem.extends m1 m2 -> Rr R k1 m2 ->
       (* The source program would crash if it tries to manipulate data on blocks
          defined in G *)
       no_perm_on m1 (G R) ->
-      abs_mm (absw se k1) m1 m2.
-  Inductive abs_match_se: abs_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
+      krel_mm (krelw se k1) m1 m2.
+  Inductive krel_match_se: krel_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
     match_se_intro: forall se k,
-      abs_match_se (absw se k) se se.
+      krel_match_se (krelw se k) se se.
 
-  Program Definition abs_cklr: cklr :=
+  Program Definition krel_cklr: cklr :=
     {|
-      world := abs_world;
+      world := krel_world;
       wacc := eq;
       mi w := inject_id;
-      match_mem := abs_mm;
-      match_stbls := abs_match_se;
+      match_mem := krel_mm;
+      match_stbls := krel_match_se;
     |}.
   (* mi_acc *)
-  Next Obligation.
-    repeat rstep. apply inject_incr_refl.
-  Qed.
+  Next Obligation. repeat rstep. apply inject_incr_refl. Qed.
   (* match_stbls_acc *)
-  Next Obligation.
-    rauto.
-  Qed.
+  Next Obligation. rauto. Qed.
   (* match_stbls_proj *)
   Next Obligation.
-    intros se1 se2 Hse. inv Hse.
-    apply Genv.match_stbls_id.
+    intros se1 se2 Hse. inv Hse. apply Genv.match_stbls_id.
   Qed.
   (* match_stbls_nextblock *)
   Next Obligation.
@@ -187,17 +182,11 @@ Section ABS_CKLR.
     inv Hb1'. inv Hb2'. eauto.
   Qed.
   (* cklr_representable *)
-  Next Obligation.
-    xomega.
-  Qed.
+  Next Obligation. xomega. Qed.
   (* cklr_aligned_area_inject *)
-  Next Obligation.
-    rewrite Z.add_0_r. assumption.
-  Qed.
+  Next Obligation. rewrite Z.add_0_r. assumption. Qed.
   (* cklr_disjoint_or_equal_inject *)
-  Next Obligation.
-    intuition xomega.
-  Qed.
+  Next Obligation. intuition xomega. Qed.
   (* cklr_perm_inv *)
   Next Obligation.
     inv H0. unfold inject_id in *. inv H3.
@@ -213,46 +202,43 @@ Section ABS_CKLR.
     rewrite H0. rewrite H4. reflexivity.
   Qed.
 
-End ABS_CKLR.
+End KREL_CKLR.
 
 (* The self-simulation property for program p given that the scope of p is
    disjoint from the scope of the abstraction relation R. *)
 Section SIMULATION.
   Context {K1 K2} (R: krel K1 K2).
-  Inductive kcc_c_query cc_query:
-    abs_world -> query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
-    kcc_c_query_intro se q1 k1 q2 k2:
-      cc_query (absw se k1) q1 q2 -> Rr R k1 (cq_mem q2) -> Rk R k1 k2 ->
-      kcc_c_query cc_query (absw se k1) (q1, k1) (q2, k2).
-  Inductive kcc_c_reply cc_reply:
-    abs_world -> reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
-    kcc_c_reply_intro se r1 k1 r2 k2:
-      cc_reply (absw se k1) r1 r2 -> Rr R k1 (cr_mem r2) -> Rk R k1 k2 ->
-      kcc_c_reply cc_reply (absw se k1) (r1, k1) (r2, k2).
+  Inductive krel_cc_query cc_query:
+    krel_world -> query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
+    krel_cc_query_intro se q1 k1 q2 k2:
+      cc_query (krelw se k1) q1 q2 -> Rr R k1 (cq_mem q2) -> Rk R k1 k2 ->
+      krel_cc_query cc_query (krelw se k1) (q1, k1) (q2, k2).
+  Inductive krel_cc_reply cc_reply:
+    krel_world -> reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
+    krel_cc_reply_intro se r1 k1 r2 k2:
+      cc_reply (krelw se k1) r1 r2 -> Rr R k1 (cr_mem r2) -> Rk R k1 k2 ->
+      krel_cc_reply cc_reply (krelw se k1) (r1, k1) (r2, k2).
 
   (* Promoting an abstraction relation to a memory extension based calling
      convention *)
-  Coercion abs_cklr : krel >-> cklr.
+  Coercion krel_cklr : krel >-> cklr.
 
-  Program Definition kcc_c: callconv (li_c @ K1) (li_c @ K2) :=
+  (* A calling convention derived from a krel indexed by the abstract data K *)
+  Program Definition krel_kcc: callconv (li_c @ K1) (li_c @ K2) :=
     {|
       ccworld := world R;
       match_senv := match_stbls R;
-      match_query := kcc_c_query (cc_c_query R);
+      match_query := krel_cc_query (cc_c_query R);
       (* For simplicity, symbol table should be preserved. We can't use
          accessibility here because that implies the abstract data stays
          intact *)
       match_reply w r1 r2 :=
         match w with
-        | absw se _ => exists k, kcc_c_reply (cc_c_reply R) (absw se k) r1 r2
+        | krelw se _ => exists k, krel_cc_reply (cc_c_reply R) (krelw se k) r1 r2
         end;
     |}.
-  Next Obligation.
-    inv H. reflexivity.
-  Qed.
-  Next Obligation.
-    inv H. auto.
-  Qed.
+  Next Obligation. inv H. reflexivity. Qed.
+  Next Obligation. inv H. auto. Qed.
   Next Obligation.
     inv H0. eapply (match_senv_symbol_address (cc_c R)); eauto.
   Qed.
@@ -285,29 +271,14 @@ Section SIMULATION.
 
   (* for the self-simulation it is not necessary to require disjoint scope. If p
      and G interfere with each other, the source program would fail. *)
-  Lemma clight_sim p:
-    forward_simulation kcc_c kcc_c (semantics1 p @ K1) (semantics1 p @ K2).
+  Lemma clight_sim p: forward_simulation krel_kcc krel_kcc (semantics1 p @ K1) (semantics1 p @ K2).
   Proof.
     constructor. econstructor; eauto.
-    {
-      intros i. reflexivity.
-      (* - intros [q1 ?] [q2 ?] Hq. inv Hq. inv H4. cbn in *. *)
-      (*   eapply Genv.is_internal_match; eauto. *)
-      (*   + instantiate (1 := p). *)
-      (*     repeat apply conj; auto. *)
-      (*     induction (AST.prog_defs (_ p)) as [ | [id [f|v]] defs IHdefs]; *)
-      (*       repeat (econstructor; eauto). *)
-      (*     * apply incl_refl. *)
-      (*     * apply linkorder_refl. *)
-      (*     * instantiate (1 := fun _ => eq). reflexivity. *)
-      (*     * instantiate (1 := eq). destruct v; constructor; auto. *)
-      (*   + apply Genv.match_stbls_id. *)
-      (*   + cbn. congruence. *)
-    }
+    intros i. reflexivity.
     instantiate (1 := fun _ _ _ => _). cbn beta.
     intros ? se w Hse Hse1. inv Hse. cbn -[semantics1] in *.
     pose (ms := fun '(s1, k1) '(s2, k2) =>
-                  Clightrel_.state_match R (absw se k1) s1 s2 /\ Rk R k1 k2).
+                  Clightrel_.state_match R (krelw se k1) s1 s2 /\ Rk R k1 k2).
     apply forward_simulation_step with (match_states := ms).
     - intros [q1 k1] [q2 k2] [s1 k1'] Hq Hs1. inv Hq. inv Hs1.
       cbn in *. subst k1'. inv H. inv H4. cbn in *.
@@ -315,13 +286,13 @@ Section SIMULATION.
       + constructor; auto. cbn.
         econstructor; eauto.
         * unfold globalenv. cbn.
-          exploit (@find_funct_inject p R (absw se k1) (globalenv se p)).
+          exploit (@find_funct_inject p R (krelw se k1) (globalenv se p)).
           split; cbn; eauto.
           eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
           constructor. eauto. intro Hx. apply Hx.
         * eapply val_casted_list_inject; eauto.
         * simpl. eapply match_stbls_nextblock; eauto.
-          instantiate (2 := R). instantiate (1 := absw se k1).
+          instantiate (2 := R). instantiate (1 := krelw se k1).
           constructor. apply H13.
       + split; auto.
         constructor; auto. cbn.
@@ -336,9 +307,9 @@ Section SIMULATION.
         inv H5. auto.
     - intros [s1 k1] [s2 k2] [q1 k1'] (Hs & Hk) Hext.
       inv Hext. cbn in *. subst k1'. inv H. inv Hs.
-      eexists (absw se k1), (_, _). repeat apply conj; cbn; eauto.
+      eexists (krelw se k1), (_, _). repeat apply conj; cbn; eauto.
       + cbn. econstructor.
-        exploit (@find_funct_inject p R (absw se k1) (globalenv se p)).
+        exploit (@find_funct_inject p R (krelw se k1) (globalenv se p)).
         split; cbn; eauto.
         eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
         constructor. eauto. intros Hx. subst f. apply Hx.
@@ -363,7 +334,7 @@ Section SIMULATION.
   Qed.
 End SIMULATION.
 
-Section KCC.
+Section KREL_MCC.
   Context {K1 K2} (R: krel K1 K2).
 
   Let krel_world := mem.
@@ -391,21 +362,18 @@ Section KCC.
       Rr R k1 m2 -> Rk R k1 k2 ->
       krel_reply m2 (cr retval1 m1, k1) (cr retval2 m2, k2).
 
-  Program Definition krel_cc: callconv (li_c@K1) (li_c@K2) :=
+  (* A calling convention derived from a krel indexed by the target program memory *)
+  Program Definition krel_mcc: callconv (li_c@K1) (li_c@K2) :=
     {|
       ccworld := krel_world;
       match_senv _ := eq;
       match_query := krel_query;
       match_reply := (<> krel_reply)%klr;
     |}.
-  Next Obligation.
-    inv H0. cbn. apply val_inject_id in H4. now inv H4.
-  Qed.
-  Next Obligation.
-    inv H. cbn. apply val_inject_id in H4. now inv H4.
-  Qed.
+  Next Obligation. inv H0. cbn. apply val_inject_id in H4. now inv H4. Qed.
+  Next Obligation. inv H. cbn. apply val_inject_id in H4. now inv H4. Qed.
 
-End KCC.
+End KREL_MCC.
 
 Section PROD.
   Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
@@ -426,48 +394,123 @@ Section PROD.
 End PROD.
 
 Infix "*" := prod_krel.
-Coercion krel_cc : krel >-> callconv.
+Coercion krel_mcc : krel >-> callconv.
 
-Class Inhabited (I: Type) := inhabited_prop: inhabited I.
+Section Properties.
 
-Global Instance bool_inhabited: Inhabited bool.
-Proof.
-  split. exact true.
-Qed.
+  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
+  Lemma prod_match_reply w r1 r2 k1 k2 k3 k4:
+    match_reply R1 w (r1, k1) (r2, k2) ->
+    Rk R2 k3 k4 -> Rr R2 k3 (cr_mem r2) ->
+    (* kmrel (krel_crel R2) (cr_mem r1, k3) (cr_mem r2, k4) -> *)
+    match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
+  Proof.
+    intros [w' [Hw' Hr]] H. exists w'; split.
+    - cbn in *. eapply Mem.unchanged_on_implies; eauto.
+      cbn in *. intros. intro contra. apply H1. now left.
+    - inv Hr. cbn in *. constructor; eauto.
+      + split; eauto.
+      + split; eauto.
+  Qed.
+
+  Lemma prod_match_query w q1 q2 k1 k2 k3 k4:
+    match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)) ->
+    match_query R1 w (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 k3 w.
+  Proof.
+    intros. inv H. repeat apply conj; cbn in *.
+    constructor; eauto.
+    - intros b ofs Hg. apply H9. now left.
+    - firstorder.
+    - firstorder.
+    - firstorder.
+    - firstorder.
+  Qed.
+
+  Lemma match_query_comm w q1 q2 k1 k2 k3 k4:
+    match_query (R2 * R1) w (q1, (k3, k1)) (q2, (k4, k2)) ->
+    match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)).
+  Proof.
+    intros. inv H. constructor; auto.
+    - intros b ofs Hg. apply H9. cbn in *. intuition.
+    - cbn in *. intuition.
+    - cbn in *. intuition.
+  Qed.
+
+  Lemma match_reply_comm w r1 r2 k1 k2 k3 k4:
+    match_reply (R2 * R1) w (r1, (k3, k1)) (r2, (k4, k2)) ->
+    match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
+  Proof.
+    intros [w' [Hw H]]. exists w'; split.
+    - cbn in *. eapply Mem.unchanged_on_implies. eauto. cbn. intuition.
+    - inv H. econstructor; auto.
+      + cbn in *. intuition.
+      + cbn in *. intuition.
+  Qed.
+
+End Properties.
 
 Generalizable All Variables.
 
-Inductive rel_adt: Type -> Type -> Type :=
-| empty_rel K: rel_adt K K
-| singleton_rel `(krel K1 K2): rel_adt K1 K2
-| vcomp_rel `(rel_adt K1 K2) `(rel_adt K2 K3): rel_adt K1 K3.
+(* A vertically compositional abstraction relation *)
+Inductive crel: Type -> Type -> Type :=
+| empty_rel K: crel K K
+| singleton_rel `(krel K1 K2): crel K1 K2
+| vcomp_rel `(crel K1 K2) `(crel K2 K3): crel K1 K3.
 
-Fixpoint absrel_to_cc {K1 K2} (rel: rel_adt K1 K2):
-  callconv (li_c @ K1) (li_c @ K2) :=
+Fixpoint crel_to_cc {K1 K2} (rel: crel K1 K2): callconv (li_c @ K1) (li_c @ K2) :=
   match rel with
-  | empty_rel _ => cc_id
-  | singleton_rel _ _ r => krel_cc r
-  | vcomp_rel _ _ r1 _ r2 => (absrel_to_cc r1) @ (absrel_to_cc r2)
+  | empty_rel _ => cc_id | singleton_rel _ _ r => krel_kcc r
+  | vcomp_rel _ _ r1 _ r2 => (crel_to_cc r1) @ (crel_to_cc r2)
   end.
 
 Delimit Scope krel_scope with krel.
-Bind Scope krel_scope with rel_adt.
+Bind Scope krel_scope with crel.
 
 Notation "[ R ]" := (singleton_rel R) (at level 30): krel_scope.
 Notation "R1 ∘ R2" := (vcomp_rel R1 R2): krel_scope.
 
-Coercion absrel_to_cc : rel_adt >-> callconv.
-Coercion singleton_rel : krel >-> rel_adt.
+Coercion crel_to_cc : crel >-> callconv.
+Coercion singleton_rel : krel >-> crel.
 
-(* Lemma clight_krel {K1 K2} (R: rel_adt K1 K2) p: *)
-(*   forward_simulation R R (Clight_.semantics1 p @ K1) (Clight_.semantics1 p @ K2). *)
-(* Proof. *)
-(*   induction R; simpl. *)
-(*   - apply lifting_simulation. *)
-(*     apply identity_forward_simulation. *)
-(*   - apply clight_sim. *)
-(*   - eapply compose_forward_simulations; eauto. *)
-(*   - *)
-(* Admitted. *)
-(* FIXME: this a different kind of problem than the tensor product
-   composition. I haven't thought it through, though *)
+Lemma clight_krel {K1 K2} (R: crel K1 K2) p:
+  forward_simulation R R (Clight_.semantics1 p @ K1) (Clight_.semantics1 p @ K2).
+Proof.
+  induction R; simpl.
+  - apply lifting_simulation.
+    apply identity_forward_simulation.
+  - apply clight_sim.
+  - eapply compose_forward_simulations; eauto.
+Qed.
+
+(* The horizontally compositional layers have the abstraction relation
+   interpreted as krel_mcc denoted by [R]. When the layer is ready for vertical
+   composition the krel_mcc is refined to krel_kcc, denoted by [|R|]. Note that
+   the refinement is only for one direction. In the section, we prove the
+   refinement. *)
+
+Require Import CallconvAlgebra_.
+
+Section CC_REF.
+
+  Context {K1 K2: Type} (R: @krel K1 K2).
+  Context (L1: layer K1) (L2: layer K2).
+
+  Definition layer_fsim_kcc := forward_simulation 1 (krel_kcc R) L1 L2.
+  Definition layer_fsim_mcc := forward_simulation 1 (krel_mcc R) L1 L2.
+
+  Lemma kcc_ref_mcc: ccref (krel_kcc R) (krel_mcc R).
+  Proof.
+    unfold ccref. intros w se1 se2 [q1 k1] [q2 k2] Hse Hq.
+    inv Hse. inv Hq. inv H4. cbn in *. exists m2. repeat apply conj; auto.
+    - constructor; eauto. inv H1. auto. inv H1. auto.
+    - intros [r1 kr1] [r2 kr2] [w' [Hw' Hr]]. cbn in Hw'.
+      inv Hr. exists kr1. constructor; auto.
+      constructor; auto. constructor; auto.
+  Admitted.
+
+  Lemma layer_fsim_refine: layer_fsim_mcc -> layer_fsim_kcc.
+  Proof.
+    apply open_fsim_ccref. reflexivity. unfold flip. apply kcc_ref_mcc.
+  Qed.
+
+End CC_REF.
