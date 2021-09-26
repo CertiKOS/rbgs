@@ -337,11 +337,13 @@ End SIMULATION.
 Section KREL_MCC.
   Context {K1 K2} (R: krel K1 K2).
 
-  Let krel_world := mem.
-  (* The memory in the source program is unchanged through the computation *)
+  Let krel_world := (mem * mem)%type.
+  (* The permissions in the source memory are preserved and the blocks do not
+     belong to the transition system are not modified in the target memory *)
   Instance krel_kframe: KripkeFrame unit krel_world :=
     {|
-      acc _ := Mem.unchanged_on (fun b ofs => ~ G R b ofs)
+      acc _ '(m1, m2) '(m1', m2'):=
+        Mem.unchanged_on (fun _ _ => True) m1 m1' /\ Mem.unchanged_on (fun b ofs => ~ G R b ofs) m2 m2';
     |}.
 
   Inductive krel_query: krel_world -> query (li_c@K1) -> query (li_c@K2) -> Prop :=
@@ -351,16 +353,16 @@ Section KREL_MCC.
       vf1 <> Vundef ->
       Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
       Rr R k1 m2 -> Rk R k1 k2 ->
-      krel_query m2 (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
+      krel_query (m1, m2) (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
 
   (* Add the source memory to the index if we need to prove the permissions
        are preserved *)
   Inductive krel_reply: krel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
   | krel_reply_intro retval1 m1 retval2 m2 k1 k2:
       Val.inject inject_id retval1 retval2 ->
-      Mem.extends m1 m2 -> (* no_perm_on m1 (G R) -> *)
+      Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
       Rr R k1 m2 -> Rk R k1 k2 ->
-      krel_reply m2 (cr retval1 m1, k1) (cr retval2 m2, k2).
+      krel_reply (m1, m2) (cr retval1 m1, k1) (cr retval2 m2, k2).
 
   (* A calling convention derived from a krel indexed by the target program memory *)
   Program Definition krel_mcc: callconv (li_c@K1) (li_c@K2) :=
@@ -399,31 +401,42 @@ Coercion krel_mcc : krel >-> callconv.
 Section Properties.
 
   Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
+  Hypothesis Hdisjoint: forall b ofs, G R1 b ofs -> G R2 b ofs -> False.
+
   Lemma prod_match_reply w r1 r2 k1 k2 k3 k4:
-    match_reply R1 w (r1, k1) (r2, k2) ->
-    Rk R2 k3 k4 -> Rr R2 k3 (cr_mem r2) ->
-    (* kmrel (krel_crel R2) (cr_mem r1, k3) (cr_mem r2, k4) -> *)
+    match_reply R1 w (r1, k1) (r2, k2) -> Rk R2 k3 k4 -> Rr R2 k3 (snd w) ->
+    no_perm_on (fst w) (G R2) -> Mem.extends (fst w) (snd w) ->
     match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
   Proof.
-    intros [w' [Hw' Hr]] H. exists w'; split.
-    - cbn in *. eapply Mem.unchanged_on_implies; eauto.
-      cbn in *. intros. intro contra. apply H1. now left.
+    intros [w' [Hw Hr]] H.
+    exists w'; destruct w as [m1 m2]; destruct w' as [m1' m2']; split.
+    - cbn in *. intuition.
+      eapply Mem.unchanged_on_implies; eauto.
+      cbn in *. intros. firstorder.
     - inv Hr. cbn in *. constructor; eauto.
-      + split; eauto.
+      + intros b ofs [Hv | Hv].
+        * unfold no_perm_on in *. intuition eauto.
+        * unfold no_perm_on in *. intros contra.
+          specialize (H1 b ofs Hv). apply H1.
+          eapply Mem.perm_unchanged_on_2; intuition eauto.
+          apply Mem.perm_valid_block in contra.
+          erewrite Mem.valid_block_extends; [ | eauto].
+          eapply (G_valid R2); eauto.
+      + split; eauto. eapply G_unchanged; eauto.
+        eapply Mem.unchanged_on_implies. intuition eauto.
+        cbn. intros. intuition eauto.
       + split; eauto.
   Qed.
 
   Lemma prod_match_query w q1 q2 k1 k2 k3 k4:
     match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)) ->
-    match_query R1 w (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 k3 w.
+    match_query R1 w (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 k3 (snd w) /\
+    no_perm_on (fst w) (G R2) /\ Mem.extends (fst w) (snd w).
   Proof.
-    intros. inv H. repeat apply conj; cbn in *.
+    intros. inv H. repeat apply conj; cbn in *; intuition.
     constructor; eauto.
     - intros b ofs Hg. apply H9. now left.
-    - firstorder.
-    - firstorder.
-    - firstorder.
-    - firstorder.
+    - intros b ofs Hg. apply H9. now right.
   Qed.
 
   Lemma match_query_comm w q1 q2 k1 k2 k3 k4:
@@ -440,9 +453,11 @@ Section Properties.
     match_reply (R2 * R1) w (r1, (k3, k1)) (r2, (k4, k2)) ->
     match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
   Proof.
-    intros [w' [Hw H]]. exists w'; split.
-    - cbn in *. eapply Mem.unchanged_on_implies. eauto. cbn. intuition.
+    intros [w' [Hw H]].
+    exists w'; destruct w as [m1 m2]; destruct w' as [m1' m2']; split.
+    - cbn in *. intuition eauto. eapply Mem.unchanged_on_implies. eauto. cbn. intuition.
     - inv H. econstructor; auto.
+      + cbn in *. intros b ofs Hv. apply H8. destruct Hv; intuition.
       + cbn in *. intuition.
       + cbn in *. intuition.
   Qed.
@@ -501,12 +516,13 @@ Section CC_REF.
   Lemma kcc_ref_mcc: ccref (krel_kcc R) (krel_mcc R).
   Proof.
     unfold ccref. intros w se1 se2 [q1 k1] [q2 k2] Hse Hq.
-    inv Hse. inv Hq. inv H4. cbn in *. exists m2. repeat apply conj; auto.
+    inv Hse. inv Hq. inv H4. cbn in *. exists (m1, m2). repeat apply conj; auto.
     - constructor; eauto. inv H1. auto. inv H1. auto.
-    - intros [r1 kr1] [r2 kr2] [w' [Hw' Hr]]. cbn in Hw'.
+    - intros [r1 kr1] [r2 kr2] [w' [Hw' Hr]].
+      destruct w' as [m1' m2']. cbn in *.
       inv Hr. exists kr1. constructor; auto.
       constructor; auto. constructor; auto.
-  Admitted.
+  Qed.
 
   Lemma layer_fsim_refine: layer_fsim_mcc -> layer_fsim_kcc.
   Proof.

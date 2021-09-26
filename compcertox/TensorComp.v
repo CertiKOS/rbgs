@@ -279,8 +279,9 @@ Section TENSOR.
   Inductive state_match: fsim_index HL -> state L1 * J1 -> state L2 * J2 -> Prop :=
   | lift_state_match i s1 j1 s2 j2:
       fsim_match_states HL se1 se2 w i s1 s2 ->
-      Rk jr j1 j2 -> Rr jr j1 w ->
-      state_match i (s1, j1) (s2, j2).
+      Rk jr j1 j2 -> Rr jr j1 (snd w) -> no_perm_on (fst w) (G jr) ->
+      Mem.extends (fst w) (snd w) ->
+  state_match i (s1, j1) (s2, j2).
 
   Lemma lift_layer_semantics_simulation:
     fsim_properties 1 (kr * jr) se1 se2 w
@@ -293,17 +294,13 @@ Section TENSOR.
       pose proof (fsim_lts HL _ w Hse Hse1).
       edestruct @fsim_match_initial_states as (idx & s2 & Hs2 & Hs); eauto.
       apply Hq. exists idx, (s2, j2). split. split; auto.
-      constructor; auto. apply Hq. apply Hq.
+      constructor; auto; apply Hq.
     - intros idx [s1 sj1] [s2 sj2] [r1 [kr1 jr1]] Hs [H Hj].
       inv Hs. pose proof (fsim_lts HL _ w Hse Hse1).
       edestruct @fsim_match_final_states as (r2 & Hr2 & Hr); eauto.
       cbn [fst snd] in *. destruct r2 as [r2 rk2]. subst sj1.
       exists (r2, (rk2, sj2)). split. split; eauto.
-      apply prod_match_reply. apply Hr. auto.
-      eapply G_unchanged; eauto.
-      destruct Hr as [w' [Hw' Hr]]. inv Hr.
-      eapply Mem.unchanged_on_implies. apply Hw'.
-      cbn. intros. intros contra. eapply Hdisjoint; eauto.
+      apply prod_match_reply; auto. intros. eapply Hdisjoint; eauto.
     - intros i [s1 sj1] [s2 sj2] [ ].
     - intros [s1 sj1] t [s1' sj1'] H idx [s2 sj2] Hs. destruct H as [H <-].
       inv Hs. pose proof (fsim_lts HL _ w Hse Hse1).
