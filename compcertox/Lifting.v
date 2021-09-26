@@ -505,6 +505,14 @@ Proof.
   rewrite (skel_extend_same L1). reflexivity.
 Qed.
 
+Lemma lift_comp_component3 {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB) sk sk1:
+  comp_semantics' L1 L2 sk ≤ comp_semantics' (skel_extend L1 sk1) L2 sk.
+Proof.
+  replace L1 with (skel_extend (skel_extend L1 sk1) (skel L1)) at 1.
+  apply lift_comp_component1.
+  unfold skel_extend. destruct L1. reflexivity.
+Qed.
+
 Section EXTEND_SKEL_FLAT_COMP.
   Generalizable All Variables.
   Context {I} `{L: I -> Smallstep_.semantics liA liB}.

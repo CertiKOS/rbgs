@@ -13,7 +13,7 @@ Section PROG_LAYER_DEF.
      running on top of L2 is the low level spec *)
   Context {K1 K2: Type} (L1: layer K1) (L2: layer K2) (p: Clight_.program).
 
-  Definition prog_layer_comp sk := comp_semantics' (Clight_.semantics2 p @ K2) L2 sk.
+  Definition prog_layer_comp sk := comp_semantics' (Clight_.semantics1 p @ K2) L2 sk.
 
   (* The version of certified abstraction layers for vertical composition *)
   Definition prog_ksim (R: crel K1 K2) :=
@@ -54,9 +54,58 @@ Section MOD_LAYER_DEF.
 
 End MOD_LAYER_DEF.
 
+Section HCOMP_SINGLETON.
+
+  Import SmallstepLinking_ Smallstep_.
+  Context {li} (L: semantics li li).
+  Variable sk: AST.program unit unit.
+  Context `{!ProgramSem L}.
+
+  Let LS := fun k : unit + Empty_set =>
+              match k with
+              | inl _ => L
+              | inr e => match e with end
+              end.
+
+  Inductive singleton_match: state L -> list (frame LS) -> Prop :=
+  | singleton_match_intro s: singleton_match s (st LS (inl tt) s :: nil).
+
+  Ltac esca := eexists; split; try constructor; intuition auto.
+  Lemma hcomp_singleton_fsim: skel_extend L sk ≤ SmallstepLinking_.semantics' LS sk.
+  Proof.
+    constructor. econstructor; eauto. intros i.
+    { split; cbn; intros. exists (inl tt). apply H. destruct H as [[|] Hx]. apply Hx. inv e. }
+    intros se _ [ ] [ ] _. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := singleton_match); cbn; intros; subst.
+    - esca. eapply incoming_query_valid. eauto.
+    - inv H. esca.
+    - inv H. exists tt. eexists; repeat apply conj; eauto. constructor; eauto.
+      intros [|]. destruct u. eapply outgoing_query_invalid; eauto. inv e.
+      intros; subst. esca.
+    - inv H0. esca.
+    - apply well_founded_ltof.
+  Qed.
+
+End HCOMP_SINGLETON.
+
 Lemma singleton_ksim {K1 K2} L1 L2 p (R: crel K1 K2): prog_ksim L1 L2 p R -> ksim L1 L2 (p :: nil) R.
 Proof.
-Admitted.
+  unfold prog_ksim, ksim. intuition.
+  - unfold skel_module_compatible. rewrite Forall_forall.
+    intros x Hx. cbn in Hx. destruct Hx; intuition. subst. auto.
+  - unfold layer_comp. unfold semantics. unfold ref. cbn.
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations. eauto.
+
+    unfold prog_layer_comp.
+    etransitivity. apply lift_comp_component3 with (sk1 := (skel L1)).
+    eapply categorical_compose_simulation'; [ | reflexivity | apply linkorder_refl | auto].
+    replace (skel_extend (semantics1 p @ K2) (skel L1))
+      with (skel_extend (semantics1 p) (skel L1) @ K2) by reflexivity.
+    apply lifting_simulation. apply hcomp_singleton_fsim. typeclasses eauto.
+Qed.
 
 Lemma compatible_app sk M N:
   skel_module_compatible M sk -> skel_module_compatible N sk ->
