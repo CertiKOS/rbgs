@@ -271,12 +271,12 @@ Section SIMULATION.
 
   (* for the self-simulation it is not necessary to require disjoint scope. If p
      and G interfere with each other, the source program would fail. *)
-  Lemma clight_sim p: forward_simulation krel_kcc krel_kcc (semantics1 p @ K1) (semantics1 p @ K2).
+  Lemma clight_sim p: forward_simulation krel_kcc krel_kcc (semantics2 p @ K1) (semantics2 p @ K2).
   Proof.
     constructor. econstructor; eauto.
     intros i. reflexivity.
     instantiate (1 := fun _ _ _ => _). cbn beta.
-    intros ? se w Hse Hse1. inv Hse. cbn -[semantics1] in *.
+    intros ? se w Hse Hse1. inv Hse. cbn -[semantics2] in *.
     pose (ms := fun '(s1, k1) '(s2, k2) =>
                   Clightrel_.state_match R (krelw se k1) s1 s2 /\ Rk R k1 k2).
     apply forward_simulation_step with (match_states := ms).
@@ -326,7 +326,7 @@ Section SIMULATION.
         constructor; auto. eapply cont_match_mr. eauto.
     - intros [s1 k1] t [s1' k1'] Hstep [s2 k2] [Hs Hk].
       inv Hstep. cbn in H.
-      exploit step1_rel; eauto. unfold genv_match.
+      exploit step2_rel; eauto. unfold genv_match.
       eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
       constructor. intros (s2' & Hstep' & w' & Hw' & Hs').
       exists (s2', k2). inv Hw'. split; split; auto.
@@ -488,7 +488,7 @@ Coercion crel_to_cc : crel >-> callconv.
 Coercion singleton_rel : krel >-> crel.
 
 Lemma clight_krel {K1 K2} (R: crel K1 K2) p:
-  forward_simulation R R (Clight_.semantics1 p @ K1) (Clight_.semantics1 p @ K2).
+  forward_simulation R R (Clight_.semantics2 p @ K1) (Clight_.semantics2 p @ K2).
 Proof.
   induction R; simpl.
   - apply lifting_simulation.

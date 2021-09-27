@@ -13,7 +13,7 @@ Section PROG_LAYER_DEF.
      running on top of L2 is the low level spec *)
   Context {K1 K2: Type} (L1: layer K1) (L2: layer K2) (p: Clight_.program).
 
-  Definition prog_layer_comp sk := comp_semantics' (Clight_.semantics1 p @ K2) L2 sk.
+  Definition prog_layer_comp sk := comp_semantics' (Clight_.semantics2 p @ K2) L2 sk.
 
   (* The version of certified abstraction layers for vertical composition *)
   Definition prog_ksim (R: crel K1 K2) :=
@@ -102,8 +102,8 @@ Proof.
     unfold prog_layer_comp.
     etransitivity. apply lift_comp_component3 with (sk1 := (skel L1)).
     eapply categorical_compose_simulation'; [ | reflexivity | apply linkorder_refl | auto].
-    replace (skel_extend (semantics1 p @ K2) (skel L1))
-      with (skel_extend (semantics1 p) (skel L1) @ K2) by reflexivity.
+    replace (skel_extend (semantics2 p @ K2) (skel L1))
+      with (skel_extend (semantics2 p) (skel L1) @ K2) by reflexivity.
     apply lifting_simulation. apply hcomp_singleton_fsim. typeclasses eauto.
 Qed.
 
