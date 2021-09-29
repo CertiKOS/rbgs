@@ -54,6 +54,12 @@ Section MOD_LAYER_DEF.
 
 End MOD_LAYER_DEF.
 
+
+(* "M:Y" part should have higher priority than the type annotation "a:T" which
+   is at level 100 *)
+Notation " X ⊢ [ R ] M : Y " := (ksim_mcc Y X M R) (at level 85, M at level 99).
+Notation " X ⊢ { R } M : Y " := (ksim Y X M R) (at level 85, M at level 99).
+
 Section HCOMP_SINGLETON.
 
   Import SmallstepLinking_ Smallstep_.
@@ -273,8 +279,7 @@ Section TCOMP.
   Context {K1 K2 K3 K4: Type} (R: krel K1 K2) (S: krel K3 K4).
   Context (L1: layer K1) (L2: layer K2) (L3: layer K3) (L4: layer K4).
   Context (M N: cmodule).
-
-  Hypothesis (HL1: ksim_mcc L1 L2 M R) (HL2: ksim_mcc L3 L4 N S).
+  Hypothesis (HL1: L2 ⊢ [R] M : L1) (HL2: L4 ⊢ [S] N : L3).
   Variable (sk: AST.program unit unit).
   Hypothesis (Hk1: linkorder (skel L1) sk) (Hk2: linkorder (skel L3) sk).
   Let Mi := (fun i : bool => if i then semantics M sk else semantics N sk).
@@ -285,7 +290,6 @@ Section TCOMP.
                               (tensor_comp_semantics' L2 L4 sk)
                               (M ++ N) (R * S).
   Proof.
-    unfold ksim in *.
     destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
     destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
     split. eapply linkorder_refl.
@@ -353,3 +357,74 @@ Section TCOMP.
   Qed.
 
 End TCOMP.
+
+Definition absfun_rel (K1 K2: Type) := K1 -> K2 -> Prop.
+
+Section ABSFUN_REL.
+
+  Context (K1 K2: Type) (R: absfun_rel K1 K2).
+
+  Inductive absfun_query: query (li_c@K1) -> query (li_c@K2) -> Prop :=
+  | absfun_query_intro vf1 sg1 vargs1 m1 vf2 sg2 vargs2 m2 k1 k2:
+      Val.inject inject_id vf1 vf2 ->
+      Val.inject_list inject_id vargs1 vargs2 ->
+      vf1 <> Vundef -> R k1 k2 ->
+      Mem.extends m1 m2 -> no_perm_on m1 (fun _ _ => True) ->
+      absfun_query (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
+
+  Inductive absfun_reply: reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
+  | absfun_reply_intro retval1 m1 retval2 m2 k1 k2:
+      Val.inject inject_id retval1 retval2 ->
+      Mem.extends m1 m2 -> no_perm_on m1 (fun _ _ => True) -> R k1 k2 ->
+      absfun_reply (cr retval1 m1, k1) (cr retval2 m2, k2).
+
+  Program Definition absfun_cc: callconv (li_c@K1) (li_c@K2) :=
+    {|
+      ccworld := unit;
+      match_senv _ := eq;
+      match_query _ := absfun_query;
+      match_reply _ := absfun_reply;
+    |}.
+  Next Obligation. Admitted.
+  Next Obligation. Admitted.
+
+End ABSFUN_REL.
+
+Program Definition absfun_rel_compose {K1 K2 K3} (R: absfun_rel K1 K2) (S: krel K2 K3)
+  : krel K1 K3 :=
+  {|
+    Rk k1 k3 := exists k2, R k1 k2 /\ Rk S k2 k3;
+    Rr k1 m := exists k2, R k1 k2 /\ Rr S k2 m;
+    AbstractStateRel.G := AbstractStateRel.G S;
+  |}.
+Next Obligation.
+  exploit @G_unchanged; eauto.
+Qed.
+Next Obligation.
+  exploit @G_valid; eauto.
+Qed.
+
+Coercion absfun_cc : absfun_rel >-> callconv.
+
+Definition ksim_absfun {K1 K2: Type} (L1: layer K1) (L2: layer K2) (M: cmodule)
+           (R: absfun_rel K1 K2) :=
+  linkorder (skel L2) (skel L1) /\ skel_module_compatible M (skel L1) /\
+  forward_simulation 1 R L1 (layer_comp L2 M (skel L1)).
+
+Lemma absfun_ref {K1 K2 K3} (R: absfun_rel K1 K2) (S: krel K2 K3):
+  ccref (absfun_rel_compose R S) (R @ S).
+Proof.
+  intros [m1 m3] ? se [q1 kq1] [q2 kq2] [ ] Hq.
+  Admitted.
+
+Section ABSFUN.
+
+  Context {K1 K2 K3 L1 L2 L3} (M N: cmodule) (R: absfun_rel K1 K2) (S: krel K2 K3)
+          (HL1: ksim_absfun L1 L2 M R) (HL2: ksim_mcc L2 L3 N S).
+
+  Context `{!CategoricalLinkable (semantics M (skel L1)) (semantics N (skel L1))}.
+
+  Theorem absfun_comp: ksim_mcc L1 L3 (M ++ N) (absfun_rel_compose R S).
+  Admitted.
+
+End ABSFUN.

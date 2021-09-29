@@ -355,8 +355,6 @@ Section KREL_MCC.
       Rr R k1 m2 -> Rk R k1 k2 ->
       krel_query (m1, m2) (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
 
-  (* Add the source memory to the index if we need to prove the permissions
-       are preserved *)
   Inductive krel_reply: krel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
   | krel_reply_intro retval1 m1 retval2 m2 k1 k2:
       Val.inject inject_id retval1 retval2 ->
@@ -497,11 +495,52 @@ Proof.
   - eapply compose_forward_simulations; eauto.
 Qed.
 
-(* The horizontally compositional layers have the abstraction relation
-   interpreted as krel_mcc denoted by [R]. When the layer is ready for vertical
-   composition the krel_mcc is refined to krel_kcc, denoted by [|R|]. Note that
-   the refinement is only for one direction. In the section, we prove the
-   refinement. *)
+
+(*
+
+   There are two kinds of calling convention that are derived from an
+   abstraction relation R. kcc denotes the one indexed by the source program
+   abstract data K1 (the index is not used for calling convention though) and
+   mcc denotes the one indexed by the target program memory.
+
+   The commonalities: both calling conventions are based on memory extension and
+   they require the abstraction relation between the abstract data and the
+   memory holds in both queries and replies.
+
+   The kcc convention is the most basic relation on queries and replies, which
+   is essentially a naive embedding of the abstraction relation.
+
+   The first problem we encounter is running the client code on top of certified
+   layers. Across two consecutive external calls to the underlay, the abstract
+   data is unchanged because the lifted semantics simply threads through the
+   abstract data. Therefore, the internal steps of the client code can't modify
+   the variables of the underlay (otherwise the queries won't match when it
+   calls the underlay). To prove this property, we exploit the CKLR which
+   abstracts out the key properties to ensure the internal steps preserve a
+   particular relation.
+
+   The vertical composition doesn't have the inconsistency issue because the
+   composition of calling conventions is essentially treating (m,k) as a
+   whole. The inconsistency issue pops up when we try to define the relations in
+   the abstraction relation separately, i.e. to define relation between abstract
+   data and relation between abstract data and memory separately.
+
+   The second problem is to horizontally compose abstraction relations. To
+   ensure the execution of one component doesn't mess up the other abstraction
+   relation, we need to strengthen the calling convention to guarantee the
+   variables not belong to the component are unchanged throughout the
+   transition. However, such calling conventions do not compose.
+
+   The third problem is to compose an absfun layer with an underlay and the mcc
+   calling convention is maintained. So the client code can't touch the
+   variables belong to the underlay (for the same reason in vertical
+   composition) and it can't change other part of the memory as well (otherwise
+   the mcc convention can't be preserved)
+
+   The horizontally compositional layers have the abstraction relation
+   interpreted as mcc. When the layer is ready for vertical composition the mcc
+   is refined to kcc. Note that the refinement is only for one direction. In the
+   section, we prove the refinement. *)
 
 Require Import CallconvAlgebra_.
 
