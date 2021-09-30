@@ -224,6 +224,7 @@ Section SIMULATION.
   Coercion krel_cklr : krel >-> cklr.
 
   (* A calling convention derived from a krel indexed by the abstract data K *)
+  (* FIXME: the index is not necessary actually *)
   Program Definition krel_kcc: callconv (li_c @ K1) (li_c @ K2) :=
     {|
       ccworld := world R;
@@ -347,13 +348,13 @@ Section KREL_MCC.
     |}.
 
   Inductive krel_query: krel_world -> query (li_c@K1) -> query (li_c@K2) -> Prop :=
-  | krel_query_intro vf1 sg1 vargs1 m1 vf2 sg2 vargs2 m2 k1 k2:
+  | krel_query_intro vf1 sg vargs1 m1 vf2 vargs2 m2 k1 k2:
       Val.inject inject_id vf1 vf2 ->
       Val.inject_list inject_id vargs1 vargs2 ->
       vf1 <> Vundef ->
       Mem.extends m1 m2 -> no_perm_on m1 (G R) ->
       Rr R k1 m2 -> Rk R k1 k2 ->
-      krel_query (m1, m2) (cq vf1 sg1 vargs1 m1, k1) (cq vf2 sg2 vargs2 m2, k2).
+      krel_query (m1, m2) (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
 
   Inductive krel_reply: krel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
   | krel_reply_intro retval1 m1 retval2 m2 k1 k2:
@@ -495,6 +496,170 @@ Proof.
   - eapply compose_forward_simulations; eauto.
 Qed.
 
+
+Module MCC.
+
+  Section CKLR.
+    Context {K1 K2} (R: krel K1 K2).
+
+    Inductive krel_world := krelw (se: Genv.symtbl) (w: mem * mem).
+    Inductive krel_mm: krel_world -> mem -> mem -> Prop :=
+    | match_intro se m1 m2:
+        no_perm_on m1 (G R) -> Mem.extends m1 m2 ->
+        krel_mm (krelw se (m1, m2)) m1 m2.
+    Inductive krel_match_se: krel_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
+    | match_se_intro: forall se m,
+        krel_match_se (krelw se m) se se.
+    (* The internal steps makes no change to neither memory nor the abstract data *)
+    Inductive krel_world_acc: krel_world -> krel_world -> Prop :=
+    | world_acc_intro se m1 m2 m1' m2':
+        Mem.unchanged_on (fun _ _ => True) m1 m1' ->
+        Mem.unchanged_on (fun _ _ => True) m2 m2' ->
+        krel_world_acc (krelw se (m1, m2)) (krelw se (m1', m2')).
+    Program Definition krel_cklr: cklr :=
+    {|
+      world := krel_world;
+      wacc := krel_world_acc;
+      mi w := inject_id;
+      match_mem := krel_mm;
+      match_stbls := krel_match_se;
+    |}.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+    Next Obligation. Admitted.
+
+  End CKLR.
+
+  Section SIM.
+    Context {K1 K2} (R: krel K1 K2).
+    (* The underlay calls may update the corresponding part in memory *)
+    Inductive cklr_world_acc: krel_world -> krel_world -> Prop :=
+    | cklr_world_acc_intro se m1 m2 m1' m2':
+        Mem.unchanged_on (fun _ _ => True) m1 m1' ->
+        Mem.unchanged_on (fun b ofs => ~ G R b ofs) m2 m2' ->
+        cklr_world_acc (krelw se (m1, m2)) (krelw se (m1', m2')).
+
+    Instance krel_cklr_kf: KripkeFrame unit (krel_world) :=
+      {| acc _ := cklr_world_acc; |}.
+
+    Inductive state_rel: K1 -> state -> Prop :=
+    | State_rel f s k e le m k1:
+        Rr R k1 m -> state_rel k1 (State f s k e le m)
+    | Callstate_rel vf args k m k1:
+        Rr R k1 m -> state_rel k1 (Callstate vf args k m)
+    | Returnstate_rel res k m k1:
+        Rr R k1 m -> state_rel k1 (Returnstate res k m).
+
+    Lemma cont_match_mr w w' k1 k2:
+      cont_match (krel_cklr R) w k1 k2 ->
+      cont_match (krel_cklr R) w' k1 k2.
+    Proof.
+      induction 1; try constructor; auto.
+    Qed.
+
+    Lemma clight_sim p: forward_simulation R R (semantics2 p @ K1) (semantics2 p @ K2).
+    Proof.
+      constructor. econstructor; eauto. intros i; reflexivity.
+      instantiate (1 := fun _ _ _ => _). cbn beta.
+      intros ? se w Hse Hse1. inv Hse. cbn -[semantics2] in *.
+      pose (ms := fun '(s1, k1) '(s2, k2) =>
+                    klr_diam (kf := krel_cklr_kf) tt
+                             (Clightrel_.state_match (krel_cklr R))
+                             (krelw se w) s1 s2
+                    /\ Rk R k1 k2 /\ state_rel k1 s2).
+      apply forward_simulation_step with (match_states := ms).
+      - intros [q1 k1] [q2 k2] [s1 k1'] Hq Hs1. inv Hq. inv Hs1.
+        cbn in *. subst k1'. inv H. exists (Callstate vf2 vargs2 Kstop m2, k2). split.
+        + constructor; cbn; auto. econstructor; eauto.
+          * unfold globalenv. cbn.
+            exploit (@find_funct_inject p (krel_cklr R) (krelw se (m1, m2)) (globalenv se p)).
+            split; cbn; eauto.
+            eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
+            constructor. eauto. intro Hx. apply Hx.
+          * eapply val_casted_list_inject; eauto.
+          * simpl. eapply match_stbls_nextblock; eauto.
+            instantiate (2 := (krel_cklr R)). instantiate (1 := krelw se (m1, m2)).
+            constructor. constructor; auto.
+        + split; auto. exists (krelw se (m1, m2)); split. constructor; apply Mem.unchanged_on_refl.
+          constructor; try constructor; eauto. now apply list_inject_subrel'.
+          split; auto. constructor; auto.
+      - intros [s1 k1] [s2 k2] [r1 kr1] [Hs Hk] Hfinal. inv Hfinal.
+        cbn [fst snd] in *. subst kr1. inv H. destruct Hs as [w' [Hw' Hs]].
+        inv Hs. inv H4. inv H5. destruct w as [m1 m2].
+        rename m into m1'. rename y1 into m2'.
+        cbn in *. inv Hw'. eexists (_, k2). split.
+        + split; auto. cbn. constructor.
+        + exists (m1', m2'). split.
+          * constructor; auto.
+          * constructor; destruct Hk as [? Hk]; auto. now inv Hk.
+      - intros [s1 ks1] [s2 ks2] [q1 kq1] [Hs Hk] Hext. inv Hext.
+        cbn [fst snd] in *. subst kq1. inv H. destruct Hs as [w' [Hw' Hs]].
+        inv Hw'. exists (m1', m2'). inv Hs. eexists (_, _). repeat apply conj; cbn; eauto.
+        + econstructor.
+          exploit (@find_funct_inject p (krel_cklr R) (krelw se (m1', m2')) (globalenv se p)).
+          split; cbn; eauto.
+          eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
+          constructor. eauto. intros Hx. subst f. apply Hx.
+        + inv H10. constructor; destruct Hk as [Hkr Hrr]; eauto; cbn in *.
+          eapply list_inject_subrel. auto.
+          destruct vf; cbn in *; congruence.
+          eapply G_unchanged; eauto. inv Hrr. eauto.
+          eapply Mem.unchanged_on_refl.
+        + intros [r1 kr1] [r2 kr2] [s1' k1'] [w'' [Hw'' Hr]] H.
+          destruct w'' as [m1'' m2'']. destruct H as [H Hkk].
+          cbn [fst snd] in *. subst k1'. inv H. inv Hr. eexists (_, kr2).
+          split. split; cbn; auto.
+          * econstructor.
+          * repeat apply conj; auto; try constructor; auto.
+            exists (krelw se (m', m2'')). split.
+            -- split. destruct Hw''. eapply Mem.unchanged_on_trans; eauto.
+               destruct Hw''. eapply Mem.unchanged_on_trans; eauto.
+            -- constructor; auto.
+               eapply cont_match_mr. eauto.
+               constructor; eauto.
+      - intros [s1 k1] t [s1' k1'] Hstep [s2 k2] [Hs Hk].
+        inv Hstep. cbn in H. destruct Hs as [w' [Hw' Hs]].
+        destruct w'. inv Hw'.
+        exploit step2_rel; eauto.
+        {
+          unfold genv_match.
+          eapply (rel_push_rintro (fun se => globalenv se p) (fun se => globalenv se p)).
+          constructor.
+        }
+        intros (s2' & Hstep' & w' & Hw' & Hs').
+        exists (s2', k2). inv Hw'. split; split; auto.
+        exists (krelw se0 (m1'0, m2'0)). split; auto.
+        split; eapply Mem.unchanged_on_trans; eauto.
+        eapply Mem.unchanged_on_implies; eauto. intuition.
+        split; destruct Hk as [? Hk]; auto.
+        clear -Hs Hs' Hk H7.
+        inv Hk; inv Hs; inv Hs';
+        repeat (match goal with
+                | [ H: match_mem _ _ _ _ |- _ ] => inv H
+                end);
+        constructor; eapply G_unchanged; eauto; eapply Mem.unchanged_on_implies; intuition eauto.
+      - apply well_founded_ltof.
+    Qed.
+
+  End SIM.
+
+End MCC.
 
 (*
 
