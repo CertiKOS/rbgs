@@ -274,48 +274,53 @@ Section TENSOR.
   Context (Hse: match_senv (kr * jr) w se1 se2).
   Context (Hse1: Genv.valid_for (skel L1) se1).
 
-  Hypothesis Hdisjoint: forall b ofs, G jr b ofs -> G kr b ofs -> False.
+  Hypothesis Hdisjoint: forall i, vars jr i -> vars kr i -> False.
 
   Inductive state_match: fsim_index HL -> state L1 * J1 -> state L2 * J2 -> Prop :=
-  | lift_state_match i s1 j1 s2 j2:
+  | lift_state_match i s1 j1 s2 j2 se m1 m2:
+      w = mkrelw se (m1, m2) ->
       fsim_match_states HL se1 se2 w i s1 s2 ->
-      Rk jr j1 j2 -> Rr jr j1 (snd w) -> no_perm_on (fst w) (G jr) ->
-      Mem.extends (fst w) (snd w) ->
-  state_match i (s1, j1) (s2, j2).
+      Rk jr j1 j2 -> Rr jr j1 m2 -> no_perm_on m1 (blocks jr se) ->
+      Mem.extends m1 m2 ->
+      state_match i (s1, j1) (s2, j2).
 
   Lemma lift_layer_semantics_simulation:
     fsim_properties 1 (kr * jr) se1 se2 w
                     (lift_layer_k L1 se1) (lift_layer_k L2 se2)
                     (fsim_index HL) (fsim_order HL) state_match.
   Proof.
+    destruct w as [se [m1 m2]] eqn: Hw.
+    assert (Hsew: match_senv kr w se se).
+    { subst. constructor. } inv Hse.
     split; cbn.
     - intros [q1 [k1 j1]] [q2 [k2 j2]] [s1 sj1] Hq [H Hj]; cbn in *.
       subst sj1. eapply prod_match_query in Hq.
-      pose proof (fsim_lts HL _ w Hse Hse1).
+      pose proof (fsim_lts HL _ _ Hsew Hse1).
       edestruct @fsim_match_initial_states as (idx & s2 & Hs2 & Hs); eauto.
       apply Hq. exists idx, (s2, j2). split. split; auto.
-      constructor; auto; apply Hq.
+      econstructor; subst; eauto; apply Hq.
     - intros idx [s1 sj1] [s2 sj2] [r1 [kr1 jr1]] Hs [H Hj].
-      inv Hs. pose proof (fsim_lts HL _ w Hse Hse1).
+      inv Hs. inv H5. cbn [fst snd] in *. subst.
+      pose proof (fsim_lts HL _ _ Hsew Hse1).
       edestruct @fsim_match_final_states as (r2 & Hr2 & Hr); eauto.
-      cbn [fst snd] in *. destruct r2 as [r2 rk2]. subst sj1.
+      destruct r2 as [r2 rk2].
       exists (r2, (rk2, sj2)). split. split; eauto.
       apply prod_match_reply; auto. intros. eapply Hdisjoint; eauto.
     - intros i [s1 sj1] [s2 sj2] [ ].
     - intros [s1 sj1] t [s1' sj1'] H idx [s2 sj2] Hs. destruct H as [H <-].
-      inv Hs. pose proof (fsim_lts HL _ w Hse Hse1).
+      inv Hs. pose proof (fsim_lts HL _ _ Hsew Hse1).
       edestruct @fsim_simulation as (idx' & s2' & Hs2' & Hs'); eauto.
       exists idx', (s2', sj2). split.
       + destruct Hs2'; [left | right].
         apply lifting_step_plus; eauto.
         split. apply lifting_step_star; eauto. intuition. intuition.
-      + constructor; eauto.
+      + econstructor; subst; eauto.
   Qed.
 
 End TENSOR.
 
 Lemma layer_lifting_simulation {K1 K2 J1 J2} (kcc: krel K1 K2) (jcc: krel J1 J2) L1 L2:
-  (forall b ofs, G jcc b ofs -> G kcc b ofs -> False) -> forward_simulation 1 kcc L1 L2 ->
+  (forall i, vars jcc i -> vars kcc i -> False) -> forward_simulation 1 kcc L1 L2 ->
   forward_simulation 1 (kcc * jcc) (lift_layer_k L1) (lift_layer_k L2).
 Proof.
   intros Hdisjoint [HL]. constructor.
@@ -345,7 +350,7 @@ Section MONOTONICITY.
   Hypothesis (HL1: forward_simulation 1 R L1 L2) (HL2: forward_simulation 1 S L3 L4).
   Variable (sk: AST.program unit unit).
   Hypothesis (Hsk1: linkorder (skel L1) sk) (Hsk2: linkorder (skel L3) sk).
-  Hypothesis (Hdisjoint: forall b ofs, G R b ofs -> G S b ofs -> False).
+  Hypothesis (Hdisjoint: forall i, vars R i -> vars S i -> False).
 
   Lemma tensor_compose_simulation:
     forward_simulation 1 (R * S) (tensor_comp_semantics' L1 L3 sk) (tensor_comp_semantics' L2 L4 sk).
