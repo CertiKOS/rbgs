@@ -280,7 +280,7 @@ Section TENSOR.
   | lift_state_match i s1 j1 s2 j2 se m1 m2:
       w = mkrelw se (m1, m2) ->
       fsim_match_states HL se1 se2 w i s1 s2 ->
-      Rk jr j1 j2 -> Rr jr j1 m2 -> no_perm_on m1 (blocks jr se) ->
+      Rk jr j1 j2 -> Rr jr se1 j1 m2 -> no_perm_on m1 (blocks jr se) ->
       Mem.extends m1 m2 ->
       state_match i (s1, j1) (s2, j2).
 

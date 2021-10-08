@@ -27,7 +27,7 @@ Definition no_perm_on (m: mem) (vars: block -> Z -> Prop): Prop :=
 Record krel {K1 K2: Type}: Type :=
   mk_krel {
       Rk: K1 -> K2 -> Prop;
-      Rr: K1 -> mem -> Prop;
+      Rr (se: Genv.symtbl): K1 -> mem -> Prop;
       vars :> ident -> Prop;
       others := fun i => ~ vars i;
       (* location of the static variables *)
@@ -36,8 +36,8 @@ Record krel {K1 K2: Type}: Type :=
       other_blocks (se: Genv.symtbl) (b: block) (ofs: Z) :=
         exists v, others v /\ Genv.find_symbol se v = Some b;
       (* properties *)
-      G_unchanged: forall se k1 m m', Rr k1 m -> Mem.unchanged_on (blocks se) m m' -> Rr k1 m';
-      G_valid: forall se k1 m b ofs, Rr k1 m -> (blocks se) b ofs -> Mem.valid_block m b;
+      G_unchanged: forall se k1 m m', Rr se k1 m -> Mem.unchanged_on (blocks se) m m' -> Rr se k1 m';
+      G_valid: forall se k1 m b ofs, Rr se k1 m -> (blocks se) b ofs -> Mem.valid_block m b;
     }.
 Arguments krel: clear implicits.
 
@@ -51,7 +51,7 @@ Section KREL_CKLR.
   Inductive krel_world := krelw (se: Genv.symtbl) (k1: K1).
   Inductive krel_mm: krel_world -> mem -> mem -> Prop :=
     match_intro: forall se k1 m1 m2,
-      Mem.extends m1 m2 -> Rr R k1 m2 ->
+      Mem.extends m1 m2 -> Rr R se k1 m2 ->
       (* The source program would crash if it tries to manipulate data on blocks
          defined in G *)
       no_perm_on m1 (blocks R se) ->
@@ -96,7 +96,6 @@ Section KREL_CKLR.
       eapply Mem.alloc_result in Hm1. subst.
       eapply G_valid in H2; eauto.
       erewrite Mem.mext_next; eauto.
-      Unshelve. exact se.
   Qed.
   (* cklr_free *)
   Next Obligation.
@@ -221,13 +220,13 @@ Section SIMULATION.
     krel_kcc_query_intro se vf1 vf2 sg vargs1 vargs2 m1 m2 k1 k2:
       Val.inject inject_id vf1 vf2 -> Val.inject_list inject_id vargs1 vargs2 ->
       Mem.extends m1 m2 -> vf1 <> Vundef -> no_perm_on m1 (blocks R se) ->
-      Rr R k1 m2 -> Rk R k1 k2 ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
       krel_kcc_query se (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
   Inductive krel_kcc_reply: Genv.symtbl -> reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
     krel_kcc_reply_intro se vres1 m1 vres2 m2 k1 k2:
       Val.inject inject_id vres1 vres2 ->
       Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
-      Rr R k1 m2 -> Rk R k1 k2 ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
       krel_kcc_reply se (cr vres1 m1, k1) (cr vres2 m2, k2).
 
   (* Maybe we could allow an identity injection in match_senv? *)
@@ -369,14 +368,14 @@ Section KREL_MCC.
       Val.inject_list inject_id vargs1 vargs2 ->
       vf1 <> Vundef ->
       Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
-      Rr R k1 m2 -> Rk R k1 k2 ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
       mkrel_query (mkrelw se (m1, m2)) (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
 
   Inductive mkrel_reply: mkrel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
   | mkrel_reply_intro se retval1 m1 retval2 m2 k1 k2:
       Val.inject inject_id retval1 retval2 ->
       Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
-      Rr R k1 m2 -> Rk R k1 k2 ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
       mkrel_reply (mkrelw se (m1, m2)) (cr retval1 m1, k1) (cr retval2 m2, k2).
 
   Inductive mkrel_match_se: mkrel_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
@@ -411,7 +410,7 @@ Section PROD.
   Program Definition prod_krel: krel (K1*K3) (K2*K4) :=
     {|
       Rk '(k1, k3) '(k2, k4) := Rk R1 k1 k2 /\ Rk R2 k3 k4;
-      Rr '(k1, k3) m := Rr R1 k1 m /\ Rr R2 k3 m;
+      Rr se '(k1, k3) m := Rr R1 se k1 m /\ Rr R2 se k3 m;
       vars i := vars R1 i \/ vars R2 i;
     |}.
   Next Obligation.
@@ -459,7 +458,7 @@ Section Properties.
 
   Lemma prod_match_reply se m1 m2 r1 r2 k1 k2 k3 k4:
     match_reply R1 (mkrelw se (m1, m2)) (r1, k1) (r2, k2) ->
-    Rk R2 k3 k4 -> Rr R2 k3 m2 ->
+    Rk R2 k3 k4 -> Rr R2 se k3 m2 ->
     no_perm_on m1 (blocks R2 se) -> Mem.extends m1 m2 ->
     match_reply (R1 * R2) (mkrelw se (m1, m2)) (r1, (k1, k3)) (r2, (k2, k4)).
   Proof.
@@ -488,7 +487,7 @@ Section Properties.
 
   Lemma prod_match_query se m1 m2 q1 q2 k1 k2 k3 k4:
     match_query (R1 * R2) (mkrelw se (m1, m2)) (q1, (k1, k3)) (q2, (k2, k4)) ->
-    match_query R1 (mkrelw se (m1, m2)) (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 k3 m2 /\
+    match_query R1 (mkrelw se (m1, m2)) (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 se k3 m2 /\
     no_perm_on m1 (blocks R2 se) /\ Mem.extends m1 m2.
   Proof.
     intros. inv H. repeat apply conj; cbn in *; intuition.
@@ -610,13 +609,13 @@ Module MCC.
     Instance client_kf: KripkeFrame unit mkrel_world :=
       {| acc _ := client_world_acc; |}.
 
-    Inductive state_rel: K1 -> state -> Prop :=
+    Inductive state_rel se: K1 -> state -> Prop :=
     | State_rel f s k e le m k1:
-        Rr R k1 m -> state_rel k1 (State f s k e le m)
+        Rr R se k1 m -> state_rel se k1 (State f s k e le m)
     | Callstate_rel vf args k m k1:
-        Rr R k1 m -> state_rel k1 (Callstate vf args k m)
+        Rr R se k1 m -> state_rel se k1 (Callstate vf args k m)
     | Returnstate_rel res k m k1:
-        Rr R k1 m -> state_rel k1 (Returnstate res k m).
+        Rr R se k1 m -> state_rel se k1 (Returnstate res k m).
 
     Lemma ext_state_match_to_ext se m1 m2 s1 s2:
       ext_state_match (mkrelw se (m1, m2)) s1 s2 -> Clightrel_.state_match ext tt s1 s2.
@@ -680,7 +679,7 @@ Module MCC.
     Qed.
 
     Lemma unchanged_state_krel se k s1 s2:
-      state_rel k s1 -> mem_unchanged_state (blocks R se) s1 s2 -> state_rel k s2.
+      state_rel se k s1 -> mem_unchanged_state (blocks R se) s1 s2 -> state_rel se k s2.
     Proof.
       intros H Hs. inv Hs; inv H; constructor; eapply G_unchanged; eauto.
     Qed.
@@ -696,7 +695,7 @@ Module MCC.
       pose (ms := fun '(s1, k1) '(s2, k2) =>
                     klr_diam (kf := client_kf) tt
                              ext_state_match (mkrelw se mm) s1 s2
-                    /\ Rk R k1 k2 /\ state_rel k1 s2).
+                    /\ Rk R k1 k2 /\ state_rel se k1 s2).
       apply forward_simulation_step with (match_states := ms).
       - intros [q1 k1] [q2 k2] [s1 k1'] Hq Hs1. inv Hq. inv Hs1.
         cbn [fst snd] in *. subst k1'. inv H. exists (Callstate vf2 vargs2 Kstop m2, k2). split.
@@ -774,13 +773,12 @@ Module MCC.
           * destruct Hk as [? Hks]; split; auto.
             eapply unchanged_state_krel. eauto.
             apply p_pure in Hstep'.
-            instantiate (1 := se0).
             {
               inv Hstep'; constructor; eapply Mem.unchanged_on_implies;
                 eauto; intros b ofs [? [? ?]] Hb; eexists; eauto.
             }
       - apply well_founded_ltof.
-        Unshelve. exact tt. exact se.
+        Unshelve. exact tt.
     Qed.
 
   End SIM.

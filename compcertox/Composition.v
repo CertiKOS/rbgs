@@ -369,7 +369,7 @@ Class BotRel {K1 K2: Type} (R: krel K1 K2) :=
 
 Class AbsfunRel {K1 K2: Type} (R: krel K1 K2) :=
   {
-    Rr_true: forall k1 m, Rr R k1 m;
+    Rr_true: forall se k1 m, Rr R se k1 m;
     vars_empty: forall i, ~ vars R i;
   }.
 
@@ -407,7 +407,7 @@ Section BOT_COMP.
   Program Definition comp_krel : krel K1 K3 :=
     {|
       Rk k1 k3 := True;
-      Rr k1 m  := exists k2, Rk R k1 k2 /\ Rr S k2 m;
+      Rr se k1 m  := exists k2, Rk R k1 k2 /\ Rr S se k2 m;
       vars i := vars R i \/ vars S i;
     |}.
   Next Obligation.
