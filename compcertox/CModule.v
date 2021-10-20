@@ -7,7 +7,7 @@ Require Import Memory Values.
 Require Import Clight_ Linking.
 Require Import AbstractStateRel Lifting.
 Require Coq.omega.Omega.
-Require Import Ctypes.
+Require Import AST Ctypes.
 
 (* A module is a list of compilation units. Specifically, they are Clight
    programs at this time. Note that in the layer library the modules are
@@ -270,3 +270,86 @@ Proof.
     unfold footprint_of_program in Hi. rewrite Hdef in Hi.
     subst f. cbn in *. discriminate Hi.
 Qed.
+
+
+Section LINKABLE.
+  Definition program_vertical_linkable (p1 p2: Clight_.program) :=
+    forall id f ef ts t cc,
+      (prog_defmap p1) ! id = Some (Gfun (Internal f)) ->
+      (prog_defmap p2) ! id = Some (Gfun (External ef ts t cc)) -> False.
+
+  Definition cmodule_vertical_linkable (M N: cmodule) :=
+    forall pm pn, In pm M -> In pn N -> program_vertical_linkable pm pn.
+
+  Definition program_horizontal_linkable (p1 p2: Clight_.program) :=
+    program_vertical_linkable p1 p2 /\ program_vertical_linkable p2 p1.
+
+  Definition cmodule_horizontal_linkable (M N: cmodule) :=
+    forall pm pn, In pm M -> In pn N -> program_horizontal_linkable pm pn.
+
+  Lemma cmodule_program M idx:
+    exists p, In p M /\ ref M idx = Clight_.semantics2 p.
+  Proof.
+    induction M; [ easy | ].
+    destruct idx.
+    - eexists; split. now left. easy.
+    - specialize (IHM p) as (x & Hx & Hp).
+      exists x. split. now right. apply Hp.
+  Qed.
+
+  Lemma cmodule_vertical_linkable_cond M N sk1 sk2:
+    cmodule_vertical_linkable M N -> CategoricalLinkable (semantics M sk1) (semantics N sk2).
+  Proof.
+    intros H se s q Hext Hvq.
+    destruct Hvq as [Hq (id & (i & Hfp) & Hsymbol)].
+    destruct (cmodule_program M i) as (pm & Hpm & Hm). rewrite Hm in Hfp.
+    inversion Hext as [j ? ? ? Hx Hvq]. subst. clear Hext Hvq.
+    destruct (cmodule_program N j) as (pn & Hpn & Hn).
+    remember (ref N j) as pref. clear Heqpref. subst pref.
+    cbn in Hx. inv Hx. cbn -[prog_defmap] in *.
+    unfold Smallstep_.footprint_of_program in Hfp.
+    destruct ((prog_defmap pm) ! id) eqn: Hp1; try easy.
+    destruct g; try easy. destruct f0; try easy.
+    specialize (H pm pn Hpm Hpn). eapply H. eauto.
+    unfold Genv.symbol_address in Hsymbol.
+    destruct Genv.find_symbol eqn:Hb; try congruence.
+    unfold Genv.find_funct in H0. subst.
+    destruct Ptrofs.eq_dec; try congruence.
+    unfold Genv.find_funct_ptr in H0.
+    destruct Genv.find_def eqn:Hf in H0; try congruence.
+    destruct g; try congruence. inv H0.
+    rewrite Genv.find_def_spec in Hf.
+    destruct Genv.invert_symbol eqn:Hb'; try congruence.
+    apply Genv.invert_find_symbol in Hb'.
+    assert (id = i0) by (eapply Genv.genv_vars_inj; eauto).
+    subst. rewrite Hf. subst f. reflexivity.
+  Qed.
+
+  Lemma program_categorical_linkable_cond (p1 p2: Clight_.program) sk1 sk2:
+    (forall id f ef ts t cc,
+        (prog_defmap p1) ! id = Some (Gfun (Internal f)) ->
+        (prog_defmap p2) ! id = Some (Gfun (External ef ts t cc)) ->
+        False) ->
+    CategoricalLinkable (semantics (p1::nil) sk1) (semantics (p2::nil) sk2).
+  Proof.
+    intros. apply cmodule_vertical_linkable_cond.
+    unfold cmodule_vertical_linkable, program_vertical_linkable.
+    intros. inv H0; try easy. inv H1; try easy.
+    eapply H; eauto.
+  Qed.
+
+  Lemma cmodule_horizontal_linkable_cond M N sk1 sk2:
+    cmodule_horizontal_linkable M N ->
+    FlatLinkable (fun (i: bool) => if i then semantics M sk1 else semantics N sk2).
+  Proof.
+    intros H. unfold FlatLinkable.
+    intros [|] [|] * Ht Hvq; auto; exfalso.
+    - assert (Hl: CategoricalLinkable (semantics N sk2) (semantics M sk1)).
+      { apply cmodule_vertical_linkable_cond. intros p1 p2 Hp1 Hp2. apply H; eauto. }
+      exploit Hl; eauto.
+    - assert (Hl: CategoricalLinkable (semantics M sk1) (semantics N sk2)).
+      { apply cmodule_vertical_linkable_cond. intros p1 p2 Hp1 Hp2. specialize (H p1 p2). apply H; eauto. }
+      exploit Hl; eauto.
+  Qed.
+
+End LINKABLE.
