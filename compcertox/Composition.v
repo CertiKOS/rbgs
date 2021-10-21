@@ -63,6 +63,56 @@ End MOD_LAYER_DEF.
 Notation " X ⊢ [ R ] M : Y " := (ksim_mcc Y X M R) (at level 85, M at level 99).
 Notation " X ⊢ { R } M : Y " := (ksim Y X M R) (at level 85, M at level 99).
 
+Instance ksim_mcc_proper {K1 K2: Type}:
+  Proper ((forward_simulation 1 1) --> (forward_simulation 1 1) ==> eq  ==> eq ==> impl) (@ksim_mcc K1 K2).
+Proof.
+  intros L2 L2' HL2 L1 L1' HL1 M N Hmn R S Hrs H.
+  unfold impl, flip in *. subst. destruct H as (?&?&?). split; [| split].
+  - destruct HL1. destruct X.
+    destruct HL2. destruct X. congruence.
+  - destruct HL2. destruct X. congruence.
+  - eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_left.
+    eapply compose_forward_simulations. eauto.
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations. eauto.
+
+    destruct HL2. destruct X. rewrite fsim_skel.
+    unfold layer_comp.
+    eapply categorical_compose_simulation';
+      [ reflexivity | assumption | apply linkorder_refl | assumption ].
+Qed.
+
+Instance ksim_monotonic {K1 K2: Type}:
+  Proper ((forward_simulation 1 1) --> (forward_simulation 1 1) ==> eq  ==> eq ==> impl) (@ksim K1 K2).
+Proof.
+  intros L2 L2' HL2 L1 L1' HL1 M N Hmn R S Hrs H.
+  unfold impl, flip in *. subst. destruct H as (?&?&?). split; [| split].
+  - destruct HL1. destruct X.
+    destruct HL2. destruct X. congruence.
+  - destruct HL2. destruct X. congruence.
+  - eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_left.
+    eapply compose_forward_simulations. eauto.
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations. eauto.
+
+    destruct HL2. destruct X. rewrite fsim_skel.
+    unfold layer_comp.
+    eapply categorical_compose_simulation';
+      [ reflexivity | assumption | apply linkorder_refl | assumption ].
+Qed.
+
+Goal forall K1 K2 (L1: layer K1) (L2: layer K2) R M L2',
+    L1 ⊢ [ R ] M : L2 -> L2' ≤ L2 -> L1 ⊢ [ R ] M : L2'.
+Proof.
+  intros * H HL2. now rewrite HL2.
+Qed.
+
 Section HCOMP_SINGLETON.
 
   Import SmallstepLinking_ Smallstep_.
