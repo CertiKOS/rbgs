@@ -594,3 +594,70 @@ Section ABSFUN.
   Qed.
 
 End ABSFUN.
+
+Section PUREREF.
+
+  Context {K1 K2 K3 L1 L2 L3} (M: cmodule)
+          (R: krel K1 K2) (S: krel K2 K3) `(!AbsfunRel R) `(!BotRel S)
+          (HL1: forward_simulation 1 (absfun_kcc R) L1 L2) (HL2: L3 ⊢ [S] M : L2).
+
+  Theorem pureref_comp: L3 ⊢ [comp_krel R S] M : L1.
+  Proof.
+    destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
+    assert (Hsk1: skel L1 = skel L2).
+    { destruct HL1. exact (fsim_skel X). }
+    unfold ksim_mcc. replace (skel L1). clear Hsk1. intuition.
+
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    apply absfun_ccref; eauto.
+    eapply compose_forward_simulations; eauto.
+  Qed.
+
+End PUREREF.
+
+Instance prod_bot_rel {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4)
+         `(!BotRel R1) `(!BotRel R2): BotRel (R1 * R2).
+Proof. intros [k1 k3] [k2 k4]. split; eauto. Qed.
+
+Section NULL.
+  Context {K: Type}.
+
+  Definition null_lts : lts li_null (li_c @ K) unit :=
+    {|
+      genvtype := unit;
+      Smallstep_.step _ := fun s1 t s2 => False;
+      Smallstep_.initial_state := fun q s => False;
+      Smallstep_.at_external := fun s q => False;
+      Smallstep_.after_external := fun s1 r s2 => False;
+      Smallstep_.final_state := fun s r => False;
+      Smallstep_.globalenv := tt
+    |}.
+
+  Definition null_layer {sk} : Smallstep_.semantics li_null (li_c @ K) :=
+    {|
+      Smallstep_.skel := sk;
+      Smallstep_.state := unit;
+      Smallstep_.activate _ := null_lts;
+      Smallstep_.footprint _ := False;
+    |}.
+
+End NULL.
+
+Lemma null_layer_fsim {K1 K2: Type} sk1 sk2 sk:
+  forward_simulation 1 1 (tensor_comp_semantics' (@null_layer K1 sk1) (@null_layer K2 sk2) sk) (@null_layer _ sk).
+Proof.
+  constructor. econstructor.
+  - reflexivity.
+  - intros. intuition. inv H. destruct x; inv H0.
+  - instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros se1 se2 w Hse Hse1. inv Hse.
+    apply forward_simulation_step; cbn.
+    + intros. inv H0. destruct i; inv H1;inv H; inv H.
+    + intros. inv H0. destruct i. inv H1. inv H0. inv H1. inv H0.
+    + intros. inv H0. destruct i. inv H1. inv H0. inv H1. inv H0.
+    + intros. inv H. destruct i.
+      * destruct s. destruct s'. inv H1. inv H.
+      * destruct s. destruct s'. inv H1. inv H.
+  - apply well_founded_ltof.
+    Unshelve. intros. exact True.
+Qed.
