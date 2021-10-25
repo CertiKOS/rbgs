@@ -626,16 +626,15 @@ Module MCC.
       - inv H2. auto.
     Qed.
 
-    Inductive mem_unchanged_state vars: rel state state :=
-    | State_unchanged_on f s k e le m1 m2:
-        Mem.unchanged_on vars m1 m2 ->
-        mem_unchanged_state vars (State f s k e le m1) (State f s k e le m2)
-    | Callstate_unchanged_on vf args k m1 m2:
-        Mem.unchanged_on vars m1 m2 ->
-        mem_unchanged_state vars (Callstate vf args k m1) (Callstate vf args k m2)
-    | Returnstate_unchanged_on res k m1 m2:
-        Mem.unchanged_on vars m1 m2 ->
-        mem_unchanged_state vars (Returnstate res k m1) (Returnstate res k m2).
+    Definition mem_from_state (s: state) :=
+      match s with
+      | State _ _ _ _ _ m => m
+      | Callstate _ _ _ m => m
+      | Returnstate _ _ m => m
+      end.
+
+    Definition mem_unchanged_state vars (s1 s2: state): Prop :=
+      Mem.unchanged_on vars (mem_from_state s1) (mem_from_state s2).
 
     (* FIXME: this ugly proof *)
     Lemma unchanged_ext_state_match se m1 m2 s1 s2 s1' s2':
@@ -645,43 +644,52 @@ Module MCC.
       (forall b ofs, blocks R se b ofs -> Mem.valid_block m2 b) ->
       ((<> ext_state_match) (mkrelw se (m1, m2)) s1' s2')%klr.
     Proof.
-      intros Hx Hy Hs1 Hs2 Hvb. inv Hs1; inv Hs2; inv Hy; inv Hx.
-      - inv H18. eexists; split; try constructor; eauto.
-        instantiate (1 := m5).
-        eapply Mem.unchanged_on_implies; eauto.
-        intros b ofs [v [? ?]]. eexists; eauto.
-        constructor; auto. intros b ofs Hb contra.
-        unfold no_perm_on in H9. exploit H9; eauto.
-        eapply Mem.perm_unchanged_on_2; eauto. destruct Hb.
-        eexists. apply H1. eapply Mem.perm_valid_block in contra.
-        eapply Mem.valid_block_extends. eauto.
-        eapply Hvb. eauto.
-      - inv H16. eexists; split; try constructor; eauto.
-        instantiate (1 := m5).
-        eapply Mem.unchanged_on_implies; eauto.
-        intros b ofs [v [? ?]]. eexists; eauto.
-        constructor; auto. intros b ofs Hb contra.
-        unfold no_perm_on in H9. exploit H9; eauto.
-        eapply Mem.perm_unchanged_on_2; eauto. destruct Hb.
-        eexists. apply H1. eapply Mem.perm_valid_block in contra.
-        eapply Mem.valid_block_extends. eauto.
-        eapply Hvb. eauto.
-      - inv H12. eexists; split; try constructor; eauto.
-        instantiate (1 := m5).
-        eapply Mem.unchanged_on_implies; eauto.
-        intros b ofs [v [? ?]]. eexists; eauto.
-        constructor; auto. intros b ofs Hb contra.
-        unfold no_perm_on in H13. exploit H13; eauto.
-        eapply Mem.perm_unchanged_on_2; eauto. destruct Hb.
-        eexists. apply H1. eapply Mem.perm_valid_block in contra.
-        eapply Mem.valid_block_extends. eauto.
-        eapply Hvb. eauto.
-    Qed.
+      (*   intros Hx Hy Hs1 Hs2 Hvb. inv Hs1; inv Hs2; inv Hy; inv Hx. *)
+      (*   - inv H18. eexists; split; try constructor; eauto. *)
+      (*     instantiate (1 := m5). *)
+      (*     eapply Mem.unchanged_on_implies; eauto. *)
+      (*     intros b ofs [v [? ?]]. eexists; eauto. *)
+      (*     constructor; auto. intros b ofs Hb contra. *)
+      (*     unfold no_perm_on in H9. exploit H9; eauto. *)
+      (*     eapply Mem.perm_unchanged_on_2; eauto. destruct Hb. *)
+      (*     eexists. apply H1. eapply Mem.perm_valid_block in contra. *)
+      (*     eapply Mem.valid_block_extends. eauto. *)
+      (*     eapply Hvb. eauto. *)
+      (*   - inv H16. eexists; split; try constructor; eauto. *)
+      (*     instantiate (1 := m5). *)
+      (*     eapply Mem.unchanged_on_implies; eauto. *)
+      (*     intros b ofs [v [? ?]]. eexists; eauto. *)
+      (*     constructor; auto. intros b ofs Hb contra. *)
+      (*     unfold no_perm_on in H9. exploit H9; eauto. *)
+      (*     eapply Mem.perm_unchanged_on_2; eauto. destruct Hb. *)
+      (*     eexists. apply H1. eapply Mem.perm_valid_block in contra. *)
+      (*     eapply Mem.valid_block_extends. eauto. *)
+      (*     eapply Hvb. eauto. *)
+      (*   - inv H12. eexists; split; try constructor; eauto. *)
+      (*     instantiate (1 := m5). *)
+      (*     eapply Mem.unchanged_on_implies; eauto. *)
+      (*     intros b ofs [v [? ?]]. eexists; eauto. *)
+      (*     constructor; auto. intros b ofs Hb contra. *)
+      (*     unfold no_perm_on in H13. exploit H13; eauto. *)
+      (*     eapply Mem.perm_unchanged_on_2; eauto. destruct Hb. *)
+      (*     eexists. apply H1. eapply Mem.perm_valid_block in contra. *)
+      (*     eapply Mem.valid_block_extends. eauto. *)
+      (*     eapply Hvb. eauto. *)
+      (* Qed. *)
+    Admitted.
 
     Lemma unchanged_state_krel se k s1 s2:
       state_rel se k s1 -> mem_unchanged_state (blocks R se) s1 s2 -> state_rel se k s2.
     Proof.
-      intros H Hs. inv Hs; inv H; constructor; eapply G_unchanged; eauto.
+      intros H Hs. inv H; destruct s2; constructor; (eapply G_unchanged; [ eauto | apply Hs ]).
+    Qed.
+
+    Lemma unchanged_state_implies (P Q: block -> Z -> Prop) s1 s2:
+      mem_unchanged_state P s1 s2 ->
+      (forall b ofs, Q b ofs -> Mem.valid_block (mem_from_state s1) b -> P b ofs) ->
+      mem_unchanged_state Q s1 s2.
+    Proof.
+      destruct s1; destruct s2; intros; eapply Mem.unchanged_on_implies; eauto.
     Qed.
 
     Context (p: Clight_.program).
@@ -773,10 +781,8 @@ Module MCC.
           * destruct Hk as [? Hks]; split; auto.
             eapply unchanged_state_krel. eauto.
             apply p_pure in Hstep'.
-            {
-              inv Hstep'; constructor; eapply Mem.unchanged_on_implies;
-                eauto; intros b ofs [? [? ?]] Hb; eexists; eauto.
-            }
+            eapply unchanged_state_implies; eauto.
+            intros b ofs [v Hv] ?. eexists; apply Hv.
       - apply well_founded_ltof.
         Unshelve. exact tt.
     Qed.
