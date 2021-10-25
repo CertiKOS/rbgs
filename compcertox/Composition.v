@@ -633,7 +633,7 @@ Section NULL.
       Smallstep_.globalenv := tt
     |}.
 
-  Definition null_layer {sk} : Smallstep_.semantics li_null (li_c @ K) :=
+  Definition null_layer sk : Smallstep_.semantics li_null (li_c @ K) :=
     {|
       Smallstep_.skel := sk;
       Smallstep_.state := unit;
@@ -644,7 +644,7 @@ Section NULL.
 End NULL.
 
 Lemma null_layer_fsim {K1 K2: Type} sk1 sk2 sk:
-  forward_simulation 1 1 (tensor_comp_semantics' (@null_layer K1 sk1) (@null_layer K2 sk2) sk) (@null_layer _ sk).
+  forward_simulation 1 1 (tensor_comp_semantics' (@null_layer K1 sk1) (@null_layer K2 sk2) sk) (null_layer sk).
 Proof.
   constructor. econstructor.
   - reflexivity.
