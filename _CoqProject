@@ -17,6 +17,7 @@ lattices/Upset.v
 lattices/FCD.v
 lattices/LatticeProduct.v
 lattices/AdjoinBot.v
+models/Signature.v
 models/IntSpec.v
 models/Coherence.v
 examples/CAL.v
