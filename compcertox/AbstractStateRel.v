@@ -560,9 +560,139 @@ Proof.
   - eapply compose_forward_simulations; eauto.
 Qed.
 
+(* The special case of a self-simulation where the internal steps of the Clight
+   program is expected to not modify any part of the memory. This allows us to
+   prove [p]∘L1 ≤_R [p]∘L2 from L1 ≤_R L2 where the calling convention obtained
+   from R requires blocks outside its domain unchanged.  *)
 Module MCC.
 
+  Import Maps.
+  Import Ctypes.
   Import Extends.
+
+  (* Side-Effect Free statement. At this moment we only consider the side effect
+     of updating memory and making system calls *)
+  Inductive sef_stmt: statement -> Prop :=
+  | sef_skip: sef_stmt Sskip
+  | sef_set id e: sef_stmt (Sset id e)
+  | sef_scall optid a al: sef_stmt (Scall optid a al)
+  | sef_seq s1 s2:
+      sef_stmt s1 -> sef_stmt s2 -> sef_stmt (Ssequence s1 s2)
+  | sef_ifthenelse a s1 s2:
+      sef_stmt s1 -> sef_stmt s2 -> sef_stmt (Sifthenelse a s1 s2)
+  | sef_loop s1 s2:
+      sef_stmt s1 -> sef_stmt s2 -> sef_stmt (Sloop s1 s2)
+  | sef_return a: sef_stmt (Sreturn a)
+  | sef_switch a sl:
+      sef_sl sl -> sef_stmt (Sswitch a sl)
+  | sef_break: sef_stmt Sbreak
+  | sef_continue: sef_stmt Scontinue
+  | sef_label l s: sef_stmt s -> sef_stmt (Slabel l s)
+  | sef_goto l: sef_stmt (Sgoto l)
+  with sef_sl: labeled_statements -> Prop :=
+  | sef_nil: sef_sl LSnil
+  | sef_cons ol s sl:
+      sef_stmt s -> sef_sl sl -> sef_sl (LScons ol s sl).
+
+  Inductive sef_cont: cont -> Prop :=
+  | sef_kstop: sef_cont Kstop
+  | sef_kseq s k: sef_stmt s -> sef_cont k -> sef_cont (Kseq s k)
+  | sef_kloop1 s1 s2 k:
+      sef_stmt s1 -> sef_stmt s2 -> sef_cont k -> sef_cont (Kloop1 s1 s2 k)
+  | sef_kloop2 s1 s2 k:
+      sef_stmt s1 -> sef_stmt s2 -> sef_cont k -> sef_cont (Kloop2 s1 s2 k)
+  | sef_kswitch k:
+      sef_cont k -> sef_cont (Kswitch k)
+  | sef_kcall oid f e le k:
+      sef_cont k -> sef_cont (Kcall oid f e le k).
+
+  Inductive sef_state se: state -> Prop :=
+  | sef_State f s k e le m:
+      (* local bindings should not overlap with global variables *)
+      (forall b lo hi ofs, In (b, lo, hi) (blocks_of_env se e) -> all_vars se b ofs -> False) ->
+      sef_stmt s -> sef_cont k -> sef_state se (State f s k e le m)
+  | sef_Callstate vf args k m: sef_cont k -> sef_state se (Callstate vf args k m)
+  | sef_Returnstate res k m: sef_cont k -> sef_state se (Returnstate res k m).
+
+  Definition mem_from_state (s: state) :=
+    match s with
+    | State _ _ _ _ _ m => m
+    | Callstate _ _ _ m => m
+    | Returnstate _ _ m => m
+    end.
+
+  Definition unchanged_on_state vars (s1 s2: state): Prop :=
+    Mem.unchanged_on vars (mem_from_state s1) (mem_from_state s2).
+
+  Definition prog_syscall_free (p: Clight_.program) :=
+    forall id f ts t cc, (AST.prog_defmap p) ! id = Some (AST.Gfun (External f ts t cc)) ->
+                    exists name sg, f = AST.EF_external name sg.
+
+  Lemma free_list_mem_unchanged se m m' blocks:
+    Mem.free_list m blocks = Some m' ->
+    (forall (b : block) (lo hi ofs : Z), In (b, lo, hi) blocks -> all_vars se b ofs -> False) ->
+    Mem.unchanged_on (all_vars se) m m'.
+  Proof.
+    intros Hfree Hsep.
+    assert (Hbs: forall x, In x blocks -> In x blocks) by now intros.
+    revert Hbs m m' Hfree Hsep.
+    generalize blocks at 1 3 4 as bs.
+    induction bs.
+    + cbn. intros ? * H ?. inv H. apply Mem.unchanged_on_refl.
+    + intros Hbs m1 m2 Hfree Hin. inv Hfree.
+      destruct a eqn: Ha. destruct p eqn: Hb. destruct Mem.free eqn: Hfree; try congruence.
+      subst. exploit IHbs.
+      * intros. apply Hbs. now right.
+      * eauto.
+      * intros. eapply Hin; eauto. right. eauto.
+      * intros.
+        eapply Mem.unchanged_on_trans; eauto.
+        eapply Mem.free_unchanged_on with (P := (all_vars se)) in Hfree; eauto.
+        intros. intros contra. eapply Hin; eauto. left. reflexivity.
+  Qed.
+
+  Lemma sef_mem_unchanged (p: Clight_.program):
+    prog_syscall_free p ->
+    forall se s t s',
+      sef_state (globalenv se p) s ->
+      step2 (globalenv se p) s t s' ->
+      unchanged_on_state (all_vars se) s s'.
+  Proof.
+    intros Hp se s t s' Hs Hstep.
+    inv Hstep; inv Hs; unfold unchanged_on_state; cbn;
+      try (apply Mem.unchanged_on_refl).
+    - easy.
+    - easy.
+    - eapply free_list_mem_unchanged; eauto.
+    - eapply free_list_mem_unchanged; eauto.
+    - eapply free_list_mem_unchanged; eauto.
+    - inv H. clear -H4.
+      revert H4. generalize (fn_vars f) empty_env m m1.
+      induction l.
+      + intros *. inversion 1. apply Mem.unchanged_on_refl.
+      + intros *. inversion 1; subst.
+        specialize (IHl _ _ _ H7).
+        eapply Mem.unchanged_on_trans; eauto.
+        eapply Mem.alloc_unchanged_on; eauto.
+    - unfold Genv.find_funct in FIND.
+      destruct vf; try congruence.
+      destruct Integers.Ptrofs.eq_dec; try congruence.
+      unfold Genv.find_funct_ptr in FIND.
+      destruct Genv.find_def eqn: Hd; try congruence.
+      destruct g eqn: Hg; try congruence. inv FIND.
+      unfold globalenv in Hd. cbn in Hd.
+      erewrite Genv.find_def_spec in Hd.
+      destruct Genv.invert_symbol; try congruence.
+      exploit Hp; eauto.
+      intros (name & sg & Hf). subst. inv H.
+  Qed.
+
+  (* Definition module_pure M := forall p, In p M -> program_pure p. *)
+
+  (* Definition program_pure_cond (p: Clight_.program):= *)
+  (*   (forall id f, (AST.prog_defmap p) ! id = Some (AST.Gfun (Internal f)) -> sef_stmt (fn_body f)) /\ *)
+  (*   (forall id f ts t cc, (AST.prog_defmap p) ! id = Some (AST.Gfun (External f ts t cc)) -> *)
+  (*                    exists name sg, f = AST.EF_external name sg). *)
 
   Section SIM.
     Context {K1 K2} (R: krel K1 K2).
@@ -573,7 +703,7 @@ Module MCC.
         ext_memory_match (mkrelw se (m1, m2)) m1 m2.
 
     (* The [state_match] for the cklr [ext] with the index carrying more
-     information about part of the memory being unchanged *)
+       information about part of the memory being unchanged *)
     Inductive ext_state_match w: rel state state :=
     | ext_State_rel:
         Monotonic
@@ -625,16 +755,6 @@ Module MCC.
       - inv H3. auto.
       - inv H2. auto.
     Qed.
-
-    Definition mem_from_state (s: state) :=
-      match s with
-      | State _ _ _ _ _ m => m
-      | Callstate _ _ _ m => m
-      | Returnstate _ _ m => m
-      end.
-
-    Definition mem_unchanged_state vars (s1 s2: state): Prop :=
-      Mem.unchanged_on vars (mem_from_state s1) (mem_from_state s2).
 
     (* FIXME: this ugly proof *)
     Lemma unchanged_ext_state_match se m1 m2 s1 s2 s1' s2':

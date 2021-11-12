@@ -502,38 +502,6 @@ Definition ksim_absfun {K1 K2: Type} (L1: layer K1) (L2: layer K2) (M: cmodule) 
   linkorder (skel L2) (skel L1) /\ skel_module_compatible M (skel L1) /\
   forward_simulation 1 (absfun_kcc R) L1 (layer_comp L2 M (skel L1)).
 
-(* FIXME: move to CModule.v *)
-Definition program_pure (p: Clight_.program) :=
-  forall se s t s', step2 (globalenv se p) s t s' -> MCC.mem_unchanged_state (all_vars se) s s'.
-
-Definition module_pure M := forall p, In p M -> program_pure p.
-
-Lemma program_pure_eval_lvalue (p: Clight_.program) se e le m a loc ofs ofs':
-  (forall id v, (AST.prog_defmap p) ! id = Some (AST.Gvar v) -> False) ->
-  eval_lvalue (globalenv se p) e le m a loc ofs ->
-  ~ all_vars se loc ofs'.
-Proof.
-Admitted.
-
-Lemma program_pure_cond (p: Clight_.program):
-  (forall id v, (AST.prog_defmap p) ! id = Some (AST.Gvar v) -> False) -> program_pure p.
-Proof.
-  intros H. intros se s t s' Hstep.
-  inv Hstep; unfold MCC.mem_unchanged_state; cbn;
-    try (apply Mem.unchanged_on_refl).
-  - inv H3.
-    + unfold Mem.storev in *.
-      eapply Mem.store_unchanged_on; eauto.
-      intros. eapply program_pure_eval_lvalue; eauto.
-    + eapply Mem.storebytes_unchanged_on; eauto. admit.
-  - eapply external_call_readonly in H1. admit.
-  - eapply Mem.free_unchanged_on; admit.
-  - eapply Mem.free_unchanged_on; admit.
-  - eapply Mem.free_unchanged_on; admit.
-  - inv H0. admit.
-  - eapply external_call_readonly in H0. admit.
-Admitted.
-
 Lemma cmodule_krel_mcc {K1 K2} (R: krel K1 K2) M sk:
   module_pure M -> skel_module_compatible M sk ->
   forward_simulation R R (semantics M sk @ K1) (semantics M sk @ K2).
