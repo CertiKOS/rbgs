@@ -502,6 +502,10 @@ Definition ksim_absfun {K1 K2: Type} (L1: layer K1) (L2: layer K2) (M: cmodule) 
   linkorder (skel L2) (skel L1) /\ skel_module_compatible M (skel L1) /\
   forward_simulation 1 (absfun_kcc R) L1 (layer_comp L2 M (skel L1)).
 
+(* TODO: move this definition to somewhere else *)
+Definition module_pure (M: cmodule): Prop :=
+  forall p, In p M -> MCC.prog_syscall_free p /\ MCC.prog_side_effect_free p.
+
 Lemma cmodule_krel_mcc {K1 K2} (R: krel K1 K2) M sk:
   module_pure M -> skel_module_compatible M sk ->
   forward_simulation R R (semantics M sk @ K1) (semantics M sk @ K2).
@@ -522,7 +526,8 @@ Proof.
   - intros. induction M as [| p ps]; try easy.
     destruct i.
     + cbn. apply MCC.clight_sim.
-      intros. eapply Hpure; eauto. now left.
+      eapply Hpure; eauto. now left.
+      eapply Hpure; eauto. now left.
     + apply IHps.
       * unfold module_pure; intros. eapply Hpure; eauto. now right.
       * unfold skel_module_compatible in *.
