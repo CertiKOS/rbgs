@@ -1,10 +1,10 @@
 Require Import Relations RelationClasses Relators.
 Require Import List Maps.
 Require Import Coqlib.
-Require Import CallconvAlgebra_.
-Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp FlatComp SmallstepLinking_.
+Require Import CallconvAlgebra.
+Require Import LanguageInterface Events Globalenvs Smallstep CategoricalComp FlatComp SmallstepLinking.
 Require Import Memory Values.
-Require Import Clight_ Linking.
+Require Import Clight Linking.
 Require Import AbstractStateRel Lifting.
 Require Coq.omega.Omega.
 Require Import AST Ctypes.
@@ -16,7 +16,7 @@ Require Import AST Ctypes.
    compilation is not supported. However, here a module is nothing but a list of
    programs and the semantics is given by the horizontal composition of the
    Clight programs *)
-Notation cmodule := (list Clight_.program).
+Notation cmodule := (list Clight.program).
 
 Fixpoint pos (M: cmodule): Type :=
   match M with
@@ -24,17 +24,17 @@ Fixpoint pos (M: cmodule): Type :=
   | p :: ps => unit + pos ps
   end.
 
-Definition ref (M: cmodule) (k: pos M): Smallstep_.semantics li_c li_c.
+Definition ref (M: cmodule) (k: pos M): Smallstep.semantics li_c li_c.
 Proof.
   induction M as [| p ps].
   - inv k.
   - destruct k.
-    + refine (Clight_.semantics2 p).
+    + refine (Clight.semantics2 p).
     + apply IHps. apply p0.
 Defined.
 
-Definition semantics (M: cmodule) sk: Smallstep_.semantics li_c li_c :=
-  SmallstepLinking_.semantics' (ref M) sk.
+Definition semantics (M: cmodule) sk: Smallstep.semantics li_c li_c :=
+  SmallstepLinking.semantics' (ref M) sk.
 
 Require Import FunctionalExtensionality.
 Require Import FinFun.
@@ -57,7 +57,7 @@ Section APP.
   (* TODO: maybe we could use different sk for M and N *)
   Let L := fun (b: bool) => match b with | true => (semantics M sk) | false => (semantics N sk) end.
   Let J := fun (b: bool) => match b with | true => pos M | false => pos N end.
-  Definition Lij: forall (b: bool), J b -> Smallstep_.semantics li_c li_c.
+  Definition Lij: forall (b: bool), J b -> Smallstep.semantics li_c li_c.
   Proof.
     intros [|] j.
     - refine (ref M j).
@@ -133,7 +133,7 @@ Section APP.
   Qed.
 
   Lemma cmodule_app_simulation:
-    SmallstepLinking_.semantics' L sk ≤ semantics (M ++ N) sk.
+    SmallstepLinking.semantics' L sk ≤ semantics (M ++ N) sk.
   Proof.
     rewrite Leq.
     etransitivity. apply level_simulation1.
@@ -169,7 +169,7 @@ Section APP.
         [ intros [|]; typeclasses eauto
         | eauto | decide equality ].
       rewrite Leq.
-      fold @SmallstepLinking_.semantics.
+      fold @SmallstepLinking.semantics.
       etransitivity. apply level_simulation1.
       etransitivity. eapply bijective_map_simulation1 with (F := F).
       apply FG_bij. unfold semantics. rewrite <- LFeq.
@@ -193,7 +193,7 @@ Proof.
 Qed.
 
 Definition skel_module_compatible (M: cmodule) (sk: AST.program unit unit) :=
-  Forall (fun (p: Clight_.program) => linkorder (AST.erase_program p) sk) M.
+  Forall (fun (p: Clight.program) => linkorder (AST.erase_program p) sk) M.
 
 Lemma cmodule_krel {K1 K2} (R: crel K1 K2) M sk:
   skel_module_compatible M sk ->
@@ -211,7 +211,7 @@ Proof.
   eapply compose_forward_simulations.
   2: { apply lift_horizontal_comp2. }
 
-  apply horizontal_compose_simulation'.
+  apply semantics_simulation'.
   - intros. induction M as [| p ps]; try easy.
     destruct i.
     + cbn. apply clight_krel.
@@ -273,7 +273,7 @@ Qed.
 
 
 Section LINKABLE.
-  Definition program_vertical_linkable (p1 p2: Clight_.program) :=
+  Definition program_vertical_linkable (p1 p2: Clight.program) :=
     forall id f ef ts t cc,
       (prog_defmap p1) ! id = Some (Gfun (Internal f)) ->
       (prog_defmap p2) ! id = Some (Gfun (External ef ts t cc)) -> False.
@@ -281,14 +281,14 @@ Section LINKABLE.
   Definition cmodule_vertical_linkable (M N: cmodule) :=
     forall pm pn, In pm M -> In pn N -> program_vertical_linkable pm pn.
 
-  Definition program_horizontal_linkable (p1 p2: Clight_.program) :=
+  Definition program_horizontal_linkable (p1 p2: Clight.program) :=
     program_vertical_linkable p1 p2 /\ program_vertical_linkable p2 p1.
 
   Definition cmodule_horizontal_linkable (M N: cmodule) :=
     forall pm pn, In pm M -> In pn N -> program_horizontal_linkable pm pn.
 
   Lemma cmodule_program M idx:
-    exists p, In p M /\ ref M idx = Clight_.semantics2 p.
+    exists p, In p M /\ ref M idx = Clight.semantics2 p.
   Proof.
     induction M; [ easy | ].
     destruct idx.
@@ -307,7 +307,7 @@ Section LINKABLE.
     destruct (cmodule_program N j) as (pn & Hpn & Hn).
     remember (ref N j) as pref. clear Heqpref. subst pref.
     cbn in Hx. inv Hx. cbn -[prog_defmap] in *.
-    unfold Smallstep_.footprint_of_program in Hfp.
+    unfold footprint_of_program in Hfp.
     destruct ((prog_defmap pm) ! id) eqn: Hp1; try easy.
     destruct g; try easy. destruct f0; try easy.
     specialize (H pm pn Hpm Hpn). eapply H. eauto.
@@ -325,7 +325,7 @@ Section LINKABLE.
     subst. rewrite Hf. subst f. reflexivity.
   Qed.
 
-  Lemma program_categorical_linkable_cond (p1 p2: Clight_.program) sk1 sk2:
+  Lemma program_categorical_linkable_cond (p1 p2: Clight.program) sk1 sk2:
     (forall id f ef ts t cc,
         (prog_defmap p1) ! id = Some (Gfun (Internal f)) ->
         (prog_defmap p2) ! id = Some (Gfun (External ef ts t cc)) ->

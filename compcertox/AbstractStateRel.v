@@ -1,12 +1,12 @@
 Require Import Relations RelationClasses Relators.
 Require Import List.
 Require Import Coqlib.
-Require Import LanguageInterface_ Events Globalenvs Smallstep_ Linking.
+Require Import LanguageInterface Events Globalenvs Smallstep Linking.
 Require Import Memory Values.
 Require Import SimplLocalsproof.
 (* FIXME: warnings about overloading notation *)
 Require Import CKLR Extends.
-Require Import Clight_ Clightrel_.
+Require Import Clight Clightrel.
 Require Import Lifting.
 
 Definition no_perm_on (m: mem) (vars: block -> Z -> Prop): Prop :=
@@ -288,7 +288,7 @@ Section SIMULATION.
     instantiate (1 := fun _ _ _ => _). cbn beta.
     intros ? se w Hse Hse1. inv Hse. cbn -[semantics2] in *.
     pose (ms := fun '(s1, k1) '(s2, k2) =>
-                  Clightrel_.state_match (krel_cklr R) (krelw se k1) s1 s2 /\ Rk R k1 k2).
+                  Clightrel.state_match (krel_cklr R) (krelw se k1) s1 s2 /\ Rk R k1 k2).
     apply forward_simulation_step with (match_states := ms).
     - intros [q1 k1] [q2 k2] [s1 k1'] Hq Hs1. inv Hq. inv Hs1.
       cbn in *. subst k1'. inv H. cbn in *.
@@ -551,7 +551,7 @@ Notation "R1 ∘ R2" := (vcomp_rel R1 R2): krel_scope.
 Coercion crel_to_cc : crel >-> callconv.
 
 Lemma clight_krel {K1 K2} (R: crel K1 K2) p:
-  forward_simulation R R (Clight_.semantics2 p @ K1) (Clight_.semantics2 p @ K2).
+  forward_simulation R R (Clight.semantics2 p @ K1) (Clight.semantics2 p @ K2).
 Proof.
   induction R; simpl.
   - apply lifting_simulation.
@@ -643,11 +643,11 @@ Module MCC.
         sef_cont k -> sef_state (Returnstate res k m).
   End WITH_GE.
 
-  Definition prog_syscall_free (p: Clight_.program) :=
+  Definition prog_syscall_free (p: Clight.program) :=
     forall id f ts t cc, (AST.prog_defmap p) ! id = Some (AST.Gfun (External f ts t cc)) ->
                     exists name sg, f = AST.EF_external name sg.
 
-  Definition prog_side_effect_free (p: Clight_.program) :=
+  Definition prog_side_effect_free (p: Clight.program) :=
     forall id f, (AST.prog_defmap p) ! id = Some (AST.Gfun (Internal f)) -> sef_stmt (fn_body f).
 
   Lemma free_list_mem_unchanged se m m' blocks:
@@ -675,7 +675,7 @@ Module MCC.
 
   Hint Constructors sef_stmt sef_cont.
 
-  Lemma sef_mem_unchanged (p: Clight_.program):
+  Lemma sef_mem_unchanged (p: Clight.program):
     prog_syscall_free p ->
     forall se s t s',
       sef_state (globalenv se p) s ->
@@ -764,7 +764,7 @@ Module MCC.
 
   (* We need the Pos.le to ensure the separation between global and local
      variables *)
-  Lemma sef_state_step (p: Clight_.program):
+  Lemma sef_state_step (p: Clight.program):
     prog_side_effect_free p ->
     forall se s t s',
       Pos.le (Genv.genv_next se) (Mem.nextblock (mem_from_state s)) ->
@@ -801,7 +801,7 @@ Module MCC.
       eapply Hp. apply Hfd.
   Qed.
 
-  Lemma separation_step (p: Clight_.program):
+  Lemma separation_step (p: Clight.program):
     forall se s t s',
       Pos.le (Genv.genv_next se) (Mem.nextblock (mem_from_state s)) ->
       step2 (globalenv se p) s t s' ->
@@ -864,7 +864,7 @@ Module MCC.
         Rr R se k1 m -> state_rel se k1 (Returnstate res k m).
 
     Lemma ext_state_match_to_ext se m1 m2 s1 s2:
-      ext_state_match (mkrelw se (m1, m2)) s1 s2 -> Clightrel_.state_match ext tt s1 s2.
+      ext_state_match (mkrelw se (m1, m2)) s1 s2 -> Clightrel.state_match ext tt s1 s2.
     Proof.
       intros. inv H; constructor; auto.
       - inv H3. auto.
@@ -888,7 +888,7 @@ Module MCC.
     Qed.
 
     Lemma unchanged_ext_state_match se m1 m2 s1 s2 s1' s2':
-      ext_state_match (mkrelw se (m1, m2)) s1 s2 -> Clightrel_.state_match ext tt s1' s2' ->
+      ext_state_match (mkrelw se (m1, m2)) s1 s2 -> Clightrel.state_match ext tt s1' s2' ->
       unchanged_on_state (all_vars se) s1 s1' ->
       unchanged_on_state (all_vars se) s2 s2' ->
       (forall b ofs, blocks R se b ofs -> Mem.valid_block m2 b) ->
@@ -923,7 +923,7 @@ Module MCC.
       destruct s1; destruct s2; intros; eapply Mem.unchanged_on_implies; eauto.
     Qed.
 
-    Context (p: Clight_.program) (Hp1: prog_syscall_free p) (Hp2: prog_side_effect_free p).
+    Context (p: Clight.program) (Hp1: prog_syscall_free p) (Hp2: prog_side_effect_free p).
     (* Hypothesis p_pure: forall se s t s', step2 (globalenv se p) s t s' -> mem_unchanged_state (all_vars se) s s'. *)
 
     Lemma clight_sim: forward_simulation R R (semantics2 p @ K1) (semantics2 p @ K2).
@@ -1105,7 +1105,7 @@ End MCC.
    is refined to kcc. Note that the refinement is only for one direction. In the
    section, we prove the refinement. *)
 
-Require Import CallconvAlgebra_.
+Require Import CallconvAlgebra.
 
 Section CC_REF.
 

@@ -1,8 +1,8 @@
 Require Import Relations RelationClasses Relators.
 Require Import List Maps.
 Require Import Coqlib.
-Require Import CallconvAlgebra_.
-Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp FlatComp.
+Require Import CallconvAlgebra.
+Require Import LanguageInterface Events Globalenvs Smallstep CategoricalComp FlatComp.
 Require Import Memory Values.
 Require Import Linking.
 Require Import Lifting AbstractStateRel.
@@ -390,15 +390,15 @@ Section INTERC.
     - intros q1 _ s1 [ ] H. inv H. inv H0.
       exists (st1 LF1 _ (flat_st L1 i s0)).
       split; repeat constructor. auto.
-    - intros s1 s2 r1 Hs H. inv H. inv H0. inv Hs. SmallstepLinking_.subst_dep.
+    - intros s1 s2 r1 Hs H. inv H. inv H0. inv Hs. SmallstepLinking.subst_dep.
       exists r1. split; repeat constructor. auto.
     - intros s1 s2 q Hs H. exists tt.
-      inv H. inv H0. inv Hs. SmallstepLinking_.subst_dep.
+      inv H. inv H0. inv Hs. SmallstepLinking.subst_dep.
       exists q. repeat apply conj; try constructor. now constructor.
-      intros r1 _ s1' [ ] Ht. inv Ht. inv H4. SmallstepLinking_.subst_dep. inv H2.
+      intros r1 _ s1' [ ] Ht. inv Ht. inv H4. SmallstepLinking.subst_dep. inv H2.
       eexists. split; repeat constructor. auto.
     - intros. inv H.
-      inv H1; inv H0; SmallstepLinking_.subst_dep; eexists; split;
+      inv H1; inv H0; SmallstepLinking.subst_dep; eexists; split;
         [ apply step1 | | apply step2 | | eapply step_push | | eapply step_pop |  ]; repeat constructor; eauto.
     - apply well_founded_ltof.
   Qed.

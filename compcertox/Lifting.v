@@ -1,11 +1,11 @@
 Require Import Relations RelationClasses Relators.
 Require Import List.
 Require Import Coqlib.
-Require Import CallconvAlgebra_.
-Require Import LanguageInterface_ Events Globalenvs.
+Require Import CallconvAlgebra.
+Require Import LanguageInterface Events Globalenvs.
 Require Import CategoricalComp FlatComp.
-Require Import SmallstepLinking_.
-Require Import Smallstep_.
+Require Import SmallstepLinking.
+Require Import Smallstep.
 Require Import Linking.
 
 (* Definitions *)
@@ -61,7 +61,7 @@ Delimit Scope lts_scope with lts.
 Bind Scope lts_scope with semantics.
 Notation "L @ K" := (lifted_semantics K L): lts_scope.
 
-Notation " 'layer' K " := (Smallstep_.semantics li_null (li_c @ K)) (at level 1).
+Notation " 'layer' K " := (Smallstep.semantics li_null (li_c @ K)) (at level 1).
 
 (* Properties *)
 
@@ -163,7 +163,7 @@ End CAT_COMP_LIFT.
 Section HCOMP_LIFT.
 
   Variable K: Type.
-  Context {I li} (L: I -> Smallstep_.semantics li li).
+  Context {I li} (L: I -> Smallstep.semantics li li).
   Variable (sk: AST.program unit unit).
   Let LK := fun i => (L i)@K.
 
@@ -174,7 +174,7 @@ Section HCOMP_LIFT.
       state_match_hcomp (st L i s :: cont, k) (st LK i (s, k) :: kcont).
 
   Lemma lift_horizontal_comp1:
-    (SmallstepLinking_.semantics' L sk)@K ≤ SmallstepLinking_.semantics' LK sk.
+    (SmallstepLinking.semantics' L sk)@K ≤ SmallstepLinking.semantics' LK sk.
   Proof.
     constructor. econstructor. reflexivity.
     intros i. reflexivity.
@@ -217,7 +217,7 @@ Section HCOMP_LIFT.
   Qed.
 
   Lemma lift_horizontal_comp2:
-    SmallstepLinking_.semantics' LK sk ≤ (SmallstepLinking_.semantics' L sk)@K.
+    SmallstepLinking.semantics' LK sk ≤ (SmallstepLinking.semantics' L sk)@K.
   Proof.
     constructor. econstructor. reflexivity.
     intros i. reflexivity.
@@ -263,7 +263,7 @@ Section HCOMP_LIFT.
   Qed.
 
   Lemma lift_horizontal_comp:
-    (SmallstepLinking_.semantics' L sk)@K ≡ SmallstepLinking_.semantics' LK sk.
+    (SmallstepLinking.semantics' L sk)@K ≡ SmallstepLinking.semantics' LK sk.
   Proof.
     split; [ exact lift_horizontal_comp1 | exact lift_horizontal_comp2 ].
   Qed.
@@ -273,7 +273,7 @@ End HCOMP_LIFT.
 Section FLAT_LIFT.
 
   Variable K: Type.
-  Context {I li} (L: I -> Smallstep_.semantics li li).
+  Context {I li} (L: I -> Smallstep.semantics li li).
   Variable (sk: AST.program unit unit).
   Let LK := fun i => (L i)@K.
 
@@ -333,7 +333,7 @@ Section FLAT_LIFT.
 
 End FLAT_LIFT.
 
-Lemma lifting_step_star {liA liB K} (L: Smallstep_.semantics liA liB) se s1 t s2 k:
+Lemma lifting_step_star {liA liB K} (L: Smallstep.semantics liA liB) se s1 t s2 k:
   Star (L se) s1 t s2 ->
   Star(lifted_lts K (L se)) (s1, k) t (s2, k).
 Proof.
@@ -341,7 +341,7 @@ Proof.
   constructor; auto.
 Qed.
 
-Lemma lifting_step_plus {liA liB K} (L: Smallstep_.semantics liA liB) se s1 t s2 k:
+Lemma lifting_step_plus {liA liB K} (L: Smallstep.semantics liA liB) se s1 t s2 k:
   Plus (L se) s1 t s2 ->
   Plus (lifted_lts K (L se)) (s1, k) t (s2, k).
 Proof.
@@ -349,7 +349,7 @@ Proof.
   split; eauto.
 Qed.
 
-Lemma lifting_simulation {K li1 li2} {L1 L2: Smallstep_.semantics li1 li2}:
+Lemma lifting_simulation {K li1 li2} {L1 L2: Smallstep.semantics li1 li2}:
   L1 ≤ L2 -> L1 @ K ≤ L2 @ K.
 Proof.
   intros [H]. constructor.
@@ -391,7 +391,7 @@ Proof.
   - apply fsim_order_wf.
 Qed.
 
-Definition skel_extend {liA liB} (L: Smallstep_.semantics liA liB) sk :=
+Definition skel_extend {liA liB} (L: Smallstep.semantics liA liB) sk :=
   {|
     activate se := L se;
     skel := sk;
@@ -403,8 +403,8 @@ Section SKEL.
   Context {liA1 liB1 liA2 liB2}
           {cc1: callconv liA1 liA2}
           {cc2: callconv liB1 liB2}
-          {L1: Smallstep_.semantics liA1 liB1}
-          {L2: Smallstep_.semantics liA2 liB2}
+          {L1: Smallstep.semantics liA1 liB1}
+          {L2: Smallstep.semantics liA2 liB2}
           (HL: forward_simulation cc1 cc2 L1 L2).
   Variable (sk: AST.program unit unit).
   Hypothesis Hsk: linkorder (skel L1) sk.
@@ -426,8 +426,8 @@ Section SKEL_EXT_LIFT.
           {liA1 liB1 liA2 liB2: language_interface}
           {cc1: callconv (liA1@K1) (liA2@K2)}
           {cc2: callconv (liB1@K1) (liB2@K2)}
-          (L1: Smallstep_.semantics liA1 liB1)
-          (L2: Smallstep_.semantics liA2 liB2).
+          (L1: Smallstep.semantics liA1 liB1)
+          (L2: Smallstep.semantics liA2 liB2).
   Hypothesis HL: forward_simulation cc1 cc2 (L1@K1) (L2@K2).
   Variable (sk: AST.program unit unit).
   Hypothesis Hsk: linkorder (skel L1) sk.
@@ -444,7 +444,7 @@ Section SKEL_EXT_LIFT.
   Qed.
 End SKEL_EXT_LIFT.
 
-Lemma skel_extend_same {liA liB} (L: Smallstep_.semantics liA liB):
+Lemma skel_extend_same {liA liB} (L: Smallstep.semantics liA liB):
   skel_extend L (skel L) = L.
 Proof.
   unfold skel_extend. destruct L. reflexivity.
@@ -452,8 +452,8 @@ Qed.
 
 Section LIFT_COMPONENT.
   Generalizable All Variables.
-  Context `{L1: Smallstep_.semantics liB liC}
-          `{L2: Smallstep_.semantics liA liB}.
+  Context `{L1: Smallstep.semantics liB liC}
+          `{L2: Smallstep.semantics liA liB}.
   Variable (sk sk1 sk2: AST.program unit unit).
 
   Let L1' := skel_extend L1 sk1.
@@ -491,21 +491,21 @@ Proof.
   intros x. apply identity_forward_simulation.
 Qed.
 
-Lemma lift_comp_component1 {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB) sk sk1:
+Lemma lift_comp_component1 {liA liB liC} (L1: Smallstep.semantics liB liC) (L2: Smallstep.semantics liA liB) sk sk1:
   comp_semantics' (skel_extend L1 sk1) L2 sk ≤ comp_semantics' L1 L2 sk.
 Proof.
   etransitivity. 2: { apply lift_comp_component. }
   rewrite (skel_extend_same L2). reflexivity.
 Qed.
 
-Lemma lift_comp_component2 {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB) sk sk2:
+Lemma lift_comp_component2 {liA liB liC} (L1: Smallstep.semantics liB liC) (L2: Smallstep.semantics liA liB) sk sk2:
   comp_semantics' L1 (skel_extend L2 sk2) sk ≤ comp_semantics' L1 L2 sk.
 Proof.
   etransitivity. 2: { apply lift_comp_component. }
   rewrite (skel_extend_same L1). reflexivity.
 Qed.
 
-Lemma lift_comp_component3 {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB) sk sk1:
+Lemma lift_comp_component3 {liA liB liC} (L1: Smallstep.semantics liB liC) (L2: Smallstep.semantics liA liB) sk sk1:
   comp_semantics' L1 L2 sk ≤ comp_semantics' (skel_extend L1 sk1) L2 sk.
 Proof.
   replace L1 with (skel_extend (skel_extend L1 sk1) (skel L1)) at 1.
@@ -515,7 +515,7 @@ Qed.
 
 Section EXTEND_SKEL_FLAT_COMP.
   Generalizable All Variables.
-  Context {I} `{L: I -> Smallstep_.semantics liA liB}.
+  Context {I} `{L: I -> Smallstep.semantics liA liB}.
   Variable (sk sk': AST.program unit unit).
 
   Let L' := fun i => skel_extend (L i) sk.
@@ -530,13 +530,13 @@ Section EXTEND_SKEL_FLAT_COMP.
     intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step with (match_states := flat_match).
     - intros. inv H. inv H0. eexists; split; now constructor.
-    - intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+    - intros. inv H. inv H0. SmallstepLinking.subst_dep.
       eexists; split; now constructor.
-    - intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+    - intros. inv H. inv H0. SmallstepLinking.subst_dep.
       eexists tt, _. repeat apply conj; try constructor; auto.
-      intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+      intros. inv H. inv H0. SmallstepLinking.subst_dep.
       eexists; split; now constructor.
-    - intros. inv H. inv H0. SmallstepLinking_.subst_dep.
+    - intros. inv H. inv H0. SmallstepLinking.subst_dep.
       eexists; split; now constructor.
     - apply well_founded_ltof.
   Qed.

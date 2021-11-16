@@ -1,10 +1,10 @@
 Require Import Relations RelationClasses Relators.
 Require Import List Maps.
 Require Import Coqlib.
-Require Import CallconvAlgebra_.
-Require Import LanguageInterface_ Events Globalenvs Smallstep_ CategoricalComp FlatComp.
+Require Import CallconvAlgebra.
+Require Import LanguageInterface Events Globalenvs Smallstep CategoricalComp FlatComp.
 Require Import Memory Values.
-Require Import Clight_ Linking.
+Require Import Clight Linking.
 Require Import AbstractStateRel Lifting CModule TensorComp.
 Require Import Ctypes.
 
@@ -14,9 +14,9 @@ Notation "[ R ]" := (singleton_rel R) (at level 9): krel_scope.
 Section PROG_LAYER_DEF.
   (* L1 is the high level spec with K1 as the abstract data whereas the program
      running on top of L2 is the low level spec *)
-  Context {K1 K2: Type} (L1: layer K1) (L2: layer K2) (p: Clight_.program).
+  Context {K1 K2: Type} (L1: layer K1) (L2: layer K2) (p: Clight.program).
 
-  Definition prog_layer_comp sk := comp_semantics' (Clight_.semantics2 p @ K2) L2 sk.
+  Definition prog_layer_comp sk := comp_semantics' (Clight.semantics2 p @ K2) L2 sk.
 
   (* The version of certified abstraction layers for vertical composition *)
   Definition prog_ksim (R: crel K1 K2) :=
@@ -115,7 +115,7 @@ Qed.
 
 Section HCOMP_SINGLETON.
 
-  Import SmallstepLinking_ Smallstep_.
+  Import SmallstepLinking Smallstep.
   Context {li} (L: semantics li li).
   Variable sk: AST.program unit unit.
   Context `{!ProgramSem L}.
@@ -130,7 +130,7 @@ Section HCOMP_SINGLETON.
   | singleton_match_intro s: singleton_match s (st LS (inl tt) s :: nil).
 
   Ltac esca := eexists; split; try constructor; intuition auto.
-  Lemma hcomp_singleton_fsim: skel_extend L sk ≤ SmallstepLinking_.semantics' LS sk.
+  Lemma hcomp_singleton_fsim: skel_extend L sk ≤ SmallstepLinking.semantics' LS sk.
   Proof.
     constructor. econstructor; eauto. intros i.
     { split; cbn; intros. exists (inl tt). apply H. destruct H as [[|] Hx]. apply Hx. inv e. }
@@ -185,7 +185,7 @@ Proof.
 Qed.
 
 Section SKEL_EXT.
-  Context {liA liB liC} (L1: Smallstep_.semantics liB liC) (L2: Smallstep_.semantics liA liB).
+  Context {liA liB liC} (L1: Smallstep.semantics liB liC) (L2: Smallstep.semantics liA liB).
   Lemma skel_extend_compose sk sk': skel_extend (comp_semantics' L1 L2 sk) sk' ≤ comp_semantics' L1 L2 sk'.
   Proof.
     constructor. eapply Forward_simulation with _ (fun _ _ _ => _); auto.
@@ -522,7 +522,7 @@ Proof.
   eapply compose_forward_simulations.
   2: { apply lift_horizontal_comp2. }
 
-  apply SmallstepLinking_.horizontal_compose_simulation'.
+  apply SmallstepLinking.semantics_simulation'.
   - intros. induction M as [| p ps]; try easy.
     destruct i.
     + cbn. apply MCC.clight_sim.
@@ -627,20 +627,20 @@ Section NULL.
   Definition null_lts : lts li_null (li_c @ K) unit :=
     {|
       genvtype := unit;
-      Smallstep_.step _ := fun s1 t s2 => False;
-      Smallstep_.initial_state := fun q s => False;
-      Smallstep_.at_external := fun s q => False;
-      Smallstep_.after_external := fun s1 r s2 => False;
-      Smallstep_.final_state := fun s r => False;
-      Smallstep_.globalenv := tt
+      Smallstep.step _ := fun s1 t s2 => False;
+      Smallstep.initial_state := fun q s => False;
+      Smallstep.at_external := fun s q => False;
+      Smallstep.after_external := fun s1 r s2 => False;
+      Smallstep.final_state := fun s r => False;
+      Smallstep.globalenv := tt
     |}.
 
-  Definition null_layer sk : Smallstep_.semantics li_null (li_c @ K) :=
+  Definition null_layer sk : Smallstep.semantics li_null (li_c @ K) :=
     {|
-      Smallstep_.skel := sk;
-      Smallstep_.state := unit;
-      Smallstep_.activate _ := null_lts;
-      Smallstep_.footprint _ := False;
+      Smallstep.skel := sk;
+      Smallstep.state := unit;
+      Smallstep.activate _ := null_lts;
+      Smallstep.footprint _ := False;
     |}.
 
 End NULL.
