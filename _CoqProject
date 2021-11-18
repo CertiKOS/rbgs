@@ -20,7 +20,8 @@ lattices/AdjoinBot.v
 models/IntSpec.v
 models/Coherence.v
 examples/CAL.v
-examples/CompCertSem.v
+examples/CompCertIntSpec.v
+# examples/CompCertSem.v
 # CompCertOX formalization
 compcertox/Lifting.v
 compcertox/AbstractStateRel.v

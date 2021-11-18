@@ -57,10 +57,43 @@ Module Inf <: LatticeCategory.
 
 End Inf.
 
+Module Type MeetDensePrimeCompletion (LC: LatticeCategory) (CS: LatticeCompletionSpec LC).
+
+  Axiom emb_meet_dense:
+    forall {C: poset} (x: CS.F C), x = inf {c : C | x [= CS.emb c}, CS.emb c.
+
+  Axiom emb_meet_prime:
+    forall {C: poset} {I} c (x: I -> CS.F C), linf x [= CS.emb c <-> exists i, x i [= CS.emb c.
+
+End MeetDensePrimeCompletion.
+
+Module JoinCompleteCompletion (LC: LatticeCategory) (CS: LatticeCompletionSpec LC)
+       (C: MeetDensePrimeCompletion LC CS).
+
+  Lemma emb_join_complete {L: cdlattice} {I} (x: I -> L):
+    CS.emb (sup i, x i) = sup i, CS.emb (x i).
+  Proof.
+    apply antisymmetry.
+    - rewrite (C.emb_meet_dense (sup i, CS.emb (x i))).
+      apply inf_iff. intros [c Hc]. cbn.
+      apply CS.emb_mor.
+      apply sup_iff. intros i.
+      rewrite sup_iff in Hc. specialize (Hc i).
+      rewrite <- CS.emb_mor. apply Hc.
+    - apply sup_iff. intros i.
+      apply CS.emb_mor.
+      eapply sup_at. reflexivity.
+  Qed.
+
+End JoinCompleteCompletion.
+
+Module Type InfCompletion := LatticeCompletion Inf <+
+                             MeetDensePrimeCompletion Inf <+
+                             JoinCompleteCompletion Inf.
 
 (** * Construction *)
 
-Module Upset : LatticeCompletion Inf.
+Module Upset : InfCompletion.
 
   (** ** Opposite order *)
 
@@ -125,6 +158,16 @@ Module Upset : LatticeCompletion Inf.
       - rewrite Downset.emb_mor. assumption.
     Qed.
 
+    Lemma emb_meet_dense :
+      forall x, x = inf {c : C | x [= emb c }, emb c.
+    Proof. apply @Downset.emb_join_dense. Qed.
+
+    Lemma emb_meet_prime I c (x: I -> F C) :
+      inf j, x j [= emb c <-> (exists i : I, x i [= emb c).
+    Proof. apply @Downset.emb_join_prime. Qed.
+
+    (** ** Simulator *)
+
     Context {L : cdlattice}.
 
     Definition ext (f : C -> L) (x : F C) : L :=
@@ -158,6 +201,7 @@ Module Upset : LatticeCompletion Inf.
   End DEFS.
 
   Include (LatticeCompletionDefs Inf).
+  Include (JoinCompleteCompletion Inf).
 
 End Upset.
 

@@ -9,21 +9,6 @@ Require Import models.IntSpec.
 
 Import ISpec.
 
-
-(** * Preliminaries *)
-
-Infix "~>" := ISpec.subst (at level 99).
-
-Notation "x >>= f" := (ISpec.bind f x)
-  (at level 40, left associativity).
-
-Notation "v <- x ; M" := (x >>= fun v => M)
-  (at level 65, right associativity).
-
-Definition assert {E : esig} (P : Prop) : ispec E unit :=
-  sup H : P, ISpec.ret tt.
-
-
 (** * Effect signatures *)
 
 (** ** Ring buffer *)
@@ -186,9 +171,6 @@ Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
   fun ar m =>
     match m with st m k => srun k (σ _ m) end.
 
-Notation "x / f" := (ISpec.apply f x).
-Infix "@" := ISpec.compose (at level 40, left associativity).
-
 (** Then the behavior of [M : E ~> F] running on top of [L : 0 ~> E#S]
   can be computed as follows. *)
 
@@ -243,21 +225,11 @@ Qed.
 (** ** Rewriting tactic *)
 
 Hint Rewrite
-  @bind_ret_l
-  @bind_ret_r
-  @bind_bind
-  @apply_ret
-  @apply_bind
-  @apply_int_l
-  @apply_int_r
   @srun_bind
   @srun_int
   : intm.
 
 Hint Rewrite @assert_true using solve [auto] : intm.
-
-Ltac intm :=
-  repeat progress (autorewrite with intm; cbn).
 
 (** ** Example *)
 
@@ -312,8 +284,20 @@ Proof.
     unfold finf. rewrite !Upset.Inf.mor. apply inf_glb. intros [k1' Hk']. intm.
     rewrite Downset.Sup.mor. apply (sup_at (exist _ k2' Hk')). intm.
     reflexivity.
-  - admit.
-Admitted.
+  - intros H _ [ar m k1]. unfold srel_push, compose.
+    unfold fsup. rewrite Downset.Sup.mor. eapply sup_lub. intros [k2 Hk]. intm.
+    specialize (H _ (st m k2)). unfold srel_pull, compose in H. rewrite H.
+    unfold finf. rewrite !Upset.Inf.mor. apply (inf_at (exist _ k1 Hk)). intm.
+    destruct (FCD.join_meet_dense (τ _ (st m k1))) as (I & J & c & Hc).
+    rewrite Hc. clear.
+    rewrite !Downset.Sup.mor. apply sup_lub. intros i. apply (sup_at i).
+    rewrite !Upset.Inf.mor. apply inf_glb. intros j. apply (inf_at j).
+    destruct (c i j) as [[v k1'] | | ] eqn: Hcij; try tauto.
+    setoid_rewrite bind_ret_r.
+    unfold fsup. rewrite !Downset.Sup.mor. apply sup_lub. intros [k2' Hk']. intm.
+    rewrite Upset.Inf.mor. apply (inf_at (exist _ k1' Hk')). intm.
+    reflexivity.
+Qed.
 
 (** ** Correctness of [M_bq] *)
 

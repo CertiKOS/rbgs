@@ -72,6 +72,40 @@ Module Sup <: LatticeCategory.
 
 End Sup.
 
+(** The completion that satisfies join-dense and join-prime properties *)
+Module Type JoinDensePrimeCompletion (LC: LatticeCategory) (CS: LatticeCompletionSpec LC).
+
+  Axiom emb_join_dense:
+    forall {C: poset} (x: CS.F C), x = sup {c : C | CS.emb c [= x}, CS.emb c.
+
+  Axiom emb_join_prime:
+    forall {C: poset} {I} c (x: I -> CS.F C), CS.emb c [= lsup x <-> exists i, CS.emb c [= x i.
+
+End JoinDensePrimeCompletion.
+
+Module MeetCompleteCompletion (LC: LatticeCategory) (CS: LatticeCompletionSpec LC)
+       (C: JoinDensePrimeCompletion LC CS).
+
+  Lemma emb_meet_complete {L: cdlattice} {I} (x: I -> L):
+    CS.emb (inf i, x i) = inf i, CS.emb (x i).
+  Proof.
+    apply antisymmetry.
+    - apply inf_iff. intros i.
+      apply CS.emb_mor.
+      eapply inf_at. reflexivity.
+    - rewrite (C.emb_join_dense (inf i, CS.emb (x i))).
+      apply sup_iff. intros [c Hc]. cbn.
+      apply CS.emb_mor.
+      apply inf_iff. intros i.
+      rewrite inf_iff in Hc. specialize (Hc i).
+      rewrite <- CS.emb_mor. apply Hc.
+  Qed.
+
+End MeetCompleteCompletion.
+
+Module Type SupCompletion := LatticeCompletion Sup <+
+                             JoinDensePrimeCompletion Sup <+
+                             MeetCompleteCompletion Sup.
 
 (** * Construction *)
 
@@ -79,7 +113,7 @@ End Sup.
   extensionality to prove antisymmetry, and the axiom of choice to
   prove distributivity. *)
 
-Module Downset : LatticeCompletion Sup.
+Module Downset : SupCompletion.
 
   Record downset {C : poset} :=
     {
@@ -252,7 +286,7 @@ Module Downset : LatticeCompletion Sup.
   End DOWNSETS.
 
   Include (LatticeCompletionDefs Sup).
-
+  Include (MeetCompleteCompletion Sup).
 End Downset.
 
 Notation downset := Downset.F.

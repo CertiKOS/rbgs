@@ -377,8 +377,8 @@ Module ISpec.
              ++ Transparent bot. unfold bot. rewrite Sup.mor.
                 apply sup_lub. intros [ ].
           -- reflexivity.
-      + 
-  Admitted. 
+      +
+  Admitted.
 
   Lemma apply_assoc {E F G A} (f : subst E F) (g : subst F G) (x : t G A) :
     apply f (apply g x) = apply (compose g f) x.
@@ -400,7 +400,7 @@ Module ISpec.
         * rewrite FCD.ext_ana. cbn. reflexivity.
         * admit. (* ext preserves join *)
       + admit.
-    - admit. 
+    - admit.
   Admitted.
 
   (** Properties of [compose] *)
@@ -435,3 +435,34 @@ Module ISpec.
 End ISpec.
 
 Notation ispec := ISpec.t.
+
+(** * Notations and Rewriting Tactic *)
+
+Infix "~>" := ISpec.subst (at level 99).
+
+Notation "x >>= f" := (ISpec.bind f x)
+  (at level 40, left associativity).
+
+Notation "v <- x ; M" := (x >>= fun v => M)
+  (at level 65, right associativity).
+
+Definition assert {E : esig} (P : Prop) : ispec E unit :=
+  sup H : P, ISpec.ret tt.
+
+Notation "x / f" := (ISpec.apply f x).
+
+(* Infix "@" := ISpec.compose (at level 40, left associativity). *)
+Infix "@" := ISpec.compose (at level 30, right associativity).
+
+Hint Rewrite
+  @ISpec.bind_ret_l
+  @ISpec.bind_ret_r
+  @ISpec.bind_bind
+  @ISpec.apply_ret
+  @ISpec.apply_bind
+  @ISpec.apply_int_l
+  @ISpec.apply_int_r
+  : intm.
+
+Ltac intm :=
+  repeat progress (autorewrite with intm; cbn).

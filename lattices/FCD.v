@@ -1,3 +1,5 @@
+(* -*- company-coq-local-symbols: (("[=" . ?⊑)); -*- *)
+
 Require Import coqrel.LogicalRelations.
 Require Import structures.Lattice.
 Require Import structures.Completion.
@@ -65,6 +67,16 @@ End JoinMeetDense.
 
 Module Type FCDSpec := LatticeCompletion CDL <+ JoinMeetDense.
 
+Import FunctionalExtensionality.
+
+(* FIXME: *)
+Instance bigop_eq {I A B} (f : (I -> A) -> B) :
+  Proper (pointwise_relation I eq ==> eq) f.
+Proof.
+  intros x y Hxy.
+  apply functional_extensionality in Hxy.
+  congruence.
+Qed.
 
 (** * Construction *)
 
@@ -96,8 +108,30 @@ Module FCD : FCDSpec.
     Instance ext_mor :
       CDL.Morphism (ext f).
     Proof.
-      clear Hf.
-    Admitted.
+      unfold ext. split.
+      - set (df := Downset.ext f).
+        set (udf := Upset.ext df).
+        intros I x.
+        (* FIXME: is there a way to avoid manual eta-expansion? *)
+        replace x with (fun i => x i) by reflexivity.
+        setoid_rewrite (fun i => (Upset.emb_meet_dense (x i))) at 1.
+        unfold finf. rewrite sup_inf.
+        unfold udf. rewrite @Upset.ext_mor. fold udf.
+        (* Lemma 3 in the FCD paper *)
+        assert (forall (x: I -> downset C), udf (sup i, up (x i)) = sup i, udf (up (x i))).
+        {
+          intros y. unfold udf, df.
+          rewrite <- Upset.emb_join_complete.
+          setoid_rewrite Upset.ext_ana.
+          rewrite <- Downset.ext_mor. reflexivity.
+        }
+        setoid_rewrite H. clear H.
+        setoid_rewrite <- sup_inf with (x:=fun (i: I) p => udf (up (proj1_sig p))).
+        unfold udf. setoid_rewrite <- @Upset.ext_mor. fold udf.
+        setoid_rewrite <- Upset.emb_meet_dense.
+        reflexivity.
+      - apply Upset.ext_mor.
+      Qed.
 
     Lemma ext_ana :
       (forall x, ext f (emb x) = f x).
@@ -105,15 +139,19 @@ Module FCD : FCDSpec.
       intros x. unfold ext, emb.
       rewrite @Upset.ext_ana.
       apply Downset.ext_ana.
-    Admitted.
+      typeclasses eauto.
+    Qed.
 
     Lemma ext_unique (g : F C -> L) `{!CDL.Morphism g} :
       (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
     Proof.
       unfold emb, ext. intros Hg x.
-      apply @Upset.ext_unique. admit. typeclasses eauto.
-      apply Downset.ext_unique. admit. auto.
-    Admitted.
+      apply @Upset.ext_unique. typeclasses eauto. typeclasses eauto.
+      apply @Downset.ext_unique. typeclasses eauto. 2: auto.
+      destruct H. intros I p.
+      rewrite Upset.emb_join_complete.
+      rewrite H. reflexivity.
+    Qed.
 
   End DEF.
 
@@ -122,12 +160,15 @@ Module FCD : FCDSpec.
   Lemma meet_join_dense {C : poset} (x : F C) :
     exists I J c, x = inf i : I, sup j : J i, emb (c i j).
   Proof.
-    exists {S : downset C | up S [= x}.
+    exists {S : downset C | x [= up S}.
     exists (fun i => {c : C | down c [= proj1_sig i}).
     exists (fun i j => proj1_sig j).
-    apply antisymmetry.
-    - apply inf_glb. intros [S HS].
-  Admitted.
+    rewrite (Upset.emb_meet_dense x) at 1.
+    unfold finf. apply bigop_eq. intros [S HS]. cbn.
+    unfold emb. rewrite <- Upset.emb_join_complete. f_equal.
+    rewrite (Downset.emb_join_dense S) at 1.
+    unfold fsup. apply bigop_eq. intros [c Hc]. cbn. reflexivity.
+  Qed.
 
   Lemma join_meet_dense {C : poset} (x : F C) :
     exists I J c, x = sup i : I, inf j : J i, emb (c i j).
