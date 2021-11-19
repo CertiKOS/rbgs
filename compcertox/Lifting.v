@@ -1,16 +1,23 @@
-Require Import Relations RelationClasses Relators.
-Require Import List.
-Require Import Coqlib.
-Require Import CallconvAlgebra.
-Require Import LanguageInterface Events Globalenvs.
-Require Import CategoricalComp FlatComp.
-Require Import SmallstepLinking.
-Require Import Smallstep.
-Require Import Linking.
+From Coq Require Import
+     Relations
+     RelationClasses
+     List.
+From compcert.lib Require Import
+     Coqlib.
+From compcert.common Require Import
+     Events
+     Globalenvs
+     LanguageInterface
+     Linking
+     CallconvAlgebra
+     CategoricalComp
+     FlatComp
+     SmallstepLinking
+     Smallstep.
 
-(* Definitions *)
+(** ** Definitions *)
 Section Lifting.
-  (* Lifting a language interface with abstract data of type K *)
+  (** Lifting a language interface with abstract data of type K *)
   Variable K: Type.
   Definition lifted_li li: language_interface :=
     {|
@@ -19,8 +26,8 @@ Section Lifting.
     entry '(q, _) := entry q
     |}.
 
-  (* Lifting an LTS with abstract data of type K. The lifted LTS simply
-     passes the abstract state through without modifying it *)
+  (** Lifting an LTS with abstract data of type K. The lifted LTS simply passes
+      the abstract state through without modifying it *)
   Context {liA liB state} (L: lts liA liB state).
   Let stateX := (state * K)%type.
   Let liBX := lifted_li liB.
@@ -46,16 +53,12 @@ Definition lifted_semantics {liA liB} (K: Type) (L: semantics liA liB) :=
     footprint := footprint L;
   |}.
 
-(* Notations *)
+(** Notations *)
 Delimit Scope li_scope with li.
 Bind Scope li_scope with language_interface.
-(* Delimit Scope lts_scope with lts. *)
-(* Bind Scope lts_scope with lts. *)
-
 (* Note since we are overloading the @ operator, the right associativity and
    precedence level will be inherited *)
 Notation "li @ K" := (lifted_li K li): li_scope.
-(* Notation "L @ K" := (lifted_lts K L): lts_scope. *)
 
 Delimit Scope lts_scope with lts.
 Bind Scope lts_scope with semantics.
@@ -63,8 +66,9 @@ Notation "L @ K" := (lifted_semantics K L): lts_scope.
 
 Notation " 'layer' K " := (Smallstep.semantics li_null (li_c @ K)) (at level 1).
 
-(* Properties *)
+(** ** Properties *)
 
+(** Lifting with abstract data commutes with categorical composition *)
 Section CAT_COMP_LIFT.
   Variable K: Type.
   Context {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB).
@@ -160,6 +164,7 @@ Section CAT_COMP_LIFT.
 
 End CAT_COMP_LIFT.
 
+(** Lifting with abstract state commutes with horizontal composition  *)
 Section HCOMP_LIFT.
 
   Variable K: Type.
@@ -270,6 +275,7 @@ Section HCOMP_LIFT.
 
 End HCOMP_LIFT.
 
+(** Lifting with abstract state commutes with flat composition  *)
 Section FLAT_LIFT.
 
   Variable K: Type.

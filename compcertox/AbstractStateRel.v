@@ -1,50 +1,211 @@
-Require Import Relations RelationClasses Relators.
-Require Import List.
-Require Import Coqlib.
-Require Import LanguageInterface Events Globalenvs Smallstep Linking.
-Require Import Memory Values.
-Require Import SimplLocalsproof.
-(* FIXME: warnings about overloading notation *)
-Require Import CKLR Extends.
-Require Import Clight Clightrel.
-Require Import Lifting.
+From Coq Require Import
+     Relations
+     RelationClasses
+     List.
+From compcertox Require Import
+     Lifting.
+From compcert.lib Require Import
+     Coqlib.
+From compcert.common Require Import
+     LanguageInterface
+     Events
+     Globalenvs
+     Smallstep
+     Linking
+     Memory
+     Values.
+From compcert.cklr Require Import
+     CKLR
+     Extends
+     Clightrel.
+From compcert.cfrontend Require Import
+     SimplLocalsproof
+     Clight.
 
 Definition no_perm_on (m: mem) (vars: block -> Z -> Prop): Prop :=
   forall b ofs, vars b ofs -> ~ Mem.perm m b ofs Max Nonempty.
 
-(* The KRel relation defines the abstraction relation for certified abstraction
-   layers. The relation corresponds to the following diagram:
+(** The KRel relation defines the abstraction relation for certified abstraction
+    layers. The relation corresponds to the following diagram:
 
-   m1    k1
-   |    /|
-   |   / |
-   | Rr  Rk
-   | /   |
-   m2    k2
+    m1    k1
+    |    /|
+    |   / |
+    | Rr  Rk
+    | /   |
+    m2    k2  *)
 
-   where part of the concrete values in the target program memory m2 are abstracted
-   into the abstract data in k1 *)
+(** The relation Rr is parametrized by the symbol table so that we do not have
+    to bind the variables being abstracted to particular blocks *)
 Record krel {K1 K2: Type}: Type :=
   mk_krel {
+      (** refinement between the low-level and high level abstract data *)
       Rk: K1 -> K2 -> Prop;
+      (** abstraction from concrete values in memory to abstract data *)
       Rr (se: Genv.symtbl): K1 -> mem -> Prop;
+      (** the names of the static variables being abstracted *)
       vars :> ident -> Prop;
+      (** other variables *)
       others := fun i => ~ vars i;
-      (* location of the static variables *)
+      (** location of the static variables *)
       blocks (se: Genv.symtbl) (b: block) (ofs: Z) :=
         exists v, vars v /\ Genv.find_symbol se v = Some b;
+      (** location of the other static variables *)
       other_blocks (se: Genv.symtbl) (b: block) (ofs: Z) :=
         exists v, others v /\ Genv.find_symbol se v = Some b;
-      (* properties *)
+
+      (** the abstraction relation is not affected by other variables *)
       G_unchanged: forall se k1 m m', Rr se k1 m -> Mem.unchanged_on (blocks se) m m' -> Rr se k1 m';
+      (** the abstraction relation only focuses on valid blocks, i.e. those have
+          been allocated *)
       G_valid: forall se k1 m b ofs, Rr se k1 m -> (blocks se) b ofs -> Mem.valid_block m b;
     }.
 Arguments krel: clear implicits.
 
-(* The CKLR is indexed by k1 and it is used to ensure the internal steps of the
-   client code won't mess up the blocks in the memory that are abstracted
-   according to the KRel. The proof relies on the fact that the source program
-   doesn't have permissions on those blocks *)
+(* FIXME: [all_vars] gets function definitions involved. This should not be a
+   problem for now because they are not supposed to be changed anycase *)
+Definition all_vars (se: Genv.symtbl) (b: block) (ofs: Z) :=
+  exists v, Genv.find_symbol se v = Some b.
+
+(** In the following sections, we introduce two memory extension based calling
+    conventions [krel_kcc] and [krel_mcc], and prove the self-simulation
+    property respectively for the two calling conventions. The self-simulation
+    property states the client program running on top of the implementation
+    simulates itself running on top of the specification. We refer to the spec
+    side client as the source program and the other as the target program.
+
+    The [krel_kcc] simply extends the calling convention [ext] by introducing
+    the [Rk] and [Rr] from the abstraction relation. Additionally, it requires
+    the source program memory carries no permission bits on the blocks being
+    abstracted. This ensures that the source program itself does not modify
+    those memory blocks. Therefore, it simply requires that if the abstraction
+    relation and memory extension hold at the beginning of the transition they
+    should still hold at the end.
+
+    The [krel_mcc] is also based on [ext] but it is more comprehensive in that
+    memory states are used as the index (or the so-called world). The
+    accessibility condition states that throughout the entire transition the
+    memory state about static variables outside the scope of the abstraction
+    relation is unchanged. The motivation for this condition is to compose
+    together two abstraction relations. By imposing the accessibility condition,
+    the client code may update the static variables belong to the abstraction
+    relation by making external calls and must not update other variables.
+ *)
+
+Section KREL_KCC.
+
+  Context {K1 K2} (R: krel K1 K2).
+  Inductive krel_kcc_query: Genv.symtbl -> query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
+    krel_kcc_query_intro se vf1 vf2 sg vargs1 vargs2 m1 m2 k1 k2:
+      Val.inject inject_id vf1 vf2 -> Val.inject_list inject_id vargs1 vargs2 ->
+      Mem.extends m1 m2 -> vf1 <> Vundef -> no_perm_on m1 (blocks R se) ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
+      krel_kcc_query se (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
+  Inductive krel_kcc_reply: Genv.symtbl -> reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
+    krel_kcc_reply_intro se vres1 m1 vres2 m2 k1 k2:
+      Val.inject inject_id vres1 vres2 ->
+      Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
+      krel_kcc_reply se (cr vres1 m1, k1) (cr vres2 m2, k2).
+
+  (* Maybe we could allow an identity injection in match_senv? *)
+  Inductive krel_kcc_senv: Genv.symtbl -> Genv.symtbl -> Genv.symtbl -> Prop :=
+    krel_kcc_senv_intro se: krel_kcc_senv se se se.
+
+  Instance symtbl_kf: KripkeFrame unit Genv.symtbl :=
+    {| acc _ := eq; |}.
+
+  Program Definition krel_kcc: callconv (li_c @ K1) (li_c @ K2) :=
+    {|
+      ccworld := Genv.symtbl;
+      match_senv := krel_kcc_senv;
+      match_query := krel_kcc_query;
+      (* Maybe we can use unit as the world instead? *)
+      match_reply := (<> krel_kcc_reply)%klr;
+    |}.
+  Next Obligation. inv H. reflexivity. Qed.
+  Next Obligation. inv H. auto. Qed.
+  Next Obligation.
+    inv H. inv H0. cbn.
+    apply val_inject_id in H4. inv H4; easy.
+  Qed.
+  Next Obligation.
+    inv H. cbn.
+    apply val_inject_id in H4. inv H4; easy.
+  Qed.
+
+End KREL_KCC.
+
+(* TODO: it's better to follow some naming conventions *)
+Section KREL_MCC.
+  Context {K1 K2} (R: krel K1 K2).
+
+  Inductive mkrel_world := mkrelw (se:Genv.symtbl) (w: mem * mem).
+
+  Inductive mkrel_world_acc: mkrel_world -> mkrel_world -> Prop :=
+  | mkrel_world_acc_intro se m1 m2 m1' m2':
+      Mem.unchanged_on (all_vars se) m1 m1' ->
+      Mem.unchanged_on (other_blocks R se) m2 m2' ->
+      mkrel_world_acc (mkrelw se (m1, m2)) (mkrelw se (m1', m2')).
+
+  Instance mkrel_kframe: KripkeFrame unit mkrel_world :=
+    {| acc _ := mkrel_world_acc; |}.
+
+  Inductive mkrel_query: mkrel_world -> query (li_c@K1) -> query (li_c@K2) -> Prop :=
+  | mkrel_query_intro se vf1 sg vargs1 m1 vf2 vargs2 m2 k1 k2:
+      Val.inject inject_id vf1 vf2 ->
+      Val.inject_list inject_id vargs1 vargs2 ->
+      vf1 <> Vundef ->
+      Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
+      mkrel_query (mkrelw se (m1, m2)) (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
+
+  Inductive mkrel_reply: mkrel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
+  | mkrel_reply_intro se retval1 m1 retval2 m2 k1 k2:
+      Val.inject inject_id retval1 retval2 ->
+      Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
+      Rr R se k1 m2 -> Rk R k1 k2 ->
+      mkrel_reply (mkrelw se (m1, m2)) (cr retval1 m1, k1) (cr retval2 m2, k2).
+
+  Inductive mkrel_match_se: mkrel_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
+  | mkrel_match_se_intro: forall se mm,
+      mkrel_match_se (mkrelw se mm) se se.
+
+  (* A calling convention derived from a krel indexed by the target program memory *)
+  Program Definition krel_mcc: callconv (li_c@K1) (li_c@K2) :=
+    {|
+      ccworld := mkrel_world;
+      match_senv := mkrel_match_se;
+      match_query := mkrel_query;
+      match_reply := (<> mkrel_reply)%klr;
+    |}.
+  Next Obligation. inv H. reflexivity. Qed.
+  Next Obligation. now inv H. Qed.
+  Next Obligation.
+    inv H. inv H0. cbn.
+    apply val_inject_id in H6. inv H6.
+    reflexivity. easy.
+  Qed.
+  Next Obligation.
+    inv H.  cbn.
+    apply val_inject_id in H4. inv H4.
+    reflexivity. easy.
+  Qed.
+
+End KREL_MCC.
+
+(** The self-simulation property under [krel_kcc] is mostly straightforward. We
+    use CKLR to prove that the internal transition steps preserve the
+    abstraction relation. This is true because the way we lift transition
+    systems with abstract data disallow the abstract data to be changed and the
+    client program should not modify the blocks being abstracted (we use the
+    permission bits to ensure that).
+
+    The CKLR uses the high-level abstract data as the index, and the
+    accessibility condition requires it being unchanged. Note that the
+    accessibility condition is only used for the internal transition steps,
+    which means the only way the client can change the abstract data is to make
+    external calls. We use the CKLR to take care of the internal steps. *)
 Section KREL_CKLR.
   Context {K1 K2} (R: @krel K1 K2).
 
@@ -212,50 +373,9 @@ Section KREL_CKLR.
 
 End KREL_CKLR.
 
-(* The self-simulation property for program p given that the scope of p is
-   disjoint from the scope of the abstraction relation R. *)
+(** The proof of self-simulation property *)
 Section SIMULATION.
-  Context {K1 K2} (R: krel K1 K2).
-  Inductive krel_kcc_query: Genv.symtbl -> query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
-    krel_kcc_query_intro se vf1 vf2 sg vargs1 vargs2 m1 m2 k1 k2:
-      Val.inject inject_id vf1 vf2 -> Val.inject_list inject_id vargs1 vargs2 ->
-      Mem.extends m1 m2 -> vf1 <> Vundef -> no_perm_on m1 (blocks R se) ->
-      Rr R se k1 m2 -> Rk R k1 k2 ->
-      krel_kcc_query se (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
-  Inductive krel_kcc_reply: Genv.symtbl -> reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
-    krel_kcc_reply_intro se vres1 m1 vres2 m2 k1 k2:
-      Val.inject inject_id vres1 vres2 ->
-      Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
-      Rr R se k1 m2 -> Rk R k1 k2 ->
-      krel_kcc_reply se (cr vres1 m1, k1) (cr vres2 m2, k2).
-
-  (* Maybe we could allow an identity injection in match_senv? *)
-  Inductive krel_kcc_senv: Genv.symtbl -> Genv.symtbl -> Genv.symtbl -> Prop :=
-    krel_kcc_senv_intro se: krel_kcc_senv se se se.
-
-  Instance symtbl_kf: KripkeFrame unit Genv.symtbl :=
-    {| acc _ := eq; |}.
-
-  Program Definition krel_kcc: callconv (li_c @ K1) (li_c @ K2) :=
-    {|
-      ccworld := Genv.symtbl;
-      match_senv := krel_kcc_senv;
-      match_query := krel_kcc_query;
-      (* For simplicity, symbol table should be preserved. We can't use
-         accessibility here because that implies the abstract data stays
-         intact *)
-      match_reply := (<> krel_kcc_reply)%klr;
-    |}.
-  Next Obligation. inv H. reflexivity. Qed.
-  Next Obligation. inv H. auto. Qed.
-  Next Obligation.
-    inv H. inv H0. cbn.
-    apply val_inject_id in H4. inv H4; easy.
-  Qed.
-  Next Obligation.
-    inv H. cbn.
-    apply val_inject_id in H4. inv H4; easy.
-  Qed.
+  Context {K1 K2} (R: @krel K1 K2).
 
   Lemma val_casted_list_inject f vargs vargs' targs:
     Cop.val_casted_list vargs targs ->
@@ -282,7 +402,7 @@ Section SIMULATION.
 
   (* for the self-simulation it is not necessary to require disjoint scope. If p
      and G interfere with each other, the source program would fail. *)
-  Lemma clight_sim p: forward_simulation krel_kcc krel_kcc (semantics2 p @ K1) (semantics2 p @ K2).
+  Lemma clight_sim p: forward_simulation (krel_kcc R) (krel_kcc R) (semantics2 p @ K1) (semantics2 p @ K2).
   Proof.
     constructor. econstructor; eauto. intros i. reflexivity.
     instantiate (1 := fun _ _ _ => _). cbn beta.
@@ -343,227 +463,18 @@ Section SIMULATION.
   Qed.
 End SIMULATION.
 
-(* FIXME: [all_vars] gets function definitions involved. This should not be a
-   problem for now because they are not supposed to be changed anycase *)
-Definition all_vars (se: Genv.symtbl) (b: block) (ofs: Z) :=
-  exists v, Genv.find_symbol se v = Some b.
+(** The self-simulation property for [krel_mcc] is more complicated and it has
+    some restrictions on the client program.
 
-Section KREL_MCC.
-  Context {K1 K2} (R: krel K1 K2).
-
-  Inductive mkrel_world := mkrelw (se:Genv.symtbl) (w: mem * mem).
-
-  Inductive mkrel_world_acc: mkrel_world -> mkrel_world -> Prop :=
-  | mkrel_world_acc_intro se m1 m2 m1' m2':
-      Mem.unchanged_on (all_vars se) m1 m1' ->
-      Mem.unchanged_on (other_blocks R se) m2 m2' ->
-      mkrel_world_acc (mkrelw se (m1, m2)) (mkrelw se (m1', m2')).
-
-  Instance mkrel_kframe: KripkeFrame unit mkrel_world :=
-    {| acc _ := mkrel_world_acc; |}.
-
-  Inductive mkrel_query: mkrel_world -> query (li_c@K1) -> query (li_c@K2) -> Prop :=
-  | mkrel_query_intro se vf1 sg vargs1 m1 vf2 vargs2 m2 k1 k2:
-      Val.inject inject_id vf1 vf2 ->
-      Val.inject_list inject_id vargs1 vargs2 ->
-      vf1 <> Vundef ->
-      Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
-      Rr R se k1 m2 -> Rk R k1 k2 ->
-      mkrel_query (mkrelw se (m1, m2)) (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
-
-  Inductive mkrel_reply: mkrel_world -> reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
-  | mkrel_reply_intro se retval1 m1 retval2 m2 k1 k2:
-      Val.inject inject_id retval1 retval2 ->
-      Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
-      Rr R se k1 m2 -> Rk R k1 k2 ->
-      mkrel_reply (mkrelw se (m1, m2)) (cr retval1 m1, k1) (cr retval2 m2, k2).
-
-  Inductive mkrel_match_se: mkrel_world -> Genv.symtbl -> Genv.symtbl -> Prop :=
-  | mkrel_match_se_intro: forall se mm,
-      mkrel_match_se (mkrelw se mm) se se.
-
-  (* A calling convention derived from a krel indexed by the target program memory *)
-  Program Definition krel_mcc: callconv (li_c@K1) (li_c@K2) :=
-    {|
-      ccworld := mkrel_world;
-      match_senv := mkrel_match_se;
-      match_query := mkrel_query;
-      match_reply := (<> mkrel_reply)%klr;
-    |}.
-  Next Obligation. inv H. reflexivity. Qed.
-  Next Obligation. now inv H. Qed.
-  Next Obligation.
-    inv H. inv H0. cbn.
-    apply val_inject_id in H6. inv H6.
-    reflexivity. easy.
-  Qed.
-  Next Obligation.
-    inv H.  cbn.
-    apply val_inject_id in H4. inv H4.
-    reflexivity. easy.
-  Qed.
-
-End KREL_MCC.
-
-Section PROD.
-  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
-  Program Definition prod_krel: krel (K1*K3) (K2*K4) :=
-    {|
-      Rk '(k1, k3) '(k2, k4) := Rk R1 k1 k2 /\ Rk R2 k3 k4;
-      Rr se '(k1, k3) m := Rr R1 se k1 m /\ Rr R2 se k3 m;
-      vars i := vars R1 i \/ vars R2 i;
-    |}.
-  Next Obligation.
-    split; eapply G_unchanged; eauto; eapply Mem.unchanged_on_implies; eauto;
-      intros; unfold blocks in *; cbn in *.
-    - destruct H2 as [? [? ?]]. eexists; split; eauto.
-    - destruct H2 as [? [? ?]]. eexists; split; eauto.
-  Qed.
-  Next Obligation.
-    destruct H2; [ eapply (G_valid R1) | eapply (G_valid R2) ]; eauto.
-    - eexists; split; eauto.
-    - eexists; split; eauto.
-      Unshelve. exact ofs. exact ofs.
-  Qed.
-
-  Lemma other_blocks_implies se b ofs:
-    other_blocks R1 se b ofs -> (forall r, R2 r -> R1 r) -> other_blocks R2 se b ofs.
-  Proof.
-    unfold other_blocks, others. intros [v [? ?]] Hv.
-    eexists; split; eauto.
-  Qed.
-
-  Lemma blocks_either se b ofs:
-    blocks prod_krel se b ofs -> blocks R1 se b ofs \/ blocks R2 se b ofs.
-  Proof.
-    intros [v [[Hv|Hv] Hb]]; [left|right]; eexists; split; eauto.
-  Qed.
-
-  Lemma blocks_implies se b ofs:
-    blocks R1 se b ofs -> (forall r, R1 r -> R2 r) -> blocks R2 se b ofs.
-  Proof.
-    unfold blocks. intros [v [? ?]] Hv.
-    eexists; split; eauto.
-  Qed.
-End PROD.
-
-Infix "*" := prod_krel.
-Coercion krel_mcc : krel >-> callconv.
-
-
-Section Properties.
-
-  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
-  Hypothesis Hdisjoint: forall i, R1 i -> R2 i -> False.
-
-  Lemma prod_match_reply se m1 m2 r1 r2 k1 k2 k3 k4:
-    match_reply R1 (mkrelw se (m1, m2)) (r1, k1) (r2, k2) ->
-    Rk R2 k3 k4 -> Rr R2 se k3 m2 ->
-    no_perm_on m1 (blocks R2 se) -> Mem.extends m1 m2 ->
-    match_reply (R1 * R2) (mkrelw se (m1, m2)) (r1, (k1, k3)) (r2, (k2, k4)).
-  Proof.
-    intros [w' [Hw Hr]] Hk Hkm Hperm Hm.
-    exists w'; inv Hw; split.
-    - cbn in *.  constructor; eauto.
-      eapply Mem.unchanged_on_implies; eauto.
-      cbn in *. intros. eapply other_blocks_implies; eauto.
-      intros. now left.
-    - inv Hr. cbn in *. constructor; eauto.
-      + intros b ofs Hb. apply blocks_either in Hb as [Hv|Hv].
-        * unfold no_perm_on in *. intuition eauto.
-        * unfold no_perm_on in *. intros contra.
-          specialize (Hperm b ofs Hv). apply Hperm.
-          eapply Mem.perm_unchanged_on_2; intuition eauto.
-          destruct Hv as [v [Hv Hb]]. eexists; eauto.
-          apply Mem.perm_valid_block in contra.
-          erewrite Mem.valid_block_extends; [ | eauto].
-          eapply (G_valid R2); eauto.
-      + split; eauto. eapply G_unchanged; eauto.
-        eapply Mem.unchanged_on_implies. intuition eauto.
-        cbn. intros. destruct H as [v [Hv Hb]]. eexists; split; eauto.
-        unfold others. intros contra. eapply Hdisjoint; eauto.
-      + split; eauto.
-  Qed.
-
-  Lemma prod_match_query se m1 m2 q1 q2 k1 k2 k3 k4:
-    match_query (R1 * R2) (mkrelw se (m1, m2)) (q1, (k1, k3)) (q2, (k2, k4)) ->
-    match_query R1 (mkrelw se (m1, m2)) (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 se k3 m2 /\
-    no_perm_on m1 (blocks R2 se) /\ Mem.extends m1 m2.
-  Proof.
-    intros. inv H. repeat apply conj; cbn in *; intuition.
-    constructor; eauto.
-    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
-      intuition. now left.
-    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
-      intuition. now right.
-  Qed.
-
-  Lemma match_query_comm w q1 q2 k1 k2 k3 k4:
-    match_query (R2 * R1) w (q1, (k3, k1)) (q2, (k4, k2)) ->
-    match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)).
-  Proof.
-    intros. inv H. constructor; auto.
-    - intros b ofs Hg. apply H9. eapply blocks_implies; eauto.
-      intros i [|]; [right|left]; auto.
-    - cbn in *. intuition.
-    - cbn in *. intuition.
-  Qed.
-
-  Lemma match_reply_comm w r1 r2 k1 k2 k3 k4:
-    match_reply (R2 * R1) w (r1, (k3, k1)) (r2, (k4, k2)) ->
-    match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
-  Proof.
-    intros [w' [Hw H]]. exists w'. inv Hw. inv H. split.
-    - cbn in *. constructor; eauto.
-      eapply Mem.unchanged_on_implies. eauto.
-      intros. eapply other_blocks_implies. eauto.
-      intros i [|]; [right|left]; auto.
-    - econstructor; auto.
-      + cbn in *. intros b ofs Hv. apply H11.
-        eapply blocks_implies; eauto.
-        intros i [|]; [right|left]; auto.
-      + cbn in *. intuition.
-      + cbn in *. intuition.
-  Qed.
-
-End Properties.
-
-Generalizable All Variables.
-
-(* A vertically compositional abstraction relation *)
-Inductive crel: Type -> Type -> Type :=
-| empty_rel K: crel K K
-| singleton_rel `(krel K1 K2): crel K1 K2
-| vcomp_rel `(crel K1 K2) `(crel K2 K3): crel K1 K3.
-
-Fixpoint crel_to_cc {K1 K2} (rel: crel K1 K2): callconv (li_c @ K1) (li_c @ K2) :=
-  match rel with
-  | empty_rel _ => cc_id | singleton_rel _ _ r => krel_kcc r
-  | vcomp_rel _ _ r1 _ r2 => (crel_to_cc r1) @ (crel_to_cc r2)
-  end.
-
-Delimit Scope krel_scope with krel.
-Bind Scope krel_scope with crel.
-
-
-Notation "R1 ∘ R2" := (vcomp_rel R1 R2): krel_scope.
-
-Coercion crel_to_cc : crel >-> callconv.
-
-Lemma clight_krel {K1 K2} (R: crel K1 K2) p:
-  forward_simulation R R (Clight.semantics2 p @ K1) (Clight.semantics2 p @ K2).
-Proof.
-  induction R; simpl.
-  - apply lifting_simulation.
-    apply identity_forward_simulation.
-  - apply clight_sim.
-  - eapply compose_forward_simulations; eauto.
-Qed.
-
-(* The special case of a self-simulation where the internal steps of the Clight
-   program is expected to not modify any part of the memory. This allows us to
-   prove [p]∘L1 ≤_R [p]∘L2 from L1 ≤_R L2 where the calling convention obtained
-   from R requires blocks outside its domain unchanged.  *)
+    The internal transition steps may not change any memory blocks but we can't
+    simply remove the permission on all the allocated blocks because the same
+    memory may be passed to other components (for now we don't have a proper
+    notion for separation). Therefore, we have to rely on a complicated
+    simulation relation in the forward simulation proof. For one thing, we
+    re-used the proof from the [ext] CKLR to ensure the memory extension is
+    preserved. For another, we introduce the notion of side-effect free
+    statement to ensure the execution of the client program does not modify
+    memory blocks. *)
 Module MCC.
 
   Import Maps.
@@ -580,10 +491,10 @@ Module MCC.
   Definition unchanged_on_state vars (s1 s2: state): Prop :=
     Mem.unchanged_on vars (mem_from_state s1) (mem_from_state s2).
 
-  (* Side-Effect Free statement. At this moment we only consider the side effect
-     of updating memory and making system calls. We discard the goto and switch
-     statement for now since DeepSEA does not use them and they make the proof
-     intrigue *)
+  (** Side-Effect Free statement. At this moment we only consider the side
+      effect of updating memory and making system calls. We discard the goto and
+      switch statement for now since DeepSEA does not use them and they make the
+      proof intrigue *)
   Inductive sef_stmt: statement -> Prop :=
   | sef_skip: sef_stmt Sskip
   | sef_set id e: sef_stmt (Sset id e)
@@ -608,7 +519,7 @@ Module MCC.
 
   Section WITH_GE.
     Context (ge: genv).
-    (* local bindings should not overlap with global variables *)
+    (** local bindings should not overlap with global variables *)
     Definition global_local_separate (e:  env) :=
       forall b lo hi ofs, In (b, lo, hi) (blocks_of_env ge e) -> all_vars ge b ofs -> False.
 
@@ -627,10 +538,10 @@ Module MCC.
         (* sef_stmt (fn_body f) -> *)
         sef_cont k -> sef_cont (Kcall oid f e le k).
 
-    (* The notion of side effect states prevents the assignment and
-     extcall. Moreover, it ensures that the resource deallocation does not mess
-     up the global variables by imposing a separation between global and local
-     variables *)
+    (** The notion of side effect states prevents the assignment and
+        extcall. Moreover, it ensures that the resource deallocation does not
+        mess up the global variables by imposing a separation between global and
+        local variables *)
     Inductive sef_state: state -> Prop :=
     | sef_State f s k e le m:
         global_local_separate e ->
@@ -643,6 +554,10 @@ Module MCC.
         sef_cont k -> sef_state (Returnstate res k m).
   End WITH_GE.
 
+  Hint Constructors sef_stmt sef_cont.
+
+  (** The following two propositions state the conditions for a program to be
+      side-effect free *)
   Definition prog_syscall_free (p: Clight.program) :=
     forall id f ts t cc, (AST.prog_defmap p) ! id = Some (AST.Gfun (External f ts t cc)) ->
                     exists name sg, f = AST.EF_external name sg.
@@ -650,6 +565,7 @@ Module MCC.
   Definition prog_side_effect_free (p: Clight.program) :=
     forall id f, (AST.prog_defmap p) ! id = Some (AST.Gfun (Internal f)) -> sef_stmt (fn_body f).
 
+  (** an auxiliary lemma *)
   Lemma free_list_mem_unchanged se m m' blocks:
     Mem.free_list m blocks = Some m' ->
     (forall (b : block) (lo hi ofs : Z), In (b, lo, hi) blocks -> all_vars se b ofs -> False) ->
@@ -673,8 +589,8 @@ Module MCC.
         intros. intros contra. eapply Hin; eauto. left. reflexivity.
   Qed.
 
-  Hint Constructors sef_stmt sef_cont.
-
+  (** The main result by introducing side-effect free states: the execution of
+      internal steps will not modify any memory blocks *)
   Lemma sef_mem_unchanged (p: Clight.program):
     prog_syscall_free p ->
     forall se s t s',
@@ -762,8 +678,9 @@ Module MCC.
         * eapply Hsep; eauto.
   Qed.
 
-  (* We need the Pos.le to ensure the separation between global and local
-     variables *)
+  (** The property of being side-effect free is preserved by the internal steps.
+      We need the Pos.le to ensure the separation between global and local
+      variables *)
   Lemma sef_state_step (p: Clight.program):
     prog_side_effect_free p ->
     forall se s t s',
@@ -801,6 +718,7 @@ Module MCC.
       eapply Hp. apply Hfd.
   Qed.
 
+  (** Pos.le itself is preserved as well  *)
   Lemma separation_step (p: Clight.program):
     forall se s t s',
       Pos.le (Genv.genv_next se) (Mem.nextblock (mem_from_state s)) ->
@@ -818,8 +736,8 @@ Module MCC.
         Mem.extends m1 m2 -> no_perm_on m1 (blocks R se) ->
         ext_memory_match (mkrelw se (m1, m2)) m1 m2.
 
-    (* The [state_match] for the cklr [ext] with the index carrying more
-       information about part of the memory being unchanged *)
+    (** The [state_match] for the cklr [ext] with the index carrying more
+        information about part of the memory being unchanged *)
     Inductive ext_state_match w: rel state state :=
     | ext_State_rel:
         Monotonic
@@ -855,6 +773,8 @@ Module MCC.
     Instance client_kf: KripkeFrame unit mkrel_world :=
       {| acc _ := client_world_acc; |}.
 
+    (** The relation that promote [Rr] to the relation between the [state] and
+        the abstract data *)
     Inductive state_rel se: K1 -> state -> Prop :=
     | State_rel f s k e le m k1:
         Rr R se k1 m -> state_rel se k1 (State f s k e le m)
@@ -924,9 +844,9 @@ Module MCC.
     Qed.
 
     Context (p: Clight.program) (Hp1: prog_syscall_free p) (Hp2: prog_side_effect_free p).
-    (* Hypothesis p_pure: forall se s t s', step2 (globalenv se p) s t s' -> mem_unchanged_state (all_vars se) s s'. *)
 
-    Lemma clight_sim: forward_simulation R R (semantics2 p @ K1) (semantics2 p @ K2).
+    (** The self-simulation property *)
+    Lemma clight_sim: forward_simulation (krel_mcc R) (krel_mcc R) (semantics2 p @ K1) (semantics2 p @ K2).
     Proof.
       constructor. econstructor; eauto. intros i; reflexivity.
       instantiate (1 := fun _ _ _ => _). cbn beta.
@@ -1059,51 +979,227 @@ Module MCC.
 
 End MCC.
 
-(*
+(** The product of two abstraction relations. It will be better off if we could
+    define the product in terms of calling conventions but things are quite
+    complicated at that level because of we expect non-interference between the
+    memory blocks being abstracted away *)
+Section PROD.
+  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
+  Program Definition prod_krel: krel (K1*K3) (K2*K4) :=
+    {|
+      Rk '(k1, k3) '(k2, k4) := Rk R1 k1 k2 /\ Rk R2 k3 k4;
+      Rr se '(k1, k3) m := Rr R1 se k1 m /\ Rr R2 se k3 m;
+      vars i := vars R1 i \/ vars R2 i;
+    |}.
+  Next Obligation.
+    split; eapply G_unchanged; eauto; eapply Mem.unchanged_on_implies; eauto;
+      intros; unfold blocks in *; cbn in *.
+    - destruct H2 as [? [? ?]]. eexists; split; eauto.
+    - destruct H2 as [? [? ?]]. eexists; split; eauto.
+  Qed.
+  Next Obligation.
+    destruct H2; [ eapply (G_valid R1) | eapply (G_valid R2) ]; eauto.
+    - eexists; split; eauto.
+    - eexists; split; eauto.
+      Unshelve. exact ofs. exact ofs.
+  Qed.
 
-   There are two kinds of calling convention that are derived from an
-   abstraction relation R. kcc denotes the one indexed by the source program
-   abstract data K1 (the index is not used for calling convention though) and
-   mcc denotes the one indexed by the target program memory.
+  Lemma other_blocks_implies se b ofs:
+    other_blocks R1 se b ofs -> (forall r, R2 r -> R1 r) -> other_blocks R2 se b ofs.
+  Proof.
+    unfold other_blocks, others. intros [v [? ?]] Hv.
+    eexists; split; eauto.
+  Qed.
 
-   The commonalities: both calling conventions are based on memory extension and
-   they require the abstraction relation between the abstract data and the
-   memory holds in both queries and replies.
+  Lemma blocks_either se b ofs:
+    blocks prod_krel se b ofs -> blocks R1 se b ofs \/ blocks R2 se b ofs.
+  Proof.
+    intros [v [[Hv|Hv] Hb]]; [left|right]; eexists; split; eauto.
+  Qed.
 
-   The kcc convention is the most basic relation on queries and replies, which
-   is essentially a naive embedding of the abstraction relation.
+  Lemma blocks_implies se b ofs:
+    blocks R1 se b ofs -> (forall r, R1 r -> R2 r) -> blocks R2 se b ofs.
+  Proof.
+    unfold blocks. intros [v [? ?]] Hv.
+    eexists; split; eauto.
+  Qed.
+End PROD.
 
-   The first problem we encounter is running the client code on top of certified
-   layers. Across two consecutive external calls to the underlay, the abstract
-   data is unchanged because the lifted semantics simply threads through the
-   abstract data. Therefore, the internal steps of the client code can't modify
-   the variables of the underlay (otherwise the queries won't match when it
-   calls the underlay). To prove this property, we exploit the CKLR which
-   abstracts out the key properties to ensure the internal steps preserve a
-   particular relation.
+Infix "*" := prod_krel.
+Coercion krel_mcc : krel >-> callconv.
 
-   The vertical composition doesn't have the inconsistency issue because the
-   composition of calling conventions is essentially treating (m,k) as a
-   whole. The inconsistency issue pops up when we try to define the relations in
-   the abstraction relation separately, i.e. to define relation between abstract
-   data and relation between abstract data and memory separately.
+(** Some simple properties about the product of abstraction relations *)
+Section Properties.
 
-   The second problem is to horizontally compose abstraction relations. To
-   ensure the execution of one component doesn't mess up the other abstraction
-   relation, we need to strengthen the calling convention to guarantee the
-   variables not belong to the component are unchanged throughout the
-   transition. However, such calling conventions do not compose.
+  Context {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4).
+  Hypothesis Hdisjoint: forall i, R1 i -> R2 i -> False.
 
-   The third problem is to compose an absfun layer with an underlay and the mcc
-   calling convention is maintained. So the client code can't touch the
-   variables belong to the underlay (for the same reason in vertical
-   composition) and it can't change other part of the memory as well (otherwise
-   the mcc convention can't be preserved)
+  Lemma prod_match_reply se m1 m2 r1 r2 k1 k2 k3 k4:
+    match_reply R1 (mkrelw se (m1, m2)) (r1, k1) (r2, k2) ->
+    Rk R2 k3 k4 -> Rr R2 se k3 m2 ->
+    no_perm_on m1 (blocks R2 se) -> Mem.extends m1 m2 ->
+    match_reply (R1 * R2) (mkrelw se (m1, m2)) (r1, (k1, k3)) (r2, (k2, k4)).
+  Proof.
+    intros [w' [Hw Hr]] Hk Hkm Hperm Hm.
+    exists w'; inv Hw; split.
+    - cbn in *.  constructor; eauto.
+      eapply Mem.unchanged_on_implies; eauto.
+      cbn in *. intros. eapply other_blocks_implies; eauto.
+      intros. now left.
+    - inv Hr. cbn in *. constructor; eauto.
+      + intros b ofs Hb. apply blocks_either in Hb as [Hv|Hv].
+        * unfold no_perm_on in *. intuition eauto.
+        * unfold no_perm_on in *. intros contra.
+          specialize (Hperm b ofs Hv). apply Hperm.
+          eapply Mem.perm_unchanged_on_2; intuition eauto.
+          destruct Hv as [v [Hv Hb]]. eexists; eauto.
+          apply Mem.perm_valid_block in contra.
+          erewrite Mem.valid_block_extends; [ | eauto].
+          eapply (G_valid R2); eauto.
+      + split; eauto. eapply G_unchanged; eauto.
+        eapply Mem.unchanged_on_implies. intuition eauto.
+        cbn. intros. destruct H as [v [Hv Hb]]. eexists; split; eauto.
+        unfold others. intros contra. eapply Hdisjoint; eauto.
+      + split; eauto.
+  Qed.
 
-   The horizontally compositional layers have the abstraction relation
-   interpreted as mcc. When the layer is ready for vertical composition the mcc
-   is refined to kcc. Note that the refinement is only for one direction. In the
-   section, we prove the refinement. *)
+  Lemma prod_match_query se m1 m2 q1 q2 k1 k2 k3 k4:
+    match_query (R1 * R2) (mkrelw se (m1, m2)) (q1, (k1, k3)) (q2, (k2, k4)) ->
+    match_query R1 (mkrelw se (m1, m2)) (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 se k3 m2 /\
+    no_perm_on m1 (blocks R2 se) /\ Mem.extends m1 m2.
+  Proof.
+    intros. inv H. repeat apply conj; cbn in *; intuition.
+    constructor; eauto.
+    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
+      intuition. now left.
+    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
+      intuition. now right.
+  Qed.
+
+  Lemma match_query_comm w q1 q2 k1 k2 k3 k4:
+    match_query (R2 * R1) w (q1, (k3, k1)) (q2, (k4, k2)) ->
+    match_query (R1 * R2) w (q1, (k1, k3)) (q2, (k2, k4)).
+  Proof.
+    intros. inv H. constructor; auto.
+    - intros b ofs Hg. apply H9. eapply blocks_implies; eauto.
+      intros i [|]; [right|left]; auto.
+    - cbn in *. intuition.
+    - cbn in *. intuition.
+  Qed.
+
+  Lemma match_reply_comm w r1 r2 k1 k2 k3 k4:
+    match_reply (R2 * R1) w (r1, (k3, k1)) (r2, (k4, k2)) ->
+    match_reply (R1 * R2) w (r1, (k1, k3)) (r2, (k2, k4)).
+  Proof.
+    intros [w' [Hw H]]. exists w'. inv Hw. inv H. split.
+    - cbn in *. constructor; eauto.
+      eapply Mem.unchanged_on_implies. eauto.
+      intros. eapply other_blocks_implies. eauto.
+      intros i [|]; [right|left]; auto.
+    - econstructor; auto.
+      + cbn in *. intros b ofs Hv. apply H11.
+        eapply blocks_implies; eauto.
+        intros i [|]; [right|left]; auto.
+      + cbn in *. intuition.
+      + cbn in *. intuition.
+  Qed.
+
+End Properties.
+
+Generalizable All Variables.
+
+(** A vertically compositional abstraction relation. Note that we only
+    vertically compose [krel_kcc]. *)
+Inductive crel: Type -> Type -> Type :=
+| empty_rel K: crel K K
+| singleton_rel `(krel K1 K2): crel K1 K2
+| vcomp_rel `(crel K1 K2) `(crel K2 K3): crel K1 K3.
+
+Fixpoint crel_to_cc {K1 K2} (rel: crel K1 K2): callconv (li_c @ K1) (li_c @ K2) :=
+  match rel with
+  | empty_rel _ => cc_id | singleton_rel _ _ r => krel_kcc r
+  | vcomp_rel _ _ r1 _ r2 => (crel_to_cc r1) @ (crel_to_cc r2)
+  end.
+
+Delimit Scope krel_scope with krel.
+Bind Scope krel_scope with crel.
+
+Notation "R1 ∘ R2" := (vcomp_rel R1 R2): krel_scope.
+
+Coercion crel_to_cc : crel >-> callconv.
+
+Lemma clight_krel {K1 K2} (R: crel K1 K2) p:
+  forward_simulation R R (Clight.semantics2 p @ K1) (Clight.semantics2 p @ K2).
+Proof.
+  induction R; simpl.
+  - apply lifting_simulation.
+    apply identity_forward_simulation.
+  - apply clight_sim.
+  - eapply compose_forward_simulations; eauto.
+Qed.
+
+(** In summary, there are two kinds of calling convention that are derived from
+    an abstraction relation R. [krel_kcc] denotes the one simply extends the
+    [ext] with abstraction relation; [krel_mcc] additionally enforces an
+    invariant on the memory states. The former is called [krel_kcc] because it's
+    originally indexed by the source program abstract data K1 but it's actually
+    not necessary (though the CKLR used to prove properties is still indexed by
+    K1). The other is called [krel_mcc] because it's indexed by the memory
+    states.
+
+    The commonalities: both calling conventions are based on memory extension
+    and they require the abstraction relation between the abstract data and the
+    memory holds in both queries and replies.
+
+    The kcc convention is the most basic relation on queries and replies, which
+    is essentially a naive embedding of the abstraction relation.
+
+    The first problem we encounter is running the client code on top of
+    certified layers. Across two consecutive external calls to the underlay, the
+    abstract data is unchanged because the lifted semantics simply threads
+    through the abstract data. Therefore, the internal steps of the client code
+    can't modify the variables of the underlay (otherwise the queries won't
+    match when it calls the underlay). To prove this property, we exploit the
+    CKLR which abstracts out the key properties to ensure the internal steps
+    preserve a particular relation.
+
+    The second problem is to horizontally compose abstraction relations. To
+    ensure the execution of one component doesn't mess up the other abstraction
+    relation, we need to strengthen the calling convention to guarantee the
+    variables not belong to the component are unchanged throughout the
+    transition. However, such calling conventions do not compose
+    well. Therefore, we solve this problem at the level of [krel] instead of
+    [cc] and introduced [krel_mcc]. The main result can be found in the file
+    TensorComp.v
+
+    The third problem is to compose an absfun layer with an underlay and the
+    [krel_mcc] calling convention is expected to be maintained. We mentioned
+    that [krel_mcc] does not compose with either [krel_mcc] or [krel_kcc].
+    Therefore, we again bring back the problem to the level of [krel]. But as we
+    know, [krel] do not compose vertically because of the consistency issue so
+    we instead use some ad-hoc tricks to restrict the kind of [krel] being
+    composed. The tricks are simple and can be found in Composition.v, in
+    particular [absfun_kcc].
+
+    All in all, this end up with a structure of building certified abstraction
+    layers under the framework of compcertox. We first verify individual
+    getter-setter and absfun layers using the [krel_mcc] and [absfun_kcc]
+    respectively. Then compose the absfun with its getter-setter underlay and
+    the result is still getter-setter-like components because the [krel_mcc]
+    convention holds. These getter-setter-like components can be arbitrarily
+    composed horizontally with each other to obtain a larger module. Finally, we
+    turn the [krel_mcc] components into [krel_kcc] to compose the module
+    vertically with other modules. The next section proves such a refinement
+    from [krel_mcc] to [krel_kcc].
+
+    P.S. The vertical composition of calling convention doesn't have the
+    inconsistency issue because the memory and abstract data pair (m,k) is
+    treated as a whole. The inconsistency issue pops up when we try to define
+    the relations in the abstraction relation separately, i.e. to define
+    relation between abstract data and relation between abstract data and memory
+    separately.
+
+*)
 
 Require Import CallconvAlgebra.
 
