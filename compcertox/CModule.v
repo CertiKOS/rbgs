@@ -1,13 +1,28 @@
-Require Import Relations RelationClasses Relators.
-Require Import List Maps.
-Require Import Coqlib.
-Require Import CallconvAlgebra.
-Require Import LanguageInterface Events Globalenvs Smallstep CategoricalComp FlatComp SmallstepLinking.
-Require Import Memory Values.
-Require Import Clight Linking.
-Require Import AbstractStateRel Lifting.
+From Coq Require Import
+     Relations
+     RelationClasses
+     List.
+From compcertox Require Import
+     Lifting
+     AbstractStateRel.
+From compcert.lib Require Import
+     Coqlib
+     Maps.
+From compcert.common Require Import
+     LanguageInterface
+     AST Events
+     Globalenvs
+     Smallstep
+     Linking
+     SmallstepLinking
+     Memory Values
+     CallconvAlgebra
+     CategoricalComp
+     FlatComp.
+From compcert.cfrontend Require Import
+     Clight
+     Ctypes.
 Require Coq.omega.Omega.
-Require Import AST Ctypes.
 
 (* A module is a list of compilation units. Specifically, they are Clight
    programs at this time. Note that in the layer library the modules are

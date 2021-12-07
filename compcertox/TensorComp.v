@@ -1,14 +1,27 @@
-Require Import Relations RelationClasses Relators.
-Require Import List Maps.
-Require Import Coqlib.
-Require Import CallconvAlgebra.
-Require Import LanguageInterface Events Globalenvs Smallstep CategoricalComp FlatComp.
-Require Import Memory Values.
-Require Import Linking.
-Require Import Lifting AbstractStateRel.
-Require Import Coq.Logic.FinFun.
+From Coq Require Import
+     Relations
+     RelationClasses
+     List
+     FinFun.
+From compcertox Require Import
+     Lifting
+     AbstractStateRel.
+From compcert.lib Require Import
+     Coqlib.
+From compcert.common Require Import
+     LanguageInterface
+     Events
+     Globalenvs
+     Smallstep
+     Linking
+     Memory
+     Values
+     CallconvAlgebra
+     CategoricalComp
+     FlatComp.
 
 Generalizable All Variables.
+Close Scope Z_scope.
 
 (* A li_func convert from one language interface to another. This is useful
    because equivalence on the level of language interfaces can't be defined

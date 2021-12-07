@@ -1,12 +1,27 @@
-Require Import Relations RelationClasses Relators.
-Require Import List Maps.
-Require Import Coqlib.
-Require Import CallconvAlgebra.
-Require Import LanguageInterface Events Globalenvs Smallstep CategoricalComp FlatComp.
-Require Import Memory Values.
-Require Import Clight Linking.
-Require Import AbstractStateRel Lifting CModule TensorComp.
-Require Import Ctypes.
+From Coq Require Import
+     Relations
+     RelationClasses
+     List.
+From compcert.lib Require Import
+     Coqlib.
+From compcert.common Require Import
+     LanguageInterface
+     Events
+     Globalenvs
+     Smallstep
+     Linking
+     Memory Values
+     CallconvAlgebra
+     CategoricalComp
+     FlatComp.
+From compcert.cfrontend Require Import
+     Clight
+     Ctypes.
+From compcertox Require Import
+     Lifting
+     AbstractStateRel
+     CModule
+     TensorComp.
 
 (* FIXME: why the precedence can't be looser than 9? *)
 Notation "[ R ]" := (singleton_rel R) (at level 9): krel_scope.
@@ -333,19 +348,21 @@ Section TCOMP.
   Context (L1: layer K1) (L2: layer K2) (L3: layer K3) (L4: layer K4).
   Context (M N: cmodule).
   Hypothesis (HL1: L2 ⊢ [R] M : L1) (HL2: L4 ⊢ [S] N : L3).
-  Variable (sk: AST.program unit unit).
-  Hypothesis (Hk1: linkorder (skel L1) sk) (Hk2: linkorder (skel L3) sk).
-  Let Mi := (fun i : bool => if i then semantics M sk else semantics N sk).
+  Variable (sk_lo sk_hi: AST.program unit unit).
+  Hypothesis (Hsk1: linkorder (skel L2) sk_lo) (Hsk2: linkorder (skel L4) sk_lo)
+             (Hsk3: linkorder (skel L1) sk_hi) (Hsk4: linkorder (skel L3) sk_hi)
+             (Hsk: linkorder sk_lo sk_hi).
+  Let Mi := (fun i : bool => if i then semantics M sk_hi else semantics N sk_hi).
   Context `{!FlatLinkable Mi}.
   Hypothesis Hdisjoint: forall i, vars S i -> vars R i -> False.
 
-  Lemma layer_tcomp: ksim_mcc (tensor_comp_semantics' L1 L3 sk)
-                              (tensor_comp_semantics' L2 L4 sk)
+  Lemma layer_tcomp: ksim_mcc (tensor_comp_semantics' L1 L3 sk_hi)
+                              (tensor_comp_semantics' L2 L4 sk_lo)
                               (M ++ N) (R * S).
   Proof.
-    destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
-    destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
-    split. eapply linkorder_refl.
+    destruct HL1 as [HLsk1 [Hmod1 H1]]. clear HL1.
+    destruct HL2 as [HLsk2 [Hmod2 H2]]. clear HL2.
+    split. eapply Hsk.
     split. apply compatible_app; (eapply compatible_trans; [ | eauto]); eauto.
 
     exploit @tensor_compose_simulation; [exact H1 | exact H2 | .. ]; eauto. intros H.
@@ -394,19 +411,20 @@ Section TCOMP.
     set (LX:= fun i:bool => if i then semantics M (skel L1) @ (K2 * K4) else semantics N (skel L3) @ (K2 * K4)).
     set (LY:= fun i:bool => if i then lift_layer_k L2 else layer_comm (lift_layer_k L4)).
     set (Lsk:= fun i:bool => if i then skel L1 else skel L3).
-    replace (flat_comp_semantics' _ sk) with (flat_comp_semantics' (fun i:bool => comp_semantics' (LX i) (LY i) (Lsk i)) sk).
+    replace (flat_comp_semantics' _ sk_hi) with (flat_comp_semantics' (fun i:bool => comp_semantics' (LX i) (LY i) (Lsk i)) sk_hi).
     2: {
       subst LX  LY Lsk. cbn. f_equal. apply Axioms.functional_extensionality.
       intros [|]; reflexivity.
     }
 
     etransitivity. apply categorical_flat_interchangeable.
+    etransitivity; [ | eapply lift_comp_component2 with (sk2 := sk_hi)].
     eapply categorical_compose_simulation'; [ | reflexivity | apply linkorder_refl | apply linkorder_refl ].
     subst LX. rewrite <- if_rewrite with (f := fun x => x @ (K2 * K4)).
     etransitivity. apply lift_flat_comp2. apply lifting_simulation.
     etransitivity. 2: { apply cmodule_flat_comp_simulation. eauto. }
     etransitivity. apply lift_flat_comp_component. cbn.
-    rewrite if_rewrite with (f := fun x => skel_extend x sk). reflexivity.
+    rewrite if_rewrite with (f := fun x => skel_extend x sk_hi). reflexivity.
   Qed.
 
 End TCOMP.
