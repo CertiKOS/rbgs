@@ -1,5 +1,3 @@
-(* -*- company-coq-local-symbols: (("[=" . ?⊑)); -*- *)
-
 Require Import coqrel.LogicalRelations.
 Require Import structures.Lattice.
 Require Import structures.Completion.

@@ -11,6 +11,9 @@ Require Import lattices.Upset.
 Require Import lattices.FCD.
 Require Import lattices.LatticeProduct.
 
+Require Import Coq.Logic.ChoiceFacts.
+Require Import Coq.Logic.ClassicalChoice.
+
 (** * Preliminaries *)
 
 (** The following [Proper] instance enables rewriting under binders
@@ -209,11 +212,7 @@ Module ISpec.
 
   Lemma bind_ret_r {E A B} (a : A) (f : A -> t E B) :
     bind f (ret a) = f a.
-  Proof.
-    intros. unfold bind, ret.
-    rewrite FCD.ext_ana.
-    reflexivity.
-  Qed.
+  Proof. now setoid_rewrite FCD.ext_ana. Qed.
 
   Lemma pbind_ret_l {E A} :
     pbind (@ret E A) = FCD.emb.
@@ -232,9 +231,100 @@ Module ISpec.
     apply FCD.ext_emb.
   Qed.
 
+  Global Instance ext_proper {C: poset} {L: cdlattice}:
+    Proper ((pointwise_relation _ ref) ++> ref ++> ref) (@FCD.ext C L).
+  Proof.
+    intros f1 f2 Hf a1 a2 Ha.
+  Admitted.
+
+  Lemma bind_pbind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : play E A) :
+    bind g (pbind f x) = pbind (fun a => bind g (f a)) x.
+  Proof.
+    unfold bind. induction x; cbn; eauto.
+    - rewrite FCD.ext_ana. reflexivity.
+    - rewrite Sup.mor_join. rewrite FCD.ext_ana. cbn.
+      rewrite <- IHx.
+      apply antisymmetry.
+      + apply join_lub.
+        * apply join_l. reflexivity.
+        * admit.
+  Admitted.
+
   Lemma bind_bind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : t E A) :
     bind g (bind f x) = bind (fun a => bind g (f a)) x.
   Proof.
+    unfold bind. rewrite @FCD.ext_ext; try typeclasses eauto.
+    f_equal. apply functional_extensionality. intros p.
+    induction p; cbn; eauto.
+    - rewrite FCD.ext_ana. reflexivity.
+    - rewrite Sup.mor_join. rewrite FCD.ext_ana. cbn.
+      rewrite <- IHp. rewrite !@FCD.ext_ext; try typeclasses eauto.
+      f_equal. f_equal.
+      apply functional_extensionality. intros p'.
+      rewrite FCD.ext_ana. cbn.
+      apply ref_join.
+  Admitted.
+
+  Fixpoint pmult {E A} (x : play E (t E A)) : t E A :=
+    match x with
+    | pret a => a
+    | pmove m => FCD.emb (pmove m)
+    | pcons m n q =>
+        FCD.emb (pmove m) ||
+        FCD.ext (fun s => FCD.emb (pcons m n s)) (pmult q)
+    end.
+
+  Definition mult {E A} (x : t E (t E A)) : t E A := FCD.ext pmult x.
+
+  Fixpoint play_map {E V W} (f: V -> W) (p: play E V): play E W :=
+    match p with
+    | pret v => pret (f v)
+    | pmove m => pmove m
+    | pcons m n s => pcons m n (play_map f s)
+    end.
+
+  Definition map {E A B} (f: A -> B) (x: t E A): t E B :=
+    FCD.map (play_map f) x.
+
+  Lemma mult_natural {E A B} (f: A -> B) (x : t E (t E A)):
+    mult (map (map f) x) = map f (mult x).
+  Proof.
+    unfold mult, map. unfold FCD.map. cbn.
+    rewrite !@FCD.ext_ext by admit. f_equal.
+    apply functional_extensionality. intros p.
+    rewrite @FCD.ext_ana by admit. induction p.
+    - cbn. reflexivity.
+    - cbn. rewrite @FCD.ext_ana by admit. reflexivity.
+    - cbn. rewrite Sup.mor_join. rewrite @FCD.ext_ana by admit.
+      cbn. f_equal.
+      rewrite IHp.
+      rewrite !@FCD.ext_ext by admit. f_equal.
+      apply functional_extensionality. intros pa.
+      rewrite !@FCD.ext_ana by admit. cbn. reflexivity.
+  Admitted.
+
+  Lemma mult_assoc {E A} (x : t E (t E (t E A))):
+    mult (mult x) = mult (map mult x).
+  Proof.
+    unfold map, mult, FCD.map.
+    rewrite !@FCD.ext_ext by admit.
+    f_equal. apply functional_extensionality. intros p.
+    rewrite @FCD.ext_ana by admit.
+    induction p.
+    - cbn. reflexivity.
+    - cbn. rewrite @FCD.ext_ana by admit. reflexivity.
+    - cbn. rewrite Sup.mor_join.
+      rewrite @FCD.ext_ana by admit. cbn.
+      rewrite <- IHp.
+      rewrite !@FCD.ext_ext by admit.
+      f_equal.
+      replace (fun a : play_poset E (t E A) => FCD.ext pmult (FCD.emb (pcons m n a)))
+        with (fun a : play_poset E (t E A) => pmult (pcons m n a)).
+      2: {
+        apply functional_extensionality. intros pa.
+        rewrite @FCD.ext_ana by admit. reflexivity.
+      }
+      cbn.
   Admitted.
 
   (** ** Interaction *)
