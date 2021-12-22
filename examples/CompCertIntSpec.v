@@ -155,6 +155,8 @@ Section LTS.
 
 End LTS.
 
+Require Import Downset.
+
 (** ** Embed Calling Conventions *)
 Section CC.
 
@@ -180,6 +182,77 @@ Section CC.
     fun _ '(li_sig qa) =>
       inf w, inf { qb | match_query cc w qa qb },
       query_int qb >>= (fun rb => sup { ra | match_reply cc w ra rb }, ret ra).
+
+  Definition identity {E: esig}: subst E E := fun _ m => int m.
+
+  Lemma cc_epsilon: cc_up @ cc_down [= identity.
+  Proof.
+    intros ? [qb]. unfold identity, cc_up, cc_down, compose.
+    rewrite (proj1 (apply_mor _)). apply sup_iff. intros w.
+    unfold fsup. rewrite (proj1 (apply_mor _)).
+    apply sup_iff. intros [qa Hq]. cbn.
+    rewrite apply_bind. unfold bind.
+    unfold query_int. rewrite apply_int_r.
+    rewrite (proj2 FCD.ext_mor). apply (inf_at w).
+    unfold finf. rewrite (proj2 FCD.ext_mor).
+    apply (inf_at (exist _ qb Hq)). cbn.
+    setoid_rewrite (proj1 FCD.ext_mor).
+    setoid_rewrite (proj1 FCD.ext_mor).
+    apply sup_iff. intros [rb|].
+    - rewrite FCD.ext_ana. cbn.
+      rewrite Sup.mor_join.
+      apply join_lub.
+      + rewrite FCD.ext_ana. cbn.
+        unfold int. eapply (sup_at None). reflexivity.
+      + rewrite (proj1 FCD.ext_mor).
+        rewrite (proj1 FCD.ext_mor).
+        apply sup_iff. intros [ra Hr]. cbn.
+        unfold ret. rewrite FCD.ext_ana.
+        rewrite FCD.ext_ana. cbn.
+        apply join_lub.
+        * eapply (sup_at None). reflexivity.
+        * rewrite (proj2 (apply_mor _)).
+          rewrite (proj2 FCD.ext_mor).
+          apply (inf_at (exist _ rb Hr)). cbn.
+          unfold apply at 1. rewrite FCD.ext_ana. cbn.
+          rewrite FCD.ext_ana.
+          unfold int. apply (sup_at (Some rb)). reflexivity.
+    - rewrite FCD.ext_ana. cbn.
+      rewrite FCD.ext_ana. cbn.
+      unfold int. apply (sup_at None). reflexivity.
+  Qed.
+
+  Lemma cc_eta: identity [= cc_down @ cc_up.
+  Proof.
+    intros ? [qa]. unfold identity, cc_up, cc_down, compose.
+    rewrite (proj2 (apply_mor _)). apply inf_iff. intros w.
+    unfold finf. rewrite (proj2 (apply_mor _)).
+    apply inf_iff. intros [qb Hq]. cbn.
+    unfold query_int. intm.
+    unfold bind. rewrite (proj1 FCD.ext_mor). apply (sup_at w).
+    unfold fsup. rewrite (proj1 FCD.ext_mor).
+    apply (sup_at (exist _ qa Hq)). cbn.
+    setoid_rewrite (proj1 FCD.ext_mor).
+    setoid_rewrite (proj1 FCD.ext_mor).
+    unfold int at 1. apply sup_iff. intros [ra|].
+    - apply (sup_at (Some ra)).
+      rewrite FCD.ext_ana. cbn.
+      rewrite Sup.mor_join. apply join_r.
+      rewrite (proj2 FCD.ext_mor).
+      rewrite (proj2 FCD.ext_mor).
+      apply inf_iff. intros [rb Hr]. cbn.
+      unfold ret.
+      rewrite FCD.ext_ana.
+      rewrite FCD.ext_ana. cbn.
+      apply join_r.
+      rewrite (proj1 FCD.ext_mor).
+      apply (sup_at (exist _ ra Hr)). cbn.
+      rewrite FCD.ext_ana. cbn.
+      rewrite FCD.ext_ana. reflexivity.
+    - apply (sup_at None).
+      rewrite FCD.ext_ana. cbn.
+      rewrite FCD.ext_ana. cbn. reflexivity.
+  Qed.
 
 End CC.
 
