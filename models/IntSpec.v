@@ -27,6 +27,48 @@ Proof.
   congruence.
 Qed.
 
+(* TODO: how to express the following lemmas in a cleaner way, like using a
+   Proper class:
+
+   Proper ((pointwise_relation _ eq) ++> eq ++> eq) (@FCD.ext C L).  *)
+Section EXT_PROPER.
+  Context {C: poset} {L: cdlattice} (f1 f2: C -> L) `{!PosetMorphism f1} `{!PosetMorphism f2}.
+
+  Lemma ext_proper_eq:
+    forall (x: FCD.F C) (EQ: forall c, f1 c = f2 c),
+      FCD.ext f1 x = FCD.ext f2 x.
+  Proof.
+    intros x EQ.
+    edestruct (FCD.join_meet_dense x) as (I & J & c & Hc). subst.
+    rewrite !Sup.mor. setoid_rewrite Inf.mor.
+    setoid_rewrite FCD.ext_ana.
+    f_equal. apply functional_extensionality. intros i.
+    f_equal. apply functional_extensionality. intros j.
+    apply EQ.
+  Qed.
+
+  Lemma ext_proper_ref':
+    forall (x: FCD.F C) (REF: forall c, f1 c [= f2 c),
+      FCD.ext f1 x [= FCD.ext f2 x.
+  Proof.
+    intros x REF.
+    edestruct (FCD.join_meet_dense x) as (I & J & c & Hc). rewrite Hc.
+    setoid_rewrite Sup.mor. setoid_rewrite Inf.mor.
+    setoid_rewrite @FCD.ext_ana; eauto.
+    apply sup_iff. intros i. apply (sup_at i).
+    apply inf_iff. intros j. apply (inf_at j).
+    apply REF.
+  Qed.
+
+  Lemma ext_proper_ref:
+    forall (x1 x2: FCD.F C) (FREF: forall c, f1 c [= f2 c) (XREF: x1 [= x2),
+      FCD.ext f1 x1 [= FCD.ext f2 x2.
+  Proof.
+    intros. etransitivity.
+    - apply ext_proper_ref'; eauto.
+    - rauto.
+  Qed.
+End EXT_PROPER.
 (*
 (** The discrete poset on a set, currently unused. *)
 
@@ -216,6 +258,27 @@ Module ISpec.
     split. intros x y Hxy. rstep. constructor. apply Hxy.
   Qed.
 
+  Global Instance bind_proper_eq {E A B}:
+    Proper ((pointwise_relation _ eq) ++> eq ++> eq) (@bind E A B).
+  Proof.
+    intros f g H x y <-.
+    unfold bind. eapply ext_proper_eq; try typeclasses eauto.
+    intros c. f_equal. apply functional_extensionality. apply H.
+  Qed.
+
+  Global Instance bind_proper_ref {E A B}:
+    Proper ((pointwise_relation _ ref) ++> ref ++> ref) (@bind E A B).
+  Proof.
+    intros f g H x y Hx.
+    unfold bind. eapply ext_proper_ref; try typeclasses eauto; eauto.
+    intros c. induction c; cbn.
+    - apply H.
+    - reflexivity.
+    - apply join_lub.
+      + apply join_l. reflexivity.
+      + apply join_r. now rstep.
+  Qed.
+
   Lemma bind_ret_r {E A B} (a : A) (f : A -> t E B) :
     bind f (ret a) = f a.
   Proof. now setoid_rewrite FCD.ext_ana. Qed.
@@ -317,13 +380,6 @@ Module ISpec.
     - auto.
   Qed.
 
-  (* TODO: *)
-  Global Instance ext_proper {C: poset} {L: cdlattice}:
-    Proper ((pointwise_relation _ eq) ++> eq ++> eq) (@FCD.ext C L).
-  Proof.
-    intros f1 f2 Hf a1 a2 Ha.
-  Admitted.
-
   Lemma bind_pbind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : play E A) :
     bind g (pbind f x) = pbind (fun a => bind g (f a)) x.
   Proof.
@@ -332,10 +388,21 @@ Module ISpec.
     - rewrite Sup.mor_join. rewrite FCD.ext_ana. cbn.
       rewrite <- IHx. unfold t.
       rewrite !FCD.ext_ext.
-      setoid_rewrite FCD.ext_ana.
-      cbn. apply ext_foo.
-      split. intros a b Hab. rstep.
-      now apply pbind_mor.
+      (* setoid_rewrite FCD.ext_ana. *)
+      erewrite @ext_proper_eq. 4: { intros c. rewrite FCD.ext_ana. reflexivity. }
+      + cbn. apply ext_foo.
+        split. intros a b Hab. rstep.
+        now apply pbind_mor.
+      + split. intros a b Hab. repeat rstep. now constructor.
+      + split. intros a b Hab. cbn.
+        apply join_lub.
+        * apply join_l. reflexivity.
+        * apply join_r. rstep.
+          induction Hab; cbn; try reflexivity.
+          -- apply join_l. reflexivity.
+          -- apply join_lub.
+             ++ apply join_l. reflexivity.
+             ++ apply join_r. rstep. eauto.
   Qed.
 
   Lemma bind_bind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : t E A) :
@@ -499,7 +566,9 @@ Module ISpec.
     - rewrite Sup.mor_join. rewrite FCD.ext_ana. cbn.
       setoid_rewrite bind_bind. unfold bind at 3.
       setoid_rewrite Sup.mor. setoid_rewrite <- IHp. clear IHp.
-      rewrite FCD.ext_ext. setoid_rewrite FCD.ext_ana. cbn.
+      rewrite FCD.ext_ext.
+
+(*      setoid_rewrite FCD.ext_ana. cbn.
 
       generalize (pbind g p). intros pb.
       edestruct (FCD.join_meet_dense pb) as (I & J & c & H).
@@ -522,7 +591,7 @@ Module ISpec.
           apply inf_iff. intros j'. apply (inf_at j').
           admit.
         * apply sup_iff. intros i.
-          setoid_rewrite sup_sup.
+          setoid_rewrite sup_sup. *)
   Admitted.
 
   Lemma apply_int_r {E F ar} (m : F ar) (f : subst E F) :

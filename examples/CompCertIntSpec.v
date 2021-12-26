@@ -11,6 +11,8 @@ From compcert Require Import
      Globalenvs
      Smallstep.
 From lattices Require Import
+     Upset
+     Downset
      FCD.
 From structures Require Import
      Effects
@@ -107,6 +109,64 @@ Section LTS.
       fun _ '(li_sig q) => sup n,
         sup { s | initial_state L q s }, ang_lts_spec' n s.
 
+    (** Executing one step in the FCD specification *)
+    Lemma lts_spec_step s:
+      sup n, ang_lts_spec' n s =
+        (sup { s' | Star L s E0 s' }, sup n, ang_lts_spec' n s') ||
+        (sup { q | at_external L s q },
+          r <- query_int q;
+         sup { s' | after_external L s r s' }, sup n, ang_lts_spec' n s') ||
+        (sup { r | final_state L s r }, ret r).
+    Proof.
+      apply antisymmetry.
+      - apply sup_iff. intros i.
+        destruct i; cbn; eauto using bot_lb.
+        repeat apply join_lub.
+        + apply join_l. apply join_l.
+          apply sup_iff. intros [s' H]. cbn.
+          apply (sup_at (exist _ s' H)). apply (sup_at i). reflexivity.
+        + apply join_l. apply join_r.
+          apply sup_iff. intros [q H]. cbn.
+          apply (sup_at (exist _ q H)). cbn.
+          apply bind_proper_ref; try reflexivity.
+          intros ra. unfold bind.
+          apply sup_iff. intros [s' Hs'].
+          eapply fsup_at. eauto. cbn.
+          apply (sup_at i). reflexivity.
+        + apply join_r. reflexivity.
+      - repeat apply join_lub.
+        + apply sup_iff. intros [s' H]. cbn.
+          apply sup_iff. intros n. apply (sup_at (S n)). cbn.
+          apply join_l. apply join_l.
+          apply (sup_at (exist _ s' H)). reflexivity.
+        + apply sup_iff. intros [q Hq]. cbn.
+          unfold bind. setoid_rewrite Sup.mor.
+          apply sup_iff. intros [ra|].
+          * rewrite FCD.ext_ana. cbn. apply join_lub.
+            -- apply (sup_at 1%nat). cbn. apply join_l. apply join_r.
+               eapply fsup_at. eauto.
+               setoid_rewrite Sup.mor.
+               apply (sup_at (Some ra)). unfold bind.
+               rewrite FCD.ext_ana. cbn.
+               apply join_l. reflexivity.
+            -- setoid_rewrite Sup.mor. apply sup_iff. intros [s' Hs'].
+               cbn. rewrite Sup.mor. apply sup_iff. intros i.
+               apply (sup_at (S i)). cbn. apply join_l. apply join_r.
+               eapply fsup_at; eauto. unfold bind.
+               setoid_rewrite Sup.mor. apply (sup_at (Some ra)).
+               rewrite FCD.ext_ana. cbn. apply join_r.
+               setoid_rewrite Sup.mor.
+               apply (sup_at (exist _ s' Hs')). cbn. reflexivity.
+          * rewrite FCD.ext_ana. cbn.
+            apply (sup_at 1%nat). cbn. apply join_l. apply join_r.
+            eapply fsup_at; eauto. unfold bind.
+            setoid_rewrite Sup.mor. apply (sup_at None).
+            rewrite FCD.ext_ana. reflexivity.
+        + apply sup_iff. intros [r Hr]. cbn.
+          apply (sup_at 1%nat). cbn. apply join_r.
+          eapply fsup_at; eauto. reflexivity.
+    Qed.
+
   End ANG.
 
   (** The two interpretations coincide when the computation has at most one
@@ -155,8 +215,6 @@ Section LTS.
 
 End LTS.
 
-Require Import Downset.
-
 (** ** Embed Calling Conventions *)
 Section CC.
 
@@ -188,31 +246,28 @@ Section CC.
   Lemma cc_epsilon: cc_up @ cc_down [= identity.
   Proof.
     intros ? [qb]. unfold identity, cc_up, cc_down, compose.
-    rewrite (proj1 (apply_mor _)). apply sup_iff. intros w.
-    unfold fsup. rewrite (proj1 (apply_mor _)).
+    rewrite Sup.mor. apply sup_iff. intros w.
+    unfold fsup. rewrite Sup.mor.
     apply sup_iff. intros [qa Hq]. cbn.
     rewrite apply_bind. unfold bind.
     unfold query_int. rewrite apply_int_r.
-    rewrite (proj2 FCD.ext_mor). apply (inf_at w).
-    unfold finf. rewrite (proj2 FCD.ext_mor).
+    rewrite Inf.mor. apply (inf_at w).
+    unfold finf. rewrite Inf.mor.
     apply (inf_at (exist _ qb Hq)). cbn.
-    setoid_rewrite (proj1 FCD.ext_mor).
-    setoid_rewrite (proj1 FCD.ext_mor).
+    repeat setoid_rewrite Sup.mor.
     apply sup_iff. intros [rb|].
     - rewrite FCD.ext_ana. cbn.
       rewrite Sup.mor_join.
       apply join_lub.
       + rewrite FCD.ext_ana. cbn.
         unfold int. eapply (sup_at None). reflexivity.
-      + rewrite (proj1 FCD.ext_mor).
-        rewrite (proj1 FCD.ext_mor).
+      + rewrite !Sup.mor.
         apply sup_iff. intros [ra Hr]. cbn.
         unfold ret. rewrite FCD.ext_ana.
         rewrite FCD.ext_ana. cbn.
         apply join_lub.
         * eapply (sup_at None). reflexivity.
-        * rewrite (proj2 (apply_mor _)).
-          rewrite (proj2 FCD.ext_mor).
+        * rewrite !Inf.mor.
           apply (inf_at (exist _ rb Hr)). cbn.
           unfold apply at 1. rewrite FCD.ext_ana. cbn.
           rewrite FCD.ext_ana.
@@ -225,29 +280,26 @@ Section CC.
   Lemma cc_eta: identity [= cc_down @ cc_up.
   Proof.
     intros ? [qa]. unfold identity, cc_up, cc_down, compose.
-    rewrite (proj2 (apply_mor _)). apply inf_iff. intros w.
-    unfold finf. rewrite (proj2 (apply_mor _)).
+    rewrite Inf.mor. apply inf_iff. intros w.
+    unfold finf. rewrite Inf.mor.
     apply inf_iff. intros [qb Hq]. cbn.
     unfold query_int. intm.
-    unfold bind. rewrite (proj1 FCD.ext_mor). apply (sup_at w).
-    unfold fsup. rewrite (proj1 FCD.ext_mor).
+    unfold bind. rewrite Sup.mor. apply (sup_at w).
+    unfold fsup. rewrite Sup.mor.
     apply (sup_at (exist _ qa Hq)). cbn.
-    setoid_rewrite (proj1 FCD.ext_mor).
-    setoid_rewrite (proj1 FCD.ext_mor).
+    repeat setoid_rewrite Sup.mor.
     unfold int at 1. apply sup_iff. intros [ra|].
     - apply (sup_at (Some ra)).
       rewrite FCD.ext_ana. cbn.
       rewrite Sup.mor_join. apply join_r.
-      rewrite (proj2 FCD.ext_mor).
-      rewrite (proj2 FCD.ext_mor).
+      rewrite !Inf.mor.
       apply inf_iff. intros [rb Hr]. cbn.
       unfold ret.
-      rewrite FCD.ext_ana.
-      rewrite FCD.ext_ana. cbn.
+      rewrite !FCD.ext_ana. cbn.
       apply join_r.
-      rewrite (proj1 FCD.ext_mor).
+      rewrite Sup.mor.
       apply (sup_at (exist _ ra Hr)). cbn.
-      rewrite FCD.ext_ana. cbn.
+      setoid_rewrite FCD.ext_ana. cbn.
       rewrite FCD.ext_ana. reflexivity.
     - apply (sup_at None).
       rewrite FCD.ext_ana. cbn.
@@ -256,36 +308,8 @@ Section CC.
 
 End CC.
 
-Instance bind_proper {E:esig} {A B}:
-  Proper (pointwise_relation A eq ==> eq ==> eq) (@bind E A B).
-Proof.
-  intros f1 f2 Hf a1 a2 Ha. unfold bind.
-  rewrite Hf. rewrite Ha. reflexivity.
-Qed.
-
 (* Note: it's hard to imply the [esig] from the context, since
    higher-order unification is generally difficult, i.e. to imply [E] from [E X] *)
-Global Instance emb_pcons_monotonic {li: language_interface} {V: Type} (m: query li) (n: reply li):
-  PosetMorphism (fun s: play li V => FCD.emb (@pcons (sig li) _ _ m n s)).
-Proof.
-  split. intros x y Hxy.
-  rstep. now constructor.
-Qed.
-
-Global Instance ext_monotonic {C: poset} {L: cdlattice} (f: C -> L):
-  PosetMorphism (FCD.ext f).
-Proof.
-  apply CDL.mor_ref. typeclasses eauto.
-Qed.
-
-(* TODO: *)
-Global Instance ext_proper {C: poset} {L: cdlattice}:
-  Proper ((pointwise_relation _ ref) ++> ref ++> ref) (@FCD.ext C L).
-Proof.
-  intros f1 f2 Hf a1 a2 Ha.
-Admitted.
-
-Import Upset Downset.
 
 (** ** Monotonicity of Embedding *)
 Section FSIM.
@@ -306,17 +330,16 @@ Section FSIM.
     unfold ang_lts_spec at 1.
     apply sup_iff. intros steps.
     apply sup_iff. intros [s H1]. cbn.
-    unfold finf. rewrite (proj2 (apply_mor _)).
+    unfold finf. rewrite Inf.mor.
     apply inf_iff. intros wB. specialize (FSIM wB).
-    rewrite (proj2 (apply_mor _)).
+    rewrite Inf.mor.
     apply inf_iff. intros [qb2 Hqb].
     unfold query_int. intm.
-    setoid_rewrite (proj1 (apply_mor _)).
+    setoid_rewrite Sup.mor.
     setoid_rewrite apply_ret.
-    setoid_rewrite (proj1 (apply_mor _)).
-    unfold bind. rewrite (proj1 FCD.ext_mor).
+    setoid_rewrite Sup.mor.
+    unfold bind. repeat setoid_rewrite Sup.mor.
     apply sup_at with (i := steps).
-    setoid_rewrite (proj1 FCD.ext_mor).
     edestruct (fsim_match_initial_states FSIM) as (i & s2 & H2 & Hs); eauto.
     eapply (sup_at (exist _ s2 H2)). cbn.
     clear H1 H2 Hqb. revert i s s2 Hs.
@@ -336,100 +359,61 @@ Section FSIM.
           eexists i'', s2''. split; eauto.
           eapply star_trans; eauto.
       }
-      setoid_rewrite (proj1 (apply_mor _)).
-      setoid_rewrite (proj1 FCD.ext_mor).
+      repeat setoid_rewrite Sup.mor.
       eapply (sup_at (exist _ s2' Hstep2)). cbn.
       specialize (IHsteps _ _ _ Hs'). apply IHsteps.
     - apply sup_iff. intros [qa1 H1]. cbn.
       rewrite !Sup.mor_join.
       apply join_l. apply join_r.
       edestruct @fsim_match_external as (w & qa2 & H2 & Hqa & _ & Hrx); eauto.
-      setoid_rewrite (proj1 (apply_mor _)).
-      setoid_rewrite (proj1 FCD.ext_mor) at 2.
+      setoid_rewrite Sup.mor.
+      setoid_rewrite Sup.mor.
       eapply (sup_at (exist _ qa2 H2)). cbn.
       rewrite apply_bind. unfold query_int.
       rewrite apply_int_r.
       unfold bind. unfold cc_up at 2.
-      setoid_rewrite (proj1 FCD.ext_mor) at 2.
-      setoid_rewrite (proj1 FCD.ext_mor) at 2.
+      repeat setoid_rewrite Sup.mor.
       eapply (sup_at w).
-      setoid_rewrite (proj1 FCD.ext_mor) at 2.
-      setoid_rewrite (proj1 FCD.ext_mor) at 2.
       eapply (sup_at (exist _ qa1 Hqa)). cbn.
       unfold query_int. unfold bind.
-      setoid_rewrite (proj1 FCD.ext_mor) at 1.
       apply sup_iff. intros [ra1|].
       + rewrite FCD.ext_ana. cbn.
         apply join_lub.
-        * setoid_rewrite (proj1 FCD.ext_mor).
-          setoid_rewrite (proj1 FCD.ext_mor).
-          setoid_rewrite (proj1 FCD.ext_mor).
-          apply (sup_at (Some ra1)).
+        * apply (sup_at (Some ra1)).
           rewrite FCD.ext_ana. cbn.
-          rewrite !Sup.mor_join.
-          apply join_l.
+          rewrite !Sup.mor_join. apply join_l.
           rewrite FCD.ext_ana. cbn.
           rewrite FCD.ext_ana. cbn. reflexivity.
-        * setoid_rewrite (proj1 FCD.ext_mor) at 3.
-          setoid_rewrite (proj1 FCD.ext_mor) at 2.
-          setoid_rewrite (proj1 FCD.ext_mor) at 2.
-          apply (sup_at (Some ra1)).
+        * apply (sup_at (Some ra1)).
           rewrite FCD.ext_ana. cbn.
-          rewrite !Sup.mor_join.
-          apply join_r.
-          setoid_rewrite (proj2 FCD.ext_mor).
-          setoid_rewrite (proj2 FCD.ext_mor).
-          setoid_rewrite (proj2 FCD.ext_mor).
+          rewrite !Sup.mor_join. apply join_r.
+          repeat setoid_rewrite Inf.mor.
           apply inf_iff. intros [ra2 Hr]. cbn.
           unfold ret at 2. cbn.
-          setoid_rewrite FCD.ext_ana.
-          setoid_rewrite FCD.ext_ana. cbn.
-          rewrite !Sup.mor_join.
-          apply join_r.
-          setoid_rewrite (proj1 FCD.ext_mor).
+          repeat setoid_rewrite FCD.ext_ana. cbn.
+          rewrite !Sup.mor_join. apply join_r.
+          setoid_rewrite Sup.mor.
           apply sup_iff. intros [s' H1'].
           specialize (Hrx _ _ _ Hr H1') as (i' & s2' & H2' & Hs'). cbn.
-          setoid_rewrite (proj1 FCD.ext_mor).
-          setoid_rewrite (proj1 FCD.ext_mor).
+          setoid_rewrite Sup.mor.
           apply (sup_at (exist _ s2' H2')). cbn.
           specialize (IHsteps _ _ _ Hs').
           etransitivity.
-          pose proof (@ext_monotonic) as H.
-          match goal with
-          | |- context[FCD.ext ?f] =>
-              set (h := f)
-          end.
-          specialize (H  _ _ h).
-          destruct H as [H].
-          cbn in *. eapply H. apply IHsteps.
-          rewrite FCD.ext_ext.
-          rewrite @FCD.ext_ext; try typeclasses eauto.
-          match goal with
-          | |- ref (FCD.ext ?f _) (FCD.ext ?g _) =>
-              set (f1 := f); set (f2 := g);
-              assert (pointwise_relation _ ref f1 f2)
-          end.
-          {
-            intros p. subst f1. subst f2. cbn.
-            rewrite FCD.ext_ana. cbn.
-            apply join_r. reflexivity.
-          }
-          (* apply FunctionalExtensionality.functional_extensionality. *)
-          eapply ext_proper. eauto. reflexivity.
+          -- instantiate (1 := FCD.ext _ _). rstep. reflexivity.
+          -- rewrite IHsteps. unfold apply.
+             rewrite FCD.ext_ext. unfold t. rewrite FCD.ext_ext.
+             eapply ext_proper_ref'.
+             ++ split. intros a b Hab. rstep. now apply pbind_mor.
+             ++ split. intros a b Hab. repeat rstep. now constructor.
+             ++ intros x. rewrite FCD.ext_ana. cbn. apply join_r. reflexivity.
       + rewrite FCD.ext_ana. cbn.
-        setoid_rewrite (proj1 FCD.ext_mor).
-        setoid_rewrite (proj1 FCD.ext_mor).
-        setoid_rewrite (proj1 FCD.ext_mor).
         apply (sup_at None).
-        setoid_rewrite FCD.ext_ana. cbn.
-        setoid_rewrite FCD.ext_ana. cbn.
-        setoid_rewrite FCD.ext_ana. cbn.
+        repeat (setoid_rewrite FCD.ext_ana; cbn).
         reflexivity.
     - apply sup_iff. intros [rb1 H1]. cbn.
       rewrite !Sup.mor_join. apply join_r.
       edestruct @fsim_match_final_states as (rb2 & H2 & Hr); eauto.
-      setoid_rewrite (proj1 (apply_mor _)).
-      setoid_rewrite (proj1 FCD.ext_mor).
+      repeat setoid_rewrite Sup.mor.
       apply (sup_at (exist _ rb2 H2)). cbn.
       rewrite apply_ret.
       unfold ret at 3. rewrite FCD.ext_ana. cbn.
@@ -438,4 +422,191 @@ Section FSIM.
   Qed.
 
 End FSIM.
-(* We may not be able to prove the order-embedding *)
+
+Lemma fmap_cons {E A B X} (f: A -> t E B) m (n: X) (t: t E A):
+  bind f (FCD.ext (fun s => FCD.emb (pcons m n s)) t) [=
+    FCD.emb (pmove m) || FCD.ext (fun s => FCD.emb (pcons m n s)) (bind f t).
+Proof.
+  unfold bind.
+  edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). rewrite Hc.
+  rewrite !Sup.mor. repeat setoid_rewrite Inf.mor.
+  setoid_rewrite FCD.ext_ana. setoid_rewrite FCD.ext_ana. cbn.
+  apply sup_iff. intros i. rewrite <- join_inf.
+  apply join_lub.
+  - apply join_l. reflexivity.
+  - apply join_r. apply (sup_at i). reflexivity.
+Qed.
+
+Require Import compcert.common.CategoricalComp.
+
+(** ** Functoriality of the embedding *)
+(** We prove the embedding preserves composition, i.e. ⟦L1⟧ ∘ ⟦L2⟧ ⊑ ⟦L1 ∘ L2⟧ *)
+Section COMP.
+
+  Context {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB).
+  Context {L} (COMP: comp_semantics L1 L2 = Some L).
+
+  Lemma comp_embed se:
+    ang_lts_spec (L1 se) @ ang_lts_spec (L2 se) [= ang_lts_spec (L se).
+  Proof.
+    Local Opaque comp_semantics'.
+    intros _ [qc]. unfold comp_semantics, option_map in COMP.
+    destruct Linking.link; try congruence. inv COMP.
+    unfold ISpec.compose. unfold ang_lts_spec at 2.
+    rewrite Sup.mor. apply sup_iff. intros steps1.
+    setoid_rewrite Sup.mor. apply sup_iff.
+    intros [s1 Hinit]. cbn. unfold fsup. rewrite sup_sup.
+    exploit @comp_initial_state_intro. eapply Hinit. intro Hinit'.
+    eapply (sup_at (exist _ (st1 _ _ s1) Hinit')). cbn.
+    clear Hinit Hinit'. revert s1. induction steps1.
+    - intros s. apply (sup_at 0%nat). cbn.
+      rewrite Sup.mor_bot. reflexivity.
+    - intros s1. cbn. rewrite !Sup.mor_join. repeat apply join_lub.
+      + setoid_rewrite Sup.mor.
+        apply sup_iff. intros [s1' Hstep1]. cbn.
+        exploit @star_internal1. apply Hstep1. intros Hstep.
+        specialize (IHsteps1 s1'). etransitivity. apply IHsteps1.
+        apply sup_iff. intros steps. apply (sup_at (S steps)).
+        cbn. apply join_l. apply join_l.
+        eapply fsup_at. apply Hstep. reflexivity.
+      + setoid_rewrite Sup.mor. apply sup_iff.
+        intros [qb1 Hext1]. cbn.
+        rewrite apply_bind. unfold query_int.
+        rewrite apply_int_r. unfold bind. unfold ang_lts_spec at 2.
+        rewrite Sup.mor. setoid_rewrite Sup.mor.
+        apply sup_iff. intros steps2.
+        apply sup_iff. intros [s2 Hinit2]. cbn.
+        rewrite lts_spec_step.
+        apply join_l. apply join_l.
+        eapply fsup_at. apply star_one. eapply step_push; eauto.
+
+        clear Hext1 Hinit2. revert s2. induction steps2; intros s2; cbn.
+        * rewrite Sup.mor_bot. apply bot_lb.
+        * rewrite !Sup.mor_join. repeat apply join_lub.
+          -- setoid_rewrite Sup.mor. apply sup_iff.
+             intros [s2' H2]. cbn. specialize (IHsteps2 s2').
+             etransitivity. apply IHsteps2.
+             apply sup_iff. intros steps. apply (sup_at (S steps)). cbn.
+             apply join_l. apply join_l.
+             eapply fsup_at. apply star_internal2; eauto. reflexivity.
+          -- setoid_rewrite Sup.mor. apply sup_iff.
+             intros [qa Hext2]. cbn.
+             unfold bind. unfold query_int.
+             setoid_rewrite Sup.mor at 2. setoid_rewrite Sup.mor at 1.
+             apply sup_iff.
+             assert (Hcrash: (FCD.emb (@pmove (sig liA) _ _ qa)) [=
+                               sup n : nat, ang_lts_spec' ((comp_semantics' L1 L2 p) se) n (st2 L1 L2 s1 s2)).
+             {
+               apply (sup_at 1%nat). cbn.
+               apply join_l. apply join_r.
+               eapply fsup_at. econstructor; eauto.
+               unfold bind. unfold query_int.
+               setoid_rewrite Sup.mor. apply (sup_at None).
+               rewrite FCD.ext_ana. cbn. reflexivity.
+             }
+             intros [ra|].
+             ++ setoid_rewrite FCD.ext_ana. cbn.
+                rewrite Sup.mor_join. apply join_lub.
+                ** rewrite FCD.ext_ana. apply Hcrash.
+                ** setoid_rewrite Sup.mor at 2. rewrite Sup.mor.
+                   apply sup_iff. intros [s2' Haft]. cbn.
+                   pose proof @fmap_cons as fc. unfold bind in fc.
+                   rewrite fc. clear fc.
+                   apply join_lub.
+                   --- apply Hcrash.
+                   --- specialize (IHsteps2 s2').
+                       rewrite IHsteps2.
+                       rewrite Sup.mor. apply sup_iff. intros steps.
+                       apply (sup_at (S steps)). cbn.
+                       apply join_l. apply join_r.
+                       eapply fsup_at. econstructor; eauto.
+                       unfold bind. unfold query_int.
+                       setoid_rewrite Sup.mor. apply (sup_at (Some ra)).
+                       rewrite FCD.ext_ana. cbn. apply join_r.
+                       apply ext_proper_ref; try typeclasses eauto.
+                       intros c. reflexivity.
+                       eapply fsup_at. econstructor; eauto. reflexivity.
+             ++ rewrite FCD.ext_ana. cbn.
+                rewrite FCD.ext_ana. apply Hcrash.
+          -- setoid_rewrite Sup.mor. apply sup_iff.
+             intros [rb Hfinal2]. cbn.
+             unfold ret. rewrite FCD.ext_ana. cbn.
+             setoid_rewrite Sup.mor. apply sup_iff.
+             intros [s1' Haft1]. cbn.
+             specialize (IHsteps1 s1').
+             etransitivity. apply IHsteps1.
+             apply sup_iff. intros steps. apply (sup_at (S steps)).
+             cbn. apply join_l. apply join_l.
+             eapply fsup_at. apply star_one. eapply step_pop; eauto.
+             reflexivity.
+      + setoid_rewrite Sup.mor. apply sup_iff.
+        intros [rc Hfinal1]. cbn. unfold ret.
+        setoid_rewrite FCD.ext_ana. cbn.
+        apply (sup_at 1%nat). cbn. apply join_r.
+        eapply fsup_at. constructor; eauto. reflexivity.
+  Qed.
+
+End COMP.
+
+Require Import CAL.
+Require Import Memory.
+(** * Example: ring buffer and bounded queue *)
+
+(** With CompCertO semantics embedded in the interaction specification, we
+    substitute Clight programs for the layer implementation. *)
+
+(** ** Language interfaces vs. effect signatures *)
+
+(** We define "marshalling" transformations between coarse-grained language
+    interfaces and fine-grained effect signatures as adjunctions, similar to the
+    embedding of calling conventions. We lift the language interfaces with
+    abstract states to smooth the convertion. To further connect the abstract
+    states with values in memory blocks we use the calling conventions induced
+    by the abstraction relations from CompCertOX. *)
+
+Section MARSHALL.
+  (* FIXME: *)
+  Definition rb_up: rb_sig # rb_state ~> li_c. Admitted.
+  Definition bq_up: bq_sig # bq_state ~> li_c. Admitted.
+  Definition rb_down: li_c ~> rb_sig # rb_state. Admitted.
+  Definition bq_down: li_c ~> bq_sig # bq_state. Admitted.
+
+End MARSHALL.
+
+Require Import Clight.
+(** ** Definition of Clight program *)
+Section CLIGHT.
+
+  Definition rb_program: program. Admitted.
+  Definition bq_program: program. Admitted.
+
+End CLIGHT.
+
+Require Import CModule.
+Import ListNotations.
+(** ** Correctness  *)
+Section CORRECT.
+
+  Context (se:Genv.symtbl).
+
+  (** L_rb ⊑ R_rb ∘ ⟦M_rb⟧ ∘ ⊥ *)
+  Lemma rb_correct:
+    L_rb [= rb_down @ ang_lts_spec (Clight.semantics1 rb_program se) @ bot.
+  Admitted.
+
+  (** L_bq ⊑ R_bq ∘ ⟦M_bq⟧ ∘ R_rb ∘ L_rb *)
+  Lemma bq_correct:
+    L_bq [= bq_down @ ang_lts_spec (Clight.semantics1 bq_program se) @ rb_up @ L_rb.
+  Admitted.
+
+  Context (sk: AST.program unit unit).
+  (** Vertical composition
+      L_bq ⊑ R_bq ∘ ⟦M_bq⟧ ∘ R_rb ∘ R_rb ∘ ⟦M_rb⟧ ∘ ⊥
+           ⊑ R_bq ∘ ⟦M_bq⟧ ∘ ⟦M_rb⟧ ∘ ⊥
+           ⊑ R_bq ∘ ⟦M_bq ∘ M_rb⟧ ∘ ⊥
+           ⊑ R_bq ∘ ⟦M_bq + M_rb⟧ ∘ ⊥ *)
+  Lemma rb_bq_correct:
+    L_bq [= bq_down @ ang_lts_spec (CModule.semantics [rb_program; bq_program] sk se) @ bot.
+  Admitted.
+
+End CORRECT.
