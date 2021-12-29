@@ -230,6 +230,8 @@ Section CC.
     refinement implements one of the concrete representations.
 
     As for the choice of worlds, ... *)
+
+  (* FIXME: left vs. right *)
   Definition cc_up: subst liA liB :=
     fun _ '(li_sig qb) =>
       sup w, sup { qa | match_query cc w qa qb },
@@ -547,66 +549,3 @@ Section COMP.
   Qed.
 
 End COMP.
-
-Require Import CAL.
-Require Import Memory.
-(** * Example: ring buffer and bounded queue *)
-
-(** With CompCertO semantics embedded in the interaction specification, we
-    substitute Clight programs for the layer implementation. *)
-
-(** ** Language interfaces vs. effect signatures *)
-
-(** We define "marshalling" transformations between coarse-grained language
-    interfaces and fine-grained effect signatures as adjunctions, similar to the
-    embedding of calling conventions. We lift the language interfaces with
-    abstract states to smooth the convertion. To further connect the abstract
-    states with values in memory blocks we use the calling conventions induced
-    by the abstraction relations from CompCertOX. *)
-
-Section MARSHALL.
-  (* FIXME: *)
-  Definition rb_up: rb_sig # rb_state ~> li_c. Admitted.
-  Definition bq_up: bq_sig # bq_state ~> li_c. Admitted.
-  Definition rb_down: li_c ~> rb_sig # rb_state. Admitted.
-  Definition bq_down: li_c ~> bq_sig # bq_state. Admitted.
-
-End MARSHALL.
-
-Require Import Clight.
-(** ** Definition of Clight program *)
-Section CLIGHT.
-
-  Definition rb_program: program. Admitted.
-  Definition bq_program: program. Admitted.
-
-End CLIGHT.
-
-Require Import CModule.
-Import ListNotations.
-(** ** Correctness  *)
-Section CORRECT.
-
-  Context (se:Genv.symtbl).
-
-  (** L_rb ⊑ R_rb ∘ ⟦M_rb⟧ ∘ ⊥ *)
-  Lemma rb_correct:
-    L_rb [= rb_down @ ang_lts_spec (Clight.semantics1 rb_program se) @ bot.
-  Admitted.
-
-  (** L_bq ⊑ R_bq ∘ ⟦M_bq⟧ ∘ R_rb ∘ L_rb *)
-  Lemma bq_correct:
-    L_bq [= bq_down @ ang_lts_spec (Clight.semantics1 bq_program se) @ rb_up @ L_rb.
-  Admitted.
-
-  Context (sk: AST.program unit unit).
-  (** Vertical composition
-      L_bq ⊑ R_bq ∘ ⟦M_bq⟧ ∘ R_rb ∘ R_rb ∘ ⟦M_rb⟧ ∘ ⊥
-           ⊑ R_bq ∘ ⟦M_bq⟧ ∘ ⟦M_rb⟧ ∘ ⊥
-           ⊑ R_bq ∘ ⟦M_bq ∘ M_rb⟧ ∘ ⊥
-           ⊑ R_bq ∘ ⟦M_bq + M_rb⟧ ∘ ⊥ *)
-  Lemma rb_bq_correct:
-    L_bq [= bq_down @ ang_lts_spec (CModule.semantics [rb_program; bq_program] sk se) @ bot.
-  Admitted.
-
-End CORRECT.

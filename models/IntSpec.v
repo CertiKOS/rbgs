@@ -546,7 +546,33 @@ Module ISpec.
       apply sup_lub. intros a.
 
   Admitted.
-*)
+ *)
+  Lemma fmap_cons_bind {E A X} m (n: X) (t: t E A):
+    FCD.emb (pmove m) || FCD.map (pcons m n) t = bind (fun _ => t) (FCD.emb (pcons m n (pret n))).
+  Proof. setoid_rewrite FCD.ext_ana. cbn. f_equal. Qed.
+
+  (* Lemma apply_ext {E F A B} (f: subst E F) (g: play F A -> ISpec.t F B) (t: ISpec.t F A): *)
+  (*   apply f (FCD.ext g t) = FCD.ext (fun p => bot) (apply f t). *)
+  (* Proof. *)
+  (*   destruct (FCD.join_meet_dense t) as (I & J & c & Hc). subst t. *)
+  (*   repeat setoid_rewrite Sup.mor. f_equal. apply functional_extensionality. intros i. *)
+  (*   repeat setoid_rewrite Inf.mor. f_equal. apply functional_extensionality. intros j. *)
+  (*   rewrite @FCD.ext_ana by admit. setoid_rewrite FCD.ext_ana. *)
+  (*   induction (c i j). *)
+  (*   - cbn. setoid_rewrite @FCD.ext_ana. admit. admit. *)
+  (*   - cbn. *)
+
+
+  Lemma apply_fmap_cons {E F A X} (f: subst E F) m (n: X) (t: t F A):
+    bind (fun _ => bot) (f _ m) || apply f (FCD.map (pcons m n) t) = bind (fun n' => sup _ : n' = n, apply f t) (f _ m).
+  Proof.
+    replace (bind (fun _ => bot) (f _ m)) with (apply (A := A) f (FCD.emb (pmove m))).
+    2: { setoid_rewrite FCD.ext_ana. reflexivity. }
+    rewrite <- Sup.mor_join. setoid_rewrite fmap_cons_bind.
+    unfold bind, apply. rewrite @FCD.ext_ext; try typeclasses eauto.
+    setoid_rewrite @FCD.ext_ana. cbn.
+  Admitted.
+
   Lemma apply_bind {E F A B} (f : subst E F) (g : A -> t F B) (x : t F A) :
     apply f (bind g x) = bind (fun a => apply f (g a)) (apply f x).
   Proof.
@@ -566,7 +592,8 @@ Module ISpec.
     - rewrite Sup.mor_join. rewrite FCD.ext_ana. cbn.
       setoid_rewrite bind_bind. unfold bind at 3.
       setoid_rewrite Sup.mor. setoid_rewrite <- IHp. clear IHp.
-      rewrite FCD.ext_ext.
+      setoid_rewrite apply_fmap_cons. reflexivity.
+  Qed.
 
 (*      setoid_rewrite FCD.ext_ana. cbn.
 
@@ -592,7 +619,7 @@ Module ISpec.
           admit.
         * apply sup_iff. intros i.
           setoid_rewrite sup_sup. *)
-  Admitted.
+
 
   Lemma apply_int_r {E F ar} (m : F ar) (f : subst E F) :
     apply f (int m) = f ar m.

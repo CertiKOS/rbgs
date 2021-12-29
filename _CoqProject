@@ -21,6 +21,7 @@ models/IntSpec.v
 models/Coherence.v
 examples/CAL.v
 examples/CompCertIntSpec.v
+examples/CompCertCAL.v
 # examples/CompCertSem.v
 # CompCertOX formalization
 compcertox/Lifting.v
