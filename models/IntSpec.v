@@ -258,6 +258,27 @@ Module ISpec.
     split. intros x y Hxy. rstep. constructor. apply Hxy.
   Qed.
 
+  Global Instance pbind_proper_ref {E A B}:
+    Proper ((pointwise_relation _ ref) ++> ref ++> ref) (@pbind E A B).
+  Proof.
+    intros f g H x y Hx. induction Hx; cbn.
+    - apply H.
+    - reflexivity.
+    - apply join_l. reflexivity.
+    - apply join_lub.
+      + apply join_l. reflexivity.
+      + apply join_r. now rstep.
+  Qed.
+
+  Global Instance pbind_proper_eq {E A B}:
+    Proper ((pointwise_relation _ eq) ++> eq ++> eq) (@pbind E A B).
+  Proof.
+    intros f g H x y Hx. induction Hx; cbn. induction x; cbn.
+    - apply H.
+    - reflexivity.
+    - f_equal. rewrite IHx. reflexivity.
+  Qed.
+
   Global Instance bind_proper_eq {E A B}:
     Proper ((pointwise_relation _ eq) ++> eq ++> eq) (@bind E A B).
   Proof.
@@ -494,18 +515,6 @@ Module ISpec.
     unfold apply, ret. rewrite FCD.ext_ana. cbn. auto.
   Qed.
 
-  Global Instance pbind_proper {E A B}:
-    Proper ((pointwise_relation _ eq) ++> eq ++> eq) (@pbind E A B).
-  Proof.
-    intros x y Hxy.
-  Admitted.
-
-  Global Instance bind_proper {E A B}:
-    Proper ((pointwise_relation _ eq) ++> eq ++> eq) (@bind E A B).
-  Proof.
-    intros x y Hxy.
-  Admitted.
-
   Lemma sup_sup {L: cdlattice} {I J: Type} (c: I -> J -> L):
     sup i, sup j, c i j = sup j, sup i, c i j.
   Proof.
@@ -729,6 +738,44 @@ Module ISpec.
     apply functional_extensionality_dep; intros ar.
     apply functional_extensionality_dep; intros m.
     apply apply_assoc.
+  Qed.
+
+  Instance compose_proper_ref {A B C}:
+    Proper (ref ++> ref ++> ref) (@compose A B C).
+  Proof.
+    intros f1 f2 Hf g1 g2 Hg. unfold compose.
+    intros ar m. unfold apply.
+    apply ext_proper_ref; try typeclasses eauto.
+    - intros c. induction c; cbn.
+      + reflexivity.
+      + unfold bind. rstep. apply Hg.
+      + unfold bind.
+        apply ext_proper_ref; try typeclasses eauto.
+        * intros p. apply pbind_proper_ref. intros x.
+          apply sup_iff. intros xn. now apply (sup_at xn).
+          reflexivity.
+        * apply Hg.
+    - apply Hf.
+  Qed.
+
+  Definition identity {E: esig}: subst E E := fun _ m => int m.
+
+  Lemma compose_unit_l {E F} (f: subst E F):
+    compose identity f = f.
+  Proof.
+    unfold ISpec.compose, identity.
+    apply functional_extensionality_dep. intros ar.
+    apply functional_extensionality_dep. intros m.
+    apply apply_int_r.
+  Qed.
+
+  Lemma compose_unit_r {E F} (f: subst E F):
+    compose f identity = f.
+  Proof.
+    unfold ISpec.compose, identity.
+    apply functional_extensionality_dep. intros ar.
+    apply functional_extensionality_dep. intros m.
+    apply apply_int_l.
   Qed.
 
 End ISpec.

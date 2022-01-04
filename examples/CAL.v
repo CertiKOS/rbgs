@@ -213,6 +213,21 @@ Lemma srun_int {E S ar} (k : S) (m : E ar) :
   srun k (ISpec.int m) = ISpec.int (st m k).
 Admitted.
 
+Instance slift_proper_ref {E F S}:
+  Proper (ref ==> ref) (@slift E F S).
+Proof.
+  intros x y Hxy. intros ? mk. destruct mk as [? m k]. cbn.
+  unfold srun. rstep. apply Hxy.
+Qed.
+
+Lemma slift_identity {E S}:
+  slift (S:=S) (identity (E:=E)) = identity.
+Proof.
+  unfold identity.
+  apply antisymmetry; intros ? mk; destruct mk as [? m k];
+    cbn; rewrite srun_int; reflexivity.
+Qed.
+
 Lemma assert_true {E} {P : Prop} (H : P) :
   @assert E P = ISpec.ret tt.
 Proof.

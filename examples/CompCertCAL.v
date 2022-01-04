@@ -53,54 +53,6 @@ Program Definition cc_adjunction {liA liB} (cc: callconv liA liB):
     eta := cc_eta cc;
   |}.
 
-Global Instance pbind_proper_ref {E A B}:
-  Proper ((pointwise_relation _ ref) ++> ref ++> ref) (@pbind E A B).
-Proof.
-  intros f g H x y Hx. induction Hx; cbn.
-  - apply H.
-  - reflexivity.
-  - apply join_l. reflexivity.
-  - apply join_lub.
-    + apply join_l. reflexivity.
-    + apply join_r. now rstep.
-Qed.
-
-Instance compose_proper_ref {A B C}:
-  Proper (ref ++> ref ++> ref) (@compose A B C).
-Proof.
-  intros f1 f2 Hf g1 g2 Hg. unfold compose.
-  intros ar m. unfold apply.
-  apply ext_proper_ref; try typeclasses eauto.
-  - intros c. induction c; cbn.
-    + reflexivity.
-    + unfold bind. rstep. apply Hg.
-    + unfold bind.
-      apply ext_proper_ref; try typeclasses eauto.
-      * intros p. apply pbind_proper_ref. intros x.
-        apply sup_iff. intros xn. now apply (sup_at xn).
-        reflexivity.
-      * apply Hg.
-  - apply Hf.
-Qed.
-
-Lemma compose_unit_l {E F} (f: E ~> F):
-  identity @ f = f.
-Proof.
-  unfold ISpec.compose, identity.
-  apply functional_extensionality_dep. intros ar.
-  apply functional_extensionality_dep. intros m.
-  intm. reflexivity.
-Qed.
-
-Lemma compose_unit_r {E F} (f: E ~> F):
-  f @ identity = f.
-Proof.
-  unfold ISpec.compose, identity.
-  apply functional_extensionality_dep. intros ar.
-  apply functional_extensionality_dep. intros m.
-  intm. reflexivity.
-Qed.
-
 (** *** Composition and identity of adjunctions *)
 
 Program Definition adjunction_compose {A B C} (phi: A <=> B) (psi: B <=> C) :=
@@ -179,6 +131,33 @@ Proof.
     + rewrite IHp. rewrite FCD.ext_ana. reflexivity.
 Qed.
 
+Ltac fcd_step :=
+  (setoid_rewrite FCD.ext_ana ||
+   setoid_rewrite Inf.mor ||
+   setoid_rewrite Sup.mor ||
+   setoid_rewrite Sup.mor_join ||
+   setoid_rewrite Sup.mor_bot ||
+   setoid_rewrite Inf.mor_meet); cbn.
+
+Ltac fcd := repeat fcd_step.
+
+Lemma sup_option {L: cdlattice} {A} (f: A -> L) (g: L):
+  sup x: option A,
+      match x with
+      | Some a => f a
+      | None => g
+      end = g || sup x: A, f x.
+Proof with reflexivity.
+  apply antisymmetry.
+  - apply sup_iff. intros [a|].
+    + apply join_r. apply (sup_at a)...
+    + apply join_l...
+  - apply join_lub.
+    + apply (sup_at None)...
+    + apply sup_iff. intros a.
+      apply (sup_at (Some a))...
+Qed.
+
 (* X is the abstraction; Y is the implementation. So angelic choice over x and
    demonic choice over y *)
 (** ** Relations as adjunctions *)
@@ -205,30 +184,29 @@ Section LIFT.
   Next Obligation.
     unfold rel_up, rel_down, compose, identity. cbn.
     intros ? mk. destruct mk as [? m y0].
-    setoid_rewrite Sup.mor. apply sup_iff. intros [x0 H]. cbn.
-    rewrite apply_bind. rewrite apply_int_r.
-    setoid_rewrite Inf.mor. apply (inf_at (exist _ y0 H)). cbn.
-    repeat setoid_rewrite Sup.mor. apply sup_iff. intros [[n0 y1]|].
-    - setoid_rewrite FCD.ext_ana. cbn.
-      setoid_rewrite Sup.mor_join. apply join_lub.
-      + setoid_rewrite FCD.ext_ana. cbn.
-        apply (sup_at None). reflexivity.
-      + repeat setoid_rewrite Sup.mor.
-        apply sup_iff. intros [x1 H1]. cbn.
-        repeat setoid_rewrite FCD.ext_ana. cbn.
+    fcd_step. apply sup_iff. intros [x0 H]. cbn.
+    intm. fcd_step. apply (inf_at (exist _ y0 H)). cbn.
+    fcd. apply sup_iff. intros [[n0 y1]|].
+    - fcd. apply join_lub.
+      + apply (sup_at None). reflexivity.
+      + apply sup_iff. intros [x1 H1]. cbn.
         apply join_lub.
         * apply (sup_at None). reflexivity.
-        * repeat setoid_rewrite Inf.mor.
-          apply (inf_at (exist _ y1 H1)). cbn.
-          setoid_rewrite FCD.ext_ana. cbn.
-          setoid_rewrite FCD.ext_ana.
+        * apply (inf_at (exist _ y1 H1)). cbn.
           apply (sup_at (Some (n0, y1))). reflexivity.
-    - setoid_rewrite FCD.ext_ana. cbn.
-      setoid_rewrite FCD.ext_ana. cbn.
-      apply (sup_at None). reflexivity.
+    - fcd. apply (sup_at None). reflexivity.
   Qed.
   Next Obligation.
-  Admitted.
+    unfold rel_up, rel_down, compose, identity. cbn.
+    intros ? mk. destruct mk as [? m x0].
+    fcd_step. apply inf_iff. intros [y0 H]. cbn.
+    intm. fcd_step. apply (sup_at (exist _ x0 H)). cbn.
+    fcd. apply sup_iff. intros [[n0 x1]|].
+    - apply (sup_at (Some (n0, x1))). fcd.
+      apply join_r. apply inf_iff. intros [y1 H1].
+      apply join_r. apply (sup_at (exist _ x1 H1)). reflexivity.
+    - apply (sup_at None). fcd. reflexivity.
+  Qed.
 
   Definition rel_down_inline {ar} (x: X) (t: ispec E ar) : ispec (E # Y) (ar * X) :=
     inf { y | R x y },
@@ -236,125 +214,335 @@ Section LIFT.
     let '(n, y') := ny' in
     sup { x' | R x' y' },
     ret (n, x').
+  Definition rel_up_inline {ar} (y: Y) (t: ispec E ar) : ispec (E # X) (ar * Y) :=
+    sup { x | R x y },
+    nx' <- srun x t;
+    let '(n, x') := nx' in
+    inf { y' | R x' y' },
+    ret (n, y').
 
   (* I think there's something more fundamental behind this lemma *)
-  Lemma rel_apply {ar} (t: ispec E ar) (x: X):
+  Lemma apply_rel_down {ar} (t: ispec E ar) (x: X):
     apply rel_down (srun x t) [= rel_down_inline x t.
   Proof.
     unfold rel_down_inline. unfold srun.
     apply inf_iff. intros [y Hr]. cbn.
     edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). subst t.
-    repeat setoid_rewrite Sup.mor.
-    repeat setoid_rewrite Inf.mor.
+    fcd.
     apply sup_iff. intros i. apply (sup_at i).
     apply inf_iff. intros j. apply (inf_at j).
-    setoid_rewrite FCD.ext_ana.
-
     revert x y Hr. induction (c i j); intros x y Hr; cbn.
-    + setoid_rewrite FCD.ext_ana. cbn.
-      eapply (fsup_at x). assumption. reflexivity.
-    + setoid_rewrite FCD.ext_ana. cbn.
-      unfold bind.
-      setoid_rewrite Inf.mor. eapply (inf_at (exist _ y Hr)). cbn.
-      repeat setoid_rewrite Sup.mor. apply sup_iff.
-      intros [[n y']|].
-      * rewrite FCD.ext_ana. cbn.
-        rewrite Sup.mor_join. apply join_lub.
-        -- rewrite FCD.ext_ana. reflexivity.
-        -- repeat setoid_rewrite Sup.mor.
-           apply sup_iff. intros [x' H']. cbn.
-           repeat setoid_rewrite FCD.ext_ana. cbn.
-           apply join_lub.
-           ++ reflexivity.
-           ++ rewrite Sup.mor_bot. apply bot_lb.
-      * rewrite FCD.ext_ana. cbn.
-        rewrite FCD.ext_ana. cbn. reflexivity.
-    + setoid_rewrite Sup.mor. apply sup_iff. intros [xr|].
+    + fcd. eapply (fsup_at x); easy.
+    + fcd. eapply (inf_at (exist _ y Hr)). cbn.
+      apply sup_iff. intros [[n y']|].
+      * fcd. apply join_lub; try easy.
+        apply sup_iff. intros [x' H'].
+        apply join_lub; try easy. apply bot_lb.
+      * fcd. reflexivity.
+    + fcd. apply sup_iff. intros [xr|].
       * rewrite apply_fmap_cons. cbn.
-        setoid_rewrite Inf.mor. apply (inf_at (exist _ y Hr)). cbn.
-        repeat setoid_rewrite Sup.mor. apply sup_iff.
-        intros [[n' y']|].
-        -- apply (sup_at (Some y')).
-           setoid_rewrite FCD.ext_ana. cbn.
-           rewrite Sup.mor_join. apply join_lub.
-           ++ setoid_rewrite FCD.ext_ana. cbn.
-              unfold bind.
-              {
-                destruct p.
-                - cbn. unfold FCD.map.
-                  repeat setoid_rewrite FCD.ext_ana. cbn.
-                  apply join_l. reflexivity.
-                - cbn. repeat setoid_rewrite FCD.ext_ana. cbn.
-                  apply join_l. reflexivity.
-                - cbn. unfold FCD.map.
-                  repeat setoid_rewrite Sup.mor.
-                  apply (sup_at None).
-                  repeat setoid_rewrite FCD.ext_ana. cbn.
-                  apply join_l. reflexivity.
-              }
-           ++ repeat setoid_rewrite Sup.mor.
-              apply sup_iff. intros [x' H']. cbn.
-              setoid_rewrite FCD.ext_ana.
-              setoid_rewrite FCD.ext_ana. cbn.
-              apply join_lub.
-              ** unfold bind.
-                 {
-                   destruct p.
-                   - cbn. unfold FCD.map.
-                     repeat setoid_rewrite FCD.ext_ana. cbn.
-                     apply join_l. reflexivity.
-                   - cbn. repeat setoid_rewrite FCD.ext_ana. cbn.
-                     apply join_l. reflexivity.
-                   - cbn. unfold FCD.map.
-                     repeat setoid_rewrite Sup.mor.
-                     apply (sup_at None).
-                     repeat setoid_rewrite FCD.ext_ana. cbn.
-                     apply join_l. reflexivity.
-                 }
-              ** rewrite Sup.mor. apply sup_iff.
-                 intros Hn. inversion Hn. subst. clear Hn.
-                 specialize (IHp _ _ H'). rewrite IHp. clear IHp.
-                 unfold bind. unfold FCD.map.
-                 rewrite !@FCD.ext_ext; try typeclasses eauto.
-                 {
-                   apply ext_proper_ref'.
-                   - split. intros p1 p2 Hp.
-                     apply ext_proper_ref; try typeclasses eauto.
-                     + intros px. reflexivity.
-                     + rewrite Hp. reflexivity.
-                   - split. intros p1 p2 Hp.
-                     apply ext_proper_ref; try typeclasses eauto.
-                     + intros px. reflexivity.
-                     + rstep. now constructor.
-                   - intros pc.
-                     setoid_rewrite FCD.ext_ana. cbn.
-                     apply join_r. reflexivity.
-                 }
-        -- apply (sup_at None). unfold bind.
-           setoid_rewrite FCD.ext_ana. cbn.
-           setoid_rewrite FCD.ext_ana. cbn. reflexivity.
-      * apply (sup_at None). unfold bind.
-        setoid_rewrite FCD.ext_ana. cbn.
-        setoid_rewrite Inf.mor. apply (inf_at (exist _ y Hr)). cbn.
-        repeat setoid_rewrite Sup.mor.
+        fcd_step. apply (inf_at (exist _ y Hr)). cbn.
+        fcd. apply sup_iff. intros [[n' y']|].
+        -- apply (sup_at (Some y')). fcd.
+           apply join_lub.
+           {
+             destruct p; cbn; fcd.
+             - apply join_l. reflexivity.
+             - apply join_l. reflexivity.
+             - unfold FCD.map. fcd.
+               apply (sup_at None). fcd.
+               apply join_l. reflexivity.
+           }
+           apply sup_iff. intros [x' H']. cbn.
+           apply join_lub.
+           {
+             destruct p; cbn; fcd.
+             - apply join_l. reflexivity.
+             - apply join_l. reflexivity.
+             - unfold FCD.map. fcd.
+               apply (sup_at None). fcd.
+               apply join_l. reflexivity.
+           }
+           apply sup_iff. intros Hn. inversion Hn. subst. clear Hn.
+           specialize (IHp _ _ H'). rewrite IHp. clear IHp.
+           unfold bind, FCD.map, t. rewrite !FCD.ext_ext.
+           {
+             apply ext_proper_ref'.
+             - split. intros p1 p2 Hp.
+               apply ext_proper_ref; try typeclasses eauto.
+               + intros px. reflexivity.
+               + rewrite Hp. reflexivity.
+             - split. intros p1 p2 Hp.
+               apply ext_proper_ref; try typeclasses eauto.
+               + intros px. reflexivity.
+               + rstep. now constructor.
+             - intros pc. fcd.
+               apply join_r. reflexivity.
+           }
+        -- apply (sup_at None). unfold bind. fcd. reflexivity.
+      * apply (sup_at None). unfold bind. fcd.
+        apply (inf_at (exist _ y Hr)). cbn.
         apply sup_iff. intros [[n' y']|].
-        -- setoid_rewrite FCD.ext_ana. cbn.
-           rewrite Sup.mor_join. apply join_lub.
-           ++ setoid_rewrite FCD.ext_ana. cbn. reflexivity.
-           ++ repeat setoid_rewrite Sup.mor.
-              apply sup_iff. intros [x' H']. cbn.
-              setoid_rewrite FCD.ext_ana. cbn.
-              setoid_rewrite FCD.ext_ana. cbn.
-              apply join_lub.
-              ** reflexivity.
-              ** rewrite Sup.mor_bot. apply bot_lb.
-        -- setoid_rewrite FCD.ext_ana. cbn.
-           setoid_rewrite FCD.ext_ana. cbn. reflexivity.
+        -- fcd. apply join_lub; try easy.
+           apply sup_iff. intros [x' H']. cbn.
+           apply join_lub; try easy.
+           apply bot_lb.
+        -- fcd. reflexivity.
   Qed.
+
+  Lemma sup_join {L: cdlattice} {I} (f g: I -> L):
+    sup i: I, f i || g i = (sup i, f i) || (sup i, g i).
+  Proof with reflexivity.
+    apply antisymmetry.
+    - apply sup_iff. intros i. apply join_lub.
+      + apply join_l. apply (sup_at i)...
+      + apply join_r. apply (sup_at i)...
+    - apply join_lub.
+      + apply sup_iff. intros i. apply (sup_at i). apply join_l...
+      + apply sup_iff. intros i. apply (sup_at i). apply join_r...
+  Qed.
+
+  Lemma apply_rel_up {ar} (t: ispec E ar) (y: Y):
+    rel_up_inline y t [= apply rel_up (srun y t).
+  Proof.
+    unfold rel_up_inline. unfold srun.
+    apply sup_iff. intros [x Hr]. cbn.
+    edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). subst t.
+    fcd.
+    apply sup_iff. intros i. apply (sup_at i).
+    apply inf_iff. intros j. apply (inf_at j).
+    revert x y Hr. induction (c i j); intros x y Hr; cbn.
+    - fcd. eapply (finf_at y); easy.
+    - fcd. eapply (sup_at (exist _ x Hr)). cbn.
+      apply (sup_at None). fcd. reflexivity.
+    - rewrite !sup_option.
+      etransitivity.
+      instantiate (1 := ny' <- rel_up _ (st m y); let '(n', y') := ny' in sup _: n = n', apply rel_up (stateful_play y' p)).
+      + cbn.
+        setoid_rewrite Sup.mor. apply (sup_at (exist _ x Hr)).
+        setoid_rewrite Sup.mor. setoid_rewrite Sup.mor. cbn.
+        setoid_rewrite Sup.mor_join. apply join_lub.
+        * setoid_rewrite FCD.ext_ana. cbn.
+          apply (sup_at None). fcd. reflexivity.
+        * setoid_rewrite Sup.mor. apply sup_iff. intros xr.
+          apply (sup_at (Some (n, xr))).
+          setoid_rewrite FCD.ext_ana. cbn.
+          setoid_rewrite Sup.mor_join. apply join_r. unfold FCD.map. cbn.
+          setoid_rewrite Inf.mor. setoid_rewrite Inf.mor.
+          apply inf_iff. intros [y' Hr']. cbn.
+          setoid_rewrite FCD.ext_ana. setoid_rewrite FCD.ext_ana. cbn.
+          apply join_r. setoid_rewrite Sup.mor.
+          apply (sup_at eq_refl).
+          specialize (IHp _ _ Hr'). rewrite <- IHp.
+          unfold bind. rewrite !@FCD.ext_ext; try typeclasses eauto.
+          apply ext_proper_ref'. admit. admit. intros px.
+          rewrite FCD.ext_ana. cbn. apply join_lub.
+          2: { reflexivity. }
+          destruct px.
+          -- cbn. destruct v. setoid_rewrite Inf.mor.
+             apply inf_iff. intros [y'' Hr'']. cbn.
+             fcd. rstep. constructor.
+          -- cbn. fcd. rstep. constructor.
+          -- cbn. fcd. apply join_l. rstep. constructor.
+      + clear. etransitivity.
+        instantiate (1 := (FCD.emb (pmove (st m y)) || (sup x : Y, FCD.emb (pmove (st m y)) || FCD.map (pcons (st m y) (n, x)) (stateful_play x p))) / rel_up).
+        2: {
+          setoid_rewrite Sup.mor_join. apply join_lub.
+          - apply join_l. reflexivity.
+          - setoid_rewrite Sup.mor. apply sup_iff. intros y'.
+            rewrite Sup.mor_join. apply join_lub.
+            + apply join_l. reflexivity.
+            + apply join_r. apply (sup_at y'). reflexivity.
+        }
+        * setoid_rewrite fmap_cons_bind.
+          rewrite Sup.mor_join. apply join_r.
+          rewrite Sup.mor. cbn.
+          setoid_rewrite Sup.mor. apply sup_iff. intros [x Hr]. cbn.
+          setoid_rewrite Sup.mor. setoid_rewrite Sup.mor.
+          apply sup_iff. intros [[n' x']|].
+          -- setoid_rewrite apply_bind.
+             setoid_rewrite FCD.ext_ana. cbn. unfold bind.
+             setoid_rewrite Sup.mor. setoid_rewrite Sup.mor.
+             rewrite sup_sup. apply (sup_at (exist _ x Hr)). cbn.
+             setoid_rewrite Sup.mor. setoid_rewrite Sup.mor.
+             setoid_rewrite Sup.mor. rewrite sup_sup. apply (sup_at (Some (n', x'))).
+             setoid_rewrite FCD.ext_ana. cbn.
+             rewrite Sup.mor_join. apply join_lub.
+             ++ apply (sup_at y). rewrite !Sup.mor_join. apply join_l. cbn.
+                fcd. reflexivity.
+             ++ setoid_rewrite Sup.mor_join. setoid_rewrite Sup.mor_join.
+                rewrite sup_join. apply join_r.
+                repeat setoid_rewrite Inf.mor. rewrite sup_inf.
+                apply inf_iff. intros fy. destruct (fy y) as [y' Hr'] eqn: Hfy.
+                apply (sup_at y'). apply (inf_at (exist _ y' Hr')). cbn.
+                fcd.
+  Admitted.
 
 End LIFT.
 
+Section PROPS.
+
+  Context {E F} (f: E ~> F).
+  Context {X Y} (R: X -> Y -> Prop).
+
+  Lemma rel_down_commute: slift f @ rel_down R [= rel_down R @ slift f.
+  Proof.
+    unfold compose. intros ? mk.
+    destruct mk as [ar m x]. cbn.
+    rewrite apply_rel_down. unfold rel_down_inline.
+    fcd_step. apply inf_iff. intros [y Hr].
+    apply (finf_at y); eauto. intm. unfold bind.
+    apply bind_proper_ref; try easy.
+    intros [n y']. fcd. apply sup_iff. intros i. apply (sup_at i). reflexivity.
+  Qed.
+
+  Lemma rel_up_commute: rel_up R @ slift f [= slift f @ rel_up R.
+  Proof.
+    unfold compose. intros ? mk.
+    destruct mk as [ar m y]. cbn.
+    rewrite <- apply_rel_up. unfold rel_up_inline.
+    fcd_step. apply sup_iff. intros [x Hr].
+    apply (fsup_at x); eauto. intm. unfold bind.
+    apply bind_proper_ref; try easy.
+    intros [n x']. fcd. apply inf_iff. intros i. apply (inf_at i). reflexivity.
+  Qed.
+
+  Context {Z} (T: Y -> Z -> Prop).
+  Lemma lift_rel_up_compose:
+    rel_up (E:=E) T @ rel_up R = rel_up (rel_compose R T).
+  Proof.
+    unfold compose. apply antisymmetry; intros ? mk.
+    - destruct mk as [? m z]. cbn.
+      fcd_step. apply sup_iff. intros [y Ht]. intm.
+      fcd_step. apply sup_iff. intros [x Hr]. cbn.
+      eapply (fsup_at x). exists y; split; eauto.
+      fcd. apply sup_iff. intros [[n x']|].
+      + apply (sup_at (Some (n, x'))). intm. fcd_step.
+        apply join_lub.
+        * apply join_l. reflexivity.
+        * apply join_r. fcd. apply inf_iff.
+          intros [z' [y' [Hr' Ht']]]. cbn.
+          apply (inf_at (exist _ y' Hr')). cbn.
+          apply (inf_at (exist _ z' Ht')). cbn. reflexivity.
+      + apply (sup_at None). fcd. reflexivity.
+    - destruct mk as [? m z]. cbn.
+      apply sup_iff. intros [x [y [Hr Ht]]]. cbn.
+      fcd_step. apply (sup_at (exist _ y Ht)). intm.
+      apply sup_iff. intros [[n x']|].
+      + fcd. apply (sup_at (exist _ x Hr)). apply (sup_at (Some (n, x'))). cbn.
+        fcd. apply join_lub.
+        * apply join_l. reflexivity.
+        * apply join_r. apply inf_iff. intros [y' Hr']. cbn.
+          apply join_r. apply inf_iff. intros [z' Ht']. cbn.
+          assert (H': rel_compose R T x' z'). eexists; split; eauto.
+          apply (inf_at (exist _ z' H')). cbn. reflexivity.
+      + fcd. apply (sup_at (exist _ x Hr)). apply (sup_at None).
+        fcd. reflexivity.
+  Qed.
+
+  Lemma lift_rel_down_compose:
+    rel_down (E:=E) R @ rel_down T = rel_down (rel_compose R T).
+  Proof.
+    unfold compose. apply antisymmetry; intros ? mk.
+    - destruct mk as [? m x]. cbn.
+      apply inf_iff. intros [z [y [Hr Ht]]]. cbn.
+      fcd_step. apply (inf_at (exist _ y Hr)). intm.
+      fcd_step. apply (inf_at (exist _ z Ht)). cbn.
+      fcd. apply sup_iff. intros i. apply (sup_at i).
+      destruct i as [[n z']|].
+      + fcd. apply join_lub.
+        * apply join_l. reflexivity.
+        * apply sup_iff. intros [y' Ht']. cbn.
+          apply join_lub.
+          -- apply join_l. reflexivity.
+          -- apply join_r. apply sup_iff. intros [x' Hr'].
+             assert (Hrt: rel_compose R T x' z').
+             eexists; split; eauto.
+             apply (sup_at (exist _ x' Hrt)). reflexivity.
+      + fcd. reflexivity.
+    - destruct mk as [? m x]. cbn.
+      fcd_step. apply inf_iff. intros [y Hr]. cbn. intm.
+      fcd_step. apply inf_iff. intros [z Ht]. cbn.
+      assert (Hrt: rel_compose R T x z).
+      eexists; split; eauto.
+      apply (inf_at (exist _ z Hrt)). cbn.
+      fcd. apply sup_iff. intros i. apply (sup_at i).
+      destruct i as [[n z']|].
+      + fcd. apply join_lub.
+        * apply join_l. reflexivity.
+        * apply join_r. apply sup_iff.
+          intros [x' [y' [Hr' Ht']]]. cbn.
+          apply (sup_at (exist _ y' Ht')). cbn. apply join_r.
+          apply (sup_at (exist _ x' Hr')). reflexivity.
+      + fcd. reflexivity.
+  Qed.
+
+  Context {G} (g: F ~> G).
+  Lemma lift_subst_compose:
+    slift (S:=X) (g @ f) = slift g @ slift f.
+  Proof.
+    unfold compose. apply antisymmetry;
+      intros ? [? ? ?]; cbn; rewrite srun_slift; reflexivity.
+  Qed.
+
+End PROPS.
+
 (** ** Extending adjunctions with relations *)
+
+Section LIFT.
+
+  Context {E F} (phi: E <=> F).
+  Context {X Y} (R: X -> Y -> Prop).
+
+  (* Definition up_arr: E # X ~> F # Y := lift_subst_up (up_arrow phi) R. *)
+  (* Definition down_arr: F # Y ~> E # X := lift_subst_down (down_arrow phi) (flip R). *)
+  Definition up_arr: E # X ~> F # Y := (up_arrow (rel_adj R)) @ (slift (up_arrow phi)).
+  Definition down_arr: F # Y ~> E # X := (slift (down_arrow phi)) @ (down_arrow (rel_adj R)).
+
+  Lemma lift_epsilon: up_arr @ down_arr [= identity.
+  Proof.
+    unfold up_arr, down_arr. etransitivity.
+    - instantiate (1 := (up_arrow (rel_adj R) @ (slift (up_arrow phi)) @ slift (down_arrow phi)) @ down_arrow (rel_adj R)).
+      rewrite !compose_assoc. reflexivity.
+    - rewrite <- lift_subst_compose. rewrite epsilon.
+      rewrite slift_identity. rewrite compose_unit_r.
+      apply epsilon.
+  Qed.
+
+  Lemma lift_eta: identity [= down_arr @ up_arr.
+  Proof.
+    unfold up_arr, down_arr. etransitivity.
+    - instantiate (1 := (slift (down_arrow phi) @ (down_arrow (rel_adj R)) @ up_arrow (rel_adj R)) @ slift (up_arrow phi)).
+      rewrite <- eta. rewrite compose_unit_r.
+      rewrite <- lift_subst_compose. rewrite <- eta.
+      rewrite slift_identity. reflexivity.
+    - rewrite !compose_assoc. reflexivity.
+  Qed.
+
+  Program Definition lift_adjunction : E # X <=> F # Y :=
+    {|
+      up_arrow := up_arr;
+      down_arrow := down_arr;
+      epsilon := lift_epsilon;
+      eta := lift_eta;
+    |}.
+
+End LIFT.
+
+Section FUNCTOR.
+
+  Context {E F G} (phi: E <=> F) (psi: F <=> G).
+  Context {X Y Z} (R: X -> Y -> Prop) (S: Y -> Z -> Prop).
+  Let comp_lift := lift_adjunction (adjunction_compose phi psi) (rel_compose R S).
+  Let lift_comp := adjunction_compose (lift_adjunction phi R) (lift_adjunction psi S).
+
+  Lemma up_arrow_commute: up_arrow comp_lift = up_arrow lift_comp.
+  Proof.
+    unfold comp_lift, lift_comp.
+    cbn. unfold up_arr. unfold adjunction_compose. cbn.
+  Admitted.
+
+End FUNCTOR.
 
 (** Given an adjunction ϕ: E ⇆ F and a relation R ⊆ S × Q, we can lift the
     adjunction to ϕ@R : E@S ⇆ F@Q. In particular for the language interface C
@@ -384,222 +572,7 @@ End LIFT.
     (δ@R)^ : F@S2 → C@mem@S1
 
  *)
-Definition lift_subst_up {E F} {X Y} (f: E ~> F) (R: X -> Y -> Prop): E # X ~> F # Y :=
-  fun _ '(st m y) => sup { x | R x y },
-    nx' <- (srun x (f _ m));
-    let '(n, x') := nx' in
-    inf { y' | R x' y' }, ret (n, y').
 
-(* This is equivalent to [apply rel_down (srun y (apply f ...))] *)
-Definition lift_subst_down {E F} {X Y} (f: F ~> E) (R: Y -> X -> Prop): F # Y ~> E # X :=
-  fun _ '(st m x) => inf { y | R y x },
-    ny' <- (srun y (f _ m));
-    let '(n, y') := ny' in
-    sup { x' | R y' x' }, ret (n, x').
-
-Section LIFT.
-
-  Context {E F} (phi: E <=> F).
-  Context {X Y} (R: X -> Y -> Prop).
-
-  (* Definition up_arr: E # X ~> F # Y := lift_subst_up (up_arrow phi) R. *)
-  (* Definition down_arr: F # Y ~> E # X := lift_subst_down (down_arrow phi) (flip R). *)
-  Definition up_arr: E # X ~> F # Y := (up_arrow (rel_adj R)) @ (slift (up_arrow phi)).
-  Definition down_arr: F # Y ~> E # X := (slift (down_arrow phi)) @ (down_arrow (rel_adj R)).
-
-  (* Definition darr {ar} (f: ispec E ar) (x: X): ispec (F # Y) (ar * X) := *)
-  (*   inf { y | R x y }, *)
-  (*   ny' <- srun y (apply (down_arrow phi) f); *)
-  (*   let '(n, y') := ny' in *)
-  (*   sup { x' | R x' y'}, ret (n, x'). *)
-
-  (* Definition darr' {ar} (f: ispec E ar) (x: X): ispec (F # Y) (ar * X) := *)
-  (*   apply (down_arrow (rel_adj R)) (srun x (apply (down_arrow phi) f)). *)
-
-  (* (* FIXME: generalize this lemma *) *)
-  (* Lemma down_arr_foo {ar} (x: X) (t: ispec E ar): *)
-  (*   apply down_arr (srun x t) [= darr t x. *)
-  (* Proof. *)
-  (* Admitted. *)
-(*    unfold darr.
-    (* unfold apply. unfold srun. unfold bind. *)
-    apply antisymmetry.
-    - apply inf_iff. intros [y Hr]. cbn.
-      unfold apply. unfold srun. unfold bind at 1.
-      destruct (FCD.join_meet_dense t) as (I & J & c & Hc).
-      rewrite Hc.
-      repeat rewrite Sup.mor.
-      apply sup_iff. intros i. apply (sup_at i).
-      repeat rewrite Inf.mor.
-      apply inf_iff. intros j. apply (inf_at j).
-      rewrite !FCD.ext_ana.
-      induction (c i j); cbn.
-      + rewrite !FCD.ext_ana. cbn.
-        rewrite FCD.ext_ana. cbn.
-        apply (sup_at (exist _ x Hr)). reflexivity.
-      + rewrite FCD.ext_ana. cbn.
-        unfold bind. unfold srun.
-        setoid_rewrite Inf.mor.
-        apply (inf_at (exist _ y Hr)). cbn.
-        rewrite !@FCD.ext_ext; try typeclasses eauto.
-        apply ext_proper_ref'.
-        3: {
-          intros p. induction p.
-          - cbn. rewrite Sup.mor_bot.
-            rewrite @FCD.ext_ana by admit. cbn.
-            setoid_rewrite Sup.mor. apply sup_iff.
-            intros [x' Hx']. cbn. unfold ret.
-            rewrite FCD.ext_ana. cbn. reflexivity.
-          - cbn. rewrite !@FCD.ext_ana by admit. cbn.
-            rewrite !@FCD.ext_ana by admit. cbn. reflexivity.
-          - cbn. setoid_rewrite Sup.mor. apply sup_iff.
-            rewrite Sup.mor_join. intros [k'|].
-            + apply join_r.
-              admit.
-            + admit.
-        }
-        admit. admit. admit. admit.
-      + rewrite Sup.mor. apply sup_iff. intros [x'|].
-        * setoid_rewrite srun_bind.
-          setoid_rewrite bind_bind.
-          admit.
-        * admit.
-    - Admitted.
-*)
-  Lemma lift_epsilon: up_arr @ down_arr [= identity.
-  Proof.
-    unfold up_arr, compose.
-    intm. intros ar k.
-    destruct k as [ar m y]. unfold identity.
-    unfold rel_up.
-    repeat setoid_rewrite Sup.mor. apply sup_iff. intros [x Rx]. cbn.
-    apply sup_iff. intros [[n xr]|].
-    - intm. unfold bind.
-      setoid_rewrite FCD.ext_ana. cbn.
-      rewrite apply_bind. unfold down_arr at 3.
-      rewrite <- apply_assoc.
-      rewrite srun_slift.
-      setoid_rewrite -> rel_apply.
-      repeat setoid_rewrite Inf.mor.
-      apply (inf_at (exist _ y Rx)). cbn.
-      (* code below can be simplified *)
-      pose proof (epsilon phi). unfold compose in H.
-      specialize (H ar m). cbn in H.
-      unfold identity in H.
-      assert (Hx: srun y (apply (down_arrow phi) (up_arrow phi ar m)) [= srun y (int m)).
-      { unfold srun. rauto. } clear H.
-      (* until here *)
-      rewrite Hx. rewrite srun_int.
-      repeat setoid_rewrite Sup.mor.
-      apply sup_iff. intros [[n' y']|].
-      + setoid_rewrite FCD.ext_ana. cbn.
-        repeat rewrite Sup.mor_join.
-        apply join_lub.
-        * setoid_rewrite FCD.ext_ana. cbn.
-          setoid_rewrite FCD.ext_ana. cbn.
-          apply (sup_at None). reflexivity.
-        * repeat setoid_rewrite Sup.mor.
-          apply sup_iff. intros [x' H']. cbn.
-          repeat (setoid_rewrite FCD.ext_ana; cbn).
-          rewrite Sup.mor_join. apply join_lub.
-          -- rewrite FCD.ext_ana. cbn.
-             apply (sup_at None). reflexivity.
-          -- rewrite !Sup.mor. apply sup_iff. intros Hn.
-             inversion Hn. subst. clear Hn.
-             repeat setoid_rewrite FCD.ext_ana. cbn. apply join_lub.
-             ++ apply (sup_at None). reflexivity.
-             ++ repeat setoid_rewrite Inf.mor.
-                apply (inf_at (exist _ y' H')).
-                repeat (setoid_rewrite FCD.ext_ana; cbn).
-                unfold int. apply (sup_at (Some (n, y'))).
-                reflexivity.
-      + repeat (setoid_rewrite FCD.ext_ana; cbn).
-        apply (sup_at None). reflexivity.
-    - setoid_rewrite FCD.ext_ana. cbn.
-      setoid_rewrite FCD.ext_ana. cbn.
-      rewrite apply_bind. unfold down_arr.
-      rewrite <- !apply_assoc. rewrite srun_slift.
-      setoid_rewrite rel_apply.
-      setoid_rewrite Inf.mor. apply (inf_at (exist _ y Rx)). cbn.
-      pose proof (epsilon phi). unfold compose in H.
-      specialize (H ar m). cbn in H.
-      unfold identity in H.
-      assert (Hx: srun y (apply (down_arrow phi) (up_arrow phi ar m)) [= srun y (int m)).
-      { unfold srun. rauto. } clear H.
-      rewrite Hx. rewrite srun_int.
-      repeat setoid_rewrite Sup.mor.
-      apply sup_iff. intros [[n' y']|].
-      + setoid_rewrite FCD.ext_ana. cbn.
-        repeat rewrite Sup.mor_join.
-        apply join_lub.
-        * setoid_rewrite FCD.ext_ana. cbn.
-          apply (sup_at None). reflexivity.
-        * repeat setoid_rewrite Sup.mor.
-          apply sup_iff. intros [x' H'].
-          setoid_rewrite FCD.ext_ana. cbn.
-          setoid_rewrite FCD.ext_ana. cbn.
-          apply join_lub.
-          -- apply (sup_at None). reflexivity.
-          -- repeat rewrite Sup.mor_bot. apply bot_lb.
-      + setoid_rewrite FCD.ext_ana. cbn.
-        setoid_rewrite FCD.ext_ana. cbn.
-        apply (sup_at None). reflexivity.
-  Qed.
-
-(*
-    unfold up_arr, compose.
-    unfold lift_subst_up.
-    intm. intros ar k.
-    destruct k as [ar m y]. unfold identity.
-    setoid_rewrite Sup.mor. apply sup_iff. intros [x Rx]. cbn.
-    pose proof (epsilon phi). unfold compose in H.
-    specialize (H ar m). cbn in H.
-    unfold identity in H.
-    rewrite apply_bind. unfold bind.
-    assert (Hx: srun y (apply (down_arrow phi) (up_arrow phi ar m)) [= srun y (int m)).
-    { unfold srun. rauto. } clear H.
-    (* rewrite <- srun_slift in Hx. rewrite srun_int in Hx. *)
-    unfold down_arr at 2.
-    rewrite down_arr_foo.
-    setoid_rewrite Inf.mor. apply (inf_at (exist _ y Rx)). cbn.
-    unfold darr.
-    unfold bind. rewrite Hx.
-    rewrite srun_int.
-    repeat setoid_rewrite Sup.mor. apply sup_iff.
-    intros [[n y']|]; cbn.
-    - rewrite FCD.ext_ana. cbn.
-      rewrite Sup.mor_join. apply join_lub.
-      + rewrite FCD.ext_ana. cbn.
-        apply (sup_at None). reflexivity.
-      + repeat setoid_rewrite Sup.mor.
-        apply sup_iff. intros [x' Hx']. cbn.
-        repeat setoid_rewrite FCD.ext_ana. cbn.
-        apply join_lub.
-        * apply (sup_at None). reflexivity.
-        * apply (sup_at (Some (n, y'))).
-          repeat setoid_rewrite Inf.mor.
-          apply (inf_at (exist _ y' Hx')). cbn.
-          unfold ret. setoid_rewrite FCD.ext_ana. cbn.
-          setoid_rewrite FCD.ext_ana. reflexivity.
-    - rewrite FCD.ext_ana. cbn.
-      rewrite FCD.ext_ana. cbn.
-      apply (sup_at None). reflexivity.
-  Qed.
-*)
-
-  Lemma lift_eta: identity [= down_arr @ up_arr.
-  Proof.
-  Admitted.
-
-  Program Definition lift_adjunction : E # X <=> F # Y :=
-    {|
-      up_arrow := up_arr;
-      down_arrow := down_arr;
-      epsilon := lift_epsilon;
-      eta := lift_eta;
-    |}.
-
-End LIFT.
 
 (** The language interface "C simple" which does not include the memory *)
 Record c_query :=

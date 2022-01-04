@@ -243,8 +243,6 @@ Section CC.
       inf w, inf { qb | match_query cc w qa qb },
       query_int qb >>= (fun rb => sup { ra | match_reply cc w ra rb }, ret ra).
 
-  Definition identity {E: esig}: subst E E := fun _ m => int m.
-
   Lemma cc_epsilon: cc_up @ cc_down [= identity.
   Proof.
     intros ? [qb]. unfold identity, cc_up, cc_down, compose.
