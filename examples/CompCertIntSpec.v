@@ -11,12 +11,11 @@ From compcert Require Import
      Globalenvs
      Smallstep.
 From lattices Require Import
-     Upset
-     Downset
-     FCD.
+     Upset Downset FCD.
 From structures Require Import
-     Effects
-     Lattice.
+     Effects Lattice.
+From examples Require Import
+     ISpecAdjunction.
 
 (** * Embed CompCert Semantics into Game Semantics *)
 
@@ -232,20 +231,20 @@ Section CC.
     As for the choice of worlds, ... *)
 
   (* FIXME: left vs. right *)
-  Definition cc_up: subst liA liB :=
+  Definition cc_left: subst liA liB :=
     fun _ '(li_sig qb) =>
       sup w, sup { qa | match_query cc w qa qb },
       query_int qa >>= (fun ra => inf { rb | match_reply cc w ra rb }, ret rb).
 
   (** Translate high level liA into low level liB *)
-  Definition cc_down: subst liB liA :=
+  Definition cc_right: subst liB liA :=
     fun _ '(li_sig qa) =>
       inf w, inf { qb | match_query cc w qa qb },
       query_int qb >>= (fun rb => sup { ra | match_reply cc w ra rb }, ret ra).
 
-  Lemma cc_epsilon: cc_up @ cc_down [= identity.
+  Lemma cc_epsilon: cc_left @ cc_right [= identity.
   Proof.
-    intros ? [qb]. unfold identity, cc_up, cc_down, compose.
+    intros ? [qb]. unfold identity, cc_left, cc_right, compose.
     rewrite Sup.mor. apply sup_iff. intros w.
     unfold fsup. rewrite Sup.mor.
     apply sup_iff. intros [qa Hq]. cbn.
@@ -277,9 +276,9 @@ Section CC.
       unfold int. apply (sup_at None). reflexivity.
   Qed.
 
-  Lemma cc_eta: identity [= cc_down @ cc_up.
+  Lemma cc_eta: identity [= cc_right @ cc_left.
   Proof.
-    intros ? [qa]. unfold identity, cc_up, cc_down, compose.
+    intros ? [qa]. unfold identity, cc_left, cc_right, compose.
     rewrite Inf.mor. apply inf_iff. intros w.
     unfold finf. rewrite Inf.mor.
     apply inf_iff. intros [qb Hq]. cbn.
@@ -306,6 +305,15 @@ Section CC.
       rewrite FCD.ext_ana. cbn. reflexivity.
   Qed.
 
+  (** In particular, the calling conventions in CompCertO forms an adjunction *)
+  Program Definition cc_adjunction: poset_adjunction liA liB :=
+    {|
+      left_arrow := cc_left;
+      right_arrow := cc_right;
+      epsilon := cc_epsilon;
+      eta := cc_eta;
+    |}.
+
 End CC.
 
 (* Note: it's hard to imply the [esig] from the context, since
@@ -324,7 +332,7 @@ Section FSIM.
   Hypothesis FSIM: forall wB, fsim_properties ccA ccB se1 se2 wB L1 L2 index order match_states.
 
   Lemma ang_fsim_embed:
-    ang_lts_spec L1 [= (cc_down ccB) @ ang_lts_spec L2 @ (cc_up ccA).
+    ang_lts_spec L1 [= (cc_right ccB) @ ang_lts_spec L2 @ (cc_left ccA).
   Proof.
     intros k [qb1]. unfold ISpec.compose.
     unfold ang_lts_spec at 1.
@@ -371,7 +379,7 @@ Section FSIM.
       eapply (sup_at (exist _ qa2 H2)). cbn.
       rewrite apply_bind. unfold query_int.
       rewrite apply_int_r.
-      unfold bind. unfold cc_up at 2.
+      unfold bind. unfold cc_left at 2.
       repeat setoid_rewrite Sup.mor.
       eapply (sup_at w).
       eapply (sup_at (exist _ qa1 Hqa)). cbn.
@@ -422,20 +430,6 @@ Section FSIM.
   Qed.
 
 End FSIM.
-
-Lemma fmap_cons {E A B X} (f: A -> t E B) m (n: X) (t: t E A):
-  bind f (FCD.ext (fun s => FCD.emb (pcons m n s)) t) [=
-    FCD.emb (pmove m) || FCD.ext (fun s => FCD.emb (pcons m n s)) (bind f t).
-Proof.
-  unfold bind.
-  edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). rewrite Hc.
-  rewrite !Sup.mor. repeat setoid_rewrite Inf.mor.
-  setoid_rewrite FCD.ext_ana. setoid_rewrite FCD.ext_ana. cbn.
-  apply sup_iff. intros i. rewrite <- join_inf.
-  apply join_lub.
-  - apply join_l. reflexivity.
-  - apply join_r. apply (sup_at i). reflexivity.
-Qed.
 
 Require Import compcert.common.CategoricalComp.
 

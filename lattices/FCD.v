@@ -178,3 +178,38 @@ Module FCD : FCDSpec.
   Qed.
 
 End FCD.
+
+Lemma ext_join {C: poset} {L: cdlattice} (f : C -> L) p a `(!PosetMorphism f):
+  a || FCD.ext (fun x => a || (f x)) p = a || FCD.ext f p.
+Proof.
+  pose proof (FCD.meet_join_dense p).
+  destruct H as (I & J & xij & Hx). subst p.
+  setoid_rewrite Inf.mor.
+  setoid_rewrite Sup.mor.
+  setoid_rewrite @FCD.ext_ana.
+  rewrite join_inf.
+  rewrite join_inf.
+  rewrite <- join_inf.
+  apply antisymmetry.
+  - apply join_lub.
+    + apply inf_iff. intros i.
+      apply join_l. reflexivity.
+    + apply inf_iff. intros i.
+      apply (inf_at i).
+      apply sup_iff. intros j.
+      apply join_lub.
+      * apply join_l. reflexivity.
+      * apply join_r. apply (sup_at j). reflexivity.
+  - rewrite join_inf.
+    apply inf_iff. intros i.
+    apply (inf_at i).
+    apply join_lub.
+    + apply join_l. reflexivity.
+    + apply sup_iff. intros j.
+      apply join_r. apply (sup_at j).
+      apply join_r. reflexivity.
+  - split. intros x y Hxy.
+    apply join_lub. apply join_l. reflexivity.
+    apply join_r. rauto.
+  - auto.
+Qed.

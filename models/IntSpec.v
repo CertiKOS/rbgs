@@ -320,87 +320,6 @@ Module ISpec.
     apply FCD.ext_emb.
   Qed.
 
-  Definition c {L: cdlattice} {I: Type} (x: L) (y: I -> L): forall (b: bool), (if b return Type then unit else I) -> L.
-  Proof.
-    intros [|].
-    - intros. refine x.
-    - refine y.
-  Defined.
-
-  Definition fc {I: Type} (i: I): forall (i: bool), if i return Type then unit else I.
-  Proof.
-    intros [|].
-    - refine tt.
-    - refine i.
-  Defined.
-
-  Lemma join_inf {L: cdlattice} {I: Type} (x: L) (y: I -> L):
-    x || (inf i, y i) = inf i, x || y i.
-  Proof.
-   pose proof @sup_inf.
-   specialize (H L _ _ (c x y)). cbn in H.
-   Local Transparent join.
-   unfold join.
-   assert (sup b : bool, (if b then x else inf i : I, y i) =
-            sup i : bool, inf j : if i return Type then unit else I, c x y i j) as ->.
-   {
-     f_equal. apply functional_extensionality.
-     intros [|]; cbn.
-     - apply antisymmetry.
-       + apply inf_iff. intros. reflexivity.
-       + apply (inf_at tt). reflexivity.
-     - reflexivity.
-   }
-   rewrite H. clear H.
-   apply antisymmetry.
-   - apply inf_iff. intros i.
-     apply (inf_at (fc i)).
-     apply sup_iff. intros [|]; cbn.
-     + apply (sup_at true). reflexivity.
-     + apply (sup_at false). reflexivity.
-   - apply inf_iff. intros f.
-     apply (inf_at (f false)).
-     apply sup_iff. intros [|]; cbn.
-     + apply (sup_at true). reflexivity.
-     + apply (sup_at false). reflexivity.
-  Qed.
-
-  Lemma ext_foo {E A B} (f : play E A -> t E B) p a `(!PosetMorphism f):
-    a || FCD.ext (fun x => a || (f x)) p = a || FCD.ext f p.
-  Proof.
-    pose proof (FCD.meet_join_dense p).
-    destruct H as (I & J & xij & Hx).
-    rewrite Hx.
-    rewrite !(proj2 FCD.ext_mor).
-    setoid_rewrite (proj1 FCD.ext_mor).
-    setoid_rewrite @FCD.ext_ana.
-    rewrite join_inf.
-    rewrite join_inf.
-    rewrite <- join_inf.
-    apply antisymmetry.
-    - apply join_lub.
-      + apply inf_iff. intros i.
-        apply join_l. reflexivity.
-      + apply inf_iff. intros i.
-        apply (inf_at i).
-        apply sup_iff. intros j.
-        apply join_lub.
-        * apply join_l. reflexivity.
-        * apply join_r. apply (sup_at j). reflexivity.
-    - rewrite join_inf.
-      apply inf_iff. intros i.
-      apply (inf_at i).
-      apply join_lub.
-      + apply join_l. reflexivity.
-      + apply sup_iff. intros j.
-        apply join_r. apply (sup_at j).
-        apply join_r. reflexivity.
-    - split. intros x y Hxy.
-      apply join_lub. apply join_l. reflexivity.
-      apply join_r. rauto.
-    - auto.
-  Qed.
-
   Lemma bind_pbind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : play E A) :
     bind g (pbind f x) = pbind (fun a => bind g (f a)) x.
   Proof.
@@ -411,7 +330,7 @@ Module ISpec.
       rewrite !FCD.ext_ext.
       (* setoid_rewrite FCD.ext_ana. *)
       erewrite @ext_proper_eq. 4: { intros c. rewrite FCD.ext_ana. reflexivity. }
-      + cbn. apply ext_foo.
+      + cbn. apply ext_join.
         split. intros a b Hab. rstep.
         now apply pbind_mor.
       + split. intros a b Hab. repeat rstep. now constructor.
@@ -429,8 +348,7 @@ Module ISpec.
   Lemma bind_bind {E A B C} (g : B -> t E C) (f : A -> t E B) (x : t E A) :
     bind g (bind f x) = bind (fun a => bind g (f a)) x.
   Proof.
-    unfold bind, t.
-    rewrite FCD.ext_ext.
+    unfold bind, t. rewrite FCD.ext_ext.
     f_equal. apply functional_extensionality. intros p.
     apply bind_pbind.
   Qed.
@@ -515,71 +433,21 @@ Module ISpec.
     unfold apply, ret. rewrite FCD.ext_ana. cbn. auto.
   Qed.
 
-  Lemma sup_sup {L: cdlattice} {I J: Type} (c: I -> J -> L):
-    sup i, sup j, c i j = sup j, sup i, c i j.
-  Proof.
-    apply antisymmetry.
-    - apply sup_iff. intros i. apply sup_iff. intros j.
-      apply (sup_at j). apply (sup_at i). reflexivity.
-    - apply sup_iff. intros j. apply sup_iff. intros i.
-      apply (sup_at i). apply (sup_at j). reflexivity.
-  Qed.
-(*
-  (* TODO: we could generalize play -> intspec to  C -> FCD C *)
-  Lemma ext_sup {E F A B X} (f: X -> play E A -> t F B) (t: t E A):
-    sup x: X, FCD.ext (f x) t [= FCD.ext (fun a : play E A => sup x : X, f x a) t.
-  Proof.
-    edestruct (FCD.join_meet_dense t) as (I & J & c & H).
-    rewrite H. clear H.
-    setoid_rewrite Sup.mor.
-    setoid_rewrite Inf.mor.
-    rewrite sup_sup.
-    apply sup_iff. intros i. apply (sup_at i).
-    setoid_rewrite @FCD.ext_ana.
-    apply sup_iff. intros x.
-    apply inf_iff. intros j.
-    apply (inf_at j). apply (sup_at x).
-    rewrite @FCD.ext_ana. reflexivity.
-  Admitted.
-
-
-  Lemma sup_iff' {L: cdlattice} {I A B} (x : forall (a: A), B a -> I -> L) (y : L) :
-    sup a, inf b, sup i, x a b i [= y <-> sup i, sup a, inf b, x a b i [= y.
-  Proof.
-    split.
-    - intros H i. etransitivity; eauto.
-      apply sup_lub. intros a. apply (sup_at a).
-      apply inf_glb. intros b. apply (inf_at b).
-      apply (sup_at i). reflexivity.
-    - intros Hi.
-      apply sup_lub. intros a.
-
-  Admitted.
- *)
-  Lemma fmap_cons_bind {E A X} m (n: X) (t: t E A):
-    FCD.emb (pmove m) || FCD.map (pcons m n) t = bind (fun _ => t) (FCD.emb (pcons m n (pret n))).
-  Proof. setoid_rewrite FCD.ext_ana. cbn. f_equal. Qed.
-
-  (* Lemma apply_ext {E F A B} (f: subst E F) (g: play F A -> ISpec.t F B) (t: ISpec.t F A): *)
-  (*   apply f (FCD.ext g t) = FCD.ext (fun p => bot) (apply f t). *)
-  (* Proof. *)
-  (*   destruct (FCD.join_meet_dense t) as (I & J & c & Hc). subst t. *)
-  (*   repeat setoid_rewrite Sup.mor. f_equal. apply functional_extensionality. intros i. *)
-  (*   repeat setoid_rewrite Inf.mor. f_equal. apply functional_extensionality. intros j. *)
-  (*   rewrite @FCD.ext_ana by admit. setoid_rewrite FCD.ext_ana. *)
-  (*   induction (c i j). *)
-  (*   - cbn. setoid_rewrite @FCD.ext_ana. admit. admit. *)
-  (*   - cbn. *)
-
-
   Lemma apply_fmap_cons {E F A X} (f: subst E F) m (n: X) (t: t F A):
     bind (fun _ => bot) (f _ m) || apply f (FCD.map (pcons m n) t) = bind (fun n' => sup _ : n' = n, apply f t) (f _ m).
   Proof.
-    replace (bind (fun _ => bot) (f _ m)) with (apply (A := A) f (FCD.emb (pmove m))).
-    2: { setoid_rewrite FCD.ext_ana. reflexivity. }
-    rewrite <- Sup.mor_join. setoid_rewrite fmap_cons_bind.
-    unfold bind, apply. rewrite @FCD.ext_ext; try typeclasses eauto.
-    setoid_rewrite @FCD.ext_ana. cbn.
+    apply antisymmetry.
+    - apply join_lub.
+      + apply bind_proper_ref.
+        * intros x. apply bot_lb.
+        * reflexivity.
+      + unfold FCD.map, apply, bind.
+        edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). subst t.
+        repeat setoid_rewrite Sup.mor.
+        repeat setoid_rewrite Inf.mor.
+        setoid_rewrite FCD.ext_ana.
+        setoid_rewrite FCD.ext_ana. cbn.
+        unfold bind.
   Admitted.
 
   Lemma apply_bind {E F A B} (f : subst E F) (g : A -> t F B) (x : t F A) :
@@ -603,32 +471,6 @@ Module ISpec.
       setoid_rewrite Sup.mor. setoid_rewrite <- IHp. clear IHp.
       setoid_rewrite apply_fmap_cons. reflexivity.
   Qed.
-
-(*      setoid_rewrite FCD.ext_ana. cbn.
-
-      generalize (pbind g p). intros pb.
-      edestruct (FCD.join_meet_dense pb) as (I & J & c & H).
-      rewrite H.  clear H.
-      setoid_rewrite Sup.mor.
-      setoid_rewrite Inf.mor.
-      setoid_rewrite FCD.ext_ana.
-      setoid_rewrite @FCD.ext_ana. 2: admit.
-
-      generalize (f X m). intros tx.
-      edestruct (FCD.join_meet_dense tx) as (I' & J' & c' & H').
-      rewrite H'. clear H'.
-      setoid_rewrite Sup.mor.
-      setoid_rewrite Inf.mor.
-      setoid_rewrite FCD.ext_ana.
-
-      apply antisymmetry.
-      + apply join_lub.
-        * apply sup_iff. intros i'. apply (sup_at i').
-          apply inf_iff. intros j'. apply (inf_at j').
-          admit.
-        * apply sup_iff. intros i.
-          setoid_rewrite sup_sup. *)
-
 
   Lemma apply_int_r {E F ar} (m : F ar) (f : subst E F) :
     apply f (int m) = f ar m.
@@ -812,3 +654,19 @@ Hint Rewrite
 
 Ltac intm :=
   repeat progress (autorewrite with intm; cbn).
+
+(** Misc *)
+Import ISpec.
+Lemma fmap_cons {E A B X} (f: A -> t E B) m (n: X) (t: t E A):
+  bind f (FCD.ext (fun s => FCD.emb (pcons m n s)) t) [=
+    FCD.emb (pmove m) || FCD.ext (fun s => FCD.emb (pcons m n s)) (bind f t).
+Proof.
+  unfold bind.
+  edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). rewrite Hc.
+  rewrite !Sup.mor. repeat setoid_rewrite Inf.mor.
+  setoid_rewrite FCD.ext_ana. setoid_rewrite FCD.ext_ana. cbn.
+  apply sup_iff. intros i. rewrite <- join_inf.
+  apply join_lub.
+  - apply join_l. reflexivity.
+  - apply join_r. apply (sup_at i). reflexivity.
+Qed.

@@ -431,3 +431,78 @@ End OPS.
 
 Infix "||" := join (at level 50, left associativity).
 Infix "&&" := meet (at level 40, left associativity).
+
+(** ** Miscellaneous Properties *)
+Lemma sup_option {L: cdlattice} {A} (f: A -> L) (g: L):
+  sup x: option A,
+      match x with
+      | Some a => f a
+      | None => g
+      end = g || sup x: A, f x.
+Proof with reflexivity.
+  apply antisymmetry.
+  - apply sup_iff. intros [a|].
+    + apply join_r. apply (sup_at a)...
+    + apply join_l...
+  - apply join_lub.
+    + apply (sup_at None)...
+    + apply sup_iff. intros a.
+      apply (sup_at (Some a))...
+Qed.
+
+Lemma sup_sup {L: cdlattice} {I J: Type} (c: I -> J -> L):
+  sup i, sup j, c i j = sup j, sup i, c i j.
+Proof with reflexivity.
+  apply antisymmetry.
+  - apply sup_iff. intros i. apply sup_iff. intros j.
+    apply (sup_at j). apply (sup_at i)...
+  - apply sup_iff. intros j. apply sup_iff. intros i.
+    apply (sup_at i). apply (sup_at j)...
+Qed.
+
+Require Import FunctionalExtensionality.
+
+Definition c {L: cdlattice} {I: Type} (x: L) (y: I -> L): forall (b: bool), (if b return Type then unit else I) -> L.
+Proof.
+  intros [|].
+  - intros. refine x.
+  - refine y.
+Defined.
+
+Definition fc {I: Type} (i: I): forall (i: bool), if i return Type then unit else I.
+Proof.
+  intros [|].
+  - refine tt.
+  - refine i.
+Defined.
+
+Lemma join_inf {L: cdlattice} {I: Type} (x: L) (y: I -> L):
+  x || (inf i, y i) = inf i, x || y i.
+Proof with reflexivity.
+  pose proof @sup_inf.
+  specialize (H L _ _ (c x y)). cbn in H.
+  Local Transparent join.
+  unfold join.
+  assert (sup b : bool, (if b then x else inf i : I, y i) =
+                       sup i : bool, inf j : if i return Type then unit else I, c x y i j) as ->.
+  {
+    f_equal. apply functional_extensionality.
+    intros [|]; cbn.
+    - apply antisymmetry.
+      + apply inf_iff. intros...
+      + apply (inf_at tt)...
+    - reflexivity.
+  }
+  rewrite H. clear H.
+  apply antisymmetry.
+  - apply inf_iff. intros i.
+    apply (inf_at (fc i)).
+    apply sup_iff. intros [|]; cbn.
+    + apply (sup_at true)...
+    + apply (sup_at false)...
+  - apply inf_iff. intros f.
+    apply (inf_at (f false)).
+    apply sup_iff. intros [|]; cbn.
+    + apply (sup_at true)...
+    + apply (sup_at false)...
+Qed.
