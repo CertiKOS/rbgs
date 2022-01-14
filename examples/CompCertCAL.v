@@ -402,7 +402,7 @@ Section MARSHALL.
   Proof.
   Admitted.
 
-  Program Definition rb_adj: rb_sig <=> li_c :=
+  Program Definition rb_adj: rb_sig <~> li_c :=
     {|
       left_arrow := rb_left;
       right_arrow := rb_right;
@@ -423,7 +423,7 @@ Section MARSHALL.
       sup { n | val_rel _ n (cr_retval r) /\
                   retval_type_check (cr_retval r) (cq_sg q) },
       ret n.
-  Program Definition bq_adj: bq_sig <=> li_c :=
+  Program Definition bq_adj: bq_sig <~> li_c :=
     {|
       left_arrow := bq_left;
       right_arrow := bq_right;
@@ -471,9 +471,9 @@ Section CORRECT.
   Record certi_layer {E1 E2 S1 S2} :=
     {
       L1: 0 ~> E1 # S1;
-      L1_adj: E1 <=> li_c;
+      L1_adj: E1 <~> li_c;
       L2: 0 ~> E2 # S2;
-      L2_adj: E2 <=> li_c;
+      L2_adj: E2 <~> li_c;
       module: list Clight.program;
       sk: AST.program unit unit;
       abs_rel: S2 -> mem * S1 -> Prop;
@@ -831,7 +831,7 @@ Section CORRECT.
     fcd. apply inf_iff. intros [].
   Qed.
 
-  Definition empty_adj {E}: 0 <=> E :=
+  Definition empty_adj {E}: 0 <~> E :=
     {|
       left_arrow := empty_adj_left;
       right_arrow := empty_adj_right;
@@ -850,6 +850,6 @@ Section CORRECT.
       abs_rel rb '(m, tt) := Ple (Genv.genv_next se) (Mem.nextblock m);
     |}.
   Next Obligation.
-
+  Admitted.
 
 End CORRECT.

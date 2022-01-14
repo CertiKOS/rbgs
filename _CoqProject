@@ -23,6 +23,7 @@ examples/CAL.v
 examples/CompCertIntSpec.v
 examples/CompCertCAL.v
 examples/ISpecAdjunction.v
+examples/Refconv.v
 # examples/CompCertSem.v
 # CompCertOX formalization
 compcertox/Lifting.v

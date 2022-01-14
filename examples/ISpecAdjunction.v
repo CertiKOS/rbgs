@@ -45,11 +45,11 @@ Arguments right_arrow {_ _}.
 Arguments epsilon {_ _}.
 Arguments eta {_ _}.
 
-Infix "<=>" := poset_adjunction (at level 50).
+Infix "<~>" := poset_adjunction (at level 50).
 
 (** *** Composition and identity of adjunctions *)
 
-Program Definition adjunction_compose {A B C} (phi: A <=> B) (psi: B <=> C) :=
+Program Definition adjunction_compose {A B C} (phi: A <~> B) (psi: B <~> C) :=
   {|
     (* A ~> C := B ~> C @ A ~> B *)
     left_arrow := left_arrow psi @ left_arrow phi;
@@ -141,7 +141,7 @@ Section LIFT.
     let '(n, y') := ny' in
     sup { x' | R x' y' }, ret (n, x').
 
-  Program Definition rel_adj: E # X <=> E # Y :=
+  Program Definition rel_adj: E # X <~> E # Y :=
     {|
       left_arrow := rel_left;
       right_arrow := rel_right;
@@ -501,7 +501,7 @@ End PROPS.
 
 Section LIFT.
 
-  Context {E F} (phi: E <=> F).
+  Context {E F} (phi: E <~> F).
   Context {X Y} (R: X -> Y -> Prop).
 
   (** E#X ~> F#Y := F#X ~> F#Y ∘ E#X ~> F#X *)
@@ -528,7 +528,7 @@ Section LIFT.
     - rewrite !compose_assoc. reflexivity.
   Qed.
 
-  Program Definition lift_adjunction : E # X <=> F # Y :=
+  Program Definition lift_adjunction : E # X <~> F # Y :=
     {|
       left_arrow := left_arr;
       right_arrow := right_arr;
@@ -540,7 +540,7 @@ End LIFT.
 
 Section FUNCTOR.
 
-  Context {E F G} (phi: E <=> F) (psi: F <=> G).
+  Context {E F G} (phi: E <~> F) (psi: F <~> G).
   Context {X Y Z} (R: X -> Y -> Prop) (S: Y -> Z -> Prop).
   Let comp_lift := lift_adjunction (adjunction_compose phi psi) (rel_compose R S).
   Let lift_comp := adjunction_compose (lift_adjunction phi R) (lift_adjunction psi S).
