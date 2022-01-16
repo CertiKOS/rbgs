@@ -9,7 +9,6 @@ From lattices Require Import
      Upset Downset FCD.
 From structures Require Import
      Effects Lattice.
-From examples Require Import CAL.
 Import ListNotations ISpec.
 
 Unset Asymmetric Patterns.
@@ -126,6 +125,7 @@ Qed.
 (* X is the abstraction; Y is the implementation. So angelic choice over x and
    demonic choice over y *)
 (** ** Relations as adjunctions *)
+
 Section LIFT.
 
   Context {E:esig} {X Y} (R: X -> Y -> Prop).

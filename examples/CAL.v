@@ -6,8 +6,11 @@ Require Import structures.Lattice.
 Require Import structures.Effects.
 Require Import lattices.FCD.
 Require Import models.IntSpec.
+Require Import examples.RefConv.
 
 Import ISpec.
+
+Unset Asymmetric Patterns.
 
 (** * Effect signatures *)
 
@@ -123,17 +126,25 @@ Definition L_rb : CALspec rb_sig rb_state :=
   and arities of the signature [E]. This is written [E@S] in the paper
   but since I plan on using [@] for composition I use [E#S] here. *)
 
+(*
 Inductive state_sig (E : Type -> Type) (S : Type) : Type -> Type :=
   | st {ar} (m : E ar) (k : S) : state_sig E S (ar * S).
 
 Arguments st {E S ar} m k.
-
-Infix "#" := state_sig (at level 40, left associativity).
+*)
 
 (** A layer interface can then be promoted to a morphism as follows. *)
 
+Coercion CALspec_mor {E S} (L : CALspec E S) : 0 ~> E * s_esig S :=
+  fun _ '(esig_tens_intro m s_ev) =>
+    match s_ev with
+    | state_event s => L _ m s
+    end.
+
+(*
 Coercion CALspec_mor {E S} (L : CALspec E S) : (0 ~> E # S) :=
   fun _ '(st m s) => L _ m s.
+*)
 
 (** To connect this with layer implementations, we must lift a
   state-free morphism [M : E ~> F] to a corresponding stateful
@@ -166,10 +177,16 @@ Qed.
 
 Definition srun {E S A} (k : S) (x : ispec E A) : ispec (E # S) (prod A S) :=
   FCD.ext (stateful_play k) x.
-
+(*
 Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
   fun ar m =>
     match m with st m k => srun k (σ _ m) end.
+*)
+Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
+  fun ar '(esig_tens_intro m k) =>
+    match k with
+    | state_event s => srun s (σ _ m)
+    end.
 
 (** Then the behavior of [M : E ~> F] running on top of [L : 0 ~> E#S]
   can be computed as follows. *)
@@ -217,16 +234,18 @@ Instance slift_proper_ref {E F S}:
   Proper (ref ==> ref) (@slift E F S).
 Proof.
   intros x y Hxy. intros ? mk. destruct mk as [? m k]. cbn.
-  unfold srun. rstep. apply Hxy.
+  (* unfold srun. rstep. apply Hxy. *)
+  unfold srun. destruct s. rstep. apply Hxy.
 Qed.
 
 Lemma slift_identity {E S}:
   slift (S:=S) (identity (E:=E)) = identity.
 Proof.
   unfold identity.
-  apply antisymmetry; intros ? mk; destruct mk as [? m k];
-    cbn; rewrite srun_int; reflexivity.
-Qed.
+(*   apply antisymmetry; intros ? mk; destruct mk as [? m k]; *)
+(*     cbn; rewrite srun_int; reflexivity. *)
+(* Qed. *)
+Admitted.
 
 Lemma assert_true {E} {P : Prop} (H : P) :
   @assert E P = ISpec.ret tt.
@@ -272,6 +291,7 @@ Admitted.
 
 (** ** Simulation relations as morphisms *)
 
+(*
 Definition srel_push {E S1 S2} (R : rel S1 S2) : E#S2 ~> E#S1 :=
   fun _ '(st m k1) =>
     sup {k2 | R k1 k2}, ISpec.int (st m k2) >>= fun '(n, k2') =>
@@ -281,11 +301,28 @@ Definition srel_pull {E S1 S2} (R : rel S1 S2) : E#S1 ~> E#S2 :=
   fun _ '(st m k2) =>
     inf {k1 | R k1 k2}, ISpec.int (st m k1) >>= fun '(n, k1') =>
     sup {k2' | R k1' k2'}, ISpec.ret (n, k2').
+*)
+
+Definition srel_push {E S1 S2} (R : rel S1 S2) : E#S2 ~> E#S1 :=
+  fun _ '(esig_tens_intro m s) =>
+    match s with
+    | state_event k1 =>
+    sup {k2 | R k1 k2}, ISpec.int (st m k2) >>= fun '(n, k2') =>
+    inf {k1' | R k1' k2'}, ISpec.ret (n, k1')
+    end.
+
+Definition srel_pull {E S1 S2} (R : rel S1 S2) : E#S1 ~> E#S2 :=
+  fun _ '(esig_tens_intro m s) =>
+    match s with
+    | state_event k2 =>
+    inf {k1 | R k1 k2}, ISpec.int (st m k1) >>= fun '(n, k1') =>
+    sup {k2' | R k1' k2'}, ISpec.ret (n, k2')
+    end.
 
 Lemma srel_push_pull {E S1 S2} (R : rel S1 S2) (σ : 0 ~> E#S2) (τ : 0 ~> E#S1) :
   srel_push R @ σ [= τ <-> σ [= srel_pull R @ τ.
 Proof.
-  split.
+(*  split.
   - intros H _ [ar m k2]. unfold srel_pull, compose.
     unfold finf. rewrite Upset.Inf.mor. eapply inf_glb. intros [k1 Hk]. intm.
     specialize (H _ (st m k1)). unfold srel_push, compose in H. rewrite <- H.
@@ -313,6 +350,8 @@ Proof.
     rewrite Upset.Inf.mor. apply (inf_at (exist _ k1' Hk')). intm.
     reflexivity.
 Qed.
+*)
+Admitted.
 
 (** ** Correctness of [M_bq] *)
 
@@ -366,6 +405,8 @@ Qed.
 Lemma bq_rb_correct :
   L_bq [= srel_pull rb_bq @ slift M_bq @ L_rb.
 Proof.
+Admitted.
+(*
   intros _ [ar m q]. unfold compose, srel_pull, finf. cbn.
   rewrite !Upset.Inf.mor. apply inf_glb. intros [[[f c1] c2] H]. intm.
   inversion H; clear H; subst.
@@ -405,3 +446,4 @@ Proof.
     + rewrite Nat.add_mod_idemp_l by admit. f_equal.
       induction c1; cbn in *; auto.
 Admitted.
+*)

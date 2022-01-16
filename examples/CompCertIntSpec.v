@@ -14,31 +14,11 @@ From lattices Require Import
      Upset Downset FCD.
 From structures Require Import
      Effects Lattice.
-From examples Require Import
-     ISpecAdjunction.
-
-(** * Embed CompCert Semantics into Game Semantics *)
-
-(** ** Embed Language Interfaces *)
-Section SIG.
-
-  Variable li: language_interface.
-  (* May need to consider the symbol table in the future *)
-  Inductive sig: esig :=
-  | li_sig: query li -> sig (reply li).
-
-End SIG.
-
-Arguments li_sig {_} _.
-Coercion sig: language_interface >-> esig.
-Coercion li_sig: query >-> sig.
+Require Import examples.RefConv.
 
 Import ISpec.
 
-(** The primitive operator that triggers a query *)
-Definition query_int {li} (q: query li): ispec li _ := @int (sig li) _ q.
-(* The expected type of the first argument of @int is a general type constructor
-   E: Type -> Type instead of [esig], so the coercion does not work *)
+(** * Embed CompCert Semantics into Game Semantics *)
 
 (** ** Embed Labelled Tranition Systems *)
 Section LTS.
