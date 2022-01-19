@@ -97,6 +97,20 @@ Record refconv (E F: esig) :=
     }.
 Infix "<=>" := refconv (at level 50) : type_scope.
 
+(*
+Program Definition normalize_rc {E F: esig} (rc: rc_rel E F) : E <=> F :=
+  {|
+    refconv_rel ar1 m1 ar2 m2 R := exists R', rc _ m1 _ m2 R' /\ subrel R' R;
+  |}.
+Next Obligation.
+  intros * x y Hxy H.
+  destruct H as [ R' [ ? ? ] ].
+  exists R'; split; auto.
+  etransitivity; eauto.
+Qed.
+Coercion normalize_rc: rc_rel >-> refconv.
+*)
+
 Instance refconv_eqrel {E F} (rc: E <=> F) ar1 m1 ar2 m2:
   Proper (eqrel ==> iff) (rc ar1 m1 ar2 m2).
 Proof.
@@ -187,9 +201,11 @@ Proof.
 Admitted.
 
 (** *** Tensor Product Operator on Refinement Conventions *)
+
 Inductive esig_tens (E F: esig): esig :=
 | esig_tens_intro ar1 ar2 :
   E ar1 -> F ar2 -> esig_tens E F (ar1 * ar2)%type.
+
 Arguments esig_tens_intro {_ _ _ _} _ _.
 Infix "*" := esig_tens: esig_scope.
 Infix "*" := esig_tens_intro: event_scope.
@@ -198,8 +214,7 @@ Delimit Scope event_scope with event.
 Inductive rc_prod_rel {E1 E2 F1 F2} (rc1: E1 <=> F1) (rc2: E2 <=> F2) : rc_rel (E1 * E2) (F1 * F2) :=
 | rc_prod_intro ar1 m1 ar1' m1' ar2 m2 ar2' m2' R1 R2 Rp:
   rc1 ar1 m1 ar1' m1' R1 -> rc2 ar2 m2 ar2' m2' R2 -> subrel (R1 * R2) Rp ->
-  rc_prod_rel rc1 rc2 (ar1 * ar2)%type (m1 * m2)%event
-              (ar1' * ar2')%type (m1' * m2')%event Rp.
+  rc_prod_rel rc1 rc2 _ (m1 * m2)%event _ (m1' * m2')%event Rp.
 
 Program Definition rc_prod {E1 E2 F1 F2} (rc1: E1 <=> F1) (rc2: E2 <=> F2) : E1 * E2 <=> F1 * F2 :=
   {|

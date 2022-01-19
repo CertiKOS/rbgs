@@ -24,6 +24,7 @@ examples/CompCertIntSpec.v
 examples/CompCertCAL.v
 # examples/ISpecAdjunction.v
 examples/RefConv.v
+examples/BoundedQueueCode.v
 # examples/CompCertSem.v
 # CompCertOX formalization
 compcertox/Lifting.v
