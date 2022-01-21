@@ -241,8 +241,8 @@ Section CLIGHT.
       (Scall (Some bq_deq_tmp1) (Evar inc1_id (Tfunction Tnil tint cc_default)) nil)
       (Ssequence
          (Scall (Some bq_deq_tmp2) (Evar get_id (Tfunction (Tcons tint Tnil) tint cc_default))
-                ([Evar bq_deq_tmp1 tint]))
-         (Sreturn (Some (Evar bq_deq_tmp2 tint)))).
+                ([Etempvar bq_deq_tmp1 tint]))
+         (Sreturn (Some (Etempvar bq_deq_tmp2 tint)))).
   Definition bq_deq : function :=
     {|
       fn_return := tint;
@@ -250,7 +250,7 @@ Section CLIGHT.
       fn_params := [];
       fn_vars := [];
       fn_temps := [(bq_deq_tmp1, tint); (bq_deq_tmp2, tint)];
-      fn_body := bq_enq_body;
+      fn_body := bq_deq_body;
     |}.
 
   Definition inc1_ext: fundef function :=
