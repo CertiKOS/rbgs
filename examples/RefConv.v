@@ -95,23 +95,8 @@ Record refconv (E F: esig) :=
       refconv_clo ar1 m1 ar2 m2:
         Proper (subrel ++> impl) (refconv_rel ar1 m1 ar2 m2);
     }.
-Infix "<=>" := refconv (at level 50) : type_scope.
 
-(*
-Program Definition normalize_rc {E F: esig} (rc: rc_rel E F) : E <=> F :=
-  {|
-    refconv_rel ar1 m1 ar2 m2 R := exists R', rc _ m1 _ m2 R' /\ subrel R' R;
-  |}.
-Next Obligation.
-  intros * x y Hxy H.
-  destruct H as [ R' [ ? ? ] ].
-  exists R'; split; auto.
-  etransitivity; eauto.
-Qed.
-Coercion normalize_rc: rc_rel >-> refconv.
-*)
-
-Instance refconv_eqrel {E F} (rc: E <=> F) ar1 m1 ar2 m2:
+Instance refconv_eqrel {E F} (rc: rc_rel E F) ar1 m1 ar2 m2:
   Proper (eqrel ==> iff) (rc ar1 m1 ar2 m2).
 Proof.
   intros x y Heq. replace y with x. reflexivity.
@@ -119,6 +104,8 @@ Proof.
   apply propositional_extensionality.
   split; apply Heq.
 Qed.
+
+Infix "<=>" := refconv (at level 50) : type_scope.
 
 (** *** Order on Refinement Conventions  *)
 
@@ -145,50 +132,95 @@ Proof.
   subst. f_equal. apply proof_irrelevance.
 Qed.
 
-(** *** Categorical Structures of Refinment Conventions *)
-Inductive rc_id_rel {E} : rc_rel E E :=
-| rc_id_intro ar m R:
-  Reflexive R -> rc_id_rel ar m ar m R.
-
-Inductive rc_compose_rel {E F G} (rc1: E <=> F) (rc2: F <=> G) : rc_rel E G :=
-| rc_compose_intro ar1 ar2 ar3 m1 m2 m3 R R' Rc:
-  rc1 ar1 m1 ar2 m2 R -> rc2 ar2 m2 ar3 m3 R' ->
-  subrel (rel_compose R R') Rc ->
-  rc_compose_rel rc1 rc2 ar1 m1 ar3 m3 Rc.
-
-Program Definition rc_id {E} : E <=> E :=
+(** *** Calculating the upward closure *)
+Program Definition normalize_rc {E F: esig} (rc: rc_rel E F) : E <=> F :=
   {|
-    refconv_rel := rc_id_rel;
+    refconv_rel ar1 m1 ar2 m2 R := exists R', rc _ m1 _ m2 R' /\ subrel R' R;
   |}.
 Next Obligation.
-  intros * x y Hxy H. destruct H.
-  constructor. intros a. apply Hxy. reflexivity.
-Qed.
-
-Program Definition rc_compose {E F G} (rc1: E <=> F) (rc2: F <=> G) : E <=> G :=
-  {|
-    refconv_rel := rc_compose_rel rc1 rc2;
-  |}.
-Next Obligation.
-  destruct rc1 as [ rc1 Hclo1 ]. destruct rc2 as [ rc2 Hclo2 ].
-  intros * x y Hxy H. destruct H. cbn.
-  econstructor; cbn; eauto.
+  intros * x y Hxy H.
+  destruct H as [ R' [ ? ? ] ].
+  exists R'; split; auto.
   etransitivity; eauto.
 Qed.
 
-Definition rc_compose_id_l {E F} (rc: E <=> F): rc_compose rc_id rc = rc.
+Definition rc_normalize_idemp {E F} (rc: rc_rel E F):
+  normalize_rc (normalize_rc rc) = normalize_rc rc.
 Proof.
-  apply antisymmetry; unfold rc_ref; intros * Hrc.
-  - exists R1. destruct Hrc. destruct H.
-    split; try easy.
+  apply antisymmetry; intros ar1 m1 ar2 m2 R1 Hrc1;
+    exists R1; split; try easy.
+  - destruct Hrc1 as (Rx & Hrc2 & Hrx).
+    destruct Hrc2 as (Ry & Hrc3 & Hry).
+    exists Ry; split; try easy.
+    etransitivity; eauto.
+  - destruct Hrc1 as (Rx & Hrc2 & Hrx).
+    exists Rx. split; try easy. exists Rx. split; easy.
+Qed.
+
+Coercion normalize_rc: rc_rel >-> refconv.
+
+Tactic Notation "rc_destruct" hyp(H) :=
+  match type of H with
+  | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
+      let R := fresh "R" in
+      let Hrel := fresh "Hrel" in
+      let Hsub := fresh "Hsub" in
+      destruct H as (R & Hrel & Hsub); destruct Hrel
+  end.
+
+Tactic Notation "rc_destruct" hyp(H) "as" simple_intropattern(p) :=
+  match type of H with
+  | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
+      let R := fresh "R" in
+      let Hrel := fresh "Hrel" in
+      let Hsub := fresh "Hsub" in
+      destruct H as (R & Hrel & Hsub); destruct Hrel as p
+  end.
+
+Tactic Notation "rc_inversion" hyp(H) :=
+  match type of H with
+  | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
+      let R := fresh "R" in
+      let Hrel := fresh "Hrel" in
+      let Hsub := fresh "Hsub" in
+      destruct H as (R & Hrel & Hsub); inversion Hrel; depsubst
+  end.
+
+Tactic Notation "rc_inversion" hyp(H) "as" simple_intropattern(p) :=
+  match type of H with
+  | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
+      let R := fresh "R" in
+      let Hrel := fresh "Hrel" in
+      let Hsub := fresh "Hsub" in
+      destruct H as (R & Hrel & Hsub); inversion Hrel as p; depsubst
+  end.
+
+Tactic Notation "rc_econstructor" :=
+  match goal with
+  | [ |- refconv_rel _ _ (normalize_rc _) _ _ _ _ ?R ] =>
+      exists R; split; [ econstructor | reflexivity ]; eauto
+  end.
+
+(** *** Categorical Structures of Refinment Conventions *)
+Inductive rc_id {E} : rc_rel E E :=
+| rc_id_intro ar m: rc_id ar m ar m eq.
+
+Inductive rc_compose {E F G} (rc1: E <=> F) (rc2: F <=> G) : rc_rel E G :=
+| rc_compose_intro ar1 ar2 ar3 m1 m2 m3 R R':
+  rc1 ar1 m1 ar2 m2 R -> rc2 ar2 m2 ar3 m3 R' ->
+  rc_compose rc1 rc2 ar1 m1 ar3 m3 (rel_compose R R').
+
+Definition rc_compose_id_l {E F} (rc: E <=> F):
+  @eq (refconv _ _) (rc_compose rc_id rc) rc.
+Proof.
+  apply antisymmetry; unfold rc_ref; intros * Hrc;
+    exists R1; split; try easy.
+  - rc_destruct Hrc. rc_destruct H.
     eapply refconv_clo; [ | eauto ].
-    intros x y Hxy. apply H1.
+    intros x y Hxy. apply Hsub.
     eexists; split; eauto.
-  - exists R1. split; try easy.
-    econstructor; eauto.
-    + instantiate (1 := eq). econstructor. auto.
-    + rewrite (rel_compose_id_right R1).
-      reflexivity.
+  - rewrite <- (rel_compose_id_right R1).
+    rc_econstructor. rc_econstructor.
 Qed.
 
 Definition rc_compose_id_r {E F} (rc: E <=> F): rc_compose rc rc_id = rc.
@@ -211,20 +243,10 @@ Infix "*" := esig_tens: esig_scope.
 Infix "*" := esig_tens_intro: event_scope.
 Delimit Scope event_scope with event.
 
-Inductive rc_prod_rel {E1 E2 F1 F2} (rc1: E1 <=> F1) (rc2: E2 <=> F2) : rc_rel (E1 * E2) (F1 * F2) :=
-| rc_prod_intro ar1 m1 ar1' m1' ar2 m2 ar2' m2' R1 R2 Rp:
-  rc1 ar1 m1 ar1' m1' R1 -> rc2 ar2 m2 ar2' m2' R2 -> subrel (R1 * R2) Rp ->
-  rc_prod_rel rc1 rc2 _ (m1 * m2)%event _ (m1' * m2')%event Rp.
-
-Program Definition rc_prod {E1 E2 F1 F2} (rc1: E1 <=> F1) (rc2: E2 <=> F2) : E1 * E2 <=> F1 * F2 :=
-  {|
-    refconv_rel := rc_prod_rel rc1 rc2;
-  |}.
-Next Obligation.
-  intros * x y Hxy H. destruct H.
-  econstructor; eauto.
-  etransitivity; eauto.
-Qed.
+Inductive rc_prod {E1 E2 F1 F2} (rc1: E1 <=> F1) (rc2: E2 <=> F2) : rc_rel (E1 * E2) (F1 * F2) :=
+| rc_prod_intro ar1 m1 ar1' m1' ar2 m2 ar2' m2' R1 R2:
+  rc1 ar1 m1 ar1' m1' R1 -> rc2 ar2 m2 ar2' m2' R2 ->
+  rc_prod rc1 rc2 _ (m1 * m2)%event _ (m1' * m2')%event (R1 * R2)%rel.
 
 Infix "*" := rc_prod: rc_scope.
 Delimit Scope rc_scope with rc.
@@ -244,24 +266,24 @@ Qed.
 
 Lemma rc_prod_compose {E1 E2 F1 F2 G1 G2}
       (rca1: E1 <=> F1) (rca2: E2 <=> F2) (rcb1: F1 <=> G1) (rcb2: F2 <=> G2):
-      (rc_compose rca1 rcb1 * rc_compose rca2 rcb2)%rc = rc_compose (rca1 * rca2) (rcb1 * rcb2).
+  @eq (refconv _ _)
+      (rc_compose rca1 rcb1 * rc_compose rca2 rcb2)%rc
+      (rc_compose (rca1 * rca2) (rcb1 * rcb2)).
 Proof.
   apply antisymmetry; intros ? [ ? ? me1 me2 ] ? [ ? ? mg1 mg2 ] R H.
-  - destruct H. destruct H. destruct H0.
-    exists Rp; split; try easy.
-    eapply rc_compose_intro with (R1 := (R * R0)%rel) (R'1 := (R' * R'0)%rel).
-    + econstructor; eauto. reflexivity.
-    + econstructor; eauto. reflexivity.
+  - rc_destruct H.
+    rc_destruct H as  [ ? ? ? ? ? ? Ra Rb ].
+    rc_destruct H0 as  [ ? ? ? ? ? ? Rc Rd ].
+    exists (rel_compose (Ra * Rc) (Rb * Rd)). split.
+    + rc_econstructor; rc_econstructor.
     + rewrite <- rel_prod_compose.
       etransitivity; eauto.
       apply prod_subrel; eauto.
-  - destruct H. exists Rc. split; try easy.
-    destruct m1. destruct m2. destruct m3.
-    inversion H. depsubst.
-    inversion H0. depsubst.
-    eapply rc_prod_intro with (R4 := (rel_compose R1 R0)) (R5 := (rel_compose R2 R3)).
-    + econstructor; eauto. reflexivity.
-    + econstructor; eauto. reflexivity.
+  - rc_destruct H.
+    rc_destruct H as [ ? ? ? ? ? ? ? ? Ra Rb ].
+    rc_inversion H0 as [ ? ? ? ? ? ? ? ? Rc Rd ].
+    exists ((rel_compose Ra Rc) * (rel_compose Rb Rd))%rel. split.
+    + rc_econstructor; rc_econstructor.
     + rewrite rel_prod_compose.
       etransitivity; eauto.
       apply rel_compose_subrel; eauto.
@@ -329,11 +351,11 @@ End RC_ADJ.
   (* TODO: functoriality *)
 Section PROPS.
   Context {E F G} (rc1: E <=> F) (rc2: F <=> G).
-
+  Local Opaque normalize_rc.
   Lemma rc_adj_left_compose:
     rc_adj_left rc2 @ rc_adj_left rc1 = rc_adj_left (rc_compose rc1 rc2).
   Proof.
-    unfold rc_adj_left, compose, rc_compose.
+    unfold rc_adj_left, compose.
     apply antisymmetry; intros ar1 m1; cbn.
     - rewrite !Sup.mor. apply sup_iff. intros ar2.
       rewrite !Sup.mor. apply sup_iff. intros m2.
@@ -345,8 +367,7 @@ Section PROPS.
       apply sup_iff. intros [ R' Hr' ].
       apply (sup_at ar3). apply (sup_at m3).
       eapply (sup_at (exist _ (fun x z => exists y, R' x y /\ R y z) _)).
-      cbn. Unshelve.
-      2: { cbn. econstructor; eauto. reflexivity. }
+      cbn. Unshelve. 2: { cbn. rc_econstructor. }
       unfold int at 2. rewrite !Sup.mor.
       apply sup_iff. intros [ n3 | ].
       + setoid_rewrite FCD.ext_ana. cbn.
@@ -374,7 +395,8 @@ Section PROPS.
         setoid_rewrite FCD.ext_ana. cbn. reflexivity.
     - apply sup_iff. intros ar3.
       apply sup_iff. intros m3.
-      apply sup_iff. intros [ R Hr ]. destruct Hr. cbn.
+      apply sup_iff. intros [ R Hr ].
+      rc_destruct Hr.
       rewrite !Sup.mor. apply (sup_at ar2).
       rewrite !Sup.mor. apply (sup_at m2).
       unfold fsup at 2. rewrite !Sup.mor.
@@ -383,7 +405,7 @@ Section PROPS.
       rewrite !Sup.mor. apply (sup_at ar1).
       rewrite !Sup.mor. apply (sup_at m1).
       unfold fsup at 2. rewrite !Sup.mor.
-      eapply (sup_at (exist _ R _)). Unshelve.
+      eapply (sup_at (exist _ R0 _)). Unshelve.
       2: { cbn. assumption. } cbn.
       unfold int at 1. rewrite Sup.mor. apply sup_iff. intros [ n1 | ].
       + setoid_rewrite FCD.ext_ana. cbn.
@@ -403,7 +425,7 @@ Section PROPS.
           rewrite !Inf.mor. apply inf_iff. intros [ n3 H3 ]. cbn.
           intm. setoid_rewrite FCD.ext_ana.
           eapply (inf_at (exist _ n3 _)). Unshelve.
-          2: { cbn. apply s. eexists; split; eauto. } cbn.
+          2: { cbn. apply Hsub. eexists; split; eauto. } cbn.
           reflexivity.
       + setoid_rewrite FCD.ext_ana. cbn.
         unfold int. rewrite !Sup.mor. apply (sup_at None).
@@ -423,8 +445,7 @@ Section PROPS.
     unfold rc_adj_left. apply antisymmetry; intros ar m; cbn.
     - apply sup_iff. intros ar'.
       apply sup_iff. intros m'.
-      apply sup_iff. intros [ R Hr ]. cbn.
-      destruct Hr.
+      apply sup_iff. intros [ R Hr ]. rc_destruct Hr. cbn.
       unfold identity, int.
       rewrite Sup.mor. apply sup_iff.
       intros [ n | ].
@@ -434,13 +455,13 @@ Section PROPS.
         * apply (sup_at (Some n)).
           unfold finf. rewrite Inf.mor.
           eapply (inf_at (exist _ n _)). cbn.
-          Unshelve. 2: { cbn. reflexivity. }
+          Unshelve. 2: { cbn. now apply Hsub. }
           setoid_rewrite FCD.ext_ana.
           reflexivity.
       + setoid_rewrite FCD.ext_ana. cbn.
         apply (sup_at None). reflexivity.
     - apply (sup_at ar). apply (sup_at m).
-      apply (fsup_at (@eq ar)). constructor. auto.
+      apply (fsup_at (@eq ar)). rc_econstructor.
       unfold identity, int. apply sup_iff. intros [ n | ].
       + rewrite Sup.mor. apply (sup_at (Some n)).
         setoid_rewrite FCD.ext_ana. cbn.
@@ -480,62 +501,43 @@ Definition query_int {li} (q: query li): ispec li _ := @int (sig li) _ q.
    E: Type -> Type instead of [esig], so the coercion does not work *)
 
 (** *** Embed Calling Conventions  *)
-Inductive cc_rc_rel {liA liB} (cc: callconv liA liB) : rc_rel liA liB :=
-| cc_rc_intro q1 q2 w Rcc:
-  match_query cc w q1 q2 -> subrel (match_reply cc w) Rcc ->
-  cc_rc_rel cc _ (li_sig q1) _ (li_sig q2) Rcc.
-
-Program Definition cc_rc {liA liB} (cc: callconv liA liB) : liA <=> liB :=
-  {|
-    refconv_rel := cc_rc_rel cc;
-  |}.
-Next Obligation.
-  intros * x y Hxy H. destruct H.
-  econstructor; eauto.
-  etransitivity; eauto.
-Qed.
+Inductive cc_rc {liA liB} (cc: callconv liA liB) : rc_rel liA liB :=
+| cc_rc_intro q1 q2 w:
+  match_query cc w q1 q2 ->
+  cc_rc cc _ (li_sig q1) _ (li_sig q2) (match_reply cc w).
 
 (** *** Properties of the embedding from SC to RC  *)
-Lemma cc_rc_id {liA}: cc_rc (@cc_id liA) = rc_id.
+Lemma cc_rc_id {liA}:
+  @eq (refconv _ _) (cc_rc (@cc_id liA)) rc_id.
 Proof.
 Admitted.
 
 Lemma cc_rc_compose {liA liB liC} (cc1: callconv liA liB) (cc2: callconv liB liC):
-  cc_rc (cc_compose cc1 cc2) = rc_compose (cc_rc cc1) (cc_rc cc2).
+  @eq (refconv _ _) (cc_rc (cc_compose cc1 cc2))
+      (rc_compose (cc_rc cc1) (cc_rc cc2)).
 Proof.
 Admitted.
 
-Coercion cc_rc : callconv >-> refconv.
-
+Coercion cc_refconv {liA liB} (cc: callconv liA liB): refconv liA liB :=
+  normalize_rc (cc_rc cc).
 
 (** ** Functor from Rel to RC *)
 Inductive s_esig (S: Type) : esig :=
 | state_event: S -> s_esig S S.
 Arguments state_event {_} _.
 
-Inductive rel_rc_rel {S T} (R: S -> T -> Prop) : rc_rel (s_esig S) (s_esig T) :=
-| rel_rc_intro m1 m2 Rrel:
-  R m1 m2 -> subrel R Rrel ->
-  rel_rc_rel R _ (state_event m1) _ (state_event m2) Rrel.
-
-Program Definition rel_rc {S T} (R: S -> T -> Prop): s_esig S <=> s_esig T :=
-  {|
-    refconv_rel := rel_rc_rel R;
-  |}.
-Next Obligation.
-  intros * x y Hxy H. destruct H.
-  econstructor; eauto.
-  etransitivity; eauto.
-Qed.
+Inductive rel_rc {S T} (R: S -> T -> Prop) : rc_rel (s_esig S) (s_esig T) :=
+| rel_rc_intro m1 m2:
+  R m1 m2 -> rel_rc R _ (state_event m1) _ (state_event m2) R.
 
 (** *** Properties of the embedding from Rel to RC *)
 Lemma rel_rc_id {S}:
-  (rel_rc (@eq S)) = rc_id.
+  @eq (refconv _ _) (rel_rc (@eq S)) rc_id.
 Proof.
 Admitted.
 
 Lemma rel_rc_compose {X Y Z} (S: X -> Y -> Prop) (T: Y -> Z -> Prop):
-  rel_rc (rel_compose S T) = rc_compose (rel_rc S) (rel_rc T).
+  @eq (refconv _ _) (rel_rc (rel_compose S T)) (rc_compose (rel_rc S) (rel_rc T)).
 Proof.
 Admitted.
 
