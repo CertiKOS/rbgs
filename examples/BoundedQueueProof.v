@@ -70,6 +70,8 @@ Section MARSHALL.
 
 End MARSHALL.
 
+Hint Constructors cal_nat_rel cal_void_rel.
+
 (* TODO: develop handy tactics *)
 Tactic Notation "inf_intro" ident(x) :=
   unfold finf; rewrite !Inf.mor; apply inf_iff ; intro x; cbn.
@@ -101,6 +103,11 @@ Proof.
   rewrite Genv.find_def_spec. rewrite H1.
   rewrite H2. reflexivity.
 Qed.
+
+Ltac clear_hyp :=
+  repeat match goal with
+         | [ H : (?t = ?t)%type |- _ ] => clear H
+         end.
 
 Section RB.
   Open Scope Z_scope.
@@ -186,43 +193,20 @@ Section RB.
     unfold compose. cbn. unfold rc_adj_right. cbn.
     inf_intro ar. inf_intro x. destruct x as [ ? ? c_m [ mm ] ].
     destruct c_m as [vf sg args].
-    inf_intro x. destruct x as [ Rp Hr ]. cbn.
-    intm. inf_intro ar'. inf_intro q. destruct q as [ q ].
-    inf_intro x. destruct x as [ Rc Hc ]. cbn.
-    intm. simple inversion Hc. intros. depsubst.
-    inv H3. inv H5. clear Hc H2 H4. rename H1 into HRc.
-    (* destruct Hr as (Rx & Hx & Hy). *)
-    (* inversion Hx. depsubst. *)
-    (* rc_inversion Hr. *)
-    destruct Hr as (Rx & Hr & HRp).
-    inversion Hr. depsubst. clear H H0 H6 H7.
-    rename H2 into HRev. rename H13 into HRst.
-
-    destruct HRev as (Rev & HRev & Hx).
-    destruct HRst as (Rst & HRst & Hy).
-    inv HRst. depsubst.
+    inf_intro x. destruct x as [ Rp Hr ]. cbn. intm.
+    inf_intro ar'. inf_intro q. destruct q as [ q ].
+    inf_intro x. destruct x as [ Rc Hc ]. cbn. intm.
+    rc_inversion Hc. depsubst. inv H. inv H0. clear Hrel. rename Hsub into HRc.
+    rc_inversion Hr. depsubst. clear_hyp. clear Hrel.
+    rename H2 into HRev. rename H13 into HRst. rename Hsub into HRp.
+    rc_elim (inv) HRst. depsubst.
     unfold fsup. setoid_rewrite Sup.mor.
     setoid_rewrite FCD.ext_ana. cbn.
     rewrite <- Sup.mor.
-    inv HRev; depsubst.
-    (* simple inversion HRev; intros; depsubst; clear HRev. *)
-
-    (* simple inversion Hr. depsubst. *)
-    (* apply type_pair_des in H2. inv H2. *)
-    (* apply type_pair_des in H4. inv H4. *)
-    (* depsubst. inv H3. inv H5. *)
-    (* depsubst. cbn. intros HRev HRst HRp. *)
-    (* simple inversion HRst. depsubst. clear H1 H3 Hr. inv H2. inv H4. *)
-    (* clear HRst. intros HRst HRx. *)
-    (* unfold fsup. setoid_rewrite Sup.mor. *)
-    (* setoid_rewrite FCD.ext_ana. cbn. *)
-    (* rewrite <- Sup.mor. *)
-    (* simple inversion HRev; intros; depsubst; clear HRev. *)
+    rc_elim (inv) HRev; depsubst; clear_hyp.
     (* set *)
-    - clear H H6. clear Hr.
-      (* inv H8. *)
+    - rename H9 into Hb. rename H11 into Hv. rename H2 into HRst.
       apply assert_l. intros Hi. apply inj_lt in Hi.
-      rename H9 into Hb. rename H11 into Hv. rename H2 into HRst.
       setoid_rewrite sup_sup. rewrite !Sup.mor.
       (* initial_state *)
       eapply (sup_at (exist _ _ _)); cbn. Unshelve.
@@ -266,42 +250,39 @@ Section RB.
       setoid_rewrite FCD.ext_ana. cbn.
       eapply (sup_at (exist _ (tt, (update f i v, c1, c2)) _)). Unshelve.
       2: {
-        cbn. apply HRp. split.
-        - now apply Hx.
-        - apply Hy. cbn. constructor.
-          + destruct H2. econstructor; eauto.
-            erewrite Mem.load_store_other; eauto.
-            left. intros Hbb. subst.
-            exploit Genv.find_symbol_injective. apply H2. apply H.
-            intros. easy.
-            intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-          + destruct H3. econstructor; eauto.
-            erewrite Mem.load_store_other; eauto.
-            left. intros Hbb. subst.
-            exploit Genv.find_symbol_injective. apply H3. apply H.
-            intros. easy.
-            intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-          + econstructor; eauto. intros ix.
-            * unfold update in *. destruct Nat.eq_dec.
-              -- subst. exists c_v. split; auto.
-                 erewrite Mem.load_store_same; eauto.
-                 f_equal.
-                 eapply SimplLocalsproof.val_casted_load_result.
-                 eapply val_is_int; eauto. reflexivity.
-              -- edestruct (H0 ix) as (vx & Hvx & Hrv).
-                 exists vx; split; auto.
-                 erewrite Mem.load_store_other; eauto. right.
-                 apply not_eq in n. destruct n.
-                 ++ right. apply inj_lt in H4. cbn [size_chunk]. lia.
-                 ++ left. apply inj_lt in H4. cbn [size_chunk]. lia.
-            * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-          + erewrite Mem.nextblock_store; eauto.
+        cbn. apply HRp. split; cbn; eauto.
+        apply Hsub. constructor.
+        + destruct H2. econstructor; eauto.
+          erewrite Mem.load_store_other; eauto.
+          left. intros Hbb. subst.
+          exploit Genv.find_symbol_injective. apply H2. apply H.
+          intros. easy.
+          intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+        + destruct H3. econstructor; eauto.
+          erewrite Mem.load_store_other; eauto.
+          left. intros Hbb. subst.
+          exploit Genv.find_symbol_injective. apply H3. apply H.
+          intros. easy.
+          intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+        + econstructor; eauto. intros ix.
+          * unfold update in *. destruct Nat.eq_dec.
+            -- subst. exists c_v. split; auto.
+               erewrite Mem.load_store_same; eauto.
+               f_equal.
+               eapply SimplLocalsproof.val_casted_load_result.
+               eapply val_is_int; eauto. reflexivity.
+            -- edestruct (H0 ix) as (vx & Hvx & Hrv).
+               exists vx; split; auto.
+               erewrite Mem.load_store_other; eauto. right.
+               apply not_eq in n. destruct n.
+               ++ right. apply inj_lt in H4. cbn [size_chunk]. lia.
+               ++ left. apply inj_lt in H4. cbn [size_chunk]. lia.
+          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+        + erewrite Mem.nextblock_store; eauto.
       } cbn. reflexivity.
     (* get *)
-    - clear H H6 Hr.
-      (* inv H7. *)
+    - rename H9 into Hb. rename H2 into HRst.
       apply assert_l. intros Hi.
-      rename H9 into Hb. rename H2 into HRst.
       setoid_rewrite sup_sup. rewrite !Sup.mor.
       (* initial_state *)
       eapply (sup_at (exist _ _ _)); cbn. Unshelve.
@@ -340,14 +321,13 @@ Section RB.
       eapply (sup_at (exist _ (f i, (f, c1, c2)) _)); cbn.
       Unshelve.
       2: {
-        cbn. apply HRp. split; eauto.
-        apply Hy. cbn. constructor; eauto.
+        cbn. apply HRp. split; cbn; eauto.
+        apply Hsub. constructor; eauto.
         econstructor; eauto.
       }
       reflexivity.
     (* inc1 *)
-    - clear H H7.
-      rename H9 into Hb. rename H2 into HRst.
+    - rename H9 into Hb. rename H2 into HRst.
       setoid_rewrite sup_sup. rewrite !Sup.mor.
       (* initial_state *)
       eapply (sup_at (exist _ _ _)); cbn. Unshelve.
@@ -407,42 +387,39 @@ Section RB.
       eapply (sup_at (exist _ (c1, (f, (S c1 mod CAL.N)%nat, c2)) _)); cbn.
       Unshelve.
       2: {
-        cbn. apply HRp. split; eauto.
-        - apply Hx. cbn. now constructor.
-        - apply Hy. cbn. constructor; eauto.
-          + econstructor; eauto.
-            * erewrite Mem.load_store_same; eauto.
-            * cbn. constructor.
-              apply cnt_inc_simp; assumption.
-            * apply Nat.mod_upper_bound. lia.
-            * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-              eapply Mem.perm_store_1; eauto.
-          + inv H3. econstructor; eauto.
-            * assert (b1 <> b0).
-              { intros <-. exploit Genv.find_symbol_injective.
-                apply H. apply H1. easy. }
-              erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
-              erewrite Mem.load_store_other; eauto.
-            * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-              eapply Mem.perm_store_1; eauto.
-          + inv H5. assert (b0 <> b1).
+        cbn. apply HRp. split; cbn; eauto.
+        apply Hsub. constructor; eauto.
+        + econstructor; eauto.
+          * erewrite Mem.load_store_same; eauto.
+          * cbn. constructor.
+            apply cnt_inc_simp; assumption.
+          * apply Nat.mod_upper_bound. lia.
+          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+            eapply Mem.perm_store_1; eauto.
+        + inv H3. econstructor; eauto.
+          * assert (b1 <> b0).
             { intros <-. exploit Genv.find_symbol_injective.
               apply H. apply H1. easy. }
-            econstructor; eauto.
-            * intros ix. edestruct (H8 ix) as (vx & Hvx & Hrx).
-              exists vx. split; eauto.
-              erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
-              erewrite Mem.load_store_other; eauto.
-            * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-              eapply Mem.perm_store_1; eauto.
-          + erewrite Mem.nextblock_store. 2: apply Hm''.
-            erewrite Mem.nextblock_store; eauto.
+            erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
+            erewrite Mem.load_store_other; eauto.
+          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+            eapply Mem.perm_store_1; eauto.
+        + inv H5. assert (b0 <> b1).
+          { intros <-. exploit Genv.find_symbol_injective.
+            apply H. apply H1. easy. }
+          econstructor; eauto.
+          * intros ix. edestruct (H8 ix) as (vx & Hvx & Hrx).
+            exists vx. split; eauto.
+            erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
+            erewrite Mem.load_store_other; eauto.
+          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+            eapply Mem.perm_store_1; eauto.
+        + erewrite Mem.nextblock_store. 2: apply Hm''.
+          erewrite Mem.nextblock_store; eauto.
       }
       reflexivity.
     (* inc2 *)
-    - clear H H7.
-      (* inv H6. *)
-      rename H9 into Hb. rename H2 into HRst.
+    - rename H9 into Hb. rename H2 into HRst.
       setoid_rewrite sup_sup. rewrite !Sup.mor.
       (* initial_state *)
       eapply (sup_at (exist _ _ _)); cbn. Unshelve.
@@ -502,36 +479,35 @@ Section RB.
       eapply (sup_at (exist _ (c2, (f, c1, (S c2 mod CAL.N)%nat)) _)); cbn.
       Unshelve.
       2: {
-        cbn. apply HRp. split; eauto.
-        - apply Hx. cbn. now constructor.
-        - apply Hy. cbn. constructor; eauto.
-          + inv H2. econstructor; eauto.
-            * assert (b1 <> b0).
-              { intros <-. exploit Genv.find_symbol_injective.
-                apply H. apply H1. easy. }
-              erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
-              erewrite Mem.load_store_other; eauto.
-            * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-              eapply Mem.perm_store_1; eauto.
-          + econstructor; eauto.
-            * erewrite Mem.load_store_same; eauto.
-            * cbn. constructor.
-              apply cnt_inc_simp; assumption.
-            * apply Nat.mod_upper_bound. lia.
-            * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-              eapply Mem.perm_store_1; eauto.
-          + inv H5. assert (b0 <> b1).
+        cbn. apply HRp. split; cbn; eauto.
+        apply Hsub. constructor; eauto.
+        + inv H2. econstructor; eauto.
+          * assert (b1 <> b0).
             { intros <-. exploit Genv.find_symbol_injective.
               apply H. apply H1. easy. }
-            econstructor; eauto.
-            * intros ix. edestruct (H8 ix) as (vx & Hvx & Hrx).
-              exists vx. split; eauto.
-              erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
-              erewrite Mem.load_store_other; eauto.
-            * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-              eapply Mem.perm_store_1; eauto.
-          + erewrite Mem.nextblock_store. 2: apply Hm''.
-            erewrite Mem.nextblock_store; eauto.
+            erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
+            erewrite Mem.load_store_other; eauto.
+          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+            eapply Mem.perm_store_1; eauto.
+        + econstructor; eauto.
+          * erewrite Mem.load_store_same; eauto.
+          * cbn. constructor.
+            apply cnt_inc_simp; assumption.
+          * apply Nat.mod_upper_bound. lia.
+          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+            eapply Mem.perm_store_1; eauto.
+        + inv H5. assert (b0 <> b1).
+          { intros <-. exploit Genv.find_symbol_injective.
+            apply H. apply H1. easy. }
+          econstructor; eauto.
+          * intros ix. edestruct (H8 ix) as (vx & Hvx & Hrx).
+            exists vx. split; eauto.
+            erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
+            erewrite Mem.load_store_other; eauto.
+          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+            eapply Mem.perm_store_1; eauto.
+        + erewrite Mem.nextblock_store. 2: apply Hm''.
+          erewrite Mem.nextblock_store; eauto.
       }
       reflexivity.
   Qed.
@@ -610,39 +586,19 @@ Section BQ.
     unfold compose. cbn. unfold rc_adj_right. cbn.
     inf_intro ar. inf_intro x. destruct x as [ ? ? c_m [ mm ] ].
     destruct c_m as [vf sg args].
-    inf_intro x. destruct x as [ Rp Hr ]. cbn.
-    intm. inf_intro ar'. inf_intro q. destruct q as [ q ].
-    inf_intro x. destruct x as [ Rc Hc ]. cbn.
-    intm. simple inversion Hc. intros. depsubst.
-    inv H3. inv H5. clear Hc H2 H4. rename H1 into HRc.
-
-    destruct Hr as (Rx & Hr & Hsub). inversion Hr; clear Hr.
-    depsubst. clear H H0 H6 H7.
-    rename H2 into HRev. rename H13 into HRst.
-
-    destruct HRev as (Rev & HRev & Hx).
-    destruct HRst as (Rst & HRst & Hy).
-    inv HRst. depsubst.
+    inf_intro x. destruct x as [ Rp Hr ]. cbn. intm.
+    inf_intro ar'. inf_intro q. destruct q as [ q ].
+    inf_intro x. destruct x as [ Rc Hc ]. cbn. intm.
+    rc_inversion Hc. depsubst. inv H. inv H0. clear Hrel. rename Hsub into HRc.
+    rc_inversion Hr. depsubst. clear_hyp. clear Hrel.
+    rename H2 into HRev. rename H13 into HRst. rename Hsub into HRp.
+    rc_elim (inv) HRst. depsubst.
     unfold fsup. setoid_rewrite Sup.mor.
     setoid_rewrite FCD.ext_ana. cbn.
     rewrite <- Sup.mor.
-    inv HRev; depsubst.
-
-    (* simple inversion Hr. *)
-    (* apply type_pair_des in H2. inv H2. *)
-    (* apply type_pair_des in H4. inv H4. *)
-    (* depsubst. inv H3. inv H5. *)
-    (* depsubst. cbn. intros HRev HRst HRp. *)
-    (* simple inversion HRst. depsubst. clear H1 H3 Hr. inv H2. inv H4. *)
-    (* clear HRst. intros HRst HRx. *)
-    (* unfold fsup. setoid_rewrite Sup.mor. *)
-    (* setoid_rewrite FCD.ext_ana. cbn. *)
-    (* rewrite <- Sup.mor. *)
-    (* simple inversion HRev; intros; depsubst; clear HRev. *)
-
+    rc_elim (inv) HRev; depsubst; clear_hyp.
     (* enq *)
-    - clear H H0 H7.
-      rename H10 into Hb. rename H11 into Hv. rename H3 into HRst.
+    - rename H10 into Hb. rename H11 into Hv. rename H3 into HRst.
       edestruct inc2_block as (inc2b & Hb1 & Hb2).
       edestruct set_block as (setb & Hb3 & Hb4).
       setoid_rewrite sup_sup.
@@ -670,9 +626,7 @@ Section BQ.
       rewrite !Sup.mor. eapply (sup_at _).
       unfold fsup. rewrite !Sup.mor. eapply (sup_at (exist _ _ _)). cbn.
       Unshelve.
-      5: { cbn. constructor; try reflexivity.
-           instantiate (1 := (fun '(r, m) (c_r : c_reply) => c_r = cr r m)).
-           reflexivity. }
+      5: { cbn. rc_econstructor; reflexivity. }
       intm.
       rewrite !Sup.mor. eapply (sup_at _).
       rewrite !Sup.mor. eapply (sup_at _).
@@ -680,9 +634,8 @@ Section BQ.
       Unshelve.
       5: {
         cbn. rc_econstructor.
-        (* fix here *)
-        - eexists. split. 2: reflexivity. eapply rb_inc2_rel; eauto.
-        - rc_econstructor.
+        - rc_eapply rb_inc2_rel; eauto.
+        - rc_econstructor; eauto.
       }
       unfold ISpec.int at 2 6.
       rewrite !Sup.mor. apply sup_iff. intros ons. apply (sup_at ons).
@@ -724,10 +677,7 @@ Section BQ.
       rewrite !Sup.mor. eapply (sup_at _).
       rewrite !Sup.mor. eapply (sup_at (exist _ _ _)). cbn.
       Unshelve.
-      5: {
-        cbn. constructor; try reflexivity.
-        instantiate (1 := (fun '(r, m) (c_r : c_reply) => c_r = cr r m)). reflexivity.
-      }
+      5: { cbn. rc_econstructor; reflexivity. }
       intm.
       rewrite !Sup.mor. eapply (sup_at _).
       rewrite !Sup.mor. eapply (sup_at _).
@@ -781,15 +731,10 @@ Section BQ.
       setoid_rewrite FCD.ext_ana. cbn.
       eapply (sup_at (exist _ (_, _) _)).
       Unshelve.
-      4: {
-        cbn. apply Hsub. split; eauto.
-        (* fix here: hint constructor *)
-        apply Hx. constructor.
-      }
+      4: { cbn. apply HRp. split; eauto. }
       cbn. reflexivity.
     (* deq *)
-    - clear H H0 H8.
-      rename H10 into Hb. rename H3 into HRst.
+    - rename H10 into Hb. rename H3 into HRst.
       edestruct inc1_block as (inc1b & Hb1 & Hb2).
       edestruct get_block as (getb & Hb3 & Hb4).
       (* initial_state *)
@@ -818,9 +763,7 @@ Section BQ.
       rewrite !Sup.mor. eapply (sup_at _).
       unfold fsup. rewrite !Sup.mor. eapply (sup_at (exist _ _ _)). cbn.
       Unshelve.
-      5: { cbn. constructor; try reflexivity.
-           instantiate (1 := (fun '(r, m) (c_r : c_reply) => c_r = cr r m)).
-           reflexivity. }
+      5: { cbn. rc_econstructor; reflexivity. }
       intm.
       rewrite !Sup.mor. eapply (sup_at _).
       rewrite !Sup.mor. eapply (sup_at _).
@@ -828,9 +771,8 @@ Section BQ.
       Unshelve.
       5: {
         cbn. rc_econstructor.
-        - eexists. split. 2: reflexivity.
-          eapply rb_inc1_rel; eauto.
-        - rc_econstructor.
+        - rc_eapply rb_inc1_rel; eauto.
+        - rc_econstructor. eauto.
       }
       unfold ISpec.int at 2 6.
       rewrite !Sup.mor. apply sup_iff. intros ons. apply (sup_at ons).
@@ -872,11 +814,7 @@ Section BQ.
       rewrite !Sup.mor. eapply (sup_at _).
       rewrite !Sup.mor. eapply (sup_at (exist _ _ _)). cbn.
       Unshelve.
-      5: {
-        cbn. constructor; try reflexivity.
-        instantiate (1 := (fun '(r, m) (c_r : c_reply) => c_r = cr r m)).
-        reflexivity.
-      }
+      5: { cbn. rc_econstructor; reflexivity. }
       intm.
       rewrite !Sup.mor. eapply (sup_at _).
       rewrite !Sup.mor. eapply (sup_at _).
@@ -930,7 +868,7 @@ Section BQ.
       setoid_rewrite FCD.ext_ana. cbn.
       eapply (sup_at (exist _ (_, _) _)).
       Unshelve.
-      4: { cbn. apply Hsub. split; eauto. }
+      4: { cbn. apply HRp. split; eauto. }
       cbn. reflexivity.
   Qed.
 

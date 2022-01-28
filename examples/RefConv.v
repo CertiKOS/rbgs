@@ -2,11 +2,10 @@ From Coq Require Import
      Relations RelationClasses
      FunctionalExtensionality
      PropExtensionality.
+Require Import IntSpec.
 From structures Require Import
      Effects Lattice.
-
 Require Import LanguageInterface.
-Require Import IntSpec.
 From lattices Require Import
      Upset Downset FCD.
 Import ISpec.
@@ -159,47 +158,30 @@ Qed.
 
 Coercion normalize_rc: rc_rel >-> refconv.
 
-Tactic Notation "rc_destruct" hyp(H) :=
+Tactic Notation "rc_elim" tactic(tac) hyp(H) :=
   match type of H with
   | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
       let R := fresh "R" in
       let Hrel := fresh "Hrel" in
       let Hsub := fresh "Hsub" in
-      destruct H as (R & Hrel & Hsub); destruct Hrel
+      destruct H as (R & Hrel & Hsub); tac Hrel
   end.
+Ltac destr H := destruct H.
+Tactic Notation "rc_destruct" hyp(H) := rc_elim (destr) H.
+Ltac destr_pat p H := destruct H as p.
+Tactic Notation "rc_destruct" hyp(H) "as" simple_intropattern(p) := rc_elim (destr_pat p) H.
+Ltac inver H := inversion H.
+Tactic Notation "rc_inversion" hyp(H) := rc_elim (inver) H.
+Ltac inver_pat p H := inversion H as p.
+Tactic Notation "rc_inversion" hyp(H) "as" simple_intropattern(p) := rc_elim (inver_pat p) H.
 
-Tactic Notation "rc_destruct" hyp(H) "as" simple_intropattern(p) :=
-  match type of H with
-  | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
-      let R := fresh "R" in
-      let Hrel := fresh "Hrel" in
-      let Hsub := fresh "Hsub" in
-      destruct H as (R & Hrel & Hsub); destruct Hrel as p
-  end.
-
-Tactic Notation "rc_inversion" hyp(H) :=
-  match type of H with
-  | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
-      let R := fresh "R" in
-      let Hrel := fresh "Hrel" in
-      let Hsub := fresh "Hsub" in
-      destruct H as (R & Hrel & Hsub); inversion Hrel; depsubst
-  end.
-
-Tactic Notation "rc_inversion" hyp(H) "as" simple_intropattern(p) :=
-  match type of H with
-  | refconv_rel _ _ (normalize_rc _) _ _ _ _ _ =>
-      let R := fresh "R" in
-      let Hrel := fresh "Hrel" in
-      let Hsub := fresh "Hsub" in
-      destruct H as (R & Hrel & Hsub); inversion Hrel as p; depsubst
-  end.
-
-Tactic Notation "rc_econstructor" :=
+Tactic Notation "rc_intro" tactic(tac) :=
   match goal with
   | [ |- refconv_rel _ _ (normalize_rc _) _ _ _ _ ?R ] =>
-      exists R; split; [ econstructor | reflexivity ]; eauto
+      exists R; split; [ tac | reflexivity ]
   end.
+Ltac rc_econstructor := rc_intro econstructor.
+Ltac rc_eapply H := rc_intro (eapply H).
 
 (** *** Categorical Structures of Refinment Conventions *)
 Inductive rc_id {E} : rc_rel E E :=
@@ -220,7 +202,7 @@ Proof.
     intros x y Hxy. apply Hsub.
     eexists; split; eauto.
   - rewrite <- (rel_compose_id_right R1).
-    rc_econstructor. rc_econstructor.
+    rc_econstructor; eauto. rc_econstructor.
 Qed.
 
 Definition rc_compose_id_r {E F} (rc: E <=> F): rc_compose rc rc_id = rc.
@@ -275,15 +257,15 @@ Proof.
     rc_destruct H as  [ ? ? ? ? ? ? Ra Rb ].
     rc_destruct H0 as  [ ? ? ? ? ? ? Rc Rd ].
     exists (rel_compose (Ra * Rc) (Rb * Rd)). split.
-    + rc_econstructor; rc_econstructor.
+    + rc_econstructor; rc_econstructor; eauto.
     + rewrite <- rel_prod_compose.
       etransitivity; eauto.
       apply prod_subrel; eauto.
   - rc_destruct H.
     rc_destruct H as [ ? ? ? ? ? ? ? ? Ra Rb ].
-    rc_inversion H0 as [ ? ? ? ? ? ? ? ? Rc Rd ].
+    rc_inversion H0 as [ ? ? ? ? ? ? ? ? Rc Rd ]. depsubst.
     exists ((rel_compose Ra Rc) * (rel_compose Rb Rd))%rel. split.
-    + rc_econstructor; rc_econstructor.
+    + rc_econstructor; rc_econstructor; eauto.
     + rewrite rel_prod_compose.
       etransitivity; eauto.
       apply rel_compose_subrel; eauto.
@@ -367,7 +349,7 @@ Section PROPS.
       apply sup_iff. intros [ R' Hr' ].
       apply (sup_at ar3). apply (sup_at m3).
       eapply (sup_at (exist _ (fun x z => exists y, R' x y /\ R y z) _)).
-      cbn. Unshelve. 2: { cbn. rc_econstructor. }
+      cbn. Unshelve. 2: { cbn. rc_econstructor; eauto. }
       unfold int at 2. rewrite !Sup.mor.
       apply sup_iff. intros [ n3 | ].
       + setoid_rewrite FCD.ext_ana. cbn.

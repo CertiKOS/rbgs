@@ -24,54 +24,27 @@ Unset Asymmetric Patterns.
 Inductive c_esig : esig :=
 | c_event : val -> signature -> list val -> c_esig val.
 
-Inductive c_rc_rel: rc_rel (c_esig # mem) li_c :=
-| c_rc_rel_intro vf sg args e_c e_s m R:
+Inductive c_rc: rc_rel (c_esig # mem) li_c :=
+| c_rc_intro vf sg args e_c e_s m:
+  let R := (fun '(r, m) c_r => c_r = cr r m) in
   e_c = c_event vf sg args -> e_s = state_event m ->
-  subrel (fun '(r, m) c_r => c_r = cr r m) R ->
-  c_rc_rel _ (esig_tens_intro e_c e_s) _ (li_sig (cq vf sg args m)) R.
-
-Program Definition c_rc : (c_esig # mem) <=> li_c :=
-  {|
-    refconv_rel := c_rc_rel;
-  |}.
-Next Obligation.
-  intros x y Hxy H. destruct H.
-  econstructor; eauto. etransitivity; eauto.
-Qed.
+  c_rc _ (esig_tens_intro e_c e_s) _ (li_sig (cq vf sg args m)) R.
 
 (** Some auxiliary definitions *)
 Definition overlay_rc {E: esig} {S1 S2: Type} (rc: E <=> c_esig) (rel: S2 -> mem * S1 -> Prop):
   E # S2 <=> c_esig # (mem * S1)%type := rc * rel_rc rel.
 
-Inductive lts_state_rc_rel {S: Type}: rc_rel (c_esig # (mem * S)) (li_c @ S)%li :=
-| lts_state_rc_rel_intro vf sg args m s R (qs: query (li_c @ S)) qe:
+Inductive lts_state_rc {S: Type}: rc_rel (c_esig # (mem * S)) (li_c @ S)%li :=
+| lts_state_rc_intro vf sg args m s (qs: query (li_c @ S)) qe:
+  let R := (fun '(r, (m, s)) '(r', s') => r' = cr r m /\ s = s') in
   qs = (cq vf sg args m, s) ->
   qe = st (c_event vf sg args) (m, s) ->
-  subrel (fun '(r, (m, s)) '(r', s') => r' = cr r m /\ s = s') R ->
-  lts_state_rc_rel _ qe _ (li_sig qs) R.
+  lts_state_rc _ qe _ (li_sig qs) R.
 
-Program Definition lts_state_rc {S: Type} : c_esig # (mem * S) <=> (li_c @ S)%li :=
-  {|
-    refconv_rel := lts_state_rc_rel;
-  |}.
-Next Obligation.
-  intros x y Hxy H. destruct H.
-  econstructor; eauto. etransitivity; eauto.
-Qed.
-
-Inductive st_mem_rc_rel {S: Type}: rc_rel (s_esig S) (s_esig (mem * S)) :=
-| st_mem_rc_rel_intro s m R:
-  subrel (fun s' '(m', t') => s' = t' /\ m = m') R ->
-  st_mem_rc_rel _ (state_event s) _ (state_event (m, s)) R.
-
-Program Definition st_mem_rc {S: Type}: s_esig S <=> s_esig (mem * S) :=
-  {|
-    refconv_rel := st_mem_rc_rel;
-  |}.
-Next Obligation.
-  intros x y Hxy H. destruct H.
-  constructor. etransitivity; eauto.
-Qed.
+Inductive st_mem_rc {S: Type}: rc_rel (s_esig S) (s_esig (mem * S)) :=
+| st_mem_rc_intro s m:
+  let R := (fun s' '(m', t') => s' = t' /\ m = m') in
+  st_mem_rc _ (state_event s) _ (state_event (m, s)) R.
 
 Definition underlay_rc {E: esig} {S: Type} (rc: E <=> c_esig):
   E # S <=> c_esig # (mem * S) := rc * st_mem_rc.
