@@ -72,44 +72,6 @@ End MARSHALL.
 
 Hint Constructors cal_nat_rel cal_void_rel.
 
-(* TODO: move this to other files *)
-Ltac fcd_simpl :=
-  repeat (setoid_rewrite FCD.ext_ana; cbn).
-
-Lemma fsup_mor {L M: cdlattice} {f: L -> M} `{Sup.Morphism _ _ f}:
-  forall {I} (P : I -> Prop) (M: I -> L), f (sup {x | P x}, M x) = sup {x | P x}, f (M x).
-Proof. intros. unfold fsup. eapply Sup.mor. Qed.
-
-Lemma finf_mor {L M: cdlattice} {f: L -> M} `{Inf.Morphism _ _ f}:
-  forall {I} (P : I -> Prop) (M: I -> L), f (inf {x | P x}, M x) = inf {x | P x}, f (M x).
-Proof. intros. unfold finf. eapply Inf.mor. Qed.
-
-Lemma sup_fsup {L: cdlattice} {I J: Type} (P: J -> Prop) (c: I -> J -> L):
-  sup i, sup {j | P j}, c i j = sup {j | P j}, sup i, c i j.
-Proof. unfold fsup. apply sup_sup. Qed.
-
-Ltac sup_mor :=
-  rewrite !Sup.mor || rewrite !fsup_mor || rewrite !Sup.mor_join || rewrite Sup.mor_bot ||
-  setoid_rewrite Sup.mor || setoid_rewrite fsup_mor || setoid_rewrite Sup.mor_join.
-
-Ltac inf_mor :=
-  rewrite !Inf.mor || rewrite !finf_mor || rewrite !Inf.mor_meet ||
-  setoid_rewrite Inf.mor || setoid_rewrite finf_mor || setoid_rewrite Inf.mor_meet.
-
-Lemma finf_iff {L: cdlattice} {I} (P: I -> Prop) (M: I -> L) x:
-  x [= inf { j | P j}, M j <-> forall i: { j | P j }, x [= M (proj1_sig i).
-Proof. unfold finf. apply inf_iff. Qed.
-
-Lemma fsup_iff {L: cdlattice} {I} (P: I -> Prop) (M: I -> L) x:
-  sup { j | P j}, M j [= x <-> forall i: { j | P j }, M (proj1_sig i) [= x.
-Proof. unfold fsup. apply sup_iff. Qed.
-
-Tactic Notation "inf_intro" simple_intropattern(p) :=
-  inf_mor; (apply finf_iff || apply inf_iff) ; intros p; cbn.
-
-Tactic Notation "sup_intro" simple_intropattern(p) :=
-  sup_mor; (apply fsup_iff || apply sup_iff) ; intros p; cbn.
-
 Local Opaque fsup finf.
 Local Opaque semantics2 normalize_rc.
 
