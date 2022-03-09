@@ -308,8 +308,8 @@ Section FSIM.
   Context {state1 state2: Type}.
   Context (L1: lts liA1 liB1 state1) (L2: lts liA2 liB2 state2).
   Context (index: Type) (order: index -> index -> Prop)
-          (match_states: index -> state1 -> state2 -> Prop).
-  Hypothesis FSIM: forall wB, fsim_properties ccA ccB se1 se2 wB L1 L2 index order match_states.
+          (match_states: Genv.symtbl -> Genv.symtbl -> ccworld ccB ->index -> state1 -> state2 -> Prop).
+  Hypothesis FSIM: forall wB, fsim_properties ccA ccB se1 se2 wB L1 L2 index order (match_states se1 se2 wB).
 
   Lemma ang_fsim_embed:
     ang_lts_spec L1 [= (cc_right ccB) @ ang_lts_spec L2 @ (cc_left ccA).
@@ -337,7 +337,7 @@ Section FSIM.
     - apply sup_iff. intros [s1' Hstep]. cbn.
       rewrite !Sup.mor_join.
       apply join_l. apply join_l.
-      assert (exists i s2', Star L2 s2 E0 s2' /\ match_states i s1' s2') as (i' & s2' & Hstep2 & Hs').
+      assert (exists i s2', Star L2 s2 E0 s2' /\ match_states se1 se2 wB i s1' s2') as (i' & s2' & Hstep2 & Hs').
       {
         revert i s2 Hs. pattern s1, s1'. eapply star_E0_ind; eauto; clear s1 s1' Hstep.
         - intros s1 i s2 Hs. exists i, s2; split; eauto using star_refl.
@@ -410,6 +410,26 @@ Section FSIM.
   Qed.
 
 End FSIM.
+
+Section SEM.
+
+  Context {liA1 liA2} (ccA: callconv liA1 liA2).
+  Context {liB1 liB2} (ccB: callconv liB1 liB2).
+  Context (L1: semantics liA1 liB1) (L2: semantics liA2 liB2).
+  Context (se: Genv.symtbl).
+
+  Hypothesis FSIM: forward_simulation ccA ccB L1 L2.
+  Hypothesis HSE: forall wB, match_senv ccB wB se se.
+  Hypothesis HSK: Genv.valid_for (skel L1) se.
+
+  Lemma ang_fsim_embed':
+    ang_lts_spec (L1 se) [= (cc_right ccB) @ ang_lts_spec (L2 se) @ (cc_left ccA).
+  Proof.
+    pose proof (ang_fsim_embed ccA ccB).
+    destruct FSIM as [ [ ] ]. eapply H.
+  Abort.
+
+End SEM.
 
 Require Import compcert.common.CategoricalComp.
 

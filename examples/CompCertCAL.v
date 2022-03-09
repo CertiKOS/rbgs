@@ -58,8 +58,6 @@ Definition st_comm {E: esig} {S1 S2: Type}: rc_rel (E#(S1*S2)) (E#(S2*S1)) :=
 Definition st_assoc {E: esig} {S1 S2 S3: Type}: rc_rel (E#(S1*(S2*S3))) (E#(S1*S2*S3)) :=
   (rc_id * rel_rc assoc)%rc.
 
-Inductive empty_rc {A: Type}: rc_rel 0 (0#A) := .
-
 (** Using type inference to make twisting on types more ergonomic *)
 Class StrategyHelper E F := h: E ~> F.
 
@@ -114,29 +112,81 @@ End COMP.
 
 Require Import compcertox.KRel.
 
-Record clight_layer {S1 S2} (L1: 0 ~> (li_c @ S1)%li) (L2: 0 ~> (li_c @ S2)%li) :=
+Record clight_layer {S1 S2} (L1: _ -> 0 ~> (li_c @ S1)%li) (L2: _ -> 0 ~> (li_c @ S2)%li) :=
   {
     clight_impl: cmodule;
     clight_sk: AST.program unit unit;
     clight_rel: krel S1 S2;
 
+    clight_sk_order: skel_module_compatible clight_impl clight_sk;
     clight_layer_ref se:
       let MS := ang_lts_spec (((semantics clight_impl clight_sk) @ S1)%lts se)
-      in L2 [= right_arrow (krel_kcc clight_rel se) @ MS @ L1;
+      in (L2 se) [= right_arrow clight_rel @ MS @ (L1 se);
   }.
 Arguments clight_impl {_ _ _ _}.
 Arguments clight_sk {_ _ _ _}.
 Arguments clight_rel {_ _ _ _}.
+Arguments clight_sk_order {_ _ _ _}.
 Arguments clight_layer_ref {_ _ _ _}.
+
+Lemma cmodule_krel' {K1 K2} (R: @krel' K2 K1) M sk:
+  forward_simulation (krel_kcc R) (krel_kcc R)
+                     (semantics M sk @ K1) (semantics M sk @ K2).
+Proof.
+Admitted.
+
+Lemma cmodule_rel {S1 S2} M sk R se:
+  ang_lts_spec (lifted_lts S2 ((semantics M sk) se)) @ rc_adj_right (krel_kcc R) [=
+    rc_adj_right (krel_kcc R) @ ang_lts_spec (lifted_lts S1 ((semantics M sk) se)).
+Proof.
+  pose proof (@ang_fsim_embed).
+  specialize (H _ _ (krel_kcc R) _ _ (krel_kcc R)).
+  specialize (H se se _ _ (lifted_lts S2 ((semantics M sk) se))
+                (lifted_lts S1 ((semantics M sk) se))).
+  pose proof (@cmodule_krel').
+  specialize (H0 _ _ R M sk).
+  destruct H0. destruct X.
+  rewrite H.
+  2: {
+    intros wB.
+    replace (lifted_lts S2 ((semantics M sk) se))
+      with (lifted_semantics S2 (semantics M sk) se) by reflexivity.
+    replace (lifted_lts S1 ((semantics M sk) se))
+      with (lifted_semantics S1 (semantics M sk) se) by reflexivity.
+    eapply fsim_lts.
+  }
+Admitted.
+
+Section CAT_APP.
+  Context {M N sk1 sk2}
+          `{!CategoricalComp.CategoricalLinkable (semantics M sk1) (semantics N sk2)}.
+
+  Lemma cmodule_categorical_comp_simulation sk:
+    forward_simulation 1 1
+    (CategoricalComp.comp_semantics' (semantics M sk1) (semantics N sk2) sk) (semantics (M ++ N) sk).
+  Proof.
+    etransitivity.
+    2: { apply cmodule_categorical_comp_simulation.
+         unfold CategoricalComp.CategoricalLinkable in *.
+         cbn in *. apply H. }
+    etransitivity.
+    2: { apply lift_comp_component. }
+    instantiate (1 := sk2).
+    instantiate (1 := sk1).
+    unfold skel_extend. reflexivity.
+  Qed.
+End CAT_APP.
 
 (** *** Composition *)
 Section COMP.
 
   Context {S1 S2 S3}
-          (L1: 0 ~> (li_c @ S1)%li) (L2: 0 ~> (li_c @ S2)%li) (L3: 0 ~> (li_c @ S3)%li)
-          (C1: clight_layer L1 L2) (C2: clight_layer L2 L3)
-          sk (Hsk1: Linking.linkorder (clight_sk C1) sk)
-          (Hsk2: Linking.linkorder (clight_sk C2) sk).
+          (L1: _ -> 0 ~> (li_c @ S1)%li)
+          (L2: _ -> 0 ~> (li_c @ S2)%li)
+          (L3: _ -> 0 ~> (li_c @ S3)%li)
+          (C1: clight_layer L1 L2) (C2: clight_layer L2 L3).
+  Context (sk: AST.program unit unit)
+          (Hsk: Linking.link (clight_sk C2) (clight_sk C1) = Some sk).
 
   Local Obligation Tactic := idtac.
 
@@ -145,9 +195,38 @@ Section COMP.
     {|
       clight_impl := clight_impl C1 ++ clight_impl C2;
       clight_sk := sk;
-      clight_rel := krel_comp (clight_rel C1) (clight_rel C2);
+      clight_rel := krel_compose (clight_rel C1) (clight_rel C2);
     |}.
   Next Obligation.
+  Admitted.
+  Next Obligation.
+    destruct C1 as [M1 sk1 R1 Hsk1 Hsim1].
+    destruct C2 as [M2 sk2 R2 Hsk2 Hsim2].
+    Local Opaque LatticeProduct.poset_prod.
+    cbn -[semantics] in *. intros se.
+    specialize (Hsim1 se). specialize (Hsim2 se).
+    etransitivity. apply Hsim2. clear Hsim2.
+    rewrite Hsim1. clear Hsim1.
+    rewrite <- (compose_assoc _ (rc_adj_right R1) _).
+    rewrite cmodule_rel. rewrite compose_assoc.
+    rewrite <- (compose_assoc _ (rc_adj_right R1) _).
+    apply compose_proper_ref.
+    {
+      rewrite rc_adj_right_compose.
+      unfold cc_refconv. rewrite cc_rc_compose. reflexivity.
+    }
+    rewrite <- compose_assoc.
+    apply compose_proper_ref. 2: reflexivity.
+    replace (lifted_lts S1 ((semantics M2 sk2) se))
+      with (lifted_semantics S1 (semantics M2 sk2) se) by reflexivity.
+    replace (lifted_lts S1 ((semantics M1 sk1) se))
+      with (lifted_semantics S1 (semantics M1 sk1) se) by reflexivity.
+    replace (lifted_lts S1 ((semantics (M1 ++ M2) sk) se))
+      with (lifted_semantics S1 (semantics (M1 ++ M2) sk) se) by reflexivity.
+    erewrite (comp_embed (semantics M2 sk2 @ S1)%lts (semantics M1 sk1 @ S1)%lts).
+    2: { unfold CategoricalComp.comp_semantics. cbn. rewrite Hsk. reflexivity. }
+
+    pose proof ang_fsim_embed.
   Admitted.
 
 End COMP.
@@ -394,17 +473,17 @@ Section STRATEGY_REF.
   Record strategy_clight {E1 E2 U} (Sigma: E1 ~> E2 # U) :=
     {
       rho : rho_rel U;
-      r1 : esig_rc E1;
-      r2 : esig_rc E2;
+      r1 se : esig_rc E1;
+      r2 se : esig_rc E2;
       M: cmodule;
       sk : AST.program unit unit;
 
       strategy_clight_ref se:
         left_arrow c_rc
         @ left_arrow (rc_id * rel_rc (rho_ext _ rho se))
-        @@ slift (left_arrow r2)
+        @@ slift (left_arrow (r2 se))
         @ Sigma
-        @ right_arrow r1
+        @ right_arrow (r1 se)
         @ right_arrow c_rc
         [= ang_lts_spec (semantics M sk se)
     }.
@@ -463,11 +542,11 @@ Section COMPILE_LAYER.
           (st_layer: strategy_layer U L1 L2).
   Context (st_clight: strategy_clight (strategy_impl st_layer)).
 
-  Definition Lc1: 0 ~> (li_c @ S1)%li :=
-    left_arrow c_mem_state_rc @@ slift (left_arrow (r1 _ st_clight)) @ L1.
+  Definition Lc1 se: 0 ~> (li_c @ S1)%li :=
+    left_arrow c_mem_state_rc @@ slift (left_arrow (r1 _ st_clight se)) @ L1.
 
-  Definition Lc2: 0 ~> (li_c @ S2)%li :=
-    left_arrow c_mem_state_rc @@ slift (left_arrow (r2 _ st_clight)) @ L2.
+  Definition Lc2 se: 0 ~> (li_c @ S2)%li :=
+    left_arrow c_mem_state_rc @@ slift (left_arrow (r2 _ st_clight se)) @ L2.
 
   Local Obligation Tactic := idtac.
   Local Opaque semantics.
@@ -484,7 +563,7 @@ Section COMPILE_LAYER.
     destruct st_layer as [ Sigma R strategy_layer_ref ].
     Local Opaque LatticeProduct.poset_prod.
     cbn in *. intros se. specialize (strategy_clight_ref se).
-    pose proof (rel_ref R rho r2 se). unfold lhs, rhs in H. cbn in *.
+    pose proof (rel_ref R rho (r2 se) se). unfold lhs, rhs in H. cbn in *.
     rewrite <- H. clear H.
     rewrite <- lift_lts_ref.
     rewrite strategy_layer_ref. clear strategy_layer_ref.
@@ -518,7 +597,8 @@ Section COMPILE_LAYER.
       setoid_rewrite <- (compose_assoc _ (_ @ _)).
       setoid_rewrite <- (compose_assoc _ (_ @ _)).
       etransitivity.
-      instantiate (1 := slift (rc_adj_right r2) @ rc_adj_right sig_assoc @ slift (slift (rc_adj_left r2))).
+      instantiate (1 := slift (rc_adj_right (r2 se)) @
+                              rc_adj_right sig_assoc @ slift (slift (rc_adj_left (r2 se)))).
       2: {
         apply compose_proper_ref. reflexivity.
         apply compose_proper_ref. 2: reflexivity.
@@ -683,11 +763,6 @@ Section PARAMETRICITY.
   Qed.
 
 End PARAMETRICITY.
-
-Definition slift' {E F: esig} {U S: Type} (f: E#U ~> F#U) : E#(U*S) ~> F#(U*S) :=
-  right_arrow sig_assoc @ slift f @ left_arrow sig_assoc.
-Definition slift_layer {E: esig} {S U: Type} (f: 0 ~> E#S) : 0 ~> E#(U*S) :=
-  right_arrow st_comm @ right_arrow sig_assoc @ slift f @ left_arrow empty_rc.
 
 (*
 Lemma lift_strategy_simulation {E1 E2} {S1 S2 U} {L1: 0 ~> E1 # S1} {L2: 0 ~> E2 # S2}
