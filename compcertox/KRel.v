@@ -39,29 +39,30 @@ Arguments krel': clear implicits.
 Section KREL_KCC.
 
   Context {K1 K2} (R: krel' K2 K1).
+  Context (se: Genv.symtbl).
 
-  Inductive krel_kcc_query se: query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
+  Inductive krel_kcc_query: query (li_c @ K1) -> query (li_c @ K2) -> Prop :=
     krel_kcc_query_intro vf1 vf2 sg vargs1 vargs2 m1 m2 k1 k2:
       Val.inject inject_id vf1 vf2 -> Val.inject_list inject_id vargs1 vargs2 ->
       Mem.extends m1 m2 -> vf1 <> Vundef -> no_perm_on m1 (blocks se (krel_footprint R)) ->
       krel_pred R se k1 (m2, k2) ->
-      krel_kcc_query se (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
-  Inductive krel_kcc_reply se: reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
+      krel_kcc_query (cq vf1 sg vargs1 m1, k1) (cq vf2 sg vargs2 m2, k2).
+  Inductive krel_kcc_reply: reply (li_c @ K1) -> reply (li_c @ K2) -> Prop :=
     krel_kcc_reply_intro vres1 m1 vres2 m2 k1 k2:
       Val.inject inject_id vres1 vres2 ->
       Mem.extends m1 m2 -> no_perm_on m1 (blocks se (krel_footprint R)) ->
       krel_pred R se k1 (m2, k2) ->
-      krel_kcc_reply se (cr vres1 m1, k1) (cr vres2 m2, k2).
+      krel_kcc_reply (cr vres1 m1, k1) (cr vres2 m2, k2).
 
   (* Instance symtbl_kf: KripkeFrame unit Genv.symtbl := *)
   (*   {| acc _ := eq; |}. *)
 
   Program Definition krel_kcc: callconv (li_c @ K1) (li_c @ K2) :=
     {|
-      ccworld := Genv.symtbl;
-      match_senv se := fun se1 se2 => se = se1 /\ se = se2;
-      match_query := krel_kcc_query;
-      match_reply := krel_kcc_reply;
+      ccworld := unit;
+      match_senv _ := fun se1 se2 => se = se1 /\ se = se2;
+      match_query _ := krel_kcc_query;
+      match_reply _ := krel_kcc_reply;
     |}.
   Next Obligation.
     inv H0. cbn. apply val_inject_id in H4. inv H4; easy.
@@ -75,6 +76,7 @@ End KREL_KCC.
 Ltac unchanged_implies_solve:=
   eapply Mem.unchanged_on_implies; [eauto | intros b ofs [v [? ?]]; eexists; eauto].
 
+(*
 Require Import CallconvAlgebra.
 Require Import Lia.
 
@@ -163,6 +165,7 @@ Section COMP.
   Abort.
 
 End COMP.
+ *)
 
 Module KCC.
 
@@ -346,11 +349,14 @@ Section SIMULATION.
     induction 1; try constructor; auto.
   Qed.
 
-  Lemma clight_sim p: forward_simulation (krel_kcc R) (krel_kcc R) (semantics2 p @ K1) (semantics2 p @ K2).
+  Lemma clight_sim se p:
+    forward_simulation (krel_kcc R se) (krel_kcc R se)
+                       (semantics2 p @ K1) (semantics2 p @ K2).
   Proof.
     constructor. econstructor; eauto. intros i. reflexivity.
     instantiate (1 := fun _ _ _ => _). cbn beta.
-    intros ? se w Hse Hse1. inv Hse. cbn -[semantics2] in *.
+    intros se1 se2 w Hse Hse1. inv Hse.
+    rename se2 into se. cbn -[semantics2] in *.
     pose (ms := fun '(s1, k1) '(s2, k2) =>
                   Clightrel.state_match (KCC.krel_cklr R) (KCC.kw se k1 k2) s1 s2).
     apply forward_simulation_step with (match_states := ms).
@@ -378,7 +384,7 @@ Section SIMULATION.
       + constructor; cbn; auto.
     - intros [s1 k1] [s2 k2] [q1 k1'] Hs Hext.
       inv Hext. cbn in *. subst k1'. inv H. inv Hs. inv H8.
-      eexists se, (_, _). repeat apply conj; cbn; eauto.
+      eexists tt, (_, _). repeat apply conj; cbn; eauto.
       + cbn. econstructor.
         exploit (@find_funct_inject p (KCC.krel_cklr R) (KCC.kw se k1 k2) (globalenv se p)).
         split; cbn; eauto.
@@ -411,16 +417,15 @@ Inductive krel: Type -> Type -> Type :=
 | krel_singleton {K1 K2} : krel' K1 K2 -> krel K1 K2
 | krel_compose {K1 K2 K3} : krel K1 K2 -> krel K2 K3 -> krel K1 K3.
 
-Fixpoint krel_cc {K1 K2} (rel: krel K1 K2): callconv (li_c @ K2) (li_c @ K1) :=
+Fixpoint krel_cc {K1 K2} (rel: krel K1 K2) se: callconv (li_c @ K2) (li_c @ K1) :=
   match rel with
-  | krel_singleton r => krel_kcc r
-  | krel_compose r1 r2 => (krel_cc r2) @ (krel_cc r1)
+  | krel_singleton r => krel_kcc r se
+  | krel_compose r1 r2 => (krel_cc r2 se) @ (krel_cc r1 se)
   end.
 
-Coercion krel_cc : krel >-> callconv.
-
-Lemma clight_krel {K1 K2} (R: krel K2 K1) p:
-  forward_simulation R R (Clight.semantics2 p @ K1) (Clight.semantics2 p @ K2).
+Lemma clight_krel {K1 K2} (R: krel K2 K1) se p:
+  forward_simulation (krel_cc R se) (krel_cc R se)
+                     (Clight.semantics2 p @ K1) (Clight.semantics2 p @ K2).
 Proof.
   induction R; simpl.
   - apply clight_sim.
@@ -429,10 +434,12 @@ Qed.
 
 Require Import SmallstepLinking.
 Require Import compcertox.CModule.
+Require Import CallconvAlgebra.
 
-Lemma cmodule_krel {K1 K2} (R: @krel K2 K1) M sk:
+Lemma cmodule_krel {K1 K2} (R: @krel K2 K1) M sk se:
   skel_module_compatible M sk ->
-  forward_simulation R R (semantics M sk @ K1) (semantics M sk @ K2).
+  forward_simulation (krel_cc R se) (krel_cc R se)
+                     (semantics M sk @ K1) (semantics M sk @ K2).
 Proof.
   intros Hsk.
 
@@ -450,6 +457,42 @@ Proof.
   - intros. induction M as [| p ps]; try easy.
     destruct i.
     + cbn. apply clight_krel.
+    + apply IHps.
+      unfold skel_module_compatible in *.
+      rewrite -> Forall_forall in *.
+      intros x Hx. apply Hsk. right. auto.
+  - intros. induction M as [| p ps]; try easy.
+    destruct i.
+    + cbn. unfold skel_module_compatible in *.
+      rewrite -> Forall_forall in *. apply Hsk.
+      left. auto.
+    + apply IHps.
+      unfold skel_module_compatible in *.
+      rewrite -> Forall_forall in *.
+      intros x Hx. apply Hsk. right. auto.
+Qed.
+
+Lemma cmodule_krel' {K1 K2} (R: @krel' K2 K1) M sk se:
+  skel_module_compatible M sk ->
+  forward_simulation (krel_kcc R se) (krel_kcc R se)
+                     (semantics M sk @ K1) (semantics M sk @ K2).
+Proof.
+  intros Hsk.
+
+  eapply open_fsim_ccref. apply cc_compose_id_left.
+  unfold flip. apply cc_compose_id_left.
+  eapply compose_forward_simulations.
+  apply lift_horizontal_comp1.
+
+  eapply open_fsim_ccref. apply cc_compose_id_right.
+  unfold flip. apply cc_compose_id_right.
+  eapply compose_forward_simulations.
+  2: { apply lift_horizontal_comp2. }
+
+  apply semantics_simulation'.
+  - intros. induction M as [| p ps]; try easy.
+    destruct i.
+    + cbn. apply clight_sim.
     + apply IHps.
       unfold skel_module_compatible in *.
       rewrite -> Forall_forall in *.

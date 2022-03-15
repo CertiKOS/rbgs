@@ -199,7 +199,7 @@ Section CC.
 
   (** We treat liB as the implementation. *)
   Context {liA liB} (cc: callconv liA liB).
-
+  Context (se1 se2: Genv.symtbl).
   (** Translate a low level liB to high level liA. The first choice is made
     angelically because 1) there is usually at most one abstract representation;
     2) a more refined computation includes behaviors on more abstract
@@ -256,6 +256,7 @@ Section CC.
       unfold int. apply (sup_at None). reflexivity.
   Qed.
 
+
   Lemma cc_eta: identity [= cc_right @ cc_left.
   Proof.
     intros ? [qa]. unfold identity, cc_left, cc_right, compose.
@@ -296,6 +297,62 @@ Section CC.
 
 End CC.
 
+Lemma cc_adj_righr_eqv {liA liB} (cc: callconv liA liB):
+  rc_adj_right cc = cc_right cc.
+Proof.
+  unfold rc_adj_right, cc_refconv, cc_right.
+  apply antisymmetry.
+  - cbn. intros ? [ qa ].
+    apply inf_iff. intros w.
+    apply inf_iff. intros [ qb Hq ]. cbn.
+    unfold query_int. eapply inf_at. eapply (inf_at (li_sig qb)).
+    eapply (finf_at (match_reply cc w)).
+    exists (match_reply cc w). split.
+    + constructor. auto.
+    + reflexivity.
+    + reflexivity.
+  - cbn. intros ? [ qa ].
+    apply inf_iff. intros ?. apply inf_iff. intros [ qb ].
+    apply inf_iff. intros [ Rr [Rr' [HRr Hsub]]]. cbn.
+    inv HRr. depsubst.
+    apply (inf_at w). apply (finf_at qb). auto.
+    unfold query_int. unfold int. sup_intro [rb|].
+    + fcd_simpl. apply join_lub.
+      * apply (sup_at None). fcd_simpl. reflexivity.
+      * apply (sup_at (Some rb)).
+        fcd_simpl. apply join_r. sup_intro [ ra Hr ].
+        eapply (fsup_at ra). apply Hsub. auto. cbn. reflexivity.
+    + fcd_simpl. apply (sup_at None). fcd_simpl. reflexivity.
+Qed.
+
+Lemma cc_adj_left_eqv {liA liB} (cc: callconv liA liB):
+  rc_adj_left cc = cc_left cc.
+Proof.
+  unfold rc_adj_left, cc_refconv, cc_left.
+  apply antisymmetry.
+  - cbn. intros ? [ qb ].
+    apply sup_iff. intros ?. apply sup_iff. intros [ qa ].
+    apply sup_iff. intros [ Rr [Rr' [HRr Hsub]]]. cbn.
+    inv HRr. depsubst.
+    apply (sup_at w). apply (fsup_at qa). auto.
+    unfold query_int. unfold int. sup_intro [ra|].
+    + fcd_simpl. apply join_lub.
+      * apply (sup_at None). fcd_simpl. reflexivity.
+      * apply (sup_at (Some ra)).
+        fcd_simpl. apply join_r. inf_intro [ rb Hr ].
+        eapply (finf_at rb). apply Hsub. auto. reflexivity.
+    + fcd_simpl. apply (sup_at None). fcd_simpl. reflexivity.
+  - cbn. intros ? [ qb ].
+    apply sup_iff. intros w.
+    apply sup_iff. intros [ qa Hq ]. cbn.
+    unfold query_int. eapply sup_at. eapply (sup_at (li_sig qa)).
+    eapply (fsup_at (match_reply cc w)).
+    exists (match_reply cc w). split.
+    + constructor. auto.
+    + reflexivity.
+    + reflexivity.
+Qed.
+
 (* Note: it's hard to imply the [esig] from the context, since
    higher-order unification is generally difficult, i.e. to imply [E] from [E X] *)
 
@@ -309,7 +366,8 @@ Section FSIM.
   Context (L1: lts liA1 liB1 state1) (L2: lts liA2 liB2 state2).
   Context (index: Type) (order: index -> index -> Prop)
           (match_states: Genv.symtbl -> Genv.symtbl -> ccworld ccB ->index -> state1 -> state2 -> Prop).
-  Hypothesis FSIM: forall wB, fsim_properties ccA ccB se1 se2 wB L1 L2 index order (match_states se1 se2 wB).
+  Hypothesis FSIM:
+    forall wB, fsim_properties ccA ccB se1 se2 wB L1 L2 index order (match_states se1 se2 wB).
 
   Lemma ang_fsim_embed:
     ang_lts_spec L1 [= (cc_right ccB) @ ang_lts_spec L2 @ (cc_left ccA).

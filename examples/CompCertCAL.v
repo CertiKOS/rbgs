@@ -112,41 +112,38 @@ End COMP.
 
 Require Import compcertox.KRel.
 
-Record clight_layer {S1 S2} (L1: _ -> 0 ~> (li_c @ S1)%li) (L2: _ -> 0 ~> (li_c @ S2)%li) :=
+Record clight_layer se {S1 S2} (L1: _ -> 0 ~> (li_c @ S1)%li) (L2: _ -> 0 ~> (li_c @ S2)%li) :=
   {
     clight_impl: cmodule;
     clight_sk: AST.program unit unit;
     clight_rel: krel S1 S2;
 
     clight_sk_order: skel_module_compatible clight_impl clight_sk;
-    clight_layer_ref se:
+    clight_layer_ref:
       let MS := ang_lts_spec (((semantics clight_impl clight_sk) @ S1)%lts se)
-      in (L2 se) [= right_arrow clight_rel @ MS @ (L1 se);
+      in (L2 se) [= right_arrow (krel_cc clight_rel se) @ MS @ (L1 se);
   }.
-Arguments clight_impl {_ _ _ _}.
-Arguments clight_sk {_ _ _ _}.
-Arguments clight_rel {_ _ _ _}.
-Arguments clight_sk_order {_ _ _ _}.
-Arguments clight_layer_ref {_ _ _ _}.
-
-Lemma cmodule_krel' {K1 K2} (R: @krel' K2 K1) M sk:
-  forward_simulation (krel_kcc R) (krel_kcc R)
-                     (semantics M sk @ K1) (semantics M sk @ K2).
-Proof.
-Admitted.
+Arguments clight_impl {_ _ _ _ _}.
+Arguments clight_sk {_ _ _ _ _}.
+Arguments clight_rel {_ _ _ _ _}.
+Arguments clight_sk_order {_ _ _ _ _}.
+Arguments clight_layer_ref {_ _ _ _ _}.
 
 Lemma cmodule_rel {S1 S2} M sk R se:
-  ang_lts_spec (lifted_lts S2 ((semantics M sk) se)) @ rc_adj_right (krel_kcc R) [=
-    rc_adj_right (krel_kcc R) @ ang_lts_spec (lifted_lts S1 ((semantics M sk) se)).
+  skel_module_compatible M sk ->
+  ang_lts_spec (lifted_lts S2 ((semantics M sk) se))
+  @ rc_adj_right (krel_cc R se)
+  [= rc_adj_right (krel_cc R se)
+  @ ang_lts_spec (lifted_lts S1 ((semantics M sk) se)).
 Proof.
-  pose proof (@ang_fsim_embed).
-  specialize (H _ _ (krel_kcc R) _ _ (krel_kcc R)).
-  specialize (H se se _ _ (lifted_lts S2 ((semantics M sk) se))
+  intro Hsk.
+  pose proof @ang_fsim_embed.
+  specialize (H _ _ (krel_cc R se) _ _ (krel_cc R se)
+                se se _ _
+                (lifted_lts S2 ((semantics M sk) se))
                 (lifted_lts S1 ((semantics M sk) se))).
-  pose proof (@cmodule_krel').
-  specialize (H0 _ _ R M sk).
-  destruct H0. destruct X.
-  rewrite H.
+  eapply @cmodule_krel in Hsk. rename Hsk into Hfsim.
+  destruct Hfsim. destruct X. rewrite H.
   2: {
     intros wB.
     replace (lifted_lts S2 ((semantics M sk) se))
@@ -154,7 +151,14 @@ Proof.
     replace (lifted_lts S1 ((semantics M sk) se))
       with (lifted_semantics S1 (semantics M sk) se) by reflexivity.
     eapply fsim_lts.
+    - clear. revert se wB. induction R; intros *.
+      + constructor; reflexivity.
+      + destruct wB as [ [x w1] w2 ].
+        constructor.
+    constructor; reflexivity.
+    admit.
   }
+  admit.
 Admitted.
 
 Section CAT_APP.
@@ -184,14 +188,15 @@ Section COMP.
           (L1: _ -> 0 ~> (li_c @ S1)%li)
           (L2: _ -> 0 ~> (li_c @ S2)%li)
           (L3: _ -> 0 ~> (li_c @ S3)%li)
-          (C1: clight_layer L1 L2) (C2: clight_layer L2 L3).
+          (se: Genv.symtbl)
+          (C1: clight_layer se L1 L2) (C2: clight_layer se L2 L3).
   Context (sk: AST.program unit unit)
           (Hsk: Linking.link (clight_sk C2) (clight_sk C1) = Some sk).
 
   Local Obligation Tactic := idtac.
 
   (* Embedded version of layer_vcomp] from Compsition.v *)
-  Program Definition clight_layer_compose: clight_layer L1 L3 :=
+  Program Definition clight_layer_compose: clight_layer se L1 L3 :=
     {|
       clight_impl := clight_impl C1 ++ clight_impl C2;
       clight_sk := sk;
@@ -203,11 +208,10 @@ Section COMP.
     destruct C1 as [M1 sk1 R1 Hsk1 Hsim1].
     destruct C2 as [M2 sk2 R2 Hsk2 Hsim2].
     Local Opaque LatticeProduct.poset_prod.
-    cbn -[semantics] in *. intros se.
-    specialize (Hsim1 se). specialize (Hsim2 se).
+    cbn -[semantics] in *.
     etransitivity. apply Hsim2. clear Hsim2.
     rewrite Hsim1. clear Hsim1.
-    rewrite <- (compose_assoc _ (rc_adj_right R1) _).
+    rewrite <- (compose_assoc _ (rc_adj_right (krel_cc R1 se)) _).
     rewrite cmodule_rel. rewrite compose_assoc.
     rewrite <- (compose_assoc _ (rc_adj_right R1) _).
     apply compose_proper_ref.
