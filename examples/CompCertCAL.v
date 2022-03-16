@@ -112,53 +112,36 @@ End COMP.
 
 Require Import compcertox.KRel.
 
-Record clight_layer se {S1 S2} (L1: _ -> 0 ~> (li_c @ S1)%li) (L2: _ -> 0 ~> (li_c @ S2)%li) :=
+Record clight_layer {S1 S2} (L1: _ -> 0 ~> (li_c @ S1)%li) (L2: _ -> 0 ~> (li_c @ S2)%li) :=
   {
     clight_impl: cmodule;
     clight_sk: AST.program unit unit;
     clight_rel: krel S1 S2;
 
     clight_sk_order: skel_module_compatible clight_impl clight_sk;
-    clight_layer_ref:
+    clight_layer_ref se:
       let MS := ang_lts_spec (((semantics clight_impl clight_sk) @ S1)%lts se)
-      in (L2 se) [= right_arrow (krel_cc clight_rel se) @ MS @ (L1 se);
+      in (L2 se) [= right_arrow (cc_adjunction_se clight_rel se se) @ MS @ (L1 se);
   }.
-Arguments clight_impl {_ _ _ _ _}.
-Arguments clight_sk {_ _ _ _ _}.
-Arguments clight_rel {_ _ _ _ _}.
-Arguments clight_sk_order {_ _ _ _ _}.
-Arguments clight_layer_ref {_ _ _ _ _}.
+Arguments clight_impl {_ _ _ _}.
+Arguments clight_sk {_ _ _ _}.
+Arguments clight_rel {_ _ _ _}.
+Arguments clight_sk_order {_ _ _ _}.
+Arguments clight_layer_ref {_ _ _ _}.
 
 Lemma cmodule_rel {S1 S2} M sk R se:
   skel_module_compatible M sk ->
-  ang_lts_spec (lifted_lts S2 ((semantics M sk) se))
-  @ rc_adj_right (krel_cc R se)
-  [= rc_adj_right (krel_cc R se)
-  @ ang_lts_spec (lifted_lts S1 ((semantics M sk) se)).
+  ang_lts_spec (lifted_lts S2 ((semantics M sk) se)) @ right_arrow (cc_adjunction_se R se se) [=
+    right_arrow (cc_adjunction_se R se se) @ ang_lts_spec (lifted_lts S1 ((semantics M sk) se)).
 Proof.
-  intro Hsk.
-  pose proof @ang_fsim_embed.
-  specialize (H _ _ (krel_cc R se) _ _ (krel_cc R se)
-                se se _ _
-                (lifted_lts S2 ((semantics M sk) se))
-                (lifted_lts S1 ((semantics M sk) se))).
-  eapply @cmodule_krel in Hsk. rename Hsk into Hfsim.
-  destruct Hfsim. destruct X. rewrite H.
-  2: {
-    intros wB.
-    replace (lifted_lts S2 ((semantics M sk) se))
-      with (lifted_semantics S2 (semantics M sk) se) by reflexivity.
-    replace (lifted_lts S1 ((semantics M sk) se))
-      with (lifted_semantics S1 (semantics M sk) se) by reflexivity.
-    eapply fsim_lts.
-    - clear. revert se wB. induction R; intros *.
-      + constructor; reflexivity.
-      + destruct wB as [ [x w1] w2 ].
-        constructor.
-    constructor; reflexivity.
-    admit.
-  }
-  admit.
+  intros H. eapply cmodule_krel in H.
+  eapply ang_fsim_embed' in H.
+  replace (lifted_lts S2 ((semantics M sk) se))
+    with ((semantics M sk @ S2)%lts se) by reflexivity.
+  replace (lifted_lts S1 ((semantics M sk) se))
+    with ((semantics M sk @ S1)%lts se) by reflexivity.
+  rewrite H. rewrite !compose_assoc.
+  setoid_rewrite @epsilon.
 Admitted.
 
 Section CAT_APP.
@@ -188,15 +171,14 @@ Section COMP.
           (L1: _ -> 0 ~> (li_c @ S1)%li)
           (L2: _ -> 0 ~> (li_c @ S2)%li)
           (L3: _ -> 0 ~> (li_c @ S3)%li)
-          (se: Genv.symtbl)
-          (C1: clight_layer se L1 L2) (C2: clight_layer se L2 L3).
+          (C1: clight_layer L1 L2) (C2: clight_layer L2 L3).
   Context (sk: AST.program unit unit)
           (Hsk: Linking.link (clight_sk C2) (clight_sk C1) = Some sk).
 
   Local Obligation Tactic := idtac.
 
   (* Embedded version of layer_vcomp] from Compsition.v *)
-  Program Definition clight_layer_compose: clight_layer se L1 L3 :=
+  Program Definition clight_layer_compose: clight_layer L1 L3 :=
     {|
       clight_impl := clight_impl C1 ++ clight_impl C2;
       clight_sk := sk;
@@ -208,10 +190,11 @@ Section COMP.
     destruct C1 as [M1 sk1 R1 Hsk1 Hsim1].
     destruct C2 as [M2 sk2 R2 Hsk2 Hsim2].
     Local Opaque LatticeProduct.poset_prod.
-    cbn -[semantics] in *.
+    cbn -[semantics] in *. intros se.
+    specialize (Hsim1 se). specialize (Hsim2 se).
     etransitivity. apply Hsim2. clear Hsim2.
     rewrite Hsim1. clear Hsim1.
-    rewrite <- (compose_assoc _ (rc_adj_right (krel_cc R1 se)) _).
+    rewrite <- (compose_assoc _ (cc_r R1 se se) _).
     rewrite cmodule_rel. rewrite compose_assoc.
     rewrite <- (compose_assoc _ (rc_adj_right R1) _).
     apply compose_proper_ref.
@@ -229,8 +212,6 @@ Section COMP.
       with (lifted_semantics S1 (semantics (M1 ++ M2) sk) se) by reflexivity.
     erewrite (comp_embed (semantics M2 sk2 @ S1)%lts (semantics M1 sk1 @ S1)%lts).
     2: { unfold CategoricalComp.comp_semantics. cbn. rewrite Hsk. reflexivity. }
-
-    pose proof ang_fsim_embed.
   Admitted.
 
 End COMP.
@@ -249,10 +230,10 @@ Record rho_rel (U: Type) :=
           no_perm_on m1 (blocks se rho_footprint);
   }.
 
-Program Definition rho_krel {S1 S2 U} (R: S2 -> U * S1 -> Prop) (rho: rho_rel U) : krel S1 S2 :=
+Program Definition rho_krel {S1 S2 U} (R: S2 -> U * S1 -> Prop) (rho: rho_rel U) : krel' S1 S2 :=
   {|
-    krel_rel se := fun s2 '(m, s1) => exists u, R s2 (u, s1) /\ rho se u m;
-    vars := rho_footprint _ rho;
+    krel_pred se := fun s2 '(m, s1) => exists u, R s2 (u, s1) /\ rho se u m;
+    krel_footprint := rho_footprint _ rho;
   |}.
 Next Obligation.
 Admitted.
@@ -309,7 +290,7 @@ Section REL_REF.
     @ slift (right_arrow (rc_id * rel_rc (rho_ext _ rho se)))
     @@ right_arrow c_mem_state_rc.
 
-  Definition rhs: (li_c @ S1)%li ~> (li_c @ S2)%li := right_arrow (krel_kcc (rho_krel R rho) se).
+  Definition rhs: (li_c @ S1)%li ~> (li_c @ S2)%li := right_arrow (krel_singleton (rho_krel R rho)).
 
   Local Opaque normalize_rc.
 
@@ -412,7 +393,9 @@ Section REL_REF.
     inf_mor. eapply inf_at.
     inf_mor. eapply (inf_at (c_event vf2 sg vargs2 # m2)).
     inf_mor. eapply finf_at.
-    { rc_econstructor; rc_econstructor. easy. }
+    { rc_econstructor; rc_econstructor.
+      constructor. auto. split; auto.
+      easy. }
     intm. unfold f9 at 2.
 
     unfold compose. unfold rc_adj_left.

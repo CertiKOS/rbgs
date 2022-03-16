@@ -199,7 +199,6 @@ Section CC.
 
   (** We treat liB as the implementation. *)
   Context {liA liB} (cc: callconv liA liB).
-  Context (se1 se2: Genv.symtbl).
   (** Translate a low level liB to high level liA. The first choice is made
     angelically because 1) there is usually at most one abstract representation;
     2) a more refined computation includes behaviors on more abstract
@@ -255,7 +254,6 @@ Section CC.
       rewrite FCD.ext_ana. cbn.
       unfold int. apply (sup_at None). reflexivity.
   Qed.
-
 
   Lemma cc_eta: identity [= cc_right @ cc_left.
   Proof.
@@ -352,6 +350,37 @@ Proof.
     + reflexivity.
     + reflexivity.
 Qed.
+
+Section CC_SE.
+
+  Context {liA liB} (cc: callconv liA liB).
+  Context (se1 se2: Genv.symtbl).
+
+  Definition cc_l: subst liA liB :=
+    fun _ '(li_sig qb) =>
+      sup { w | match_senv cc w se1 se2 }, sup { qa | match_query cc w qa qb },
+      query_int qa >>= (fun ra => inf { rb | match_reply cc w ra rb }, ret rb).
+
+  Definition cc_r: subst liB liA :=
+    fun _ '(li_sig qa) =>
+      inf { w | match_senv cc w se1 se2 }, inf { qb | match_query cc w qa qb },
+      query_int qb >>= (fun rb => sup { ra | match_reply cc w ra rb }, ret ra).
+
+  Lemma cc_epsilon_se: cc_l @ cc_r [= identity.
+  Proof. Admitted.
+
+  Lemma cc_eta_se: identity [= cc_r @ cc_l.
+  Proof. Admitted.
+
+  Program Definition cc_adjunction_se: poset_adjunction liA liB :=
+    {|
+      left_arrow := cc_l;
+      right_arrow := cc_r;
+      epsilon := cc_epsilon_se;
+      eta := cc_eta_se;
+    |}.
+
+End CC_SE.
 
 (* Note: it's hard to imply the [esig] from the context, since
    higher-order unification is generally difficult, i.e. to imply [E] from [E X] *)
@@ -469,23 +498,135 @@ Section FSIM.
 
 End FSIM.
 
+Section FSIM.
+
+  Context {liA1 liA2} (ccA: callconv liA1 liA2).
+  Context {liB1 liB2} (ccB: callconv liB1 liB2).
+  Context (se1 se2: Genv.symtbl).
+  Context {state1 state2: Type}.
+  Context (L1: lts liA1 liB1 state1) (L2: lts liA2 liB2 state2).
+  Context (index: Type) (order: index -> index -> Prop)
+          (match_states: Genv.symtbl -> Genv.symtbl -> ccworld ccB ->index -> state1 -> state2 -> Prop).
+  Hypothesis FSIM:
+    forall wB, match_senv ccB wB se1 se2 ->
+      fsim_properties ccA ccB se1 se2 wB L1 L2 index order (match_states se1 se2 wB).
+
+  Lemma ang_fsim_embed_se:
+    ang_lts_spec L1 [= (cc_r ccB se1 se2) @ ang_lts_spec L2 @ (cc_l ccA se1 se2).
+  Proof.
+    intros k [qb1]. unfold ISpec.compose.
+    unfold ang_lts_spec at 1.
+    apply sup_iff. intros steps.
+    apply sup_iff. intros [s H1]. cbn.
+    unfold finf. rewrite Inf.mor.
+    apply inf_iff. intros [ wB Hse ]. specialize (FSIM wB Hse).
+    rewrite Inf.mor. apply inf_iff. intros [qb2 Hqb].
+    unfold query_int. intm.
+    setoid_rewrite Sup.mor.
+    setoid_rewrite apply_ret.
+    setoid_rewrite Sup.mor.
+    unfold bind. repeat setoid_rewrite Sup.mor.
+    apply sup_at with (i := steps).
+    edestruct (fsim_match_initial_states FSIM) as (i & s2 & H2 & Hs); eauto.
+    eapply (sup_at (exist _ s2 H2)). cbn.
+    clear H1 H2 Hqb. revert i s s2 Hs.
+    induction steps; eauto using bot_lb.
+    intros i s1 s2 Hs. cbn.
+    repeat apply join_lub.
+    - apply sup_iff. intros [s1' Hstep]. cbn.
+      rewrite !Sup.mor_join.
+      apply join_l. apply join_l.
+      assert (exists i s2', Star L2 s2 E0 s2' /\ match_states se1 se2 wB i s1' s2') as (i' & s2' & Hstep2 & Hs').
+      {
+        revert i s2 Hs. pattern s1, s1'. eapply star_E0_ind; eauto; clear s1 s1' Hstep.
+        - intros s1 i s2 Hs. exists i, s2; split; eauto using star_refl.
+        - intros s1 s1' s1'' Hstep1 IHstar i s2 Hs.
+          edestruct (simulation_star FSIM) as (i' & s2' & Hstep2 & Hs'); eauto using star_one.
+          specialize (IHstar _ _ Hs') as (i'' & s2'' & Hstep2' & Hs'').
+          eexists i'', s2''. split; eauto.
+          eapply star_trans; eauto.
+      }
+      repeat setoid_rewrite Sup.mor.
+      eapply (sup_at (exist _ s2' Hstep2)). cbn.
+      specialize (IHsteps _ _ _ Hs'). apply IHsteps.
+    - apply sup_iff. intros [qa1 H1]. cbn.
+      rewrite !Sup.mor_join.
+      apply join_l. apply join_r.
+      edestruct @fsim_match_external as (w & qa2 & H2 & Hqa & Hse' & Hrx); eauto.
+      setoid_rewrite Sup.mor.
+      setoid_rewrite Sup.mor.
+      eapply (sup_at (exist _ qa2 H2)). cbn.
+      rewrite apply_bind. unfold query_int.
+      rewrite apply_int_r.
+      unfold bind. unfold cc_l at 2.
+      repeat setoid_rewrite Sup.mor.
+      eapply (sup_at (exist _ w Hse')). cbn.
+      eapply (sup_at (exist _ qa1 Hqa)). cbn.
+      unfold query_int. unfold bind.
+      apply sup_iff. intros [ra1|].
+      + rewrite FCD.ext_ana. cbn.
+        apply join_lub.
+        * apply (sup_at (Some ra1)).
+          rewrite FCD.ext_ana. cbn.
+          rewrite !Sup.mor_join. apply join_l.
+          rewrite FCD.ext_ana. cbn.
+          rewrite FCD.ext_ana. cbn. reflexivity.
+        * apply (sup_at (Some ra1)).
+          rewrite FCD.ext_ana. cbn.
+          rewrite !Sup.mor_join. apply join_r.
+          repeat setoid_rewrite Inf.mor.
+          apply inf_iff. intros [ra2 Hr]. cbn.
+          unfold ret at 2. cbn.
+          repeat setoid_rewrite FCD.ext_ana. cbn.
+          rewrite !Sup.mor_join. apply join_r.
+          setoid_rewrite Sup.mor.
+          apply sup_iff. intros [s' H1'].
+          specialize (Hrx _ _ _ Hr H1') as (i' & s2' & H2' & Hs'). cbn.
+          setoid_rewrite Sup.mor.
+          apply (sup_at (exist _ s2' H2')). cbn.
+          specialize (IHsteps _ _ _ Hs').
+          etransitivity.
+          -- instantiate (1 := FCD.ext _ _). rstep. reflexivity.
+          -- rewrite IHsteps. unfold apply.
+             rewrite FCD.ext_ext. unfold t. rewrite FCD.ext_ext.
+             eapply ext_proper_ref'.
+             ++ split. intros a b Hab. rstep. now apply pbind_mor.
+             ++ split. intros a b Hab. repeat rstep. now constructor.
+             ++ intros x. rewrite FCD.ext_ana. cbn. apply join_r. reflexivity.
+      + rewrite FCD.ext_ana. cbn.
+        apply (sup_at None).
+        repeat (setoid_rewrite FCD.ext_ana; cbn).
+        reflexivity.
+    - apply sup_iff. intros [rb1 H1]. cbn.
+      rewrite !Sup.mor_join. apply join_r.
+      edestruct @fsim_match_final_states as (rb2 & H2 & Hr); eauto.
+      repeat setoid_rewrite Sup.mor.
+      apply (sup_at (exist _ rb2 H2)). cbn.
+      rewrite apply_ret.
+      unfold ret at 3. rewrite FCD.ext_ana. cbn.
+      apply (sup_at (exist _ rb1 Hr)). cbn.
+      reflexivity.
+  Qed.
+
+End FSIM.
+
 Section SEM.
 
   Context {liA1 liA2} (ccA: callconv liA1 liA2).
   Context {liB1 liB2} (ccB: callconv liB1 liB2).
   Context (L1: semantics liA1 liB1) (L2: semantics liA2 liB2).
-  Context (se: Genv.symtbl).
+  Context (se1 se2: Genv.symtbl).
 
   Hypothesis FSIM: forward_simulation ccA ccB L1 L2.
-  Hypothesis HSE: forall wB, match_senv ccB wB se se.
-  Hypothesis HSK: Genv.valid_for (skel L1) se.
+  Hypothesis HSK: Genv.valid_for (skel L1) se1.
 
   Lemma ang_fsim_embed':
-    ang_lts_spec (L1 se) [= (cc_right ccB) @ ang_lts_spec (L2 se) @ (cc_left ccA).
+    ang_lts_spec (L1 se1) [= (cc_r ccB se1 se2) @ ang_lts_spec (L2 se2) @ (cc_l ccA se1 se2).
   Proof.
-    pose proof (ang_fsim_embed ccA ccB).
+    pose proof (ang_fsim_embed_se ccA ccB).
     destruct FSIM as [ [ ] ]. eapply H.
-  Abort.
+    intros wB Hse. apply fsim_lts; eauto.
+  Qed.
 
 End SEM.
 
