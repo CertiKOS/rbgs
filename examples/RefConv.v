@@ -463,42 +463,73 @@ Coercion rc_adj : refconv >-> poset_adjunction.
 
 (** ** Functor from SC to RC *)
 
+Require Import Globalenvs.
+
 (** *** Embed Language Interfaces *)
 Section SIG.
 
   Variable li: language_interface.
-  (* May need to consider the symbol table in the future *)
+
   Inductive sig: esig :=
-  | li_sig: query li -> sig (reply li).
+  | li_sig: query li -> Genv.symtbl -> sig (reply li).
 
 End SIG.
 
-Arguments li_sig {_} _.
+Arguments li_sig {_} _ _.
 Coercion sig: language_interface >-> esig.
-Coercion li_sig: query >-> sig.
 
 (** The primitive operator that triggers a query *)
-Definition query_int {li} (q: query li): ispec li _ := @int (sig li) _ q.
+Definition query_int {li} (q: query li) se: ispec li _ := @int (sig li) _ (li_sig q se).
 (* The expected type of the first argument of @int is a general type constructor
    E: Type -> Type instead of [esig], so the coercion does not work *)
 
 (** *** Embed Calling Conventions  *)
 Inductive cc_rc {liA liB} (cc: callconv liA liB) : rc_rel liA liB :=
-| cc_rc_intro q1 q2 w:
+| cc_rc_intro q1 q2 se1 se2 w:
+  match_senv cc w se1 se2 ->
   match_query cc w q1 q2 ->
-  cc_rc cc _ (li_sig q1) _ (li_sig q2) (match_reply cc w).
+  cc_rc cc _ (li_sig q1 se1) _ (li_sig q2 se2) (match_reply cc w).
 
 (** *** Properties of the embedding from SC to RC  *)
 Lemma cc_rc_id {liA}:
   @eq (refconv _ _) (cc_rc (@cc_id liA)) rc_id.
 Proof.
-Admitted.
+  apply antisymmetry; unfold rc_ref; intros * Hrc.
+  - rc_destruct Hrc. cbn in *. subst.
+    exists eq. split; eauto.
+    exists eq. split; [ constructor | reflexivity ].
+  - rc_destruct Hrc.
+    exists eq. split; eauto.
+    exists eq. split; [ | reflexivity ].
+    destruct m.
+    replace eq with (@match_reply liA liA 1 tt) by reflexivity.
+    constructor; reflexivity.
+Qed.
 
 Lemma cc_rc_compose {liA liB liC} (cc1: callconv liA liB) (cc2: callconv liB liC):
   @eq (refconv _ _) (cc_rc (cc_compose cc1 cc2))
       (rc_compose (cc_rc cc1) (cc_rc cc2)).
 Proof.
-Admitted.
+  apply antisymmetry; unfold rc_ref; intros * Hrc.
+  - rc_destruct Hrc. destruct w as [[se' w1] w2].
+    destruct H as [Hse1 Hse2]. destruct H0 as [q' [Hq1 Hq2]].
+    exists (match_reply (cc1 @ cc2) (se', w1, w2)). split; eauto.
+    exists (match_reply (cc1 @ cc2) (se', w1, w2)). split; [ | reflexivity ].
+    apply rc_compose_intro with (m2 := (li_sig q' se')).
+    + exists (match_reply cc1 w1). split; [ | reflexivity ].
+      constructor; eauto.
+    + exists (match_reply cc2 w2). split; [ | reflexivity ].
+      constructor; eauto.
+  - rc_destruct Hrc. rc_destruct H.
+    rc_inversion H0. depsubst. clear Hrel.
+    exists (rel_compose R R'). split; eauto.
+    exists (rel_compose (match_reply cc1 w) (match_reply cc2 w0)). split.
+    + replace (rel_compose (match_reply cc1 w) (match_reply cc2 w0))
+        with (match_reply (cc1 @ cc2) (se2, w, w0)).
+      * constructor; [ | eexists ]; split; eauto.
+      * reflexivity.
+    + apply rel_compose_subrel; eauto.
+Qed.
 
 Coercion cc_refconv {liA liB} (cc: callconv liA liB): refconv liA liB :=
   normalize_rc (cc_rc cc).
@@ -516,12 +547,33 @@ Inductive rel_rc {S T} (R: S -> T -> Prop) : rc_rel (s_esig S) (s_esig T) :=
 Lemma rel_rc_id {S}:
   @eq (refconv _ _) (rel_rc (@eq S)) rc_id.
 Proof.
-Admitted.
+  apply antisymmetry; unfold rc_ref; intros * Hrc.
+  - rc_destruct Hrc. subst.
+    exists eq. split; eauto.
+    exists eq. split; [ constructor | reflexivity ].
+  - rc_destruct Hrc.
+    exists eq. split; eauto.
+    exists eq. split; [ | reflexivity ].
+    destruct m. constructor. reflexivity.
+Qed.
 
 Lemma rel_rc_compose {X Y Z} (S: X -> Y -> Prop) (T: Y -> Z -> Prop):
   @eq (refconv _ _) (rel_rc (rel_compose S T)) (rc_compose (rel_rc S) (rel_rc T)).
 Proof.
-Admitted.
+  apply antisymmetry; unfold rc_ref; intros * Hrc.
+  - rc_destruct Hrc.
+    exists (rel_compose S T). split; eauto.
+    destruct H as (? & H1 & H2).
+    exists (rel_compose S T). split; [ econstructor | reflexivity ].
+    exists S. split; [ econstructor | reflexivity ]; eauto.
+    exists T. split; [ econstructor | reflexivity ]; eauto.
+  - rc_destruct Hrc. rc_destruct H.
+    rc_inversion H0. depsubst. clear Hrel.
+    exists (rel_compose R R'). split; eauto.
+    exists (rel_compose S R0). split.
+    econstructor. eexists; split; eauto.
+    apply rel_compose_subrel; eauto.
+Qed.
 
 (** *** Lifting Effect Signatures with States  *)
 Definition state_sig (E : esig) (S : Type) : esig := E * s_esig S.
@@ -529,6 +581,7 @@ Definition st {E S ar} (m : E ar) (k : S) : state_sig E S (ar * S)%type :=
   esig_tens_intro m (state_event k).
 
 Infix "#" := state_sig (at level 40, left associativity) : esig_scope.
+Notation "m # s" := (esig_tens_intro m (state_event s)) (at level 40, left associativity).
 
 (* TODO: move this to other files *)
 Ltac fcd_simpl :=

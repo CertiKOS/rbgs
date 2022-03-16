@@ -38,8 +38,6 @@ Inductive c_rc: rc_rel (c_esig # mem) li_c :=
   c_rc _ (esig_tens_intro e_c e_s) _ (li_sig (cq vf sg args m)) R.
 
 (** Some auxiliary definitions *)
-Notation "m # s" := (esig_tens_intro m (state_event s)) (at level 40, left associativity).
-
 Inductive assoc {A B C: Type}: A * (B * C) -> A * B * C -> Prop :=
 | assoc_intro a b c: assoc (a, (b, c)) ((a, b), c).
 Inductive sig_assoc {E: esig} {S1 S2: Type}: rc_rel (E#(S1*S2)) (E#S1#S2) :=
