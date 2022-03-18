@@ -12,6 +12,44 @@ Import ISpec.
 
 Local Obligation Tactic := idtac.
 
+(* TODO: move this to other files *)
+Ltac fcd_simpl :=
+  repeat (setoid_rewrite FCD.ext_ana; cbn).
+
+Lemma fsup_mor {L M: cdlattice} {f: L -> M} `{Sup.Morphism _ _ f}:
+  forall {I} (P : I -> Prop) (M: I -> L), f (sup {x | P x}, M x) = sup {x | P x}, f (M x).
+Proof. intros. unfold fsup. eapply Sup.mor. Qed.
+
+Lemma finf_mor {L M: cdlattice} {f: L -> M} `{Inf.Morphism _ _ f}:
+  forall {I} (P : I -> Prop) (M: I -> L), f (inf {x | P x}, M x) = inf {x | P x}, f (M x).
+Proof. intros. unfold finf. eapply Inf.mor. Qed.
+
+Lemma sup_fsup {L: cdlattice} {I J: Type} (P: J -> Prop) (c: I -> J -> L):
+  sup i, sup {j | P j}, c i j = sup {j | P j}, sup i, c i j.
+Proof. unfold fsup. apply sup_sup. Qed.
+
+Ltac sup_mor :=
+  rewrite !Sup.mor || rewrite !fsup_mor || rewrite !Sup.mor_join || rewrite Sup.mor_bot ||
+  setoid_rewrite Sup.mor || setoid_rewrite fsup_mor || setoid_rewrite Sup.mor_join.
+
+Ltac inf_mor :=
+  rewrite !Inf.mor || rewrite !finf_mor || rewrite !Inf.mor_meet ||
+  setoid_rewrite Inf.mor || setoid_rewrite finf_mor || setoid_rewrite Inf.mor_meet.
+
+Lemma finf_iff {L: cdlattice} {I} (P: I -> Prop) (M: I -> L) x:
+  x [= inf { j | P j}, M j <-> forall i: { j | P j }, x [= M (proj1_sig i).
+Proof. unfold finf. apply inf_iff. Qed.
+
+Lemma fsup_iff {L: cdlattice} {I} (P: I -> Prop) (M: I -> L) x:
+  sup { j | P j}, M j [= x <-> forall i: { j | P j }, M (proj1_sig i) [= x.
+Proof. unfold fsup. apply sup_iff. Qed.
+
+Tactic Notation "inf_intro" simple_intropattern(p) :=
+  inf_mor; (apply finf_iff || apply inf_iff) ; intros p; cbn.
+
+Tactic Notation "sup_intro" simple_intropattern(p) :=
+  sup_mor; (apply fsup_iff || apply sup_iff) ; intros p; cbn.
+
 (** * Adjunctions in Interaction Specification *)
 
 (** An adjunction A ⇆ B is a pair or morphisms which can "cancel" each other *)
@@ -421,42 +459,51 @@ Section PROPS.
   Proof.
   Admitted.
 
-  Lemma rc_adj_left_identity:
+  Lemma rc_adj_left_id:
     rc_adj_left (@rc_id E) = identity.
   Proof.
     unfold rc_adj_left. apply antisymmetry; intros ar m; cbn.
     - apply sup_iff. intros ar'.
       apply sup_iff. intros m'.
       apply sup_iff. intros [ R Hr ]. rc_destruct Hr. cbn.
-      unfold identity, int.
-      rewrite Sup.mor. apply sup_iff.
-      intros [ n | ].
-      + setoid_rewrite FCD.ext_ana. cbn.
-        apply join_lub.
+      unfold identity, int. sup_intro [ n | ].
+      + fcd_simpl. apply join_lub.
         * apply (sup_at None). reflexivity.
         * apply (sup_at (Some n)).
-          unfold finf. rewrite Inf.mor.
-          eapply (inf_at (exist _ n _)). cbn.
-          Unshelve. 2: { cbn. now apply Hsub. }
-          setoid_rewrite FCD.ext_ana.
-          reflexivity.
-      + setoid_rewrite FCD.ext_ana. cbn.
-        apply (sup_at None). reflexivity.
+          inf_mor. eapply (finf_at n). now apply Hsub.
+          now fcd_simpl.
+      + apply (sup_at None). now fcd_simpl.
     - apply (sup_at ar). apply (sup_at m).
       apply (fsup_at (@eq ar)). rc_econstructor.
       unfold identity, int. apply sup_iff. intros [ n | ].
       + rewrite Sup.mor. apply (sup_at (Some n)).
-        setoid_rewrite FCD.ext_ana. cbn.
-        apply join_r. unfold finf. rewrite Inf.mor.
-        apply inf_iff. intros [ n' <- ]. cbn.
-        setoid_rewrite FCD.ext_ana. reflexivity.
-      + rewrite Sup.mor. apply (sup_at None).
-        setoid_rewrite FCD.ext_ana. reflexivity.
+        fcd_simpl. apply join_r.
+        inf_intro [ n' <- ]. now fcd_simpl.
+      + sup_mor. apply (sup_at None). now fcd_simpl.
   Qed.
 
-  Lemma rc_adj_right_identity:
+  Lemma rc_adj_right_id:
     rc_adj_right (@rc_id E) = identity.
-  Admitted.
+  Proof.
+    unfold rc_adj_right. apply antisymmetry; intros ar m; cbn.
+    - apply (inf_at ar). apply (inf_at m).
+      apply (finf_at (@eq ar)). rc_econstructor.
+      unfold identity, int. sup_intro [ n | ].
+      + fcd_simpl. apply join_lub.
+        ** apply (sup_at None). reflexivity.
+        ** apply (sup_at (Some n)).
+           sup_intro [ n' <- ]. now fcd_simpl.
+      + apply (sup_at None). now fcd_simpl.
+    - apply inf_iff. intros ar'.
+      apply inf_iff. intros m'.
+      apply inf_iff. intros [ R Hr ]. rc_destruct Hr. cbn.
+      unfold identity, int. sup_intro [ n | ].
+      + apply (sup_at (Some n)). fcd_simpl.
+        apply join_r. sup_mor.
+        eapply (fsup_at n). now apply Hsub.
+          now fcd_simpl.
+      + apply (sup_at None). now fcd_simpl.
+  Qed.
 
 End PROPS.
 Coercion rc_adj : refconv >-> poset_adjunction.
@@ -582,41 +629,3 @@ Definition st {E S ar} (m : E ar) (k : S) : state_sig E S (ar * S)%type :=
 
 Infix "#" := state_sig (at level 40, left associativity) : esig_scope.
 Notation "m # s" := (esig_tens_intro m (state_event s)) (at level 40, left associativity).
-
-(* TODO: move this to other files *)
-Ltac fcd_simpl :=
-  repeat (setoid_rewrite FCD.ext_ana; cbn).
-
-Lemma fsup_mor {L M: cdlattice} {f: L -> M} `{Sup.Morphism _ _ f}:
-  forall {I} (P : I -> Prop) (M: I -> L), f (sup {x | P x}, M x) = sup {x | P x}, f (M x).
-Proof. intros. unfold fsup. eapply Sup.mor. Qed.
-
-Lemma finf_mor {L M: cdlattice} {f: L -> M} `{Inf.Morphism _ _ f}:
-  forall {I} (P : I -> Prop) (M: I -> L), f (inf {x | P x}, M x) = inf {x | P x}, f (M x).
-Proof. intros. unfold finf. eapply Inf.mor. Qed.
-
-Lemma sup_fsup {L: cdlattice} {I J: Type} (P: J -> Prop) (c: I -> J -> L):
-  sup i, sup {j | P j}, c i j = sup {j | P j}, sup i, c i j.
-Proof. unfold fsup. apply sup_sup. Qed.
-
-Ltac sup_mor :=
-  rewrite !Sup.mor || rewrite !fsup_mor || rewrite !Sup.mor_join || rewrite Sup.mor_bot ||
-  setoid_rewrite Sup.mor || setoid_rewrite fsup_mor || setoid_rewrite Sup.mor_join.
-
-Ltac inf_mor :=
-  rewrite !Inf.mor || rewrite !finf_mor || rewrite !Inf.mor_meet ||
-  setoid_rewrite Inf.mor || setoid_rewrite finf_mor || setoid_rewrite Inf.mor_meet.
-
-Lemma finf_iff {L: cdlattice} {I} (P: I -> Prop) (M: I -> L) x:
-  x [= inf { j | P j}, M j <-> forall i: { j | P j }, x [= M (proj1_sig i).
-Proof. unfold finf. apply inf_iff. Qed.
-
-Lemma fsup_iff {L: cdlattice} {I} (P: I -> Prop) (M: I -> L) x:
-  sup { j | P j}, M j [= x <-> forall i: { j | P j }, M (proj1_sig i) [= x.
-Proof. unfold fsup. apply sup_iff. Qed.
-
-Tactic Notation "inf_intro" simple_intropattern(p) :=
-  inf_mor; (apply finf_iff || apply inf_iff) ; intros p; cbn.
-
-Tactic Notation "sup_intro" simple_intropattern(p) :=
-  sup_mor; (apply fsup_iff || apply sup_iff) ; intros p; cbn.

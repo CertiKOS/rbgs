@@ -127,29 +127,14 @@ Arguments clight_rel {_ _ _ _}.
 Arguments clight_sk_order {_ _ _ _}.
 Arguments clight_layer_ref {_ _ _ _}.
 
-(*
-Lemma cmodule_rel {S1 S2} M sk R se:
-  skel_module_compatible M sk ->
-  ang_lts_spec (lifted_lts S2 ((semantics M sk) se)) @ right_arrow (cc_adjunction_se R se se) [=
-    right_arrow (cc_adjunction_se R se se) @ ang_lts_spec (lifted_lts S1 ((semantics M sk) se)).
-Proof.
-  intros H. eapply cmodule_krel in H.
-  eapply ang_fsim_embed' in H.
-  replace (lifted_lts S2 ((semantics M sk) se))
-    with ((semantics M sk @ S2)%lts se) by reflexivity.
-  replace (lifted_lts S1 ((semantics M sk) se))
-    with ((semantics M sk @ S1)%lts se) by reflexivity.
-  rewrite H. rewrite !compose_assoc.
-  setoid_rewrite @epsilon.
-Admitted.
-*)
-
 Section CAT_APP.
   Context {M N sk1 sk2} `{!CategoricalComp.CategoricalLinkable (semantics M sk1) (semantics N sk2)}.
 
   Lemma cmodule_categorical_comp_simulation sk:
-    forward_simulation 1 1
-    (CategoricalComp.comp_semantics' (semantics M sk1) (semantics N sk2) sk) (semantics (M ++ N) sk).
+    forward_simulation
+      1 1
+      (CategoricalComp.comp_semantics' (semantics M sk1) (semantics N sk2) sk)
+      (semantics (M ++ N) sk).
   Proof.
     etransitivity.
     2: { apply cmodule_categorical_comp_simulation.
@@ -161,40 +146,74 @@ Section CAT_APP.
     instantiate (1 := sk1).
     unfold skel_extend. reflexivity.
   Qed.
+
+  Lemma cmodule_categorical_comp_simulation_lifted sk S:
+    forward_simulation
+      1 1
+      (CategoricalComp.comp_semantics' (semantics M sk1 @ S) (semantics N sk2 @ S) sk)
+      (semantics (M ++ N) sk @ S).
+  Proof.
+    pose proof (cmodule_categorical_comp_simulation sk) as HX.
+    eapply (@lifting_simulation S) in HX.
+    etransitivity. 2: apply HX.
+    apply lift_categorical_comp2.
+  Qed.
 End CAT_APP.
+
+Lemma cmodule_rel {S1 S2} M sk (R: krel _ _):
+  skel_module_compatible M sk ->
+  ang_lts_spec (semantics M sk @ S2) @ rc_adj_right (cc_rc R) [=
+    rc_adj_right (cc_rc R) @ ang_lts_spec (semantics M sk @ S1).
+Proof.
+  intros H. eapply (cmodule_krel R) in H.
+  eapply ang_fsim_embed in H. rewrite H.
+  cbn -[LatticeProduct.poset_prod].
+  rewrite !compose_assoc.
+  rewrite @rc_adj_epsilon. rewrite compose_unit_r. reflexivity.
+Qed.
 
 (** *** Composition *)
 Section COMP.
 
   Context {S1 S2 S3}
-          (L1: _ -> 0 ~> (li_c @ S1)%li)
-          (L2: _ -> 0 ~> (li_c @ S2)%li)
-          (L3: _ -> 0 ~> (li_c @ S3)%li)
+          (L1: 0 ~> (li_c @ S1)%li)
+          (L2: 0 ~> (li_c @ S2)%li)
+          (L3: 0 ~> (li_c @ S3)%li)
           (C1: clight_layer L1 L2) (C2: clight_layer L2 L3).
   Context (sk: AST.program unit unit)
           (Hsk: Linking.link (clight_sk C2) (clight_sk C1) = Some sk).
+  Context (Hcomp: CategoricalComp.CategoricalLinkable
+                    (semantics (clight_impl C2) (clight_sk C2))
+                    (semantics (clight_impl C1) (clight_sk C1))).
 
   Local Obligation Tactic := idtac.
 
   (* Embedded version of layer_vcomp] from Compsition.v *)
   Program Definition clight_layer_compose: clight_layer L1 L3 :=
     {|
-      clight_impl := clight_impl C1 ++ clight_impl C2;
+      clight_impl := clight_impl C2 ++ clight_impl C1;
       clight_sk := sk;
       clight_rel := krel_compose (clight_rel C1) (clight_rel C2);
     |}.
   Next Obligation.
-  Admitted.
+    destruct C1 as [M1 sk1 R1 Hsk1 Hsim1].
+    destruct C2 as [M2 sk2 R2 Hsk2 Hsim2].
+    unfold skel_module_compatible in *. cbn in *.
+    clear - Hsk Hsk1 Hsk2.
+    apply Linking.link_linkorder in Hsk as [Hk1 Hk2].
+    rewrite Forall_forall in *.
+    setoid_rewrite in_app_iff.
+    intros p [Hp|Hp]; eapply Linking.linkorder_trans; eauto.
+  Qed.
   Next Obligation.
     destruct C1 as [M1 sk1 R1 Hsk1 Hsim1].
     destruct C2 as [M2 sk2 R2 Hsk2 Hsim2].
     Local Opaque LatticeProduct.poset_prod.
-    cbn -[semantics] in *. intros se.
-    specialize (Hsim1 se). specialize (Hsim2 se).
-    etransitivity. apply Hsim2. clear Hsim2.
+    cbn -[semantics] in *. etransitivity.
+    apply Hsim2. clear Hsim2.
     rewrite Hsim1. clear Hsim1.
-    rewrite <- (compose_assoc _ (cc_r R1 se se) _).
-    rewrite cmodule_rel. rewrite compose_assoc.
+    rewrite <- (compose_assoc _ (rc_adj_right (cc_rc R1)) _).
+    rewrite cmodule_rel; eauto. rewrite compose_assoc.
     rewrite <- (compose_assoc _ (rc_adj_right R1) _).
     apply compose_proper_ref.
     {
@@ -203,15 +222,11 @@ Section COMP.
     }
     rewrite <- compose_assoc.
     apply compose_proper_ref. 2: reflexivity.
-    replace (lifted_lts S1 ((semantics M2 sk2) se))
-      with (lifted_semantics S1 (semantics M2 sk2) se) by reflexivity.
-    replace (lifted_lts S1 ((semantics M1 sk1) se))
-      with (lifted_semantics S1 (semantics M1 sk1) se) by reflexivity.
-    replace (lifted_lts S1 ((semantics (M1 ++ M2) sk) se))
-      with (lifted_semantics S1 (semantics (M1 ++ M2) sk) se) by reflexivity.
     erewrite (comp_embed (semantics M2 sk2 @ S1)%lts (semantics M1 sk1 @ S1)%lts).
     2: { unfold CategoricalComp.comp_semantics. cbn. rewrite Hsk. reflexivity. }
-  Admitted.
+    apply ang_fsim_embed_cc_id.
+    apply cmodule_categorical_comp_simulation_lifted.
+  Qed.
 
 End COMP.
 
