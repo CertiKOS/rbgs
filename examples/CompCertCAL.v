@@ -244,6 +244,13 @@ Record rho_rel (U: Type) :=
           no_perm_on m1 (blocks se rho_footprint);
   }.
 
+(* used to be [id (E:=C) * rho ] *)
+Inductive rho_with_se {U} (rho: rho_rel U): rc_rel (c_esig # (mem * U)) (c_esig # mem) :=
+| rho_with_se_intro vf sg vargs se u m1 m2:
+  let R := fun '(r1, (m1, u)) '(r2, m2) => r1 = r2 /\ rho_ext _ rho se (m1, u) m2 in
+  rho_ext _ rho se (m1, u) m2 ->
+  rho_with_se rho _ (c_event vf sg vargs se # (m1, u)) _ (c_event vf sg vargs se # m2) R.
+
 Program Definition rho_krel {S1 S2 U} (R: S2 -> U * S1 -> Prop) (rho: rho_rel U) : krel' S1 S2 :=
   {|
     krel_pred se := fun s2 '(m, s1) => exists u, R s2 (u, s1) /\ rho se u m;
@@ -261,8 +268,8 @@ Global Instance st_assoc_right {E} {S1 S2 S3} :
   StrategyHelper (E#(S1*S2*S3)) (E#(S1*(S2*S3))) := right_arrow st_assoc.
 
 Inductive li_state_rc {li: language_interface} {S: Type}: rc_rel (li # S) (li @ S)%li :=
-| li_state_rc_intro (q: query li) s:
-  li_state_rc _ (li_sig q # s) _ (li_sig (li:=li@S) (q, s)) eq.
+| li_state_rc_intro (q: query li) s se:
+  li_state_rc _ (li_sig q se # s) _ (li_sig (li:=li@S) (q, s) se) eq.
 
 Definition c_mem_state_rc {S: Type}: rc_rel (c_esig # (mem * S)) (li_c @ S)%li :=
   rc_compose sig_assoc (rc_compose  (c_rc * rc_id) li_state_rc).
@@ -282,18 +289,17 @@ Record esig_rc (E: esig) :=
   {
     esig_refconv :> refconv E (c_esig # mem);
     esig_rc_clo :
-      forall ar e R vf1 sg vargs1 m vf2 vargs2,
-        esig_refconv ar e _ (c_event vf1 sg vargs1 # m) R ->
+      forall ar e R vf1 sg vargs1 m vf2 vargs2 se,
+        esig_refconv ar e _ (c_event vf1 sg vargs1 se # m) R ->
         Val.inject inject_id vf1 vf2 -> Val.inject_list inject_id vargs1 vargs2 ->
-        esig_refconv ar e _ (c_event vf2 sg vargs2 # m) R;
+        esig_refconv ar e _ (c_event vf2 sg vargs2 se # m) R;
   }.
+
 
 Section REL_REF.
 
   Context {S1 S2 U} (R: S2 -> U * S1 -> Prop) (rho: rho_rel U).
-  Context {E1 E2} (r1: esig_rc E1) (r2: esig_rc E2).
-
-  Context (se: Genv.symtbl).
+  Context {E2} (r2: esig_rc E2).
 
   Definition lhs: (li_c @ S1)%li ~> (li_c @ S2)%li :=
     left_arrow c_mem_state_rc
@@ -301,7 +307,7 @@ Section REL_REF.
     @ right_arrow (rc_id * rel_rc R)
     @ slift (right_arrow r2)
     @ h @ h @ h
-    @ slift (right_arrow (rc_id * rel_rc (rho_ext _ rho se)))
+    @ slift (right_arrow (rho_with_se rho))
     @@ right_arrow c_mem_state_rc.
 
   Definition rhs: (li_c @ S1)%li ~> (li_c @ S2)%li := right_arrow (krel_singleton (rho_krel R rho)).
@@ -315,11 +321,12 @@ Section REL_REF.
     apply inf_iff. intros ?. apply inf_iff. intros qs1.
     apply inf_iff. intros (Rx & HR). cbn.
     destruct HR as (Rx' & Hrel & Hsub).
-    inversion Hrel. cbn in *. depsubst. clear Hrel H3 H0.
-    rename H4 into Hq. destruct q2 as [ q1 s1 ].
-    inv Hq. inv H8. rename x into u. destruct H as [ HR Hrho ].
-    rename H3 into Hvf. rename H4 into Hargs. rename H5 into Hm.
-    rename H6 into Hvf1. rename H7 into Hperm.
+    inversion Hrel. cbn in *. depsubst. clear Hrel H4 H1.
+    rename H7 into Hq. destruct q2 as [ q1 s1 ].
+    inv Hq. inv H5. inv H9. rename x into u. destruct H as [ HR Hrho ].
+    rename se2 into se.
+    rename H3 into Hvf. rename H4 into Hargs. rename H6 into Hm.
+    rename H7 into Hvf1. rename H8 into Hperm.
 
     match goal with
     | |- context [ _ @ ?f ] => set (f1 := f)
@@ -341,7 +348,7 @@ Section REL_REF.
     end.
     unfold compose. unfold rc_adj_right.
     inf_mor. eapply inf_at.
-    inf_mor. eapply (inf_at (c_event vf1 sg vargs1 # s0 # s2)).
+    inf_mor. eapply (inf_at (c_event vf1 sg vargs1 se # s0 # s2)).
     inf_mor. eapply finf_at. rc_econstructor.
     intm. unfold f2 at 2.
 
@@ -367,7 +374,7 @@ Section REL_REF.
     end.
     unfold compose. cbn. unfold rc_adj_right.
     inf_mor. eapply inf_at.
-    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 # s0)).
+    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 se # s0)).
     inf_mor. eapply finf_at. instantiate (1 := Rr2).
     eapply (esig_rc_clo _ r2); eauto.
     intm. unfold f5 at 2.
@@ -386,7 +393,7 @@ Section REL_REF.
     end.
     unfold compose. unfold rc_adj_right.
     inf_mor. eapply inf_at.
-    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 # (s0, u, s1))).
+    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 se # (s0, u, s1))).
     inf_mor. eapply finf_at.
     { rc_econstructor; rc_econstructor. constructor. }
     intm. unfold f7 at 2.
@@ -396,7 +403,7 @@ Section REL_REF.
     end.
     unfold compose. unfold rc_adj_right.
     inf_mor. eapply inf_at.
-    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 # (s0, u) # s1)).
+    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 se # (s0, u) # s1)).
     inf_mor. eapply finf_at. rc_econstructor.
     intm. unfold f8 at 2.
 
@@ -405,11 +412,9 @@ Section REL_REF.
     end.
     unfold compose. cbn. unfold rc_adj_right.
     inf_mor. eapply inf_at.
-    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 # m2)).
+    inf_mor. eapply (inf_at (c_event vf2 sg vargs2 se # m2)).
     inf_mor. eapply finf_at.
-    { rc_econstructor; rc_econstructor.
-      constructor. auto. split; auto.
-      easy. }
+    { rc_econstructor. constructor. auto. split; auto. }
     intm. unfold f9 at 2.
 
     unfold compose. unfold rc_adj_left.
@@ -419,7 +424,7 @@ Section REL_REF.
 
     unfold rc_adj_right at 2.
     inf_mor. eapply inf_at.
-    inf_mor. eapply (inf_at ((li_sig (li:=li_c@S1)(cq vf2 sg vargs2 m2 ,s1)))).
+    inf_mor. eapply (inf_at ((li_sig (li:=li_c@S1)(cq vf2 sg vargs2 m2 ,s1) se))).
     inf_mor. eapply finf_at.
     { repeat rc_econstructor; reflexivity. }
 
@@ -434,15 +439,15 @@ Section REL_REF.
       { apply (sup_at None). fcd_simpl. reflexivity. }
       inf_mor. apply (finf_at (v, m, s1')).
       apply Hsub8. constructor.
-      fcd_simpl.
-      sup_intro (x & Hx). destruct Hx. destruct x. destruct p.
-      cbn in *. destruct H0. subst.
-      fcd_simpl.
-      sup_intro (x & Hx). destruct x. destruct p. destruct p.
-      inv Hx.
-      fcd_simpl.
-      sup_intro (x & Hx). destruct x. destruct p. destruct p.
-      destruct Hx. cbn in *. inv H2.
+      fcd_simpl. sup_intro (x & Hx).
+      (* rho_with_se *)
+      destruct x. destruct p. destruct Hx as (-> & Hm'& Hrho'& Hperm').
+      fcd_simpl. sup_intro (x & Hx).
+      (* assoc *)
+      destruct x. destruct p. destruct p. inv Hx.
+      fcd_simpl. sup_intro (x & Hx).
+      (* eq * assoc *)
+      destruct x. destruct p. destruct p. destruct Hx. cbn in *. inv H0.
       fcd_simpl.
       inf_mor. apply (finf_at (v, m0, (u0, s1'))).
       apply Hsub7. constructor.
@@ -474,33 +479,27 @@ Section STRATEGY_REF.
   Record strategy_clight {E1 E2 U} (Sigma: E1 ~> E2 # U) :=
     {
       rho : rho_rel U;
-      r1 se : esig_rc E1;
-      r2 se : esig_rc E2;
+      r1 : esig_rc E1;
+      r2 : esig_rc E2;
       M: cmodule;
       sk : AST.program unit unit;
 
-      strategy_clight_ref se:
+      strategy_clight_ref:
         left_arrow c_rc
-        @ left_arrow (rc_id * rel_rc (rho_ext _ rho se))
-        @@ slift (left_arrow (r2 se))
+        @ left_arrow (rho_with_se rho)
+        @@ slift (left_arrow r2)
         @ Sigma
-        @ right_arrow (r1 se)
+        @ right_arrow r1
         @ right_arrow c_rc
-        [= ang_lts_spec (semantics M sk se)
+        [= ang_lts_spec (semantics M sk)
     }.
 
 End STRATEGY_REF.
 
-Section LIFTING.
-
-  Context {liA liB S} (L: lts liA liB S).
-  Context (K: Type).
-
-  Lemma lift_lts_ref:
-    left_arrow li_state_rc @ slift (ang_lts_spec L) @ right_arrow li_state_rc [= ang_lts_spec (lifted_lts K L).
-  Proof.
-  Admitted.
-End LIFTING.
+Lemma lift_lts_ref {liA liB} (L: Smallstep.semantics liA liB) (K: Type):
+  left_arrow li_state_rc @ slift (ang_lts_spec L) @ right_arrow li_state_rc [= ang_lts_spec (L@K)%lts.
+Proof.
+Admitted.
 
 Lemma slift_compose {E F G S} (f: F ~> G) (g: E ~> F):
   slift (S:=S) (f @ g) = slift f @ slift g.
@@ -543,11 +542,11 @@ Section COMPILE_LAYER.
           (st_layer: strategy_layer U L1 L2).
   Context (st_clight: strategy_clight (strategy_impl st_layer)).
 
-  Definition Lc1 se: 0 ~> (li_c @ S1)%li :=
-    left_arrow c_mem_state_rc @@ slift (left_arrow (r1 _ st_clight se)) @ L1.
+  Definition Lc1: 0 ~> (li_c @ S1)%li :=
+    left_arrow c_mem_state_rc @@ slift (left_arrow (r1 _ st_clight)) @ L1.
 
-  Definition Lc2 se: 0 ~> (li_c @ S2)%li :=
-    left_arrow c_mem_state_rc @@ slift (left_arrow (r2 _ st_clight se)) @ L2.
+  Definition Lc2: 0 ~> (li_c @ S2)%li :=
+    left_arrow c_mem_state_rc @@ slift (left_arrow (r2 _ st_clight)) @ L2.
 
   Local Obligation Tactic := idtac.
   Local Opaque semantics.
@@ -556,15 +555,17 @@ Section COMPILE_LAYER.
     {|
       clight_impl := M _ st_clight;
       clight_sk := sk _ st_clight;
-      clight_rel := rho_krel (strategy_rel st_layer) (rho _ st_clight);
+      clight_rel := krel_singleton (rho_krel (strategy_rel st_layer) (rho _ st_clight));
     |}.
+  Next Obligation.
+  Admitted.
   Next Obligation.
     unfold Lc1, Lc2.
     destruct st_clight as [ rho r1 r2 M sk strategy_clight_ref ].
     destruct st_layer as [ Sigma R strategy_layer_ref ].
     Local Opaque LatticeProduct.poset_prod.
-    cbn in *. intros se. specialize (strategy_clight_ref se).
-    pose proof (rel_ref R rho (r2 se) se). unfold lhs, rhs in H. cbn in *.
+    cbn in *.
+    pose proof (rel_ref R rho r2) as H. unfold lhs, rhs in H. cbn in *.
     rewrite <- H. clear H.
     rewrite <- lift_lts_ref.
     rewrite strategy_layer_ref. clear strategy_layer_ref.
@@ -598,8 +599,8 @@ Section COMPILE_LAYER.
       setoid_rewrite <- (compose_assoc _ (_ @ _)).
       setoid_rewrite <- (compose_assoc _ (_ @ _)).
       etransitivity.
-      instantiate (1 := slift (rc_adj_right (r2 se)) @
-                              rc_adj_right sig_assoc @ slift (slift (rc_adj_left (r2 se)))).
+      instantiate (1 := slift (rc_adj_right r2) @
+                              rc_adj_right sig_assoc @ slift (slift (rc_adj_left r2))).
       2: {
         apply compose_proper_ref. reflexivity.
         apply compose_proper_ref. 2: reflexivity.
