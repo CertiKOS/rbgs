@@ -124,7 +124,7 @@ Section KREL_KCC.
       match_reply := (<> krel_kcc_reply)%klr;
     |}.
   Next Obligation. inv H. reflexivity. Qed.
-  Next Obligation. inv H. auto. Qed.
+  Next Obligation. inv H. reflexivity. Qed.
   Next Obligation.
     inv H. inv H0. cbn.
     apply val_inject_id in H4. inv H4; easy.

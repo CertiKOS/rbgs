@@ -63,6 +63,7 @@ Section KREL_KCC.
       match_query := krel_kcc_query;
       match_reply := krel_kcc_reply;
     |}.
+  Next Obligation. reflexivity. Qed.
   Next Obligation.
     inv H0. cbn. apply val_inject_id in H4. inv H4; easy.
   Qed.

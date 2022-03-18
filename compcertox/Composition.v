@@ -460,6 +460,7 @@ Section ABSFUN_CC.
       match_query _ := absfun_query;
       match_reply _ := absfun_reply;
     |}.
+  Next Obligation. reflexivity. Qed.
   Next Obligation. inv H0. reflexivity. Qed.
   Next Obligation. inv H. reflexivity. Qed.
 

@@ -29,13 +29,13 @@ Ltac clear_hyp :=
 
 (** The language interface "C simple" which does not include the memory *)
 Inductive c_esig : esig :=
-| c_event : val -> signature -> list val -> c_esig val.
+| c_event : val -> signature -> list val -> Genv.symtbl -> c_esig val.
 
 Inductive c_rc: rc_rel (c_esig # mem) li_c :=
-| c_rc_intro vf sg args e_c e_s m:
+| c_rc_intro vf sg args e_c e_s m se:
   let R := (fun '(r, m) c_r => c_r = cr r m) in
-  e_c = c_event vf sg args -> e_s = state_event m ->
-  c_rc _ (esig_tens_intro e_c e_s) _ (li_sig (cq vf sg args m)) R.
+  e_c = c_event vf sg args se -> e_s = state_event m ->
+  c_rc _ (esig_tens_intro e_c e_s) _ (li_sig (cq vf sg args m) se) R.
 
 (** Some auxiliary definitions *)
 Inductive assoc {A B C: Type}: A * (B * C) -> A * B * C -> Prop :=
@@ -110,16 +110,16 @@ End COMP.
 
 Require Import compcertox.KRel.
 
-Record clight_layer {S1 S2} (L1: _ -> 0 ~> (li_c @ S1)%li) (L2: _ -> 0 ~> (li_c @ S2)%li) :=
+Record clight_layer {S1 S2} (L1: 0 ~> (li_c @ S1)%li) (L2: 0 ~> (li_c @ S2)%li) :=
   {
     clight_impl: cmodule;
     clight_sk: AST.program unit unit;
     clight_rel: krel S1 S2;
 
     clight_sk_order: skel_module_compatible clight_impl clight_sk;
-    clight_layer_ref se:
-      let MS := ang_lts_spec (((semantics clight_impl clight_sk) @ S1)%lts se)
-      in (L2 se) [= right_arrow (cc_adjunction_se clight_rel se se) @ MS @ (L1 se);
+    clight_layer_ref:
+      let MS := ang_lts_spec (((semantics clight_impl clight_sk) @ S1)%lts)
+      in L2 [= right_arrow (cc_rc clight_rel) @ MS @ L1;
   }.
 Arguments clight_impl {_ _ _ _}.
 Arguments clight_sk {_ _ _ _}.
@@ -127,6 +127,7 @@ Arguments clight_rel {_ _ _ _}.
 Arguments clight_sk_order {_ _ _ _}.
 Arguments clight_layer_ref {_ _ _ _}.
 
+(*
 Lemma cmodule_rel {S1 S2} M sk R se:
   skel_module_compatible M sk ->
   ang_lts_spec (lifted_lts S2 ((semantics M sk) se)) @ right_arrow (cc_adjunction_se R se se) [=
@@ -141,10 +142,10 @@ Proof.
   rewrite H. rewrite !compose_assoc.
   setoid_rewrite @epsilon.
 Admitted.
+*)
 
 Section CAT_APP.
-  Context {M N sk1 sk2}
-          `{!CategoricalComp.CategoricalLinkable (semantics M sk1) (semantics N sk2)}.
+  Context {M N sk1 sk2} `{!CategoricalComp.CategoricalLinkable (semantics M sk1) (semantics N sk2)}.
 
   Lemma cmodule_categorical_comp_simulation sk:
     forward_simulation 1 1

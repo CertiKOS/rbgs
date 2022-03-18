@@ -18,6 +18,27 @@ Require Import examples.RefConv.
 
 Import ISpec.
 
+Definition assume {E : esig} (P : Prop) : ispec E unit :=
+  inf H : P, ret tt.
+
+Lemma assume_l {E A} (P : Prop) (x y : ispec E A) :
+  x [= y -> P ->
+  _ <- assume P; x [= y.
+Proof.
+  intros Hxy HP. unfold assume.
+  inf_mor. eapply (inf_at HP).
+  fcd_simpl. apply Hxy.
+Qed.
+
+Lemma assume_r {E A} (P : Prop) (x y : ispec E A) :
+  (P -> x [= y) ->
+  x [= _ <- assume P; y.
+Proof.
+  intros H. unfold assume.
+  inf_intro HP. fcd_simpl.
+  apply H. apply HP.
+Qed.
+
 (** * Embed CompCert Semantics into Game Semantics *)
 
 (** ** Embed Labelled Tranition Systems *)
@@ -86,7 +107,7 @@ Section LTS.
 
     Definition ang_lts_spec' sk: subst liA liB :=
       fun _ '(li_sig q se) =>
-        _ <- assert (Genv.valid_for sk se);
+        _ <- assume (Genv.valid_for sk se);
         sup n, sup { s | initial_state (L se) q s }, ang_lts_exec n s se.
 
     Definition ang_lts_spec: subst liA liB := ang_lts_spec' (skel L).
@@ -170,11 +191,11 @@ Require Import CAL.
 (** The skeleton is used for choosing a compatible symbol table. So a larger
   skeleton accepts less symbol tables and thus leads to less behavior. *)
 Instance skel_order_proper {liA liB} (L: semantics liA liB):
-  Proper (Linking.linkorder --> ref) (ang_lts_spec' L).
+  Proper (Linking.linkorder ++> ref) (ang_lts_spec' L).
 Proof.
   intros sk1 sk2 Hsk. intros k [qb se]. cbn.
-  apply assert_l. intros Hv.
-  apply assert_r. reflexivity.
+  apply assume_r. intros Hv.
+  apply assume_l. reflexivity.
   eapply Genv.valid_for_linkorder; eauto.
 Qed.
 
@@ -197,22 +218,21 @@ Section SEM.
     ang_lts_spec' L1 sk [= (right_arrow (cc_rc ccB)) @ ang_lts_spec' L2 sk @ (left_arrow (cc_rc ccA)).
   Proof.
     intros k [qb1 se1]. unfold compose. cbn.
-    apply assert_l. intros Hv1.
-    apply sup_iff. intros steps.
-    apply sup_iff. intros [s H1]. cbn.
     unfold rc_adj_right. inf_intro a. inf_intro [qb2 se2].
     inf_intro [Rrb Hrb]. rc_inversion Hrb. depsubst.
-    rename H5 into Hse. rename H6 into Hqb. rename w into wB.
+    rename H4 into Hse. rename H5 into Hqb. rename w into wB.
     clear Hrel. rename Hsub into HRrb.
+    intm. inf_mor. inf_intro Hv2.
+    assert (Hv1: Genv.valid_for sk se1).
+    { rewrite @match_senv_valid_for; eauto. }
+    apply (inf_at Hv1). intm.
+    apply sup_iff. intros steps.
+    apply sup_iff. intros [s H1]. cbn.
     destruct FSIM as [[? ? match_states Hskeq Hfp Hlts Hwf]].
     clear FSIM. rename Hlts into FSIM.
     assert (Hsk1: Genv.valid_for (skel L1) se1).
     { eapply Genv.valid_for_linkorder; eauto. }
     specialize (FSIM se1 se2 wB Hse Hsk1).
-    intm.
-    assert (Hv2: Genv.valid_for sk se2).
-    { eapply match_senv_valid_for; eauto. }
-    eapply @assert_true in Hv2. setoid_rewrite Hv2.
     clear Hv1 Hv2 Hskeq.
     intm. sup_mor. apply (sup_at steps).
     edestruct (fsim_match_initial_states FSIM) as (i & s2 & H2 & Hs); eauto.
@@ -294,8 +314,8 @@ Section COMP.
     intros _ [qc se]. unfold comp_semantics, option_map in COMP.
     destruct Linking.link eqn: Hlk; try congruence. inv COMP.
     unfold ISpec.compose. unfold ang_lts_spec' at 2.
-    sup_mor. sup_mor. apply sup_iff. intros Hsk.
-    apply (sup_at Hsk). intm. sup_intro steps1.
+    inf_mor. inf_intro Hsk.
+    apply (inf_at Hsk). intm. sup_intro steps1.
     sup_intro [s1 Hinit]. unfold fsup. rewrite sup_sup.
     exploit @comp_initial_state_intro. eapply Hinit. intro Hinit'.
     eapply (sup_at (exist _ (st1 _ _ s1) Hinit')). cbn.
@@ -310,6 +330,7 @@ Section COMP.
         cbn. apply join_l. apply join_l.
         eapply fsup_at. apply Hstep. reflexivity.
       + sup_intro [qb1 Hext1]. unfold query_int. intm.
+        apply assume_l; eauto.
         sup_intro steps2. sup_intro [s2 Hinit2].
         rewrite lts_spec_step. apply join_l. apply join_l.
         eapply fsup_at. apply star_one. eapply step_push; eauto.
@@ -363,11 +384,14 @@ End COMP.
 
 Lemma comp_embed {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB) L:
   comp_semantics L1 L2 = Some L ->
-  ang_lts_spec' L1 (skel L) @ ang_lts_spec' L2 (skel L) [= ang_lts_spec L.
+  ang_lts_spec L1 @ ang_lts_spec L2 [= ang_lts_spec L.
 Proof.
   intros COMP. unfold ang_lts_spec.
   rewrite <- (comp_embed' _ _ COMP). 2: apply Linking.linkorder_refl.
-  reflexivity.
+  unfold comp_semantics, option_map in COMP.
+  destruct Linking.link eqn: Hlink; try congruence. inv COMP.
+  cbn -[LatticeProduct.cdlat_prod].
+  apply compose_proper_ref; apply skel_order_proper; now apply Linking.link_linkorder in Hlink.
 Qed.
 
 (*
