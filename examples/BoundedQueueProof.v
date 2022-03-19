@@ -37,40 +37,38 @@ Section MARSHALL.
   | rel_with_mem_intro a b:
     R a b -> rel_with_mem R m a (b, m).
 
-  Context (se: Genv.symtbl).
-
   (** Refinement Conventions *)
   Inductive rb_rc_rel: rc_rel rb_sig (c_esig # mem) :=
-  | rb_set_rel i v vf c_i c_v b m:
+  | rb_set_rel i v vf c_i c_v b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se set_id = Some b ->
     c_i = Vint (Integers.Int.repr (Z.of_nat i)) ->
     val_rel v c_v ->
-    rb_rc_rel _ (set i v) _ (c_event vf set_sg [ c_i ; c_v ] # m) (rel_with_mem void_rel m)
-  | rb_get_rel i vf c_i b m:
+    rb_rc_rel _ (set i v) _ (c_event vf set_sg [ c_i ; c_v ] se # m) (rel_with_mem void_rel m)
+  | rb_get_rel i vf c_i b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se get_id = Some b ->
     c_i = Vint (Integers.Int.repr (Z.of_nat i)) ->
-    rb_rc_rel _ (CAL.get i) _ (c_event vf get_sg [ c_i ] # m) (rel_with_mem val_rel m)
-  | rb_inc1_rel vf b m:
+    rb_rc_rel _ (CAL.get i) _ (c_event vf get_sg [ c_i ] se # m) (rel_with_mem val_rel m)
+  | rb_inc1_rel vf b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se inc1_id = Some b ->
-    rb_rc_rel _ inc1 _ (c_event vf inc1_sg [ ] # m) (rel_with_mem nat_rel m)
-  | rb_inc2_rel vf b m:
+    rb_rc_rel _ inc1 _ (c_event vf inc1_sg [ ] se # m) (rel_with_mem nat_rel m)
+  | rb_inc2_rel vf b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se inc2_id = Some b ->
-    rb_rc_rel _ inc2 _ (c_event vf inc2_sg [ ] # m) (rel_with_mem nat_rel m).
+    rb_rc_rel _ inc2 _ (c_event vf inc2_sg [ ] se # m) (rel_with_mem nat_rel m).
 
   Inductive bq_rc_rel: rc_rel bq_sig (c_esig # mem) :=
-  | bq_enq_rel v vf c_v b m:
+  | bq_enq_rel v vf c_v b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se enq_id = Some b ->
     val_rel v c_v ->
-    bq_rc_rel _ (enq v) _ (c_event vf enq_sg [ c_v ] # m) (rel_with_mem void_rel m)
-  | bq_deq_rel vf b m:
+    bq_rc_rel _ (enq v) _ (c_event vf enq_sg [ c_v ] se # m) (rel_with_mem void_rel m)
+  | bq_deq_rel vf b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se deq_id = Some b ->
-    bq_rc_rel _ deq _ (c_event vf deq_sg [ ] # m) (rel_with_mem val_rel m).
+    bq_rc_rel _ deq _ (c_event vf deq_sg [ ] se # m) (rel_with_mem val_rel m).
 
   Program Definition rb_rc : esig_rc rb_sig :=
     {|
@@ -93,20 +91,7 @@ Hint Constructors nat_rel void_rel.
 Local Opaque fsup finf.
 Local Opaque semantics2 normalize_rc.
 
-Import Ptrofs.
-
-Lemma genv_funct_symbol se id b f (p: Clight.program):
-  Genv.find_symbol se id = Some b ->
-  (prog_defmap p) ! id = Some (Gfun f) ->
-  Genv.find_funct (Clight.globalenv se p) (Vptr b zero) = Some f.
-Proof.
-  intros H1 H2.
-  unfold Genv.find_funct, Genv.find_funct_ptr.
-  destruct eq_dec; try congruence.
-  apply Genv.find_invert_symbol in H1. cbn.
-  rewrite Genv.find_def_spec. rewrite H1.
-  rewrite H2. reflexivity.
-Qed.
+(* Import Ptrofs. *)
 
 Ltac clear_hyp :=
   repeat match goal with
@@ -151,34 +136,33 @@ Definition rho_rb : rho_rel rb_state :=
     rho_footprint := rho_fp;
   |}.
 
-Section RB.
-  Open Scope Z_scope.
-  Context (se:Genv.symtbl).
-
-  Lemma find_set b:
+(*
+Lemma find_get se b:
+  Genv.find_symbol se get_id = Some b ->
+  Genv.find_funct (Clight.globalenv se rb_program) (Vptr b zero) = Some (Internal rb_get).
+Proof. intros. eapply genv_funct_symbol; eauto. Qed.
+  Lemma find_set se b:
     Genv.find_symbol se set_id = Some b ->
     Genv.find_funct (Clight.globalenv se rb_program) (Vptr b zero) = Some (Internal rb_set).
   Proof. intros. eapply genv_funct_symbol; eauto. Qed.
 
-  Lemma find_get b:
-    Genv.find_symbol se get_id = Some b ->
-    Genv.find_funct (Clight.globalenv se rb_program) (Vptr b zero) = Some (Internal rb_get).
-  Proof. intros. eapply genv_funct_symbol; eauto. Qed.
 
-  Lemma find_inc1 b:
-    Genv.find_symbol se inc1_id = Some b ->
-    Genv.find_funct (Clight.globalenv se rb_program) (Vptr b zero) = Some (Internal rb_inc1).
-  Proof. intros. eapply genv_funct_symbol; eauto. Qed.
+Lemma find_inc1 se b:
+  Genv.find_symbol se inc1_id = Some b ->
+  Genv.find_funct (Clight.globalenv se rb_program) (Vptr b zero) = Some (Internal rb_inc1).
+Proof. intros. eapply genv_funct_symbol; eauto. Qed.
 
-  Lemma find_inc2 b:
-    Genv.find_symbol se inc2_id = Some b ->
-    Genv.find_funct (Clight.globalenv se rb_program) (Vptr b zero) = Some (Internal rb_inc2).
-  Proof. intros. eapply genv_funct_symbol; eauto. Qed.
+Lemma find_inc2 se b:
+  Genv.find_symbol se inc2_id = Some b ->
+  Genv.find_funct (Clight.globalenv se rb_program) (Vptr b zero) = Some (Internal rb_inc2).
+Proof. intros. eapply genv_funct_symbol; eauto. Qed.
 
-  Hint Resolve find_get find_set find_inc1 find_inc2.
+ (* Hint Resolve find_get find_set find_inc1 find_inc2. *)
+*)
 
-  Hypothesis se_valid: Genv.valid_for (erase_program bq_program) se.
-
+Section RB.
+  Open Scope Z_scope.
+  Import Ptrofs.
   Hypothesis Nbound : 4 * Nz <= max_unsigned.
   Hypothesis Nbound' : 4 * Nz <= Int.max_unsigned.
   Hypothesis N_neq_0: Nz <> 0.
@@ -212,17 +196,17 @@ Section RB.
   Qed.
 
   Lemma rb_code_correct:
-    L_rb [= slift (right_arrow (rb_rc se))
-         @@ right_arrow (rc_id * rel_rc (rho_ext _ rho_rb se))%rc
+    L_rb [= slift (right_arrow rb_rc)
+         @@ right_arrow (rho_with_se rho_rb)
          @ right_arrow c_rc
-         @ ang_lts_spec (semantics2 rb_program se) @ bot.
+         @ ang_lts_spec (semantics2 rb_program) @ bot.
   Proof.
     intros ? [? ? m [ s ]]. destruct s as [ [ f c1 ] c2 ]. cbn.
     match goal with
     | |- context [ _ @ ?f ] => set (f1 := f)
     end.
     unfold compose. cbn. unfold rc_adj_right.
-    inf_intro ?. inf_intro [ ? ? [vf sg args] [mm] ].
+    inf_intro ?. inf_intro [ ? ? [vf sg args se] [mm] ].
     inf_intro [ Rp Hr ]. intm.
     unfold f1 at 2.
     match goal with
@@ -230,31 +214,37 @@ Section RB.
     end.
     unfold compose. unfold rc_adj_left.
     sup_mor. eapply sup_at.
-    sup_mor. apply (sup_at (c_event vf sg args # (mm, (f, c1, c2)))).
+    sup_mor. apply (sup_at (c_event vf sg args se # (mm, (f, c1, c2)))).
     sup_mor. eapply fsup_at. rc_econstructor.
     intm. unfold f2 at 2.
     match goal with
     | |- context [ _ @ ?f ] => set (f3 := f)
     end.
     unfold compose. unfold rc_adj_right.
-    inf_intro ?. inf_intro [ ? ? [vf' sg' args'] [mm'] ].
+    inf_intro ?. inf_intro [ ? ? [vf' sg' args' se'] [mm'] ].
     inf_intro [ Rrho Hrho ].
     intm. unfold f3 at 2. unfold compose.
     unfold rc_adj_right.
-    inf_intro ?. inf_intro [ [ vf'' sg'' args'' mm'' ] ].
+    inf_intro ?. inf_intro [ [ vf'' sg'' args'' mm'' ] se'' ].
     inf_intro [ Rc Hc ]. intm.
     rc_inversion Hc. depsubst. inv H. inv H0. clear Hrel. rename Hsub into HRc.
-    rc_inversion Hrho. depsubst. clear_hyp. clear Hrel. rename Hsub into Hrho.
-    rc_elim (inv) H2. depsubst. inv H1.
-    rc_elim (inv) H13. unfold rb_state in H1. depsubst. inv H2. destruct H0.
-    rename H into Hm. rename H0 into HRst. rename H1 into Hperm.
-    rename Hsub into HR1. rename Hsub0 into HR2.
+    rc_inversion Hrho. unfold rb_state in *. depsubst. clear Hrel. rename Hsub into Hrho.
+    inv H1. rename H into Hm. destruct H0 as [HRst Hperm]. cbn in Hperm.
+    (* rc_elim (inv) H2. depsubst. inv H1. *)
+    (* rc_elim (inv) H13. unfold rb_state in H1. depsubst. inv H2. destruct H0. *)
+    (* rename H into Hm. rename H0 into HRst. rename H1 into Hperm. *)
+    (* rename Hsub into HR1. rename Hsub0 into HR2. *)
+    unfold assume. inf_intro Hse. intm.
     rc_elim (inv) Hr; depsubst; clear_hyp.
-    - rename H9 into Hb. rename H11 into Hv.
+    - rename H10 into Hb. rename H12 into Hv.
       apply assert_l. intros Hi. apply inj_lt in Hi.
       setoid_rewrite sup_fsup. sup_mor. eapply fsup_at.
       (* initial state *)
-      { cbn. repeat econstructor; eauto. inv HRst. eauto. }
+      { repeat econstructor.
+        - eapply genv_funct_symbol; [ eauto | reflexivity ].
+        - eauto.
+        - eauto.
+        - inv HRst. eauto. }
       rewrite lts_spec_step. sup_mor. apply join_l. apply join_l.
       (* internal steps *)
       inv HRst. inv H5. rename mm' into m.
@@ -288,8 +278,7 @@ Section RB.
       { cbn. apply HRc. reflexivity. }
       fcd_simpl. sup_mor. cbn. eapply (fsup_at (Vundef, (mm, (update f i2 v, c1, c2)))).
       {
-        apply Hrho. split. apply HR1. reflexivity.
-        cbn. apply HR2. constructor. 2: split; [ constructor | auto ].
+        apply Hrho. subst R1. cbn. repeat apply conj; eauto. 2: constructor.
         + eapply Mem.store_outside_extends; eauto.
           intros. unfold AbstractStateRel.no_perm_on in Hperm.
           apply (Hperm b0 ofs'). cbn.
@@ -616,19 +605,30 @@ Admitted.
 Lemma compose_bot {E F G} (f f': E ~> F) (g: E ~> G):
   f [= f' -> f @ bot @ g [= f'.
 Proof.
-Admitted.
+  intros Hf. etransitivity. 2: apply Hf.
+  intros ar m. unfold compose.
+  edestruct (FCD.join_meet_dense (f ar m)) as (I & J & c & Hc).
+  rewrite Hc.
+  sup_intro i. apply (sup_at i).
+  inf_intro j. apply (inf_at j).
+  fcd_simpl. induction (c i j).
+  - reflexivity.
+  - cbn. Local Transparent bot.
+    unfold bot. sup_mor. sup_intro [].
+  - cbn. sup_intro [].
+Qed.
 
 Program Definition rb_correct: strategy_clight L_rb :=
   {|
     rho := rho_rb;
-    r1 se := empty_rc;
-    r2 se := rb_rc se;
+    r1 := empty_rc;
+    r2 := rb_rc;
     M := [ rb_program ];
     sk := AST.erase_program rb_program;
   |}.
 Local Obligation Tactic := idtac.
 Next Obligation.
-  intros se. rewrite (rb_code_correct se).
+  rewrite rb_code_correct.
   Local Opaque LatticeProduct.poset_prod.
   Local Opaque CModule.semantics.
   cbn. rewrite !compose_assoc.
@@ -658,71 +658,75 @@ Definition dummy_state {E} : E ~> E # unit :=
     | state_event tt => ISpec.int m >>= (fun n => ret (n ,tt))
     end.
 
+(*
+Lemma find_enq b:
+  Genv.find_symbol se enq_id = Some b ->
+  Genv.find_funct (Clight.globalenv se bq_program) (Vptr b zero) = Some (Internal bq_enq).
+Proof. intros. eapply genv_funct_symbol; eauto. Qed.
+
+Lemma find_deq b:
+  Genv.find_symbol se deq_id = Some b ->
+  Genv.find_funct (Clight.globalenv se bq_program) (Vptr b zero) = Some (Internal bq_deq).
+Proof. intros. eapply genv_funct_symbol; eauto. Qed.
+
+Hint Resolve find_enq find_deq.
+*)
+
+Import Ptrofs.
+Transparent semantics2.
+Lemma inc2_block se:
+  Genv.valid_for (erase_program bq_program) se ->
+  exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) inc2_id = Some b /\
+         Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some inc2_ext.
+Proof.
+  intros Hse. eapply Genv.find_def_symbol with (id := inc2_id) in Hse .
+  edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
+  exists b. split; eauto. eapply genv_funct_symbol; eauto.
+Qed.
+
+Lemma set_block se:
+  Genv.valid_for (erase_program bq_program) se ->
+  exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) set_id = Some b /\
+         Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some set_ext.
+Proof.
+  intros Hse. eapply Genv.find_def_symbol with (id := set_id) in Hse .
+  edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
+  exists b. split; eauto. eapply genv_funct_symbol; eauto.
+Qed.
+
+Lemma inc1_block se:
+  Genv.valid_for (erase_program bq_program) se ->
+  exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) inc1_id = Some b /\
+         Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some inc1_ext.
+Proof.
+  intros Hse. eapply Genv.find_def_symbol with (id := inc1_id) in Hse .
+  edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
+  exists b. split; eauto. eapply genv_funct_symbol; eauto.
+Qed.
+
+Lemma get_block se:
+  Genv.valid_for (erase_program bq_program) se ->
+  exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) get_id = Some b /\
+         Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some get_ext.
+Proof.
+  intros Hse. eapply Genv.find_def_symbol with (id := get_id) in Hse .
+  edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
+  exists b. split; eauto. eapply genv_funct_symbol; eauto.
+Qed.
+Opaque Genv.find_funct semantics2.
+
 Section BQ.
-  Context (se: Genv.symtbl).
 
-  Lemma find_enq b:
-    Genv.find_symbol se enq_id = Some b ->
-    Genv.find_funct (Clight.globalenv se bq_program) (Vptr b zero) = Some (Internal bq_enq).
-  Proof. intros. eapply genv_funct_symbol; eauto. Qed.
-
-  Lemma find_deq b:
-    Genv.find_symbol se deq_id = Some b ->
-    Genv.find_funct (Clight.globalenv se bq_program) (Vptr b zero) = Some (Internal bq_deq).
-  Proof. intros. eapply genv_funct_symbol; eauto. Qed.
-
-  Hint Resolve find_enq find_deq.
-
-  Context (Hse: Genv.valid_for (erase_program bq_program) se).
-
-  Local Transparent semantics2.
-  Lemma inc2_block:
-    exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) inc2_id = Some b /\
-           Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some inc2_ext.
-  Proof.
-    eapply Genv.find_def_symbol with (id := inc2_id) in Hse .
-    edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
-    exists b. split; eauto. eapply genv_funct_symbol; eauto.
-  Qed.
-
-  Lemma set_block:
-    exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) set_id = Some b /\
-           Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some set_ext.
-  Proof.
-    eapply Genv.find_def_symbol with (id := set_id) in Hse .
-    edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
-    exists b. split; eauto. eapply genv_funct_symbol; eauto.
-  Qed.
-
-  Lemma inc1_block:
-    exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) inc1_id = Some b /\
-           Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some inc1_ext.
-  Proof.
-    eapply Genv.find_def_symbol with (id := inc1_id) in Hse .
-    edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
-    exists b. split; eauto. eapply genv_funct_symbol; eauto.
-  Qed.
-
-  Lemma get_block:
-    exists b, Genv.find_symbol (globalenv ((semantics2 bq_program) se)) get_id = Some b /\
-           Genv.find_funct (globalenv ((semantics2 bq_program) se)) (Vptr b zero) = Some get_ext.
-  Proof.
-    eapply Genv.find_def_symbol with (id := get_id) in Hse .
-    edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity.
-    exists b. split; eauto. eapply genv_funct_symbol; eauto.
-  Qed.
-
-  Local Opaque Genv.find_funct semantics2.
   Local Transparent LatticeProduct.poset_prod.
 
   Lemma bq_code_correct:
     dummy_state @ M_bq [=
-      slift (right_arrow (bq_rc se)) @ h
-      @ (right_arrow (rc_id * rel_rc (rho_ext _ empty_rho se))%rc)
+      slift (right_arrow bq_rc) @ h
+      @ (right_arrow (rho_with_se empty_rho))
       @ right_arrow c_rc
-      @ ang_lts_spec (semantics2 bq_program se)
+      @ ang_lts_spec (semantics2 bq_program)
       @ left_arrow c_rc
-      @ left_arrow (rb_rc se).
+      @ left_arrow rb_rc.
   Proof.
     intros ? m. unfold compose at 1. destruct m as [ ? ? m [ [ ] ] ].
     cbn. intm.
@@ -730,21 +734,22 @@ Section BQ.
     | |- context [ _ @ ?f ] => set (f1 := f)
     end.
     unfold compose. cbn. unfold rc_adj_right.
-    inf_intro ?. inf_intro [ ? ? [vf sg args] [ mm ] ]. inf_intro [ Rr Hr ].
+    inf_intro ?. inf_intro [ ? ? [vf sg args se] [ mm ] ].
+    inf_intro [ Rr Hr ].
     intm. unfold f1 at 2.
     match goal with
     | |- context [ _ @ ?f ] => set (f2 := f)
     end.
     unfold compose. unfold rc_adj_left.
     sup_mor. eapply sup_at.
-    sup_mor. apply (sup_at (c_event vf sg args # (mm, tt))).
+    sup_mor. apply (sup_at (c_event vf sg args se # (mm, tt))).
     sup_mor. eapply fsup_at. rc_econstructor.
     intm. unfold f2 at 2.
     match goal with
     | |- context [ _ @ ?f ] => set (f3 := f)
     end.
     unfold compose. unfold rc_adj_right.
-    inf_intro ?. inf_intro [ ? ? [vf' sg' args'] [ mm' ] ].
+    inf_intro ?. inf_intro [ ? ? [vf' sg' args' se'] [ mm' ] ].
     inf_intro [ Rrho Hrho ].
     intm. unfold f3 at 2.
     match goal with
@@ -754,19 +759,24 @@ Section BQ.
     inf_intro ?. inf_intro [ q ]. inf_intro [ Rc Hc ].
     intm. unfold f4 at 2. cbn.
     unfold compose. cbn.
+    unfold assume. inf_intro Hse. intm.
     rc_elim (inv) Hc. depsubst. inv H. inv H0. rename Hsub into HRc.
-    rc_elim (inv) Hrho. depsubst. clear_hyp. rename Hsub into HRho.
-    rc_elim (inv) H2. depsubst. inv H1. rename Hsub into HR1.
-    rc_elim (inv) H13. depsubst. inv H2. rename Hsub into HR2.
-    rename H into Hm. rename H0 into Hperm.
+    rc_elim (inv) Hrho. depsubst. rename Hsub into HRho. inv H1.
+    rename H into Hm. destruct H0 as [Hx Hperm]. inv Hx.
+    rename se' into se.
     rc_elim (inv) Hr; depsubst; clear_hyp.
     (* enq *)
-    - rename H9 into Hb. rename H10 into Hv.
-      edestruct inc2_block as (inc2b & Hb1 & Hb2).
-      edestruct set_block as (setb & Hb3 & Hb4).
+    - rename H10 into Hb. rename H11 into Hv.
+      edestruct inc2_block as (inc2b & Hb1 & Hb2); eauto.
+      edestruct set_block as (setb & Hb3 & Hb4); eauto.
       setoid_rewrite sup_fsup.
       sup_mor. eapply fsup_at.
-      { cbn. repeat econstructor; eauto. admit. }
+      (* initial state *)
+      { repeat econstructor.
+        - eapply genv_funct_symbol; [ eauto | reflexivity ].
+        - eauto.
+        - eauto.
+        - admit. }
       rewrite lts_spec_step.
       rewrite !Sup.mor_join. apply join_l. apply join_l.
       sup_mor. eapply fsup_at.
@@ -836,25 +846,23 @@ Section BQ.
       { cbn. constructor. }
       fcd_simpl. sup_mor. eapply (fsup_at (_, _)).
       { cbn. apply HRc. subst R0. reflexivity. }
-      fcd_simpl. sup_mor. eapply (fsup_at (_, _)).
-      { cbn. apply HRho. split; cbn.
-        - apply HR1. reflexivity.
-        - apply HR2. instantiate (1 := (_, _)).
-          econstructor. eauto. split; easy.
-      }
+      fcd_simpl. sup_mor. eapply (fsup_at (_, (_, tt))).
+      { apply HRho. subst R1. cbn. repeat apply conj; eauto. }
       fcd_simpl. inf_intro [ x Hx ]. inv Hx.
       fcd_simpl. sup_mor. eapply (fsup_at tt).
       apply Hsub. constructor. constructor.
-      fcd_simpl. unfold ret. instantiate (1 := tt).
-      reflexivity.
+      fcd_simpl. unfold ret. reflexivity.
     (* deq *)
-    - rename H9 into Hb.
-      edestruct inc1_block as (inc1b & Hb1 & Hb2).
-      edestruct get_block as (getb & Hb3 & Hb4).
+    - rename H10 into Hb.
+      edestruct inc1_block as (inc1b & Hb1 & Hb2); eauto.
+      edestruct get_block as (getb & Hb3 & Hb4); eauto.
       (* initial_state *)
       setoid_rewrite sup_fsup.
       sup_mor. eapply fsup_at.
-      { cbn. repeat econstructor; eauto. admit. }
+      { repeat econstructor.
+        - eapply genv_funct_symbol; [ eauto | reflexivity ].
+        - eauto.
+        - admit. }
       rewrite lts_spec_step.
       sup_mor. apply join_l. apply join_l.
       sup_mor. eapply fsup_at.
@@ -901,18 +909,18 @@ Section BQ.
         rewrite H. rewrite Int.repr_unsigned. reflexivity.
       }
       unfold ISpec.int at 1 5.
-      sup_intro ret_opt. apply (sup_at ret_opt).
-      destruct ret_opt as [ ? | ].
-      2: { fcd_simpl. reflexivity. }
-      fcd_simpl. sup_mor. apply join_r.
+      sup_intro [ v | ].
+      2: { apply (sup_at None). now fcd_simpl. }
+      fcd_simpl. apply join_lub. apply (sup_at None). now fcd_simpl.
+      apply (sup_at (Some v)). fcd_simpl. sup_mor. apply join_r.
       inf_intro [ [rv m''] Hrm ]. inv Hrm.
       fcd_simpl. apply join_r.
       inf_intro [ rc Hrc ]. subst. fcd_simpl.
-      replace (FCD.emb (pcons (CAL.get n) v (pret v)))
-        with (FCD.ext (fun s => FCD.emb (pcons (CAL.get n) v s)) (ret v)).
+      replace (FCD.emb (pcons (CAL.get n) v (pret (v, tt))))
+        with (FCD.ext (fun s => FCD.emb (pcons (CAL.get n) v s)) (ret (v, tt))).
       2: { setoid_rewrite FCD.ext_ana. reflexivity. }
       rstep. sup_mor. eapply fsup_at.
-      { cbn. constructor. }
+      { constructor. }
       rewrite lts_spec_step. sup_mor. apply join_l. apply join_l.
       sup_mor. eapply fsup_at.
       { cbn. crush_star. }
@@ -922,41 +930,17 @@ Section BQ.
       { cbn. constructor. }
       fcd_simpl. sup_mor. eapply (fsup_at (_, _)).
       { cbn. apply HRc.  subst R0. reflexivity. }
-      fcd_simpl. sup_mor. eapply fsup_at.
-      { cbn. apply Hsub. split; eauto. }
+      fcd_simpl. sup_mor. eapply (fsup_at (_, (_, tt))).
+      { apply HRho. subst R1. cbn. repeat apply conj; eauto. }
+      fcd_simpl. inf_intro [x Hx]. inv Hx.
+      fcd_simpl. sup_mor. eapply (fsup_at v).
+      { apply Hsub. constructor. eauto. }
       fcd_simpl. reflexivity.
   Admitted.
 
 End BQ.
 
-Lemma dummy_state_property {E F} (f: E ~> F):
-  slift f @ dummy_state (E:=E) [= dummy_state @ f.
-Proof.
-Admitted.
-
-Lemma dummy_state_empty_rho {E} se:
-  rc_adj_left (rc_id (E:=E) * rel_rc (rho_ext unit empty_rho se)) @
-              rc_adj_right sig_assoc @ dummy_state [= identity.
-Proof.
-  Local Transparent LatticeProduct.poset_prod.
-  intros ? [ ? ? e [ m ] ]. unfold compose, identity.
-  unfold rc_adj_left.
-  sup_intro ?. sup_intro [ ? ? e' [ [ m' ? ] ] ].
-  sup_intro [ R HR ].
-  rc_elim (inv) HR. depsubst. clear_hyp.
-  rc_elim (inv) H2. depsubst. clear_hyp.
-  rc_elim (inv) H13. depsubst. inv H2.
-  destruct H0.
-  intm. unfold rc_adj_right.
-  inf_mor. eapply inf_at.
-  inf_mor. apply (inf_at (e' # m' # u)).
-  inf_mor. eapply finf_at. rc_econstructor.
-  intm. destruct u. intm.
-  unfold ISpec.int at 2 3.
-  sup_intro [ [ n mx ] | ].
-  - fcd_simpl. apply join_lub.
-    + apply (sup_at None).
-    + apply (sup_at (Some (n, mx))). fcd_simpl.
+Require Composition.
 
 Program Definition bq_correct : strategy_clight (dummy_state @ M_bq) :=
   {|
@@ -967,13 +951,25 @@ Program Definition bq_correct : strategy_clight (dummy_state @ M_bq) :=
     sk := AST.erase_program bq_program;
   |}.
 Next Obligation.
-  intros se. rewrite (bq_code_correct se).
+  rewrite bq_code_correct.
   cbn. rewrite !compose_assoc.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_right (rb_rc_rel se)) (rc_adj_left _)).
+  setoid_rewrite <- (compose_assoc _ (rc_adj_right rb_rc_rel) (rc_adj_left _)).
   setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
   setoid_rewrite rc_adj_epsilon. rewrite compose_unit_r.
-  setoid_rewrite <- (compose_assoc _ dummy_state _).
-  rewrite dummy_state_property.
-  rewrite compose_assoc.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_right (bq_rc_rel se)) (rc_adj_left _)).
+  setoid_rewrite <- (compose_assoc _ (slift (rc_adj_right bq_rc_rel)) _).
+  rewrite <- slift_compose. setoid_rewrite rc_adj_epsilon.
+  rewrite slift_identity. rewrite compose_unit_l.
+  setoid_rewrite <- (compose_assoc _ (rc_adj_left sig_assoc) _).
+  rewrite assoc_inverse'. rewrite compose_unit_l.
+  setoid_rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
   setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  setoid_rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
+  setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  pose proof @Composition.hcomp_singleton_fsim.
+  apply ang_fsim_embed_cc_id.
+  Transparent CModule.semantics.
+  unfold CModule.semantics. cbn.
+  etransitivity.
+  2: { apply H. typeclasses eauto. }
+  reflexivity.
+Qed.

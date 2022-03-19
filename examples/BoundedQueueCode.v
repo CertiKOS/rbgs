@@ -279,6 +279,22 @@ Section CLIGHT.
 End CLIGHT.
 
 (** ** CompCertO Tactics *)
+
+Import Ptrofs.
+
+Lemma genv_funct_symbol se id b f (p: Clight.program):
+  Genv.find_symbol se id = Some b ->
+  (prog_defmap p) ! id = Some (Gfun f) ->
+  Genv.find_funct (Clight.globalenv se p) (Vptr b zero) = Some f.
+Proof.
+  intros H1 H2.
+  unfold Genv.find_funct, Genv.find_funct_ptr.
+  destruct eq_dec; try congruence.
+  apply Genv.find_invert_symbol in H1. cbn.
+  rewrite Genv.find_def_spec. rewrite H1.
+  rewrite H2. reflexivity.
+Qed.
+
 Ltac crush_eval_expr :=
   cbn;
   lazymatch goal with
@@ -351,12 +367,13 @@ Ltac crush_step := cbn;
   match goal with
   | [ |- Step _ (Callstate _ _ _ _) _ _ ] =>
       eapply step_internal_function;
-      [ eauto | constructor; cbn;
-                [ solve_list_norepet
-                | solve_list_norepet
-                | solve_list_disjoint
-                | repeat (econstructor; simpl; auto)
-                | reflexivity ] ]
+      [ eapply genv_funct_symbol; [ eauto | reflexivity ]
+      | constructor; cbn;
+        [ solve_list_norepet
+        | solve_list_norepet
+        | solve_list_disjoint
+        | repeat (econstructor; simpl; auto)
+        | reflexivity ] ]
   | [ |- Step _ (State _ (Ssequence _ _) _ _ _ _) _ _ ] => apply step_seq
   | [ |- Step _ (State _ (Sset _ _) _ _ _ _) _ _ ] => apply step_set
   | [ |- Step _ (State _ (Scall _ _ _) _ _ _ _) _ _ ] => eapply step_call
