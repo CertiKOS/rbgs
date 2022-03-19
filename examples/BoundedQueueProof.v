@@ -44,19 +44,23 @@ Section MARSHALL.
     Genv.find_symbol se set_id = Some b ->
     c_i = Vint (Integers.Int.repr (Z.of_nat i)) ->
     val_rel v c_v ->
+    Ple (Genv.genv_next se) (Mem.nextblock m) ->
     rb_rc_rel _ (set i v) _ (c_event vf set_sg [ c_i ; c_v ] se # m) (rel_with_mem void_rel m)
   | rb_get_rel i vf c_i b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se get_id = Some b ->
     c_i = Vint (Integers.Int.repr (Z.of_nat i)) ->
+    Ple (Genv.genv_next se) (Mem.nextblock m) ->
     rb_rc_rel _ (CAL.get i) _ (c_event vf get_sg [ c_i ] se # m) (rel_with_mem val_rel m)
   | rb_inc1_rel vf b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se inc1_id = Some b ->
+    Ple (Genv.genv_next se) (Mem.nextblock m) ->
     rb_rc_rel _ inc1 _ (c_event vf inc1_sg [ ] se # m) (rel_with_mem nat_rel m)
   | rb_inc2_rel vf b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se inc2_id = Some b ->
+    Ple (Genv.genv_next se) (Mem.nextblock m) ->
     rb_rc_rel _ inc2 _ (c_event vf inc2_sg [ ] se # m) (rel_with_mem nat_rel m).
 
   Inductive bq_rc_rel: rc_rel bq_sig (c_esig # mem) :=
@@ -64,10 +68,12 @@ Section MARSHALL.
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se enq_id = Some b ->
     val_rel v c_v ->
+    Ple (Genv.genv_next se) (Mem.nextblock m) ->
     bq_rc_rel _ (enq v) _ (c_event vf enq_sg [ c_v ] se # m) (rel_with_mem void_rel m)
   | bq_deq_rel vf b m se:
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se deq_id = Some b ->
+    Ple (Genv.genv_next se) (Mem.nextblock m) ->
     bq_rc_rel _ deq _ (c_event vf deq_sg [ ] se # m) (rel_with_mem val_rel m).
 
   Program Definition rb_rc : esig_rc rb_sig :=
@@ -122,7 +128,6 @@ Section RHO.
   Inductive R_rb: rb_state -> mem -> Prop :=
   | R_rb_intro f c1 c2 m:
     R_cnt cnt1_id c1 m -> R_cnt cnt2_id c2 m -> R_arr f m ->
-    Ple (Genv.genv_next se) (Mem.nextblock m) ->
     R_rb (f, c1, c2) m.
 
 End RHO.
@@ -235,8 +240,8 @@ Section RB.
     (* rename H into Hm. rename H0 into HRst. rename H1 into Hperm. *)
     (* rename Hsub into HR1. rename Hsub0 into HR2. *)
     unfold assume. inf_intro Hse. intm.
-    rc_elim (inv) Hr; depsubst; clear_hyp.
-    - rename H10 into Hb. rename H12 into Hv.
+    rc_elim (inv) Hr; unfold mem in *; depsubst; clear_hyp.
+    - rename H10 into Hb. rename H12 into Hv. rename H13 into Hnb.
       apply assert_l. intros Hi. apply inj_lt in Hi.
       setoid_rewrite sup_fsup. sup_mor. eapply fsup_at.
       (* initial state *)
@@ -244,7 +249,7 @@ Section RB.
         - eapply genv_funct_symbol; [ eauto | reflexivity ].
         - eauto.
         - eauto.
-        - inv HRst. eauto. }
+        - erewrite <- Mem.mext_next; eauto. }
       rewrite lts_spec_step. sup_mor. apply join_l. apply join_l.
       (* internal steps *)
       inv HRst. inv H5. rename mm' into m.
@@ -292,7 +297,7 @@ Section RB.
           exploit Genv.find_symbol_injective. apply H2. apply H.
           intros. easy.
           intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-        + destruct H3. econstructor; eauto.
+        + destruct H4. econstructor; eauto.
           erewrite Mem.load_store_other; eauto.
           left. intros Hbb. subst.
           exploit Genv.find_symbol_injective. apply H3. apply H.
@@ -309,117 +314,29 @@ Section RB.
                exists vx; split; auto.
                erewrite Mem.load_store_other; eauto. right.
                apply not_eq in n. destruct n.
-               ++ right. apply inj_lt in H4. cbn [size_chunk]. lia.
-               ++ left. apply inj_lt in H4. cbn [size_chunk]. lia.
+               ++ right. apply inj_lt in H3. cbn [size_chunk]. lia.
+               ++ left. apply inj_lt in H3. cbn [size_chunk]. lia.
           * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-        + erewrite Mem.nextblock_store; eauto.
+        (* + erewrite Mem.nextblock_store; eauto. *)
       }
       fcd_simpl. inf_intro [ n Hx ]. inv Hx.
       fcd_simpl. sup_mor. apply (fsup_at tt).
       apply Hsub. constructor. constructor.
       fcd_simpl. reflexivity.
-    - admit.
-    - admit.
-    - admit.
-  Admitted.
-(*
-  Lemma rb_code_correct:
-    L_rb [= (right_arrow (rb_rc se * rel_rc R_rb)%rc)
-         @ (right_arrow c_rc)
-         @ ang_lts_spec (semantics2 rb_program se) @ bot.
-  Proof.
-    intros ? [? ? m [ s ]]. destruct s as [ [ f c1 ] c2 ].
-    unfold compose. cbn. unfold rc_adj_right. cbn.
-    inf_intro ar. inf_intro [ ? ? [vf sg args] [mm] ].
-    inf_intro [ Rp Hr ]. intm.
-    inf_intro ar'. inf_intro [ q ]. inf_intro [ Rc Hc ]. intm.
-    rc_inversion Hc. depsubst. inv H. inv H0. clear Hrel. rename Hsub into HRc.
-    rc_inversion Hr. depsubst. clear_hyp. clear Hrel.
-    rename H2 into HRev. rename H13 into HRst. rename Hsub into HRp.
-    rc_elim (inv) HRst. depsubst.
-    repeat setoid_rewrite fsup_mor. fcd_simpl.
-    rc_elim (inv) HRev; depsubst; clear_hyp.
-    (* set *)
-    - rename H9 into Hb. rename H11 into Hv. rename H2 into HRst.
-      apply assert_l. intros Hi. apply inj_lt in Hi.
-      setoid_rewrite sup_fsup.
-      sup_mor. eapply fsup_at.
-      (* initial state *)
-      { cbn. repeat econstructor; eauto. inv HRst. eauto. }
-      rewrite lts_spec_step. sup_mor. apply join_l. apply join_l.
-      (* internal steps *)
-      inv HRst. inv H5. rename mm into m.
-      edestruct (Mem.valid_access_store m Mint32 b0 (4 * Z.of_nat i)) as (m' & Hm').
-      {
-        constructor.
-        - intros ofs Hofs. apply H1. unfold Nz. split.
-          lia. cbn [size_chunk] in Hofs. lia.
-        - apply Z.divide_factor_l.
-      }
-      sup_mor. eapply fsup_at.
-      {
-        crush_star.
-        match goal with
-        | [ H: Mem.store _ ?m ?b ?ofs ?v = Some ?m' |-
-            Mem.store _ ?m ?b ?ofs' ?v' = Some _ ] =>
-            replace ofs' with ofs; [ apply H | ]
-        end.
-        rewrite add_zero_l.
-        unfold of_intu, of_int, mul.
-        rewrite Int.unsigned_repr.
-        repeat rewrite unsigned_repr.
-        all: unfold Nz in *; try lia.
-      }
-      (* final step *)
-      rewrite lts_spec_step. rewrite !Sup.mor_join. apply join_r.
-      sup_mor. eapply fsup_at.
-      { cbn. econstructor. }
-      (* re-establish the relation *)
-      fcd_simpl. eapply (fsup_at (Vundef, m')); cbn.
-      { cbn. apply HRc. reflexivity. }
-      apply (fsup_at (tt, (update f i v, c1, c2))).
-      {
-        cbn. apply HRp. split; cbn; eauto.
-        apply Hsub. constructor.
-        + destruct H2. econstructor; eauto.
-          erewrite Mem.load_store_other; eauto.
-          left. intros Hbb. subst.
-          exploit Genv.find_symbol_injective. apply H2. apply H.
-          intros. easy.
-          intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-        + destruct H3. econstructor; eauto.
-          erewrite Mem.load_store_other; eauto.
-          left. intros Hbb. subst.
-          exploit Genv.find_symbol_injective. apply H3. apply H.
-          intros. easy.
-          intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-        + econstructor; eauto. intros ix.
-          * unfold update in *. destruct Nat.eq_dec.
-            -- subst. exists c_v. split; auto.
-               erewrite Mem.load_store_same; eauto.
-               f_equal.
-               eapply SimplLocalsproof.val_casted_load_result.
-               eapply val_is_int; eauto. reflexivity.
-            -- edestruct (H0 ix) as (vx & Hvx & Hrv).
-               exists vx; split; auto.
-               erewrite Mem.load_store_other; eauto. right.
-               apply not_eq in n. destruct n.
-               ++ right. apply inj_lt in H4. cbn [size_chunk]. lia.
-               ++ left. apply inj_lt in H4. cbn [size_chunk]. lia.
-          * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-        + erewrite Mem.nextblock_store; eauto.
-      } cbn. reflexivity.
     (* get *)
-    - rename H9 into Hb. rename H2 into HRst.
+    - rename H10 into Hb. rename H12 into Hnb.
       apply assert_l. intros Hi.
       setoid_rewrite sup_fsup. sup_mor.
       (* initial_state *)
       eapply fsup_at.
-      { cbn. repeat econstructor; eauto. inv HRst. eauto. }
+      { repeat econstructor.
+        - eapply genv_funct_symbol; [ eauto | reflexivity ].
+        - eauto.
+        - erewrite <- Mem.mext_next; eauto. }
       rewrite lts_spec_step. sup_mor. apply join_l. apply join_l.
       (* internal steps *)
       inv HRst. inv H5. rename mm into m.
-      edestruct (H0 i) as (vx & Hvx & Hvr).
+      edestruct (H0 i2) as (vx & Hvx & Hvr).
       sup_mor. eapply fsup_at.
       {
         cbn. crush_star.
@@ -437,27 +354,34 @@ Section RB.
       rewrite lts_spec_step. sup_mor. apply join_r.
       sup_mor. eapply fsup_at. { cbn. econstructor. }
       (* re-establish the relation *)
-      fcd_simpl.
+      fcd_simpl. sup_mor.
       eapply (fsup_at (_, _)). { apply HRc. subst R0. reflexivity. }
-      eapply (fsup_at (f i, (f, c1, c2))).
+      fcd_simpl. sup_mor.
+      eapply (fsup_at (vx, (m, (f, c1, c2)))).
       {
-        apply HRp. split; cbn; eauto.
-        apply Hsub. constructor; eauto. econstructor; eauto.
+        apply Hrho. subst R1. cbn. repeat apply conj; eauto.
+        constructor; eauto. econstructor; eauto.
       }
-      reflexivity.
+      fcd_simpl. inf_intro [x Hx]. inv Hx.
+      fcd_simpl. sup_mor. eapply (fsup_at (f i2)).
+      { apply Hsub. constructor; eauto. }
+      fcd_simpl. reflexivity.
     (* inc1 *)
-    - rename H9 into Hb. rename H2 into HRst.
+    - rename H10 into Hb. rename H11 into Hnb.
       setoid_rewrite sup_fsup.
       (* initial_state *)
       sup_mor. eapply fsup_at.
-      { cbn. repeat econstructor; eauto. inv HRst; eauto. }
+      { repeat econstructor.
+        - eapply genv_funct_symbol; [ eauto | reflexivity ].
+        - eauto.
+        - erewrite <- Mem.mext_next; eauto. }
       rewrite lts_spec_step. sup_mor. apply join_l. apply join_l.
       (* internal steps *)
-      inv HRst. inv H2. inv H1. rename mm into m.
+      inv HRst. inv H2. inv H1. rename mm' into m.
       edestruct (Mem.valid_access_store m Mint32 b0 0) as (m' & Hm').
       {
         constructor.
-        - intros ofs Hofs. apply H7. cbn [size_chunk] in Hofs. lia.
+        - intros ofs Hofs. apply H6. cbn [size_chunk] in Hofs. lia.
         - apply Z.divide_0_r.
       }
       edestruct (Mem.valid_access_store m' Mint32 b0 0) as (m'' & Hm'').
@@ -480,12 +404,22 @@ Section RB.
       rewrite lts_spec_step. sup_mor. apply join_r.
       sup_mor. eapply fsup_at. { cbn. econstructor. }
       (* re-establish the relation *)
-      fcd_simpl. eapply (fsup_at (Vint i, m'')).
+      fcd_simpl. sup_mor.  eapply (fsup_at (Vint i2, m'')).
       { apply HRc. reflexivity. }
-      eapply (fsup_at (c1, (f, (S c1 mod CAL.N)%nat, c2))).
+      fcd_simpl. sup_mor.
+      eapply (fsup_at (Vint i2, (mm, (f, (S c1 mod CAL.N)%nat, c2)))).
       {
-        cbn. apply HRp. split; cbn; eauto.
-        apply Hsub. constructor; eauto.
+        apply Hrho. subst R1. cbn. repeat apply conj; eauto. 2: constructor.
+        + assert (Hp: forall ofs', Mem.perm mm b0 ofs' Cur Readable ->
+                              0 <= ofs' < 0 + size_chunk Mint32 -> False).
+          { intros. unfold AbstractStateRel.no_perm_on in Hperm.
+            apply (Hperm b0 ofs').
+            unfold KRel.blocks. exists cnt1_id. split; auto.
+            constructor. left. easy.
+            apply Mem.perm_cur_max.
+            eapply Mem.perm_implies; eauto. apply perm_any_N. }
+          eapply Mem.store_outside_extends; [ | eauto | eauto ].
+          eapply Mem.store_outside_extends; eauto.
         + econstructor; eauto.
           * erewrite Mem.load_store_same; eauto.
           * cbn. constructor.
@@ -493,7 +427,7 @@ Section RB.
           * apply Nat.mod_upper_bound. lia.
           * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
             eapply Mem.perm_store_1; eauto.
-        + inv H3. econstructor; eauto.
+        + inv H4. econstructor; eauto.
           * assert (b1 <> b0).
             { intros <-. exploit Genv.find_symbol_injective.
               apply H. apply H1. easy. }
@@ -505,28 +439,35 @@ Section RB.
           { intros <-. exploit Genv.find_symbol_injective.
             apply H. apply H1. easy. }
           econstructor; eauto.
-          * intros ix. edestruct (H8 ix) as (vx & Hvx & Hrx).
+          * intros ix. edestruct (H7 ix) as (vx & Hvx & Hrx).
             exists vx. split; eauto.
             erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
             erewrite Mem.load_store_other; eauto.
           * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
             eapply Mem.perm_store_1; eauto.
-        + erewrite Mem.nextblock_store. 2: apply Hm''.
-          erewrite Mem.nextblock_store; eauto.
+        (* + erewrite Mem.nextblock_store. 2: apply Hm''. *)
+        (*   erewrite Mem.nextblock_store; eauto. *)
       }
-      reflexivity.
+      fcd_simpl. inf_intro [x Hx]. inv Hx.
+      fcd_simpl. sup_mor. eapply (fsup_at c1).
+      { apply Hsub. constructor. constructor. eauto. }
+      fcd_simpl. reflexivity.
     (* inc2 *)
-    - rename H9 into Hb. rename H2 into HRst.
-      setoid_rewrite sup_fsup. sup_mor.
+    - rename H10 into Hb. rename H11 into Hnb.
+      setoid_rewrite sup_fsup.
       (* initial_state *)
-      eapply fsup_at. { cbn. repeat econstructor; eauto. inv HRst; eauto. }
+      sup_mor. eapply fsup_at.
+      { repeat econstructor.
+        - eapply genv_funct_symbol; [ eauto | reflexivity ].
+        - eauto.
+        - erewrite <- Mem.mext_next; eauto. }
       rewrite lts_spec_step. sup_mor. apply join_l. apply join_l.
       (* internal steps *)
-      inv HRst. inv H3. inv H1. rename mm into m.
+      inv HRst. inv H4. inv H1. rename mm' into m.
       edestruct (Mem.valid_access_store m Mint32 b0 0) as (m' & Hm').
       {
         constructor.
-        - intros ofs Hofs. apply H7. cbn [size_chunk] in Hofs. lia.
+        - intros ofs Hofs. apply H6. cbn [size_chunk] in Hofs. lia.
         - apply Z.divide_0_r.
       }
       edestruct (Mem.valid_access_store m' Mint32 b0 0) as (m'' & Hm'').
@@ -549,12 +490,22 @@ Section RB.
       rewrite lts_spec_step. sup_mor. apply join_r.
       sup_mor. eapply fsup_at. { cbn. econstructor. }
       (* re-establish the relation *)
-      fcd_simpl. eapply (fsup_at (Vint i, m'')).
+      fcd_simpl. sup_mor.  eapply (fsup_at (Vint i2, m'')).
       { apply HRc. reflexivity. }
-      eapply (fsup_at (c2, (f, c1, (S c2 mod CAL.N)%nat))).
+      fcd_simpl. sup_mor.
+      eapply (fsup_at (Vint i2, (mm, (f, c1, (S c2 mod CAL.N)%nat)))).
       {
-        cbn. apply HRp. split; cbn; eauto.
-        apply Hsub. constructor; eauto.
+        apply Hrho. subst R1. cbn. repeat apply conj; eauto. 2: constructor.
+        + assert (Hp: forall ofs', Mem.perm mm b0 ofs' Cur Readable ->
+                              0 <= ofs' < 0 + size_chunk Mint32 -> False).
+          { intros. unfold AbstractStateRel.no_perm_on in Hperm.
+            apply (Hperm b0 ofs').
+            unfold KRel.blocks. exists cnt2_id. split; auto.
+            constructor. right. left. easy.
+            apply Mem.perm_cur_max.
+            eapply Mem.perm_implies; eauto. apply perm_any_N. }
+          eapply Mem.store_outside_extends; [ | eauto | eauto ].
+          eapply Mem.store_outside_extends; eauto.
         + inv H2. econstructor; eauto.
           * assert (b1 <> b0).
             { intros <-. exploit Genv.find_symbol_injective.
@@ -574,18 +525,21 @@ Section RB.
           { intros <-. exploit Genv.find_symbol_injective.
             apply H. apply H1. easy. }
           econstructor; eauto.
-          * intros ix. edestruct (H8 ix) as (vx & Hvx & Hrx).
+          * intros ix. edestruct (H7 ix) as (vx & Hvx & Hrx).
             exists vx. split; eauto.
             erewrite Mem.load_store_other. 2: apply Hm''. 2: left; auto.
             erewrite Mem.load_store_other; eauto.
           * intros ofs Hofs. eapply Mem.perm_store_1; eauto.
             eapply Mem.perm_store_1; eauto.
-        + erewrite Mem.nextblock_store. 2: apply Hm''.
-          erewrite Mem.nextblock_store; eauto.
+        (* + erewrite Mem.nextblock_store. 2: apply Hm''. *)
+        (*   erewrite Mem.nextblock_store; eauto. *)
       }
-      reflexivity.
+      fcd_simpl. inf_intro [x Hx]. inv Hx.
+      fcd_simpl. sup_mor. eapply (fsup_at c2).
+      { apply Hsub. constructor. constructor. eauto. }
+      fcd_simpl. reflexivity.
   Qed.
-*)
+
 End RB.
 
 Require Import Effects.
@@ -600,48 +554,6 @@ Next Obligation. rc_inversion H. Qed.
 Lemma assoc_inverse' {E S1 S2}:
   rc_adj_right (@sig_assoc E S1 S2) @ rc_adj_left sig_assoc = identity.
 Proof.
-Admitted.
-
-Lemma compose_bot {E F G} (f f': E ~> F) (g: E ~> G):
-  f [= f' -> f @ bot @ g [= f'.
-Proof.
-  intros Hf. etransitivity. 2: apply Hf.
-  intros ar m. unfold compose.
-  edestruct (FCD.join_meet_dense (f ar m)) as (I & J & c & Hc).
-  rewrite Hc.
-  sup_intro i. apply (sup_at i).
-  inf_intro j. apply (inf_at j).
-  fcd_simpl. induction (c i j).
-  - reflexivity.
-  - cbn. Local Transparent bot.
-    unfold bot. sup_mor. sup_intro [].
-  - cbn. sup_intro [].
-Qed.
-
-Program Definition rb_correct: strategy_clight L_rb :=
-  {|
-    rho := rho_rb;
-    r1 := empty_rc;
-    r2 := rb_rc;
-    M := [ rb_program ];
-    sk := AST.erase_program rb_program;
-  |}.
-Local Obligation Tactic := idtac.
-Next Obligation.
-  rewrite rb_code_correct.
-  Local Opaque LatticeProduct.poset_prod.
-  Local Opaque CModule.semantics.
-  cbn. rewrite !compose_assoc.
-  setoid_rewrite <- (compose_assoc _ (slift (rc_adj_right _)) (slift (rc_adj_left _))).
-  setoid_rewrite <- slift_compose. setoid_rewrite rc_adj_epsilon.
-  rewrite slift_identity. rewrite compose_unit_l.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_left _) (rc_adj_right _)).
-  setoid_rewrite assoc_inverse'. rewrite compose_unit_l.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  apply compose_bot.
 Admitted.
 
 Definition empty_rho : rho_rel unit :=
@@ -764,7 +676,7 @@ Section BQ.
     rc_elim (inv) Hrho. depsubst. rename Hsub into HRho. inv H1.
     rename H into Hm. destruct H0 as [Hx Hperm]. inv Hx.
     rename se' into se.
-    rc_elim (inv) Hr; depsubst; clear_hyp.
+    rc_elim (inv) Hr; unfold mem in *; depsubst; clear_hyp.
     (* enq *)
     - rename H10 into Hb. rename H11 into Hv.
       edestruct inc2_block as (inc2b & Hb1 & Hb2); eauto.
@@ -776,7 +688,7 @@ Section BQ.
         - eapply genv_funct_symbol; [ eauto | reflexivity ].
         - eauto.
         - eauto.
-        - admit. }
+        - erewrite <- Mem.mext_next; eauto. }
       rewrite lts_spec_step.
       rewrite !Sup.mor_join. apply join_l. apply join_l.
       sup_mor. eapply fsup_at.
@@ -790,7 +702,8 @@ Section BQ.
       sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
       { cbn. rc_econstructor; reflexivity. } intm.
       sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
-      { rc_eapply rb_inc2_rel; eauto. }
+      { rc_eapply rb_inc2_rel; eauto.
+        erewrite <- Mem.mext_next; eauto. }
       unfold ISpec.int at 2 6.
       sup_intro ns_opt. apply (sup_at ns_opt).
       destruct ns_opt as [ n | ].
@@ -820,6 +733,7 @@ Section BQ.
       {
         cbn. repeat econstructor; try reflexivity; eauto.
         rewrite H. rewrite Int.repr_unsigned. reflexivity.
+        erewrite <- Mem.mext_next; eauto.
       }
       unfold ISpec.int at 1 5.
       sup_intro [ [] | ].
@@ -862,7 +776,7 @@ Section BQ.
       { repeat econstructor.
         - eapply genv_funct_symbol; [ eauto | reflexivity ].
         - eauto.
-        - admit. }
+        - erewrite <- Mem.mext_next; eauto. }
       rewrite lts_spec_step.
       sup_mor. apply join_l. apply join_l.
       sup_mor. eapply fsup_at.
@@ -877,7 +791,8 @@ Section BQ.
       sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
       { cbn. rc_econstructor; reflexivity. }
       intm. sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
-      { rc_eapply rb_inc1_rel; eauto. }
+      { rc_eapply rb_inc1_rel; eauto.
+        erewrite <- Mem.mext_next; eauto. }
       unfold ISpec.int at 2 6.
       sup_intro ns_opt. apply (sup_at ns_opt).
       destruct ns_opt as [ n | ].
@@ -907,6 +822,7 @@ Section BQ.
       {
         cbn. repeat econstructor; try reflexivity; eauto.
         rewrite H. rewrite Int.repr_unsigned. reflexivity.
+        erewrite <- Mem.mext_next; eauto.
       }
       unfold ISpec.int at 1 5.
       sup_intro [ v | ].
@@ -936,11 +852,64 @@ Section BQ.
       fcd_simpl. sup_mor. eapply (fsup_at v).
       { apply Hsub. constructor. eauto. }
       fcd_simpl. reflexivity.
-  Admitted.
+  Qed.
 
 End BQ.
 
 Require Composition.
+Transparent CModule.semantics.
+
+Lemma singleton_module_ref p:
+  ang_lts_spec (semantics2 p) [= ang_lts_spec (CModule.semantics [p] (erase_program p)).
+Proof.
+  pose proof @Composition.hcomp_singleton_fsim.
+  apply ang_fsim_embed_cc_id.
+  unfold CModule.semantics. cbn. etransitivity.
+  2: { apply H. typeclasses eauto. }
+  reflexivity.
+Qed.
+
+Lemma compose_bot {E F G} (f f': E ~> F) (g: E ~> G):
+  f [= f' -> f @ bot @ g [= f'.
+Proof.
+  intros Hf. etransitivity. 2: apply Hf.
+  intros ar m. unfold compose.
+  edestruct (FCD.join_meet_dense (f ar m)) as (I & J & c & Hc).
+  rewrite Hc.
+  sup_intro i. apply (sup_at i).
+  inf_intro j. apply (inf_at j).
+  fcd_simpl. induction (c i j).
+  - reflexivity.
+  - cbn. Local Transparent bot.
+    unfold bot. sup_mor. sup_intro [].
+  - cbn. sup_intro [].
+Qed.
+
+Opaque CModule.semantics LatticeProduct.poset_prod bot.
+
+Program Definition rb_correct: strategy_clight L_rb :=
+  {|
+    rho := rho_rb;
+    r1 := empty_rc;
+    r2 := rb_rc;
+    M := [ rb_program ];
+    sk := AST.erase_program rb_program;
+  |}.
+Local Obligation Tactic := idtac.
+Next Obligation.
+  rewrite rb_code_correct. cbn.
+  rewrite !compose_assoc.
+  rewrite <- (compose_assoc _ (slift (rc_adj_right _)) (slift (rc_adj_left _))).
+  rewrite <- slift_compose. rewrite rc_adj_epsilon.
+  rewrite slift_identity. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (rc_adj_left _) (rc_adj_right _)).
+  rewrite assoc_inverse'. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
+  rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
+  rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  apply compose_bot. apply singleton_module_ref.
+Admitted.
 
 Program Definition bq_correct : strategy_clight (dummy_state @ M_bq) :=
   {|
@@ -951,25 +920,19 @@ Program Definition bq_correct : strategy_clight (dummy_state @ M_bq) :=
     sk := AST.erase_program bq_program;
   |}.
 Next Obligation.
-  rewrite bq_code_correct.
-  cbn. rewrite !compose_assoc.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_right rb_rc_rel) (rc_adj_left _)).
-  setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  setoid_rewrite rc_adj_epsilon. rewrite compose_unit_r.
-  setoid_rewrite <- (compose_assoc _ (slift (rc_adj_right bq_rc_rel)) _).
-  rewrite <- slift_compose. setoid_rewrite rc_adj_epsilon.
+  rewrite bq_code_correct. cbn.
+  rewrite !compose_assoc.
+  rewrite <- (compose_assoc _ (rc_adj_right rb_rc_rel) (rc_adj_left _)).
+  rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  rewrite rc_adj_epsilon. rewrite compose_unit_r.
+  rewrite <- (compose_assoc _ (slift (rc_adj_right bq_rc_rel)) _).
+  rewrite <- slift_compose. rewrite rc_adj_epsilon.
   rewrite slift_identity. rewrite compose_unit_l.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_left sig_assoc) _).
+  rewrite <- (compose_assoc _ (rc_adj_left sig_assoc) _).
   rewrite assoc_inverse'. rewrite compose_unit_l.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  setoid_rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  setoid_rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  pose proof @Composition.hcomp_singleton_fsim.
-  apply ang_fsim_embed_cc_id.
-  Transparent CModule.semantics.
-  unfold CModule.semantics. cbn.
-  etransitivity.
-  2: { apply H. typeclasses eauto. }
-  reflexivity.
+  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
+  rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
+  rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  apply singleton_module_ref.
 Qed.
