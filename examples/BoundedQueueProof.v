@@ -551,11 +551,6 @@ Program Definition empty_rc : esig_rc 0 :=
   |}.
 Next Obligation. rc_inversion H. Qed.
 
-Lemma assoc_inverse' {E S1 S2}:
-  rc_adj_right (@sig_assoc E S1 S2) @ rc_adj_left sig_assoc = identity.
-Proof.
-Admitted.
-
 Definition empty_rho : rho_rel unit :=
   {|
     rho_pred se tt m := True;

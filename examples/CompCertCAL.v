@@ -102,6 +102,11 @@ Proof.
     sup_mor. apply (sup_at None). fcd_simpl. reflexivity.
 Qed.
 
+Lemma assoc_inverse' {E S1 S2}:
+  right_arrow (@sig_assoc E S1 S2) @ left_arrow sig_assoc = identity.
+Proof.
+Admitted.
+
 (** ** CAL in the Strategy World *)
 Close Scope Z_scope.
 
@@ -330,10 +335,64 @@ Proof.
     unfold compose. cbn. rewrite srun_slift. reflexivity.
 Qed.
 
+Instance srun_mor {E S A} (s: S) :
+  CDL.Morphism (@srun E S A s).
+Proof.
+  unfold srun. split.
+  - intros x y. rewrite Sup.mor. reflexivity.
+  - intros x y. rewrite Inf.mor. reflexivity.
+Qed.
+
+Instance map_mor {A B: poset} (f: A -> B) :
+  CDL.Morphism (@FCD.map A B f).
+Proof. unfold FCD.map. typeclasses eauto. Qed.
+
 Lemma bar {E F: esig} {S1 S2} (f: E ~> F):
   slift(S:=S1*S2) f [= right_arrow sig_assoc @ slift (slift f) @ left_arrow sig_assoc.
 Proof.
-Admitted.
+  intros ? [? ? m [[s1 s2]]]. cbn.
+  unfold compose, rc_adj_right, rc_adj_left.
+  inf_intro ?. inf_intro m'. inf_intro [ R HR ].
+  rc_inversion HR. depsubst. clear_hyp. clear Hrel. intm.
+  generalize (f _ m). intros t.
+  edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). subst t.
+  sup_intro i. apply (sup_at i).
+  inf_intro j. apply (inf_at j). fcd_simpl.
+  revert s1 s2. induction (c i j); intros s1 s2.
+  - fcd_simpl. sup_mor. eapply fsup_at.
+    { apply Hsub. constructor. }
+    fcd_simpl. reflexivity.
+  - fcd_simpl.
+    sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
+    { rc_econstructor. }
+    intm. sup_mor. sup_mor.
+    apply (sup_at None). fcd_simpl. reflexivity.
+  - cbn. apply sup_iff. intros [ [ x1 x2 ] | ].
+    + sup_mor. apply (sup_at (Some x1)).
+      rewrite IHp.
+      generalize (stateful_play x1 p). intros px.
+      edestruct (FCD.join_meet_dense px) as (I' & J' & c' & Hc'). subst px.
+      sup_intro i'. apply (sup_at i').
+      inf_intro j'. apply (inf_at j'). fcd_simpl.
+      sup_mor. apply (sup_at (Some x2)).
+      generalize (stateful_play x2 (c' i' j')). intros py.
+      edestruct (FCD.join_meet_dense py) as (I'' & J'' & c'' & Hc''). subst py.
+      sup_intro i''. apply (sup_at i'').
+      inf_intro j''. apply (inf_at j''). fcd_simpl.
+      match goal with
+      | [ |- context[ papply ?f (c'' i'' j'') ] ] => set (fx := papply f (c'' i'' j''))
+      end.
+      sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
+      { rc_econstructor. }
+      intm. unfold int at 3.
+      sup_mor. apply (sup_at (Some (n, (x1, x2)))). fcd_simpl. apply join_r.
+      inf_intro [ n' Hn ]. inv Hn. fcd_simpl.
+      sup_mor. eapply (sup_at eq_refl). reflexivity.
+    + sup_mor. apply (sup_at None). fcd_simpl.
+      sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
+      { rc_econstructor. }
+      intm. sup_mor. sup_mor. apply (sup_at None). fcd_simpl. reflexivity.
+Qed.
 
 Lemma assoc_lift {E F S1 S2} (f: E ~> F):
   slift f @ right_arrow sig_assoc [= right_arrow sig_assoc @ slift(S:=S2) (slift(S:=S1) f).
@@ -347,13 +406,58 @@ Lemma assoc_property {E S1 S2 S3}:
     left_arrow sig_assoc @ right_arrow (st_assoc (E:=E) (S1:=S1) (S2:=S2) (S3:=S3))
                 @ right_arrow sig_assoc @ slift (right_arrow sig_assoc).
 Proof.
-Admitted.
+  intros ? [? ? [? ? m [s1]] [[s2 s3]]]. cbn.
+  unfold rc_adj_right, rc_adj_left, compose.
+  eapply inf_at. eapply inf_at. eapply finf_at.
+  { rc_econstructor. }
+  sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
+  { rc_econstructor. } intm.
+  inf_intro ?. inf_intro [? ? m' [[[t1 t2] t3]]].
+  inf_intro (Rx & HRx).
+  rc_elim (inv) HRx. depsubst. clear_hyp. rename Hsub into HRx.
+  rc_destruct H2. rename Hsub into HR1.
+  rc_elim (inv) H13. depsubst. inv H2. rename Hsub into HR2.
+  intm.
+  inf_intro ?. inf_intro [? ? [? ? m' [[s1 s2]]] [s3]].
+  inf_intro (Ry & HRy).
+  rc_elim (inv) HRy. depsubst. clear_hyp. rename Hsub into HRy.
+  intm.
+  inf_intro ?. inf_intro [? ? [? ? m' [t1]] [t2]].
+  inf_intro (Rz & HRz).
+  rc_elim (inv) HRz. depsubst. clear_hyp. rename Hsub into HRz.
+  intm. sup_intro [[[[n x1] x2] x3]|].
+  - fcd_simpl. apply join_lub.
+    + apply (sup_at None). fcd_simpl. reflexivity.
+    + apply (sup_at (Some (n, x1, x2, x3))). fcd_simpl.
+      apply join_r. rstep.
+      apply sup_iff. intros (p & Hp). cbn. inv Hp.
+      sup_mor. eapply fsup_at.
+      { apply HRz. constructor. }
+      fcd_simpl.
+      sup_mor. eapply fsup_at.
+      { apply HRy. constructor. }
+      fcd_simpl.
+      sup_mor. eapply (fsup_at (_, (_, (_, _)))).
+      { apply HRx. split; cbn.
+        apply HR1. reflexivity.
+        apply HR2. constructor. }
+      fcd_simpl.
+      inf_intro (p & Hp). inv Hp. fcd_simpl. reflexivity.
+  - apply (sup_at None). fcd_simpl. reflexivity.
+Qed.
 
 Lemma assoc_property' {E S1 S2 S}:
   left_arrow sig_assoc @ left_arrow st_assoc @ right_arrow sig_assoc @ right_arrow sig_assoc [=
   slift (S:=S) (right_arrow (sig_assoc (E:=E) (S1:=S1) (S2:=S2))).
 Proof.
-Admitted.
+  rewrite assoc_property.
+  rewrite <- (compose_assoc _ (left_arrow sig_assoc)). rewrite assoc_inverse'.
+  rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (right_arrow st_assoc)). rewrite epsilon.
+  rewrite compose_unit_l.
+  rewrite <- compose_assoc. rewrite epsilon.
+  rewrite compose_unit_l. reflexivity.
+Qed.
 
 Lemma stateful_compose_ref {E F G U1 U2 S} (f: F ~> G#U1) (g: E ~> F # U2):
   h @@ h @ slift f @@ slift g [= slift (S:=S) (stateful_compose f g).
@@ -575,14 +679,6 @@ Definition c_mem_state_rc {S: Type}: rc_rel (c_esig # (mem * S)) (li_c @ S)%li :
   rc_compose sig_assoc (rc_compose  (c_rc * rc_id) li_state_rc).
 
 Close Scope Z_scope.
-
-Instance apply_mor {E S A} (s: S) :
-  CDL.Morphism (@srun E S A s).
-Proof.
-  unfold srun. split.
-  - intros x y. rewrite Sup.mor. reflexivity.
-  - intros x y. rewrite Inf.mor. reflexivity.
-Qed.
 
 Record esig_rc (E: esig) :=
   {
@@ -992,10 +1088,7 @@ End COMPILE_LAYER.
 
 
 (** Obsolete stuff *)
-Instance map_mor {A B: poset} (f: A -> B) :
-  CDL.Morphism (@FCD.map A B f).
-Proof. unfold FCD.map. typeclasses eauto. Qed.
-
+(*
 Local Opaque normalize_rc.
 Close Scope Z_scope.
 
@@ -1028,53 +1121,6 @@ Proof.
   fcd_simpl. reflexivity.
 Qed.
 
-Lemma bar' {E F: esig} {S1 S2} (f: E ~> F):
-  slift(S:=S1*S2) f [= right_arrow sig_assoc @ slift (slift f) @ left_arrow sig_assoc.
-Proof.
-  intros ? [? ? m [[s1 s2]]]. cbn.
-  unfold compose, rc_adj_right, rc_adj_left.
-  inf_intro ?. inf_intro m'. inf_intro [ R HR ].
-  rc_inversion HR. depsubst. clear_hyp. clear Hrel. intm.
-  generalize (f _ m). intros t.
-  edestruct (FCD.join_meet_dense t) as (I & J & c & Hc). subst t.
-  sup_intro i. apply (sup_at i).
-  inf_intro j. apply (inf_at j). fcd_simpl.
-  revert s1 s2. induction (c i j); intros s1 s2.
-  - fcd_simpl. sup_mor. eapply fsup_at.
-    { apply Hsub. constructor. }
-    fcd_simpl. reflexivity.
-  - fcd_simpl.
-    sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
-    { rc_econstructor. }
-    intm. sup_mor. sup_mor.
-    apply (sup_at None). fcd_simpl. reflexivity.
-  - cbn. apply sup_iff. intros [ [ x1 x2 ] | ].
-    + sup_mor. apply (sup_at (Some x1)).
-      rewrite IHp.
-      generalize (stateful_play x1 p). intros px.
-      edestruct (FCD.join_meet_dense px) as (I' & J' & c' & Hc'). subst px.
-      sup_intro i'. apply (sup_at i').
-      inf_intro j'. apply (inf_at j'). fcd_simpl.
-      sup_mor. apply (sup_at (Some x2)).
-      generalize (stateful_play x2 (c' i' j')). intros py.
-      edestruct (FCD.join_meet_dense py) as (I'' & J'' & c'' & Hc''). subst py.
-      sup_intro i''. apply (sup_at i'').
-      inf_intro j''. apply (inf_at j''). fcd_simpl.
-      match goal with
-      | [ |- context[ papply ?f (c'' i'' j'') ] ] => set (fx := papply f (c'' i'' j''))
-      end.
-      sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
-      { rc_econstructor. }
-      intm. unfold int at 3.
-      sup_mor. apply (sup_at (Some (n, (x1, x2)))). fcd_simpl. apply join_r.
-      inf_intro [ n' Hn ]. inv Hn. fcd_simpl.
-      sup_mor. eapply (sup_at eq_refl). reflexivity.
-    + sup_mor. apply (sup_at None). fcd_simpl.
-      sup_mor. eapply sup_at. sup_mor. eapply sup_at. sup_mor. eapply fsup_at.
-      { rc_econstructor. }
-      intm. sup_mor. sup_mor. apply (sup_at None). fcd_simpl. reflexivity.
-Qed.
-
 Lemma baz {E F: esig} {S1 S2} (f: E ~> F):
   slift(S:=S1) (slift(S:=S2) f) [= right_arrow sig_comm @ slift(S:=S2) (slift(S:=S1) f) @ right_arrow sig_comm.
 Proof.
@@ -1085,3 +1131,4 @@ Lemma xxx {E F: esig} {S1 S2} (f: E ~> F):
     left_arrow sig_comm @ left_arrow sig_assoc @ (slift f) @ right_arrow sig_assoc @ right_arrow sig_comm.
 Proof.
 Abort.
+*)
