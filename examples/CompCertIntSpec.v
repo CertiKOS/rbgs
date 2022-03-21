@@ -301,10 +301,9 @@ Lemma ang_fsim_embed_cc_id {liA liB} (L1 L2: semantics liA liB):
   ang_lts_spec L1 [= ang_lts_spec L2.
 Proof.
   intros H. apply ang_fsim_embed in H.
-  rewrite H. cbn -[LatticeProduct.cdlat_prod].
-  rewrite !cc_rc_id.
-  rewrite rc_adj_right_id. rewrite compose_unit_l.
-  rewrite rc_adj_left_id. rewrite compose_unit_r.
+  rewrite H. rewrite !cc_rc_id.
+  rewrite right_arrow_id. rewrite compose_unit_l.
+  rewrite left_arrow_id. rewrite compose_unit_r.
   reflexivity.
 Qed.
 

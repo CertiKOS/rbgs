@@ -372,11 +372,11 @@ End RC_ADJ.
 Section PROPS.
   Context {E F G} (rc1: E <=> F) (rc2: F <=> G).
   Local Opaque normalize_rc.
-  Lemma rc_adj_left_compose:
-    rc_adj_left rc2 @ rc_adj_left rc1 = rc_adj_left (rc_compose rc1 rc2).
+  Lemma left_arrow_compose:
+    left_arrow (rc_adj rc2) @ left_arrow (rc_adj rc1) =
+      left_arrow (rc_adj (rc_compose rc1 rc2)).
   Proof.
-    unfold rc_adj_left, compose.
-    apply antisymmetry; intros ar1 m1; cbn.
+    apply antisymmetry; intros ar1 m1; cbn; unfold rc_adj_left, compose.
     - rewrite !Sup.mor. apply sup_iff. intros ar2.
       rewrite !Sup.mor. apply sup_iff. intros m2.
       unfold fsup at 2. rewrite !Sup.mor.
@@ -454,15 +454,16 @@ Section PROPS.
         reflexivity.
   Qed.
 
-  Lemma rc_adj_right_compose:
-    rc_adj_right rc1 @ rc_adj_right rc2 = rc_adj_right (rc_compose rc1 rc2).
+  Lemma right_arrow_compose:
+    right_arrow (rc_adj rc1) @ right_arrow (rc_adj rc2) =
+      right_arrow (rc_adj (rc_compose rc1 rc2)).
   Proof.
   Admitted.
 
-  Lemma rc_adj_left_id:
-    rc_adj_left (@rc_id E) = identity.
+  Lemma left_arrow_id:
+    left_arrow (rc_adj (@rc_id E)) = identity.
   Proof.
-    unfold rc_adj_left. apply antisymmetry; intros ar m; cbn.
+    apply antisymmetry; intros ar m; cbn; unfold rc_adj_left.
     - apply sup_iff. intros ar'.
       apply sup_iff. intros m'.
       apply sup_iff. intros [ R Hr ]. rc_destruct Hr. cbn.
@@ -482,8 +483,8 @@ Section PROPS.
       + sup_mor. apply (sup_at None). now fcd_simpl.
   Qed.
 
-  Lemma rc_adj_right_id:
-    rc_adj_right (@rc_id E) = identity.
+  Lemma right_arrow_id:
+    right_arrow (rc_adj (@rc_id E)) = identity.
   Proof.
     unfold rc_adj_right. apply antisymmetry; intros ar m; cbn.
     - apply (inf_at ar). apply (inf_at m).
