@@ -76,19 +76,54 @@ Section MARSHALL.
     Ple (Genv.genv_next se) (Mem.nextblock m) ->
     bq_rc_rel _ deq _ (c_event vf deq_sg [ ] se # m) (rel_with_mem val_rel m).
 
+  Local Obligation Tactic := idtac.
   Program Definition rb_rc : esig_rc rb_sig :=
     {|
       esig_refconv := rb_rc_rel;
     |}.
   Next Obligation.
-  Admitted.
+    intros * Hrel Hvf Hvargs.
+    rc_elim (inv) Hrel; unfold mem in *; depsubst; clear_hyp.
+    - apply val_inject_id in Hvf. inv Hvf.
+      inv Hvargs. apply val_inject_id in H1. inv H1.
+      inv H3. apply val_inject_id in H1. inv H1.
+      2: { apply val_is_int in H12. inv H12. }
+      inv H4.
+      eapply refconv_clo. eauto.
+      rc_eapply rb_set_rel; eauto.
+    - apply val_inject_id in Hvf. inv Hvf.
+      inv Hvargs. apply val_inject_id in H1. inv H1.
+      inv H3.
+      eapply refconv_clo. eauto.
+      rc_eapply rb_get_rel; eauto.
+    - apply val_inject_id in Hvf. inv Hvf.
+      inv Hvargs.
+      eapply refconv_clo. eauto.
+      rc_eapply rb_inc1_rel; eauto.
+    - apply val_inject_id in Hvf. inv Hvf.
+      inv Hvargs.
+      eapply refconv_clo. eauto.
+      rc_eapply rb_inc2_rel; eauto.
+  Qed.
 
   Program Definition bq_rc : esig_rc bq_sig :=
     {|
       esig_refconv := bq_rc_rel;
     |}.
   Next Obligation.
-  Admitted.
+    intros * Hrel Hvf Hvargs.
+    rc_elim (inv) Hrel; unfold mem in *; depsubst; clear_hyp.
+    - apply val_inject_id in Hvf. inv Hvf.
+      inv Hvargs. apply val_inject_id in H1. inv H1.
+      2: { apply val_is_int in H11. inv H11. }
+      inv H3.
+      eapply refconv_clo. eauto.
+      rc_eapply bq_enq_rel; eauto.
+    - apply val_inject_id in Hvf. inv Hvf.
+      inv Hvargs.
+      eapply refconv_clo. eauto.
+      rc_eapply bq_deq_rel; eauto.
+  Qed.
 
 End MARSHALL.
 
@@ -132,14 +167,49 @@ Section RHO.
 
 End RHO.
 
-Inductive rho_fp : ident -> Prop :=
-  rho_fp_intro i: i = cnt1_id \/ i = cnt2_id \/ i = arr_id -> rho_fp i.
-
-Definition rho_rb : rho_rel rb_state :=
+Program Definition rho_rb : rho_rel rb_state :=
   {|
     rho_pred := R_rb;
-    rho_footprint := rho_fp;
+    rho_footprint i := i = cnt1_id \/ i = cnt2_id \/ i = arr_id;
   |}.
+Next Obligation.
+  destruct H. constructor.
+  - inv H. econstructor; eauto.
+    + eapply Mem.load_unchanged_on; eauto.
+      cbn. unfold KRel.blocks. intros.
+      eexists; split; [|eauto]. left. reflexivity.
+    + unfold Mem.range_perm in *. intros ofs Hofs.
+      eapply Mem.perm_unchanged_on; eauto.
+      cbn. unfold KRel.blocks. intros.
+      eexists; split; [|eauto]. left. reflexivity.
+  - inv H1. econstructor; eauto.
+    + eapply Mem.load_unchanged_on; eauto.
+      cbn. unfold KRel.blocks. intros.
+      eexists; split; [|eauto]. right. left. reflexivity.
+    + unfold Mem.range_perm in *. intros ofs Hofs.
+      eapply Mem.perm_unchanged_on; eauto.
+      cbn. unfold KRel.blocks. intros.
+      eexists; split; [|eauto]. right. left. reflexivity.
+  - inv H2. econstructor; eauto.
+    + intros i. specialize (H4 i) as (v & Hv1 & Hv2).
+      exists v; split; eauto.
+      eapply Mem.load_unchanged_on; eauto.
+      unfold KRel.blocks. intros.
+      eexists; split; [|eauto]. right. right. reflexivity.
+    + unfold Mem.range_perm in *. intros ofs Hofs.
+      eapply Mem.perm_unchanged_on; eauto.
+      cbn. unfold KRel.blocks. intros.
+      eexists; split; [|eauto]. right. right. reflexivity.
+Qed.
+Next Obligation.
+  inv H. unfold KRel.blocks in H0.
+  eapply Mem.perm_valid_block with (ofs := 0).
+  destruct H0 as (v & [|[|]] & Hv2).
+  - inv H1. replace b with b0 by congruence. apply H6. lia.
+  - inv H2. replace b with b0 by congruence. apply H6. lia.
+  - inv H3. replace b with b0 by congruence. apply H4.
+    unfold Nz. lia.
+Qed.
 
 (*
 Lemma find_get se b:
@@ -288,7 +358,6 @@ Section RB.
           intros. unfold AbstractStateRel.no_perm_on in Hperm.
           apply (Hperm b0 ofs'). cbn.
           unfold KRel.blocks. exists arr_id. split; auto.
-          constructor. right. right. easy.
           apply Mem.perm_cur_max.
           eapply Mem.perm_implies; eauto. apply perm_any_N.
         + destruct H2. econstructor; eauto.
@@ -415,7 +484,6 @@ Section RB.
           { intros. unfold AbstractStateRel.no_perm_on in Hperm.
             apply (Hperm b0 ofs').
             unfold KRel.blocks. exists cnt1_id. split; auto.
-            constructor. left. easy.
             apply Mem.perm_cur_max.
             eapply Mem.perm_implies; eauto. apply perm_any_N. }
           eapply Mem.store_outside_extends; [ | eauto | eauto ].
@@ -501,7 +569,6 @@ Section RB.
           { intros. unfold AbstractStateRel.no_perm_on in Hperm.
             apply (Hperm b0 ofs').
             unfold KRel.blocks. exists cnt2_id. split; auto.
-            constructor. right. left. easy.
             apply Mem.perm_cur_max.
             eapply Mem.perm_implies; eauto. apply perm_any_N. }
           eapply Mem.store_outside_extends; [ | eauto | eauto ].
@@ -551,11 +618,15 @@ Program Definition empty_rc : esig_rc 0 :=
   |}.
 Next Obligation. rc_inversion H. Qed.
 
-Definition empty_rho : rho_rel unit :=
+Program Definition empty_rho : rho_rel unit :=
   {|
     rho_pred se tt m := True;
     rho_footprint i := False;
   |}.
+Next Obligation.
+  unfold KRel.blocks in H0.
+  destruct H0 as (? & [] & ?).
+Qed.
 
 Unset Asymmetric Patterns.
 
@@ -892,17 +963,18 @@ Program Definition rb_correct: strategy_clight L_rb :=
   |}.
 Local Obligation Tactic := idtac.
 Next Obligation.
-  rewrite rb_code_correct. cbn.
+  rewrite rb_code_correct. cbn -[left_arrow right_arrow].
+  unfold h, sig_assoc_right, sig_assoc_left.
   rewrite !compose_assoc.
-  rewrite <- (compose_assoc _ (slift (rc_adj_right _)) (slift (rc_adj_left _))).
-  rewrite <- slift_compose. rewrite rc_adj_epsilon.
+  rewrite <- (compose_assoc _ (slift (right_arrow _)) (slift (left_arrow _))).
+  rewrite <- slift_compose. rewrite epsilon.
   rewrite slift_identity. rewrite compose_unit_l.
-  rewrite <- (compose_assoc _ (rc_adj_left _) (rc_adj_right _)).
+  rewrite <- (compose_assoc _ (left_arrow _) (right_arrow _)).
   rewrite assoc_inverse'. rewrite compose_unit_l.
-  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (right_arrow _) (left_arrow _)).
+  rewrite epsilon. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (right_arrow _) (left_arrow _)).
+  rewrite epsilon. rewrite compose_unit_l.
   apply compose_bot. apply singleton_module_ref.
 Admitted.
 
@@ -915,19 +987,20 @@ Program Definition bq_correct : strategy_clight (dummy_state @ M_bq) :=
     sk := AST.erase_program bq_program;
   |}.
 Next Obligation.
-  rewrite bq_code_correct. cbn.
+  rewrite bq_code_correct. cbn -[left_arrow right_arrow].
+  unfold h, sig_assoc_right, sig_assoc_left.
   rewrite !compose_assoc.
-  rewrite <- (compose_assoc _ (rc_adj_right rb_rc_rel) (rc_adj_left _)).
-  rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  rewrite rc_adj_epsilon. rewrite compose_unit_r.
-  rewrite <- (compose_assoc _ (slift (rc_adj_right bq_rc_rel)) _).
-  rewrite <- slift_compose. rewrite rc_adj_epsilon.
+  rewrite <- (compose_assoc _ (right_arrow rb_rc_rel) (left_arrow _)).
+  rewrite epsilon. rewrite compose_unit_l.
+  rewrite epsilon. rewrite compose_unit_r.
+  rewrite <- (compose_assoc _ (slift (right_arrow bq_rc_rel)) _).
+  rewrite <- slift_compose. rewrite epsilon.
   rewrite slift_identity. rewrite compose_unit_l.
-  rewrite <- (compose_assoc _ (rc_adj_left sig_assoc) _).
+  rewrite <- (compose_assoc _ (left_arrow sig_assoc) _).
   rewrite assoc_inverse'. rewrite compose_unit_l.
-  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  rewrite rc_adj_epsilon. rewrite compose_unit_l.
-  rewrite <- (compose_assoc _ (rc_adj_right _) (rc_adj_left _)).
-  rewrite rc_adj_epsilon. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (right_arrow _) (left_arrow _)).
+  rewrite epsilon. rewrite compose_unit_l.
+  rewrite <- (compose_assoc _ (right_arrow _) (left_arrow _)).
+  rewrite epsilon. rewrite compose_unit_l.
   apply singleton_module_ref.
 Qed.

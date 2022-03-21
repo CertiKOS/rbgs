@@ -652,6 +652,12 @@ Record rho_rel (U: Type) :=
       fun '(m1, u) m2 =>
         Mem.extends m1 m2 /\ rho_pred se u m2 /\
           no_perm_on m1 (blocks se rho_footprint);
+    rho_invar : forall se u m m',
+      rho_pred se u m ->
+      Mem.unchanged_on (blocks se rho_footprint) m m' ->
+      rho_pred se u m';
+    rho_valid : forall se u m b ofs,
+      rho_pred se u m -> (blocks se rho_footprint) b ofs -> Mem.valid_block m b;
   }.
 
 (* used to be [id (E:=C) * rho ] *)
@@ -667,9 +673,12 @@ Program Definition rho_krel {S1 S2 U} (R: S2 -> U * S1 -> Prop) (rho: rho_rel U)
     krel_footprint := rho_footprint _ rho;
   |}.
 Next Obligation.
-Admitted.
+  eexists; split; eauto.
+  eapply rho_invar; eauto.
+Qed.
 Next Obligation.
-Admitted.
+  eapply rho_valid; eauto.
+Qed.
 
 Inductive li_state_rc {li: language_interface} {S: Type}: rc_rel (li # S) (li @ S)%li :=
 | li_state_rc_intro (q: query li) s se:
