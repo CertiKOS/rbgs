@@ -195,6 +195,7 @@ Proof.
 Qed.
 
 Coercion normalize_rc: rc_rel >-> refconv.
+Global Opaque normalize_rc.
 
 Tactic Notation "rc_elim" tactic(tac) hyp(H) :=
   match type of H with
@@ -243,14 +244,44 @@ Proof.
     rc_econstructor; eauto. rc_econstructor.
 Qed.
 
-Definition rc_compose_id_r {E F} (rc: E <=> F): rc_compose rc rc_id = rc.
+Definition rc_compose_id_r {E F} (rc: E <=> F):
+  @eq (refconv _ _) (rc_compose rc rc_id) rc.
 Proof.
-Admitted.
+  apply antisymmetry; unfold rc_ref; intros * Hrc;
+    exists R1; split; try easy.
+  - rc_destruct Hrc. rc_destruct H0.
+    eapply refconv_clo; [ | eauto ].
+    intros x y Hxy. apply Hsub.
+    eexists; split; eauto.
+  - rewrite <- (rel_compose_id_left R1).
+    rc_econstructor; eauto. rc_econstructor.
+Qed.
 
 Definition rc_compose_assoc {E F G H} (rc1: E <=> F) (rc2: F <=> G) (rc3: G <=> H):
-  rc_compose (rc_compose rc1 rc2) rc3 = rc_compose rc1 (rc_compose rc2 rc3).
+  @eq (refconv _ _) (rc_compose (rc_compose rc1 rc2) rc3)
+      (rc_compose rc1 (rc_compose rc2 rc3)).
 Proof.
-Admitted.
+  apply antisymmetry; unfold rc_ref; intros * Hrc;
+    exists R1; split; try easy.
+  - rc_destruct Hrc. rc_destruct H0.
+    eapply refconv_clo.
+    2: {
+      rc_econstructor; eauto.
+      rc_econstructor; eauto.
+    }
+    rewrite <- rel_compose_assoc.
+    etransitivity; eauto.
+    apply rel_compose_subrel; eauto. reflexivity.
+  - rc_destruct Hrc. rc_destruct H1.
+    eapply refconv_clo.
+    2: {
+      rc_econstructor; eauto.
+      rc_econstructor; eauto.
+    }
+    rewrite rel_compose_assoc.
+    etransitivity; eauto.
+    apply rel_compose_subrel; eauto. reflexivity.
+Qed.
 
 (** *** Tensor Product Operator on Refinement Conventions *)
 
@@ -357,7 +388,16 @@ Section RC_ADJ.
   Qed.
 
   Lemma rc_adj_eta : identity [= rc_adj_right @ rc_adj_left.
-  Admitted.
+    intros ar m. unfold rc_adj_left, rc_adj_right, compose, identity.
+    inf_intro ?. inf_intro m'. inf_intro [R Hrc]. intm.
+    sup_mor. eapply sup_at. sup_mor. eapply (sup_at m).
+    sup_mor. eapply (fsup_at R). apply Hrc.
+    intm. sup_intro [n|].
+    - apply (sup_at (Some n)). fcd_simpl. apply join_r.
+      inf_intro (n' & Hn). fcd_simpl.
+      sup_mor. eapply (fsup_at n). apply Hn. fcd_simpl. reflexivity.
+    - apply (sup_at None). fcd_simpl. reflexivity.
+  Qed.
 
   Definition rc_adj : E <~> F :=
     {|
@@ -371,7 +411,7 @@ End RC_ADJ.
   (* TODO: functoriality *)
 Section PROPS.
   Context {E F G} (rc1: E <=> F) (rc2: F <=> G).
-  Local Opaque normalize_rc.
+
   Lemma left_arrow_compose:
     left_arrow (rc_adj rc2) @ left_arrow (rc_adj rc1) =
       left_arrow (rc_adj (rc_compose rc1 rc2)).
@@ -458,7 +498,39 @@ Section PROPS.
     right_arrow (rc_adj rc1) @ right_arrow (rc_adj rc2) =
       right_arrow (rc_adj (rc_compose rc1 rc2)).
   Proof.
-  Admitted.
+    apply antisymmetry; intros ar1 m1; cbn; unfold rc_adj_right, compose.
+    - inf_intro ?. inf_intro m2. apply inf_iff. intros [R Hr].
+      rc_destruct Hr.
+      eapply inf_at. eapply (inf_at m2). inf_mor. eapply (finf_at R0).
+      apply r. cbn. intm.
+      inf_mor. eapply inf_at. inf_mor. eapply (inf_at m3).
+      inf_mor. eapply (finf_at R'). apply r0. intm.
+      sup_intro [n3|].
+      + fcd_simpl. apply join_lub.
+        * apply (sup_at None). fcd_simpl. reflexivity.
+        * apply (sup_at (Some n3)). fcd_simpl. apply join_r.
+          rstep.
+          sup_intro (n2 & Hn2). fcd_simpl.
+          sup_intro (n1 & Hn1). fcd_simpl.
+          eapply (fsup_at n1). apply Hsub.
+          eexists; split; eauto.
+          reflexivity.
+      + apply (sup_at None). fcd_simpl. reflexivity.
+    - inf_intro ?. inf_intro m2. inf_intro (R1 & HR1). intm.
+      inf_intro ?. inf_intro m3. inf_intro (R2 & HR2). intm.
+      eapply inf_at. eapply (inf_at m3). eapply finf_at.
+      rc_econstructor; eauto.
+      sup_intro [n3|].
+      + fcd_simpl. apply join_lub.
+        * apply (sup_at None). fcd_simpl. reflexivity.
+        * apply (sup_at (Some n3)). fcd_simpl. apply join_r.
+          rstep.
+          sup_intro (n1 & Hn1). destruct Hn1 as (n2 & Hn1 & Hn2).
+          apply (fsup_at n2). apply Hn2. fcd_simpl.
+          sup_mor. apply (fsup_at n1). apply Hn1. fcd_simpl.
+          reflexivity.
+      + apply (sup_at None). fcd_simpl. reflexivity.
+  Qed.
 
   Lemma left_arrow_id:
     left_arrow (rc_adj (@rc_id E)) = identity.
