@@ -5,6 +5,7 @@
 -R models models
 -R examples examples
 -R compcertox compcertox
+-R interfaces interfaces
 
 structures/Poset.v
 structures/Lattice.v
@@ -34,3 +35,8 @@ compcertox/Composition.v
 compcertox/CModule.v
 compcertox/TensorComp.v
 compcertox/KRel.v
+
+interfaces/Category.v
+interfaces/Functor.v
+interfaces/MonoidalCategory.v
+interfaces/ConcreteCategory.v

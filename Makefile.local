@@ -3,4 +3,8 @@ pre-all::
 	+make -C compcert depend
 	+make -C compcert driver/Compiler.vo
 
+clean::
+	+make -C coqrel clean
+	+make -C compcert clean
+
 -include Makefile.user
