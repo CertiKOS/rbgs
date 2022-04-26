@@ -599,7 +599,7 @@ Section ABREL_CC.
       (MEXT: Mem.extends ms mf)
       (MPERM: forall b ofs, locsp se (abrel_footprint R) b ofs -> loc_out_of_bounds ms b ofs)
       (MDEF: defined_on (fun b ofs => Mem.perm mf b ofs Max Nonempty
-                                       /\ loc_out_of_bounds ms b ofs) mf)
+                                   /\ loc_out_of_bounds ms b ofs) mf)
       (ABS: R se ks (mf, kf)):
       abrel_cc_query (mk_aw se ms mf) (cq vfs sg vargss ms, ks) (cq vff sg vargsf mf, kf).
   Inductive abrel_cc_reply: abrel_world -> reply (li_c @ Ks) -> reply (li_c @ Kf) -> Prop :=
@@ -608,7 +608,7 @@ Section ABREL_CC.
       (MEXT: Mem.extends ms mf)
       (MPERM: forall b ofs, locsp se (abrel_footprint R) b ofs -> loc_out_of_bounds ms b ofs)
       (MDEF: defined_on (fun b ofs => Mem.perm mf b ofs Max Nonempty
-                                       /\ loc_out_of_bounds ms b ofs) mf)
+                                   /\ loc_out_of_bounds ms b ofs) mf)
       (ABS: R se ks (mf, kf)):
       abrel_cc_reply (mk_aw se ms mf) (cr vress ms, ks) (cr vresf mf, kf).
   Instance abrel_cc_kf: KripkeFrame unit abrel_world :=
@@ -790,9 +790,8 @@ Section CKLR.
     abrel_match_mem_intro se ks kf ms mf
       (MEXT: Mem.extends ms mf)
       (MPERM: forall b ofs, locsp se (abrel_footprint R) b ofs -> loc_out_of_bounds ms b ofs)
-      (MEQ: forall b ofs, Mem.perm ms b ofs Cur Readable ->
-                     ZMap.get ofs (PMap.get b ms.(Mem.mem_contents)) =
-                       ZMap.get ofs (PMap.get b mf.(Mem.mem_contents)))
+      (MDEF: defined_on (fun b ofs => Mem.perm mf b ofs Max Nonempty
+                                   /\ loc_out_of_bounds ms b ofs) mf)
       (ABS: R se ks (mf, kf)):
       abrel_match_mem (mk_kw se ks kf) ms mf.
   Inductive abrel_match_se: kworld -> Genv.symtbl -> Genv.symtbl -> Prop :=
@@ -825,41 +824,62 @@ Section CKLR.
   Qed.
   (* cklr_alloc *)
   Next Obligation.
-    intros [ ] m1 m2 Hm lo hi. inv Hm.
-    destruct (Mem.alloc m1 lo hi) as [m1' b1] eqn: Hm1.
-    edestruct Mem.alloc_extends as (m2' & Hm2' & Hm'); eauto; try reflexivity.
-    rewrite Hm2'.
+    intros [ ] ms mf Hm lo hi. inv Hm.
+    destruct (Mem.alloc ms lo hi) as [ms' b1] eqn: Hms.
+    edestruct Mem.alloc_extends as (mf' & Hmf & Hm'); eauto; try reflexivity.
+    rewrite Hmf.
     eexists; split; repeat rstep.
     constructor; auto.
     - intros * H.
       specialize (MPERM _ _ H). intros Hp. apply MPERM.
       eapply Mem.perm_alloc_4 in Hp; eauto.
-      eapply Mem.alloc_result in Hm1. subst.
+      eapply Mem.alloc_result in Hms. subst.
       eapply abrel_valid in ABS; eauto.
       erewrite Mem.mext_next; eauto.
-    - intros * Hp.
-      unfold Mem.alloc in *.
+    - eapply defined_on_implies.
+      instantiate (1 := fun b ofs => Mem.perm mf b ofs Max Nonempty
+                                  /\ loc_out_of_bounds ms b ofs).
+      + eapply Mem.alloc_unchanged_on in Hmf.
+        eapply defined_unchanged_on_1; eauto.
+        intros * (A & B). eauto with mem.
+      + intros * (A & B). split.
+        * eapply Mem.perm_alloc_4; eauto. intros <-.
+          exploit Mem.perm_alloc_3. exact Hmf. exact A. intros C.
+          exploit Mem.perm_alloc_2. exact Hms. exact C. intros D.
+          apply B. eauto with mem.
+        * intros C. apply B.
+          eapply Mem.perm_alloc_1; eauto.
+      (* eapply defined_unchanged_on_1; eauto. *)
     - eapply abrel_invar; eauto.
       eapply Mem.alloc_unchanged_on; eauto.
   Qed.
   (* cklr_free *)
   Next Obligation.
-    intros [ ] m1 m2 Hm [[b lo] hi] r2 Hr. inv Hm.
+    intros [ ] ms mf Hm [[b lo] hi] r2 Hr. inv Hm.
     apply coreflexivity in Hr. subst. simpl. red.
-    destruct (Mem.free m1 b lo hi) as [m1'|] eqn:Hm1'; [|constructor].
-    edestruct Mem.free_parallel_extends as (m2' & Hm2' & Hm'); eauto.
-    rewrite Hm2'. constructor.
+    destruct (Mem.free ms b lo hi) as [ms'|] eqn:Hms'; [|constructor].
+    edestruct Mem.free_parallel_extends as (mf' & Hmf' & Hm'); eauto.
+    rewrite Hmf'. constructor.
     eexists; split; repeat rstep.
     constructor; auto.
-    - eapply krel_invar; eauto.
-      eapply Mem.free_unchanged_on; eauto.
-      intros ofs Hofs Hv. specialize (H6 _ _ Hv). apply H6.
-      exploit Mem.free_range_perm. apply Hm1'. eauto.
-      intros Hp. eapply Mem.perm_cur_max.
-      eapply Mem.perm_implies. apply Hp. constructor.
-    - unfold no_perm_on in *. intros.
-      specialize (H6 _ _ H). intros Hp. apply H6.
+    - intros * A. specialize (MPERM _ _ A).
+      intros B. apply MPERM.
       eapply Mem.perm_free_3; eauto.
+    - exploit Mem.free_result. exact Hmf'. intros HF.
+      eapply unchecked_free_defined_on. subst mf'. reflexivity.
+      eapply defined_on_implies; eauto.
+      intros * (A & B). split.
+      + eapply Mem.perm_free_3; eauto.
+      + intros C. apply B.
+        exploit Mem.perm_free_inv. exact Hms'. exact C. intros [D|D].
+        * exfalso. eapply Mem.perm_free_2. exact Hmf'. apply D.
+          destruct D. subst b0. exact A.
+        * exact D.
+    - eapply abrel_invar; eauto.
+      eapply Mem.free_unchanged_on; eauto.
+      intros ofs Hofs Hv. specialize (MPERM _ _ Hv). apply MPERM.
+      exploit Mem.free_range_perm. apply Hms'. eauto.
+      intros Hp. eauto with mem.
   Qed.
   (* cklr_load *)
   Next Obligation.
@@ -879,15 +899,28 @@ Section CKLR.
     rewrite Hm2'. constructor.
     eexists _; split; repeat rstep.
     constructor; auto.
-    - eapply krel_invar; eauto.
+    - intros * A. specialize (MPERM _ _ A). intros B. apply MPERM.
+      eapply Mem.perm_store_2; eauto.
+    - eapply defined_unchanged_on_1. instantiate (1 := m2).
+      + intros * (A & B). eapply Mem.perm_valid_block.
+        eapply Mem.perm_store_2; eauto.
+      + eapply defined_on_implies. exact MDEF.
+        intros * (A & B). split.
+        * eapply Mem.perm_store_2; eauto.
+        * intros C. apply B. eapply Mem.perm_store_1; eauto.
+      + eapply Mem.store_unchanged_on; eauto.
+        intros ofs' Hofs (A & B).
+        exploit Mem.store_valid_access_3. apply Hm1'.
+        unfold Mem.valid_access. intros [Hpr ?]. specialize (Hpr _ Hofs).
+        apply B. eapply Mem.perm_store_1; eauto with mem.
+    - eapply abrel_invar; eauto.
       eapply Mem.store_unchanged_on; eauto.
-      intros ofs' Hofs. intros Hp. specialize (H6 _ _ Hp). apply H6.
+      intros ofs' Hofs. intros Hp.
+      specialize (MPERM _ _ Hp). apply MPERM.
       exploit Mem.store_valid_access_3. apply Hm1'.
       unfold Mem.valid_access. intros [Hpr ?]. specialize (Hpr _ Hofs).
-      eapply Mem.perm_cur_max. eapply Mem.perm_implies. apply Hpr. constructor.
-    - unfold no_perm_on in *. intros.
-      specialize (H6 _ _ H). intros Hp. apply H6.
-      eapply Mem.perm_store_2; eauto.
+      eapply Mem.perm_cur_max. eapply Mem.perm_implies.
+      apply Hpr. constructor.
   Qed.
   (* cklr_loadbytes *)
   Next Obligation.
@@ -907,15 +940,28 @@ Section CKLR.
     rewrite Hm2'. constructor.
     eexists _; split; repeat rstep.
     constructor; auto.
-    - eapply krel_invar; eauto.
+    - intros * Hp. specialize (MPERM _ _ Hp). intros X. apply MPERM.
+      eapply Mem.perm_storebytes_2; eauto.
+    - eapply defined_unchanged_on_1. instantiate (1 := m2).
+      + intros * (A & B). eapply Mem.perm_valid_block.
+        eapply Mem.perm_storebytes_2; eauto.
+      + eapply defined_on_implies. exact MDEF.
+        intros * (A & B). split.
+        * eapply Mem.perm_storebytes_2; eauto.
+        * intros C. apply B. eapply Mem.perm_storebytes_1; eauto.
+      + eapply Mem.storebytes_unchanged_on; eauto.
+        intros ofs' Hofs (A & B).
+        exploit Mem.storebytes_range_perm. exact Hm1'.
+        rewrite length_rel; eauto.
+        intros X. apply B.
+        eapply Mem.perm_storebytes_1; eauto with mem.
+    - eapply abrel_invar; eauto.
       eapply Mem.storebytes_unchanged_on; eauto.
-      intros ofs' Hofs. intros Hp. specialize (H6 _ _ Hp). apply H6.
+      intros ofs' Hofs. intros Hp.
+      specialize (MPERM _ _ Hp). apply MPERM.
       exploit Mem.storebytes_range_perm. apply Hm1'.
       rewrite length_rel; eauto. intros.
       eapply Mem.perm_cur_max. eapply Mem.perm_implies; eauto. constructor.
-    - unfold no_perm_on in *. intros.
-      specialize (H6 _ _ H). intros Hp. apply H6.
-      eapply Mem.perm_storebytes_2; eauto.
   Qed.
   (* cklr_perm *)
   Next Obligation.
@@ -931,28 +977,35 @@ Section CKLR.
   Qed.
   (* cklr_no_overlap *)
   Next Obligation.
-    intros b1 b1' delta1 b2 b2' delta2 ofs1 ofs2 Hb Hb1' Hb2' Hp1 Hp2. inv H.
-    inv Hb1'. inv Hb2'. eauto.
+    intros * Hm b1 b1' delta1 b2 b2' delta2 ofs1 ofs2 Hb Hb1' Hb2' Hp1 Hp2.
+    inv Hm. inv Hb1'. inv Hb2'. eauto.
   Qed.
   (* cklr_representable *)
-  Next Obligation. xomega. Qed.
+  Next Obligation.
+    intros. inv H1. xomega.
+  Qed.
   (* cklr_aligned_area_inject *)
-  Next Obligation. rewrite Z.add_0_r. assumption. Qed.
+  Next Obligation.
+    intros. inv H5. rewrite Z.add_0_r. assumption.
+  Qed.
   (* cklr_disjoint_or_equal_inject *)
-  Next Obligation. intuition xomega. Qed.
+  Next Obligation.
+    intros. inv H0. inv H1. intuition xomega.
+  Qed.
   (* cklr_perm_inv *)
   Next Obligation.
-    inv H0. unfold inject_id in *. inv H3.
+    intros * Hm Hp. inv Hp. inv H0.
     replace (ofs1 + 0) with ofs1 in *; try omega.
-    inv H. eapply Mem.perm_extends_inv; eauto.
+    inv Hm. eapply Mem.perm_extends_inv; eauto.
   Qed.
   (* cklr_nextblock_incr *)
   Next Obligation.
-    destruct H0 as (w' & Hw' & H'). inv Hw'.
-    inv H. inv H'.
-    apply Mem.mext_next in H0.
-    apply Mem.mext_next in H5.
-    rewrite H0. rewrite H5. reflexivity.
+    intros * A B.
+    destruct B as (w' & Hw' & H'). inv Hw'.
+    inv A. inv H'.
+    apply Mem.mext_next in MEXT.
+    apply Mem.mext_next in MEXT0.
+    rewrite MEXT. rewrite MEXT0. reflexivity.
   Qed.
 
 End CKLR.
