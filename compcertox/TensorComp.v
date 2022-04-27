@@ -1,21 +1,14 @@
 From Coq Require Import
-     Relations
-     RelationClasses
-     List
-     FinFun.
+     Relations RelationClasses
+     List FinFun.
 From compcertox Require Import
-     Lifting
-     AbstractStateRel.
+     Lifting AbRel.
 From compcert.lib Require Import
      Coqlib.
 From compcert.common Require Import
-     LanguageInterface
-     Events
-     Globalenvs
-     Smallstep
-     Linking
-     Memory
-     Values
+     LanguageInterface Events
+     Globalenvs Smallstep
+     Linking Memory Values
      CallconvAlgebra
      CategoricalComp
      FlatComp.
@@ -207,8 +200,87 @@ Definition layer_comm {li K1 K2} (L: semantics li_null (li@(K2*K1))): semantics 
 Definition lts_comm {li K1 K2} (L: semantics (li@(K2*K1)) (li@(K2*K1))): semantics (li@(K1*K2)) (li@(K1*K2)) :=
    li_func_comm $$ L.
 
-Lemma layer_comm_simulation {K1 K2 K3 K4} (R: krel K1 K2) (S: krel K3 K4) L1 L2:
-  forward_simulation 1 (R * S) L1 L2 -> forward_simulation 1 (S * R) (layer_comm L1) (layer_comm L2).
+(** Some simple properties about the product of abstraction relations *)
+Section Properties.
+
+  Local Open Scope abrel_scope.
+
+  Context {Ks1 Ks2 Kf1 Kf2} (R1: abrel Ks1 Kf1) (R2: abrel Ks2 Kf2).
+  Hypothesis HR: disjoint_abrel R1 R2.
+(*
+  Lemma prod_match_reply se m1 m2 r1 r2 k1 k2 k3 k4:
+    match_reply R1 (mkrelw se (m1, m2)) (r1, k1) (r2, k2) ->
+    Rk R2 k3 k4 -> Rr R2 se k3 m2 ->
+    no_perm_on m1 (blocks R2 se) -> Mem.extends m1 m2 ->
+    match_reply (R1 * R2) (mkrelw se (m1, m2)) (r1, (k1, k3)) (r2, (k2, k4)).
+  Proof.
+    intros [w' [Hw Hr]] Hk Hkm Hperm Hm.
+    exists w'; inv Hw; split.
+    - cbn in *.  constructor; eauto.
+      eapply Mem.unchanged_on_implies; eauto.
+      cbn in *. intros. eapply other_blocks_implies; eauto.
+      intros. now left.
+    - inv Hr. cbn in *. constructor; eauto.
+      + intros b ofs Hb. apply blocks_either in Hb as [Hv|Hv].
+        * unfold no_perm_on in *. intuition eauto.
+        * unfold no_perm_on in *. intros contra.
+          specialize (Hperm b ofs Hv). apply Hperm.
+          eapply Mem.perm_unchanged_on_2; intuition eauto.
+          destruct Hv as [v [Hv Hb]]. eexists; eauto.
+          apply Mem.perm_valid_block in contra.
+          erewrite Mem.valid_block_extends; [ | eauto].
+          eapply (G_valid R2); eauto.
+      + split; eauto. eapply G_unchanged; eauto.
+        eapply Mem.unchanged_on_implies. intuition eauto.
+        cbn. intros. destruct H as [v [Hv Hb]]. eexists; split; eauto.
+        unfold others. intros contra. eapply Hdisjoint; eauto.
+      + split; eauto.
+  Qed.
+
+  Lemma prod_match_query se m1 m2 q1 q2 k1 k2 k3 k4:
+    match_query (R1 * R2) (mkrelw se (m1, m2)) (q1, (k1, k3)) (q2, (k2, k4)) ->
+    match_query R1 (mkrelw se (m1, m2)) (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 se k3 m2 /\
+    no_perm_on m1 (blocks R2 se) /\ Mem.extends m1 m2.
+  Proof.
+    intros. inv H. repeat apply conj; cbn in *; intuition.
+    constructor; eauto.
+    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
+      intuition. now left.
+    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
+      intuition. now right.
+  Qed.
+*)
+  Lemma match_query_comm w qs qf ks1 kf1 ks2 kf2:
+    match_query (R2 * R1) w (qs, (ks2, ks1)) (qf, (kf2, kf1)) ->
+    match_query (R1 * R2) w (qs, (ks1, ks2)) (qf, (kf1, kf2)).
+  Proof.
+    intros. inv H. constructor; auto.
+    - intros b ofs Hg. apply MPERM.
+      cbn in *. rewrite -> locsp_app in Hg |- *.
+      now apply or_comm.
+    - cbn in *. intuition.
+  Qed.
+
+  Lemma match_reply_comm w rs rf ks1 kf1 ks2 kf2:
+    match_reply (R2 * R1) w (rs, (ks2, ks1)) (rf, (kf2, kf1)) ->
+    match_reply (R1 * R2) w (rs, (ks1, ks2)) (rf, (kf1, kf2)).
+  Proof.
+    intros [w' [Hw H]]. exists w'. inv Hw. inv H. split.
+    - cbn in *. constructor; eauto.
+      eapply Mem.unchanged_on_implies; eauto.
+      cbn. intros * (A & B) V. split; eauto.
+      intros X. apply B. rewrite locsp_app in *. intuition.
+    - econstructor; eauto.
+      + cbn in *. intros * V. apply MPERM.
+        rewrite locsp_app in *. intuition.
+      + cbn in *. intuition.
+  Qed.
+
+End Properties.
+
+Lemma layer_comm_simulation `(R1: abrel Ks1 Kf1) `(R2: abrel Ks2 Kf2) L1 L2:
+  forward_simulation 1 (R1 * R2)%abrel L1 L2 ->
+  forward_simulation 1 (R2 * R1)%abrel (layer_comm L1) (layer_comm L2).
 Proof.
   intros [[]]. constructor. econstructor; eauto.
   instantiate (1 := fsim_match_states).
@@ -241,19 +313,19 @@ Section LIFT_ASSOC.
   Inductive assoc_match: (state L * K1) * K2 -> state L * (K1 * K2) -> Prop :=
   | assoc_match_intro s k1 k2: assoc_match ((s, k1), k2) (s, (k1, k2)).
 
-Lemma lts_lifting_assoc: li_func_k $$ (L @ K1) @ K2 ≤ L @ (K1 * K2).
-Proof.
-  constructor. econstructor; eauto. intros i. reflexivity.
-  intros se _ [ ] [ ] _. instantiate (1 := fun _ _ _ => _). cbn beta.
-  eapply forward_simulation_step with (match_states := assoc_match);
-    cbn; intros; prod_crush.
-  - eexists; split; [ | constructor ]. split; auto.
-  - inv H. eexists; split; [ | constructor ]. split; auto.
-  - inv H. eexists tt, _. intuition eauto. split; auto.
-    prod_crush. eexists; split; [ | constructor ]. split; auto.
-  - inv H0. eexists (_, (_, _)). split; [ | constructor ]. split; auto.
-  - apply well_founded_ltof.
-Qed.
+  Lemma lts_lifting_assoc: li_func_k $$ (L @ K1) @ K2 ≤ L @ (K1 * K2).
+  Proof.
+    constructor. econstructor; eauto. intros i. reflexivity.
+    intros se _ [ ] [ ] _. instantiate (1 := fun _ _ _ => _). cbn beta.
+    eapply forward_simulation_step with (match_states := assoc_match);
+      cbn; intros; prod_crush.
+    - eexists; split; [ | constructor ]. split; auto.
+    - inv H. eexists; split; [ | constructor ]. split; auto.
+    - inv H. eexists tt, _. intuition eauto. split; auto.
+      prod_crush. eexists; split; [ | constructor ]. split; auto.
+    - inv H0. eexists (_, (_, _)). split; [ | constructor ]. split; auto.
+    - apply well_founded_ltof.
+  Qed.
 
 End LIFT_ASSOC.
 
@@ -278,53 +350,81 @@ Section LIFT_COMM.
   Qed.
 End LIFT_COMM.
 
+(* TODO: generalize layer to LTS *)
 Section TENSOR.
 
-  Context {K1 K2} (L1: semantics li_null (li_c@K1)) (L2: semantics li_null (li_c@K2)).
-  Context {J1 J2} (jr: krel J1 J2) (kr: krel K1 K2).
-  Context (HL: fsim_components 1 kr L1 L2).
-  Context (se1 se2: Genv.symtbl) (w : ccworld (kr * jr)).
-  Context (Hse: match_senv (kr * jr) w se1 se2).
-  Context (Hse1: Genv.valid_for (skel L1) se1).
+  Open Scope abrel_scope.
+  Context {Ks1 Kf1} (Ls: semantics li_null (li_c@Ks1)) (Lf: semantics li_null (li_c@Kf1)).
+  Context {Ks2 Kf2} (R1: abrel Ks1 Kf1) (R2: abrel Ks2 Kf2).
+  Context (HL: fsim_components 1 R1 Ls Lf).
+  Context (se1 se2: Genv.symtbl) (w : ccworld (R1 * R2)).
+  Context (Hse: match_senv (R1 * R2) w se1 se2).
+  Context (Hse1: Genv.valid_for (skel Ls) se1).
 
-  Hypothesis Hdisjoint: forall i, vars jr i -> vars kr i -> False.
+  Hypothesis HR: disjoint_abrel R1 R2.
 
-  Inductive state_match: fsim_index HL -> state L1 * J1 -> state L2 * J2 -> Prop :=
-  | lift_state_match i s1 j1 s2 j2 se m1 m2:
-      w = mkrelw se (m1, m2) ->
-      fsim_match_states HL se1 se2 w i s1 s2 ->
-      Rk jr j1 j2 -> Rr jr se1 j1 m2 -> no_perm_on m1 (blocks jr se) ->
-      Mem.extends m1 m2 ->
-      state_match i (s1, j1) (s2, j2).
+  Inductive state_match: fsim_index HL -> state Ls * Ks2 -> state Lf * Kf2 -> Prop :=
+  | lift_state_match i ss ks2 sf kf2 se ms mf:
+      w = mk_aw se ms mf ->
+      fsim_match_states HL se1 se2 w i ss sf ->
+      R2 se ks2 (mf, kf2) ->
+      (forall b ofs, locsp se (abrel_footprint R2) b ofs -> loc_out_of_bounds ms b ofs) ->
+      Mem.extends ms mf ->
+      state_match i (ss, ks2) (sf, kf2).
 
   Lemma lift_layer_semantics_simulation:
-    fsim_properties 1 (kr * jr) se1 se2 w
-                    (lift_layer_k L1 se1) (lift_layer_k L2 se2)
+    fsim_properties 1 (R1 * R2) se1 se2 w
+                    (lift_layer_k Ls se1) (lift_layer_k Lf se2)
                     (fsim_index HL) (fsim_order HL) state_match.
   Proof.
-    destruct w as [se [m1 m2]] eqn: Hw.
-    assert (Hsew: match_senv kr w se se).
-    { subst. constructor. } inv Hse.
+    destruct w as [se ms mf] eqn: Hw.
+    assert (HSE: match_senv R1 w se se). { subst. constructor; eauto. }
+    inv Hse. pose proof (fsim_lts HL _ _ HSE Hse1) as X.
+    clear HSE Hse1.
     split; cbn.
-    - intros [q1 [k1 j1]] [q2 [k2 j2]] [s1 sj1] Hq [H Hj]; cbn in *.
-      subst sj1. eapply prod_match_query in Hq.
-      pose proof (fsim_lts HL _ _ Hsew Hse1).
-      edestruct @fsim_match_initial_states as (idx & s2 & Hs2 & Hs); eauto.
-      apply Hq. exists idx, (s2, j2). split. split; auto.
-      econstructor; subst; eauto; apply Hq.
-    - intros idx [s1 sj1] [s2 sj2] [r1 [kr1 jr1]] Hs [H Hj].
-      inv Hs. inv H5. cbn [fst snd] in *. subst.
-      pose proof (fsim_lts HL _ _ Hsew Hse1).
-      edestruct @fsim_match_final_states as (r2 & Hr2 & Hr); eauto.
-      destruct r2 as [r2 rk2].
-      exists (r2, (rk2, sj2)). split. split; eauto.
-      apply prod_match_reply; auto. intros. eapply Hdisjoint; eauto.
-    - intros i [s1 sj1] [s2 sj2] [ ].
-    - intros [s1 sj1] t [s1' sj1'] H idx [s2 sj2] Hs. destruct H as [H <-].
-      inv Hs. pose proof (fsim_lts HL _ _ Hsew Hse1).
-      edestruct @fsim_simulation as (idx' & s2' & Hs2' & Hs'); eauto.
-      exists idx', (s2', sj2). split.
-      + destruct Hs2'; [left | right].
+    - intros [qs [ks1 ks2]] [qf [kf1 kf2]] [ss ks1'] Hq [HX Hks]; cbn in *.
+      subst ks1'. inversion Hq.  destruct ABS as [HR1 HR2].
+      edestruct @fsim_match_initial_states as (idx & sf & Hsf & Hs); eauto.
+      (* match_query R1 *)
+      + subst. constructor; eauto.
+        intros * A. apply MPERM. cbn. rewrite locsp_app. now left.
+      (* initial state & match_state *)
+      + exists idx, (sf, kf2). split. split; auto.
+        (* initial_state *)
+        * subst. eauto.
+        (* match_state *)
+        * econstructor; eauto. subst. eauto.
+          intros * A. apply MPERM. cbn. rewrite locsp_app. now right.
+    - intros idx [ss ks2] [sf kf2] [rs [ks1 ks2']] Hs [HX Hks].
+      inv Hs. cbn [fst snd] in *. subst.
+      edestruct @fsim_match_final_states as (rf & Hrf & Hr); eauto.
+      destruct rf as [rf kf1].
+      eexists (_, (_, _)). split. split; cbn; eauto.
+      inv H4. destruct Hr as (w & Hw & Hr).
+      exists w; split; eauto.
+      (* acc *)
+      + inv Hw. constructor; eauto.
+        eapply Mem.unchanged_on_implies; eauto.
+        intros * (A & B) V. split; eauto.
+        intros * C. apply B. cbn. rewrite locsp_app. now left.
+      (* match_reply *)
+      + inv Hw. inv Hr. constructor; eauto.
+        * cbn. intros *. rewrite locsp_app. intros [A|A]; eauto.
+          exploit Mem.unchanged_on_perm. exact ACCMS.
+          eapply H8; exact A.
+          eapply Mem.valid_block_extends; eauto.
+          eapply abrel_valid; eauto.
+          intros C. intros B. eapply H8. eapply A. eapply C. eauto.
+        * split; eauto.
+          eapply abrel_invar; eauto.
+          eapply Mem.unchanged_on_implies; eauto.
+          intros * A V; split; eauto.
+    - intros i [ss ks2] [sf kf2] [ ].
+    - intros [ss ks2] t [ss' ks2'] H idx [sf kf2] Hs. destruct H as [H <-].
+      inv Hs.
+      edestruct @fsim_simulation as (idx' & sf' & H' & Hs'); eauto.
+      exists idx', (sf', kf2). split.
+      + destruct H'; [left | right].
         apply lifting_step_plus; eauto.
         split. apply lifting_step_star; eauto. intuition. intuition.
       + econstructor; subst; eauto.
@@ -332,12 +432,12 @@ Section TENSOR.
 
 End TENSOR.
 
-Lemma layer_lifting_simulation {K1 K2 J1 J2} (kcc: krel K1 K2) (jcc: krel J1 J2) L1 L2:
-  (forall i, vars jcc i -> vars kcc i -> False) -> forward_simulation 1 kcc L1 L2 ->
-  forward_simulation 1 (kcc * jcc) (lift_layer_k L1) (lift_layer_k L2).
+Lemma layer_lifting_simulation `(R1: abrel Ks1 Kf1) `(R2: abrel Ks2 Kf2) Ls Lf:
+  disjoint_abrel R1 R2 -> forward_simulation 1 R1 Ls Lf ->
+  forward_simulation 1 (R1 * R2)%abrel (lift_layer_k Ls) (lift_layer_k Lf).
 Proof.
-  intros Hdisjoint [HL]. constructor.
-  eapply Forward_simulation with (fsim_order HL) (state_match L1 L2 jcc kcc HL).
+  intros HR [HL]. constructor.
+  eapply Forward_simulation with (fsim_order HL) (state_match Ls Lf R1 R2 HL).
   - eapply (fsim_skel HL).
   - intros. apply (fsim_footprint HL i).
   - intros. eapply lift_layer_semantics_simulation; eauto.
@@ -358,21 +458,23 @@ End TENSOR.
 
 Section MONOTONICITY.
 
-  Context {K1 K2 K3 K4: Type} (R: krel K1 K2) (S: krel K3 K4).
-  Context (L1: layer K1) (L2: layer K2) (L3: layer K3) (L4: layer K4).
-  Hypothesis (HL1: forward_simulation 1 R L1 L2) (HL2: forward_simulation 1 S L3 L4).
-  Variable (sk: AST.program unit unit).
-  Hypothesis (Hsk1: linkorder (skel L1) sk) (Hsk2: linkorder (skel L3) sk).
-  Hypothesis (Hdisjoint: forall i, vars R i -> vars S i -> False).
+  Context `(R1: abrel Ks1 Kf1) `(R2: abrel Ks2 Kf2).
+  Context `(HL1: forward_simulation (@cc_id li_null) R1 Ls1 Lf1)
+          `(HL2: forward_simulation (@cc_id li_null) R2 Ls2 Lf2).
+  Context sk (Hsk1: linkorder (skel Ls1) sk) (Hsk2: linkorder (skel Ls2) sk).
+  Hypothesis (HR: disjoint_abrel R1 R2).
 
   Lemma tensor_compose_simulation:
-    forward_simulation 1 (R * S) (tensor_comp_semantics' L1 L3 sk) (tensor_comp_semantics' L2 L4 sk).
+    forward_simulation 1 (R1 * R2)%abrel
+                       (tensor_comp_semantics' Ls1 Ls2 sk)
+                       (tensor_comp_semantics' Lf1 Lf2 sk).
   Proof.
     unfold tensor_comp_semantics'. apply flat_composition_simulation'.
     - intros [|].
       + apply layer_lifting_simulation; eauto.
       + apply layer_comm_simulation.
         apply layer_lifting_simulation; eauto.
+        intros se * A B. eapply HR; eauto.
     - intros [|]; auto.
   Qed.
 

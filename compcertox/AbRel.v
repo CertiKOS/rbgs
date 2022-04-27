@@ -1285,6 +1285,12 @@ Section SIMULATION.
 
 End SIMULATION.
 
+Delimit Scope abrel_scope with abrel.
+Bind Scope abrel_scope with abrel.
+Infix "@" := abrel_comp : abrel_scope.
+Infix "*" := abrel_tens : abrel_scope.
+Coercion abrel_cc : abrel >-> callconv.
+
 (* Code not used *)
 
 (*
