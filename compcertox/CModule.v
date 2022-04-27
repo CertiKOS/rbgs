@@ -3,25 +3,20 @@ From Coq Require Import
      RelationClasses
      List.
 From compcertox Require Import
-     Lifting
-     AbstractStateRel.
+     Lifting AbRel.
 From compcert.lib Require Import
-     Coqlib
-     Maps.
+     Coqlib Maps.
 From compcert.common Require Import
      LanguageInterface
-     AST Events
-     Globalenvs
-     Smallstep
-     Linking
+     AST Events Globalenvs
+     Smallstep Linking
      SmallstepLinking
      Memory Values
      CallconvAlgebra
      CategoricalComp
      FlatComp.
 From compcert.cfrontend Require Import
-     Clight
-     Ctypes.
+     Clight Ctypes.
 Require Coq.omega.Omega.
 
 (* A module is a list of compilation units. Specifically, they are Clight
@@ -210,9 +205,9 @@ Qed.
 Definition skel_module_compatible (M: cmodule) (sk: AST.program unit unit) :=
   Forall (fun (p: Clight.program) => linkorder (AST.erase_program p) sk) M.
 
-Lemma cmodule_krel {K1 K2} (R: crel K1 K2) M sk:
+Lemma cmodule_abrel {Ks Kf} (R: abrel Ks Kf) M sk:
   skel_module_compatible M sk ->
-  forward_simulation R R (semantics M sk @ K1) (semantics M sk @ K2).
+  forward_simulation R R (semantics M sk @ Ks) (semantics M sk @ Kf).
 Proof.
   intros Hsk.
 
@@ -229,7 +224,7 @@ Proof.
   apply semantics_simulation'.
   - intros. induction M as [| p ps]; try easy.
     destruct i.
-    + cbn. apply clight_krel.
+    + cbn. apply clight_sim.
     + apply IHps.
       unfold skel_module_compatible in *.
       rewrite -> Forall_forall in *.
@@ -246,7 +241,8 @@ Proof.
 Qed.
 
 Require Import Integers.
-(* FIXME: move this instance to Clight.v *)
+
+(* FIXME: move to Clight *)
 Global Instance clight_program_sem p: ProgramSem (semantics2 p).
 Proof.
   split.
@@ -285,7 +281,6 @@ Proof.
     unfold footprint_of_program in Hi. rewrite Hdef in Hi.
     subst f. cbn in *. discriminate Hi.
 Qed.
-
 
 Section LINKABLE.
   Definition program_vertical_linkable (p1 p2: Clight.program) :=
