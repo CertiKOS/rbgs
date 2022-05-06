@@ -26,15 +26,35 @@ Require Coq.omega.Omega.
    compilation is not supported. However, here a module is nothing but a list of
    programs and the semantics is given by the horizontal composition of the
    Clight programs *)
-Notation cmodule := (list Clight.program).
+(* Notation cmodule := (list Clight.program). *)
+Record cmodule : Type :=
+  mk_cmodule {
+      cmod_progs :> list Clight.program;
+      cmod_sk : AST.program unit unit;
+      cmod_sk_order :
+      Forall
+        (fun (p: Clight.program) => linkorder (AST.erase_program p) cmod_sk) cmod_progs;
+  }.
 
-Fixpoint pos (M: cmodule): Type :=
+Program Definition cmod_of_program (p: Clight.program) :=
+  {|
+    cmod_progs := p :: nil;
+    cmod_sk := AST.erase_program p;
+  |}.
+Next Obligation.
+  constructor. apply linkorder_refl. constructor.
+Qed.
+Coercion cmod_of_program : Clight.program >-> cmodule.
+
+(** The index of the program family *)
+Fixpoint pos (M: list Clight.program): Type :=
   match M with
   | nil => Empty_set
   | p :: ps => unit + pos ps
   end.
 
-Definition ref (M: cmodule) (k: pos M): Smallstep.semantics li_c li_c.
+(** Turn a module into a program family *)
+Definition ref (M: list Clight.program) (k: pos M): Smallstep.semantics li_c li_c.
 Proof.
   induction M as [| p ps].
   - inv k.
@@ -43,13 +63,13 @@ Proof.
     + apply IHps. apply p0.
 Defined.
 
-Definition semantics (M: cmodule) sk: Smallstep.semantics li_c li_c :=
-  SmallstepLinking.semantics' (ref M) sk.
+Definition semantics (M: cmodule): Smallstep.semantics li_c li_c :=
+  SmallstepLinking.semantics' (ref M) (cmod_sk M).
 
 Require Import FunctionalExtensionality.
 Require Import FinFun.
 
-Global Instance cmod_progrom_sem M sk: ProgramSem (semantics M sk).
+Global Instance cmod_progrom_sem M: ProgramSem (semantics M).
 Proof.
   split.
   - intros. inv H. destruct H0 as (?&?&?&?).
@@ -60,13 +80,44 @@ Proof.
     split; auto. exists x; split; auto.
 Qed.
 
+Program Definition cmod_app M N : option cmodule :=
+  match Linking.link (cmod_sk M) (cmod_sk N) with
+  | Some sk =>
+      Some {|
+          cmod_progs := cmod_progs M ++ cmod_progs N;
+          cmod_sk := sk;
+        |}
+  | None => None
+  end.
+Next Obligation.
+  rename Heq_anonymous into Hsk. apply symmetry in Hsk.
+  apply link_linkorder in Hsk as [].
+  apply Forall_forall. intros *. rewrite in_app.
+  intros [HM|HN].
+  - eapply linkorder_trans. 2: exact H.
+    pose proof (cmod_sk_order M). rewrite Forall_forall in H1.
+    now apply H1.
+  - eapply linkorder_trans. 2: exact H0.
+    pose proof (cmod_sk_order N). rewrite Forall_forall in H1.
+    now apply H1.
+Qed.
+
 Section APP.
 
-  Context (M N: cmodule).
-  Variable (sk: AST.program unit unit).
-  (* TODO: maybe we could use different sk for M and N *)
-  Let L := fun (b: bool) => match b with | true => (semantics M sk) | false => (semantics N sk) end.
-  Let J := fun (b: bool) => match b with | true => pos M | false => pos N end.
+  Context M N MN (H: cmod_app M N = Some MN).
+
+  Lemma cmod_app_progs: cmod_progs MN = cmod_progs M ++ cmod_progs N.
+  Proof.
+    revert H. unfold cmod_app.
+    generalize (eq_refl (A:=option (AST.program unit unit)) (x:= link (cmod_sk M) (cmod_sk N))).
+    generalize (link (cmod_sk M) (cmod_sk N)) at 1 3.
+    intros [sk|].
+    - intros. inv H. easy.
+    - easy.
+  Qed.
+
+  Let L := fun b => match b with | true => (semantics M) | false => (semantics N) end.
+  Let J := fun b => match b with | true => pos M | false => pos N end.
   Definition Lij: forall (b: bool), J b -> Smallstep.semantics li_c li_c.
   Proof.
     intros [|] j.
@@ -74,14 +125,15 @@ Section APP.
     - refine (ref N j).
   Defined.
 
-  Lemma Leq: L = (fun i => semantics' (fun j => Lij i j) sk).
+  Let SK := fun b => match b with | true => cmod_sk M | false => cmod_sk N end.
+  Lemma Leq: L = (fun i => semantics' (fun j => Lij i j) (SK i)).
   Proof.
     apply functional_extensionality. intros [|]; reflexivity.
   Qed.
 
   Definition F: pos (M ++ N) -> {b : bool & J b}.
   Proof.
-    intros x. induction M as [| p ps].
+    intros x. induction (cmod_progs M) as [| p ps].
     - refine (existT _ false x).
     - cbn in *. destruct x.
       + refine (existT _ true (inl u)).
@@ -93,37 +145,37 @@ Section APP.
   Definition G: {b : bool & J b} -> pos (M ++ N).
   Proof.
     intros [[|] j].
-    - cbn in *. induction M as [| p ps].
+    - induction (cmod_progs M) as [| p ps].
       + inv j.
       + cbn. destruct j.
         * refine (inl u).
         * refine (inr (IHps p0)).
-    - cbn in *. induction M as [| p ps].
+    - induction (cmod_progs M) as [| p ps].
       + refine j.
-      + refine (inr IHps).
+      + refine (inr _). apply IHps. exact j.
   Defined.
 
   Lemma FG_bij: Bijective F.
   Proof.
     exists G. split; intros x.
     - unfold F, G. cbn.
-      induction M as [| p ps].
+      induction (cmod_progs M) as [| p ps].
       + reflexivity.
       + cbn in *. destruct x.
         * reflexivity.
         * cbn in *. specialize (IHps p0).
-          remember (list_rect (fun l : cmodule => pos (l ++ N) -> _) _ _ ps p0) as lr.
+          remember (list_rect (fun l : list Clight.program => pos (l ++ N) -> _) _ _ ps p0) as lr.
           destruct lr as [b pb]. destruct b.
           -- f_equal. apply IHps.
           -- f_equal. apply IHps.
     - unfold F, G. cbn. destruct x as [[|] j].
-      + cbn in *. induction M as [| p ps].
+      + cbn in *. induction (cmod_progs M) as [| p ps].
         * cbn in *. inv j.
         * cbn in *. destruct j.
           -- constructor.
           -- specialize (IHps p0). cbn in *.
              rewrite IHps. constructor.
-      + cbn in *. induction M as [| p ps].
+      + cbn in *. induction (cmod_progs M) as [| p ps].
         * cbn in *. constructor.
         * cbn in *. rewrite IHps. constructor.
   Qed.
@@ -131,39 +183,42 @@ Section APP.
   Lemma LFeq: (fun i : pos (M ++ N) => (fun p : {x : bool & J x} => Lij (projT1 p) (projT2 p)) (F i)) = ref (M ++ N).
   Proof.
     apply functional_extensionality. intros x.
-    unfold F, Lij. induction M as [| p ps].
+    unfold F, Lij.
+    induction (cmod_progs M) as [| p ps].
     - cbn in *. reflexivity.
     - cbn in *. destruct x.
       + reflexivity.
       + cbn in *. specialize (IHps p0).
-        remember (list_rect (fun l : cmodule => pos (l ++ N) -> _) _ _ ps p0) as lr.
+        remember (list_rect (fun l : list Clight.program => pos (l ++ N) -> _) _ _ ps p0) as lr.
         destruct lr as [b pb]. destruct b.
         * cbn in *. apply IHps.
         * cbn in *. apply IHps.
   Qed.
 
   Lemma cmodule_app_simulation:
-    SmallstepLinking.semantics' L sk ≤ semantics (M ++ N) sk.
+    SmallstepLinking.semantics' L (cmod_sk MN) ≤ semantics MN.
   Proof.
     rewrite Leq.
     etransitivity. apply level_simulation1.
     etransitivity. eapply bijective_map_simulation1 with (F := F).
-    apply FG_bij. unfold semantics. rewrite <- LFeq.
+    apply FG_bij. unfold semantics.
+    rewrite cmod_app_progs. rewrite <- LFeq.
     reflexivity.
   Qed.
 
   Section CAT_APP.
-    Context `{!CategoricalLinkable (semantics M sk) (semantics N sk)}.
+    Context `{!CategoricalLinkable (semantics M) (semantics N)}.
 
     Lemma cmodule_categorical_comp_simulation:
-      comp_semantics' (semantics M sk) (semantics N sk) sk ≤ semantics (M ++ N) sk.
+      comp_semantics' (semantics M) (semantics N) (cmod_sk MN) ≤ semantics MN.
     Proof.
       etransitivity.
       apply categorical_compose_approximation; typeclasses eauto.
       fold L. rewrite Leq.
       etransitivity. apply level_simulation1.
       etransitivity. eapply bijective_map_simulation1 with (F := F).
-      apply FG_bij. unfold semantics. rewrite <- LFeq.
+      apply FG_bij. unfold semantics.
+      rewrite cmod_app_progs. rewrite <- LFeq.
       reflexivity.
     Qed.
   End CAT_APP.
@@ -172,7 +227,7 @@ Section APP.
     Context `{!FlatLinkable L}.
 
     Lemma cmodule_flat_comp_simulation:
-      flat_comp_semantics' L sk ≤ semantics (M ++ N) sk.
+      flat_comp_semantics' L (cmod_sk MN) ≤ semantics MN.
     Proof.
       etransitivity.
       apply flat_composition_approximation;
@@ -182,35 +237,17 @@ Section APP.
       fold @SmallstepLinking.semantics.
       etransitivity. apply level_simulation1.
       etransitivity. eapply bijective_map_simulation1 with (F := F).
-      apply FG_bij. unfold semantics. rewrite <- LFeq.
+      apply FG_bij. unfold semantics.
+      rewrite cmod_app_progs. rewrite <- LFeq.
       reflexivity.
     Qed.
   End FLAT_APP.
 
 End APP.
 
-Lemma cmodule_app_simulation' M N sk sk':
-  CategoricalLinkable (semantics M sk) (semantics N sk) -> linkorder sk' sk ->
-  comp_semantics' (semantics M sk) (semantics N sk') sk ≤ semantics (M ++ N) sk.
+Lemma cmodule_abrel {Ks Kf} (R: abrel Ks Kf) M:
+  forward_simulation R R (semantics M @ Ks) (semantics M @ Kf).
 Proof.
-  intros Hsk.
-  etransitivity. 2:{ apply cmodule_categorical_comp_simulation; auto. }
-  etransitivity. 2:{ apply lift_comp_component2. }
-  eapply categorical_compose_simulation';
-                   [ reflexivity
-                   | apply identity_forward_simulation
-                   | apply linkorder_refl | auto ].
-Qed.
-
-Definition skel_module_compatible (M: cmodule) (sk: AST.program unit unit) :=
-  Forall (fun (p: Clight.program) => linkorder (AST.erase_program p) sk) M.
-
-Lemma cmodule_abrel {Ks Kf} (R: abrel Ks Kf) M sk:
-  skel_module_compatible M sk ->
-  forward_simulation R R (semantics M sk @ Ks) (semantics M sk @ Kf).
-Proof.
-  intros Hsk.
-
   eapply open_fsim_ccref. apply cc_compose_id_left.
   unfold flip. apply cc_compose_id_left.
   eapply compose_forward_simulations.
@@ -222,22 +259,18 @@ Proof.
   2: { apply lift_horizontal_comp2. }
 
   apply semantics_simulation'.
-  - intros. induction M as [| p ps]; try easy.
+  - intros. induction (cmod_progs M) as [| p ps]; try easy.
     destruct i.
     + cbn. apply clight_sim.
     + apply IHps.
-      unfold skel_module_compatible in *.
-      rewrite -> Forall_forall in *.
-      intros x Hx. apply Hsk. right. auto.
-  - intros. induction M as [| p ps]; try easy.
-    destruct i.
-    + cbn. unfold skel_module_compatible in *.
-      rewrite -> Forall_forall in *. apply Hsk.
-      left. auto.
-    + apply IHps.
-      unfold skel_module_compatible in *.
-      rewrite -> Forall_forall in *.
-      intros x Hx. apply Hsk. right. auto.
+  - cbn. destruct M as [ps sk Hsk].
+    intros i. cbn in *. induction ps as [| p ps].
+    + inv i.
+    + cbn in *. destruct i.
+      * rewrite -> Forall_forall in Hsk. apply Hsk. apply in_eq.
+      * apply IHps.
+        rewrite -> Forall_forall in *.
+        intros x Hx. apply Hsk. now apply in_cons.
 Qed.
 
 Require Import Integers.
@@ -307,8 +340,8 @@ Section LINKABLE.
       exists x. split. now right. apply Hp.
   Qed.
 
-  Lemma cmodule_vertical_linkable_cond M N sk1 sk2:
-    cmodule_vertical_linkable M N -> CategoricalLinkable (semantics M sk1) (semantics N sk2).
+  Lemma cmodule_vertical_linkable_cond M N:
+    cmodule_vertical_linkable M N -> CategoricalLinkable (semantics M) (semantics N).
   Proof.
     intros H se s q Hext Hvq.
     destruct Hvq as [Hq (id & (i & Hfp) & Hsymbol)].
@@ -335,12 +368,12 @@ Section LINKABLE.
     subst. rewrite Hf. subst f. reflexivity.
   Qed.
 
-  Lemma program_categorical_linkable_cond (p1 p2: Clight.program) sk1 sk2:
+  Lemma program_categorical_linkable_cond (p1 p2: Clight.program):
     (forall id f ef ts t cc,
         (prog_defmap p1) ! id = Some (Gfun (Internal f)) ->
         (prog_defmap p2) ! id = Some (Gfun (External ef ts t cc)) ->
         False) ->
-    CategoricalLinkable (semantics (p1::nil) sk1) (semantics (p2::nil) sk2).
+    CategoricalLinkable (semantics p1) (semantics p2).
   Proof.
     intros. apply cmodule_vertical_linkable_cond.
     unfold cmodule_vertical_linkable, program_vertical_linkable.
@@ -348,18 +381,65 @@ Section LINKABLE.
     eapply H; eauto.
   Qed.
 
-  Lemma cmodule_horizontal_linkable_cond M N sk1 sk2:
+  Lemma cmodule_horizontal_linkable_cond M N:
     cmodule_horizontal_linkable M N ->
-    FlatLinkable (fun (i: bool) => if i then semantics M sk1 else semantics N sk2).
+    FlatLinkable (fun (i: bool) => if i then semantics M else semantics N).
   Proof.
     intros H. unfold FlatLinkable.
     intros [|] [|] * Ht Hvq; auto; exfalso.
-    - assert (Hl: CategoricalLinkable (semantics N sk2) (semantics M sk1)).
+    - assert (Hl: CategoricalLinkable (semantics N) (semantics M)).
       { apply cmodule_vertical_linkable_cond. intros p1 p2 Hp1 Hp2. apply H; eauto. }
       exploit Hl; eauto.
-    - assert (Hl: CategoricalLinkable (semantics M sk1) (semantics N sk2)).
+    - assert (Hl: CategoricalLinkable (semantics M) (semantics N)).
       { apply cmodule_vertical_linkable_cond. intros p1 p2 Hp1 Hp2. specialize (H p1 p2). apply H; eauto. }
       exploit Hl; eauto.
   Qed.
 
 End LINKABLE.
+
+Section XXX.
+
+  Variable A : Type.
+  Variable B : Type.
+  Variable comp_b : B -> B -> option B.
+  Variable prop_ab : list A -> B -> Prop.
+
+  Hypothesis comp_prop:
+    forall a1 a2 b1 b2 b,
+      prop_ab a1 b1 -> prop_ab a2 b2 ->
+      comp_b b1 b2 = Some b -> prop_ab (a1 ++ a2) b.
+
+  Record R :=
+    mk_R {
+        R_a : list A;
+        R_b : B;
+        R_prop : prop_ab R_a R_b;
+      }.
+
+  Program Definition comp_r (r1 r2: R) : option R :=
+    match comp_b (R_b r1) (R_b r2)  with
+    | Some b =>
+        Some {|
+          R_a := R_a r1 ++ R_a r2;
+          R_b := b;
+        |}
+    | None => None
+    end.
+  Next Obligation.
+    eapply comp_prop; eauto.
+    apply R_prop. apply R_prop.
+  Qed.
+
+  Lemma comp_r_a (r1 r2 r: R):
+    comp_r r1 r2 = Some r ->
+    R_a r = R_a r1 ++ R_a r2.
+  Proof.
+    unfold comp_r.
+    generalize (@eq_refl (option B) (comp_b (R_b r1) (R_b r2))).
+    generalize (comp_b (R_b r1) (R_b r2)) at 1 3.
+    intros [o|].
+    - intros H X. inv X. reflexivity.
+    - intros H X. inv X.
+  Qed.
+
+End XXX.

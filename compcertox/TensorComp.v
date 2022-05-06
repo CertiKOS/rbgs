@@ -484,11 +484,10 @@ Section INTERC.
 
   Context {I: Type} {liA liB liC: language_interface}.
   Context (L1: I -> semantics liB liC) (L2: I -> semantics liA liB).
-  Context (ski: I -> AST.program unit unit).
-  Variable (sk: AST.program unit unit).
+  Variable (sk sk1 sk2: AST.program unit unit) (ski: I -> AST.program unit unit).
   Let LC i := comp_semantics' (L1 i) (L2 i) (ski i).
-  Let LF1 := flat_comp_semantics' L1 sk.
-  Let LF2 := flat_comp_semantics' L2 sk.
+  Let LF1 := flat_comp_semantics' L1 sk1.
+  Let LF2 := flat_comp_semantics' L2 sk2.
 
   Inductive match_inter: flat_state LC -> comp_state LF1 LF2 -> Prop :=
   | match_inter1 i s:
