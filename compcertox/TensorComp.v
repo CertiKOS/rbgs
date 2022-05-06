@@ -207,49 +207,7 @@ Section Properties.
 
   Context {Ks1 Ks2 Kf1 Kf2} (R1: abrel Ks1 Kf1) (R2: abrel Ks2 Kf2).
   Hypothesis HR: disjoint_abrel R1 R2.
-(*
-  Lemma prod_match_reply se m1 m2 r1 r2 k1 k2 k3 k4:
-    match_reply R1 (mkrelw se (m1, m2)) (r1, k1) (r2, k2) ->
-    Rk R2 k3 k4 -> Rr R2 se k3 m2 ->
-    no_perm_on m1 (blocks R2 se) -> Mem.extends m1 m2 ->
-    match_reply (R1 * R2) (mkrelw se (m1, m2)) (r1, (k1, k3)) (r2, (k2, k4)).
-  Proof.
-    intros [w' [Hw Hr]] Hk Hkm Hperm Hm.
-    exists w'; inv Hw; split.
-    - cbn in *.  constructor; eauto.
-      eapply Mem.unchanged_on_implies; eauto.
-      cbn in *. intros. eapply other_blocks_implies; eauto.
-      intros. now left.
-    - inv Hr. cbn in *. constructor; eauto.
-      + intros b ofs Hb. apply blocks_either in Hb as [Hv|Hv].
-        * unfold no_perm_on in *. intuition eauto.
-        * unfold no_perm_on in *. intros contra.
-          specialize (Hperm b ofs Hv). apply Hperm.
-          eapply Mem.perm_unchanged_on_2; intuition eauto.
-          destruct Hv as [v [Hv Hb]]. eexists; eauto.
-          apply Mem.perm_valid_block in contra.
-          erewrite Mem.valid_block_extends; [ | eauto].
-          eapply (G_valid R2); eauto.
-      + split; eauto. eapply G_unchanged; eauto.
-        eapply Mem.unchanged_on_implies. intuition eauto.
-        cbn. intros. destruct H as [v [Hv Hb]]. eexists; split; eauto.
-        unfold others. intros contra. eapply Hdisjoint; eauto.
-      + split; eauto.
-  Qed.
 
-  Lemma prod_match_query se m1 m2 q1 q2 k1 k2 k3 k4:
-    match_query (R1 * R2) (mkrelw se (m1, m2)) (q1, (k1, k3)) (q2, (k2, k4)) ->
-    match_query R1 (mkrelw se (m1, m2)) (q1, k1) (q2, k2) /\ Rk R2 k3 k4 /\ Rr R2 se k3 m2 /\
-    no_perm_on m1 (blocks R2 se) /\ Mem.extends m1 m2.
-  Proof.
-    intros. inv H. repeat apply conj; cbn in *; intuition.
-    constructor; eauto.
-    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
-      intuition. now left.
-    - intros b ofs Hg. apply H11. eapply blocks_implies. eauto.
-      intuition. now right.
-  Qed.
-*)
   Lemma match_query_comm w qs qf ks1 kf1 ks2 kf2:
     match_query (R2 * R1) w (qs, (ks2, ks1)) (qf, (kf2, kf1)) ->
     match_query (R1 * R2) w (qs, (ks1, ks2)) (qf, (kf1, kf2)).

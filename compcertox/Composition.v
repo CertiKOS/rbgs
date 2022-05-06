@@ -92,7 +92,6 @@ Section HCOMP_SINGLETON.
 
   Import SmallstepLinking Smallstep.
   Context {li} (L: semantics li li).
-  Variable sk: AST.program unit unit.
   Context `{!ProgramSem L}.
 
   Let LS := fun k : unit + Empty_set =>
@@ -105,7 +104,7 @@ Section HCOMP_SINGLETON.
   | singleton_match_intro s: singleton_match s (st LS (inl tt) s :: nil).
 
   Ltac esca := eexists; split; try constructor; intuition auto.
-  Lemma hcomp_singleton_fsim: skel_extend L sk ≤ SmallstepLinking.semantics' LS sk.
+  Lemma hcomp_singleton_fsim: L ≤ SmallstepLinking.semantics' LS (skel L).
   Proof.
     constructor. econstructor; eauto. intros i.
     { split; cbn; intros. exists (inl tt). apply H. destruct H as [[|] Hx]. apply Hx. inv e. }
@@ -122,7 +121,8 @@ Section HCOMP_SINGLETON.
 
 End HCOMP_SINGLETON.
 
-Lemma singleton_sim `(R: abrel Ks Kf) Ls Lf p : prog_sim Ls Lf p R -> cmod_sim Ls Lf p R.
+Lemma singleton_sim `(R: abrel Ks Kf) Ls Lf p:
+  prog_sim Ls Lf p R -> cmod_sim Ls Lf p R.
 Proof.
   intros ((?&?)&?). split; [split|]; eauto.
   - unfold cmod_layer_comp, semantics, ref. cbn.
@@ -134,9 +134,7 @@ Proof.
     unfold prog_layer_comp.
     eapply categorical_compose_simulation'; [ | reflexivity | eauto | eauto ].
     apply lifting_simulation.
-    etransitivity.
-    2: apply hcomp_singleton_fsim; typeclasses eauto.
-    reflexivity.
+    apply hcomp_singleton_fsim. typeclasses eauto.
 Qed.
 
 (** ** Composition Rules  *)
@@ -349,225 +347,6 @@ Section TCOMP.
     - exact Hlk1.
   Qed.
 End TCOMP.
-
-(** ** Obsolete Code *)
-
-(** *** A specicial case for compositing absfun and getter-setter layers *)
-
-(*
-Import AbstractStateRel.
-
-Class BotRel {K1 K2: Type} (R: krel K1 K2) :=
-  Rk_true: forall k1 k2, Rk R k1 k2.
-
-Class AbsfunRel {K1 K2: Type} (R: krel K1 K2) :=
-  {
-    Rr_true: forall se k1 m, Rr R se k1 m;
-    vars_empty: forall i, ~ vars R i;
-  }.
-
-Section ABSFUN_CC.
-
-  Context (K1 K2: Type) (R: krel K1 K2).
-
-  Inductive absfun_query: query (li_c@K1) -> query (li_c@K2) -> Prop :=
-  | absfun_query_intro vf1 sg1 vargs1 m1 k1 k2:
-      Rk R k1 k2 -> absfun_query (cq vf1 sg1 vargs1 m1, k1) (cq vf1 sg1 vargs1 m1, k2).
-
-  Inductive absfun_reply: reply (li_c@K1) -> reply (li_c@K2) -> Prop :=
-  | absfun_reply_intro retval1 m1 k1 k2:
-      Rk R k1 k2 -> absfun_reply (cr retval1 m1, k1) (cr retval1 m1, k2).
-
-  Program Definition absfun_kcc: callconv (li_c@K1) (li_c@K2) :=
-    {|
-      ccworld := unit;
-      match_senv _ := eq;
-      match_query _ := absfun_query;
-      match_reply _ := absfun_reply;
-    |}.
-  Next Obligation. reflexivity. Qed.
-  Next Obligation. inv H0. reflexivity. Qed.
-  Next Obligation. inv H. reflexivity. Qed.
-
-End ABSFUN_CC.
-
-Arguments absfun_kcc {K1 K2} _.
-
-Section BOT_COMP.
-
-  Context {K1 K2 K3} (R: krel K1 K2) (S: krel K2 K3).
-  Context `{!AbsfunRel R}  `{!BotRel S}.
-
-  Program Definition comp_krel : krel K1 K3 :=
-    {|
-      Rk k1 k3 := True;
-      Rr se k1 m  := exists k2, Rk R k1 k2 /\ Rr S se k2 m;
-      vars i := vars R i \/ vars S i;
-    |}.
-  Next Obligation.
-    exploit @G_unchanged; eauto. eapply Mem.unchanged_on_implies; eauto.
-    intros b ofs [v [Hv Hb]] Hvb. eexists; split; eauto.
-  Qed.
-  Next Obligation.
-    exploit @G_valid; eauto. destruct H1; eauto.
-    - exfalso. exploit @vars_empty; eauto.
-    - eexists; split; eauto.
-      Unshelve. exact ofs.
-  Qed.
-
-  Instance comp_krel_bot: BotRel comp_krel. easy. Qed.
-
-  Lemma absfun_ccref: ccref comp_krel (absfun_kcc R @ krel_mcc S).
-  Proof.
-    intros [se [m1 m3]] ? ? [q1 kq1] [q3 kq3] Hse Hq. inv Hse. inv Hq.
-    exists (se2, tt, mkrelw se2 (m1, m3)). split. cbn. split; constructor.
-    split.
-    - destruct H11 as [k2 [Rk2 Rm2]]. destruct H12.
-      econstructor; split; econstructor; eauto.
-      intros b ofs Hg. apply H10.
-      eapply blocks_implies; eauto. intros. now right.
-    - intros [r1 kr1] [r3 kr3] [[r2 kr2] [Hr1 Hr2]].
-      destruct Hr2 as [w' [Hw' Hr2]]. inv Hr1. inv Hr2.
-      exists (mkrelw se (m0, m4)). split.
-      + inv Hw'. constructor; eauto.
-        eapply Mem.unchanged_on_implies. eauto.
-        intros. eapply other_blocks_implies; eauto.
-        intros. now right.
-      + constructor; eauto.
-        * intros b ofs Hg. apply H15.
-          eapply blocks_implies. eauto.
-          intros. destruct H. exploit @vars_empty; intuition eauto. auto.
-        * eexists; split; eauto.
-  Qed.
-
-End BOT_COMP.
-
-Definition ksim_absfun {K1 K2: Type} (L1: layer K1) (L2: layer K2) (M: cmodule) (R: krel K1 K2) :=
-  linkorder (skel L2) (skel L1) /\ skel_module_compatible M (skel L1) /\
-  forward_simulation 1 (absfun_kcc R) L1 (layer_comp L2 M (skel L1)).
-
-(* TODO: move this definition to somewhere else *)
-Definition module_pure (M: cmodule): Prop :=
-  forall p, In p M -> MCC.prog_syscall_free p /\ MCC.prog_side_effect_free p.
-
-Lemma cmodule_krel_mcc {K1 K2} (R: krel K1 K2) M sk:
-  module_pure M -> skel_module_compatible M sk ->
-  forward_simulation R R (semantics M sk @ K1) (semantics M sk @ K2).
-Proof.
-  intros Hpure Hsk.
-
-  eapply open_fsim_ccref. apply cc_compose_id_left.
-  unfold flip. apply cc_compose_id_left.
-  eapply compose_forward_simulations.
-  apply lift_horizontal_comp1.
-
-  eapply open_fsim_ccref. apply cc_compose_id_right.
-  unfold flip. apply cc_compose_id_right.
-  eapply compose_forward_simulations.
-  2: { apply lift_horizontal_comp2. }
-
-  apply SmallstepLinking.semantics_simulation'.
-  - intros. induction M as [| p ps]; try easy.
-    destruct i.
-    + cbn. apply MCC.clight_sim.
-      eapply Hpure; eauto. now left.
-      eapply Hpure; eauto. now left.
-    + apply IHps.
-      * unfold module_pure; intros. eapply Hpure; eauto. now right.
-      * unfold skel_module_compatible in *.
-        rewrite -> Forall_forall in *.
-        intros x Hx. apply Hsk. right. auto.
-  - intros. induction M as [| p ps]; try easy.
-    destruct i.
-    + cbn. unfold skel_module_compatible in *.
-      rewrite -> Forall_forall in *. apply Hsk.
-      left. auto.
-    + apply IHps.
-      * unfold module_pure; intros. eapply Hpure; eauto. now right.
-      * unfold skel_module_compatible in *.
-        rewrite -> Forall_forall in *.
-        intros x Hx. apply Hsk. right. auto.
-Qed.
-
-Section ABSFUN.
-
-  Context {K1 K2 K3 L1 L2 L3} (M N: cmodule) (R: krel K1 K2) (S: krel K2 K3)
-          `(!AbsfunRel R) `(!BotRel S) (HL1: ksim_absfun L1 L2 M R) (HL2: ksim_mcc L2 L3 N S).
-  Hypothesis (Hpure: module_pure M).
-  Context `{!CategoricalLinkable (semantics M (skel L1)) (semantics N (skel L1))}.
-
-  Theorem absfun_comp: ksim_mcc L1 L3 (M ++ N) (comp_krel R S).
-  Proof.
-    destruct HL1 as [Hsk1 [Hmod1 H1]]. clear HL1.
-    destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
-    split. eapply linkorder_trans; eauto.
-    split. apply compatible_app; eauto.
-    eapply compatible_trans; eauto.
-
-    eapply open_fsim_ccref. reflexivity. unfold flip. apply absfun_ccref; auto.
-    edestruct (cmodule_krel_mcc S M (skel L1)); auto.
-    exploit @categorical_compose_simulation'.
-    constructor. exact X. apply H2.
-    instantiate (1 := (skel L1)). apply linkorder_refl. auto.
-    clear X. intros X.
-
-    eapply open_fsim_ccref. apply cc_compose_id_left.
-    unfold flip. reflexivity.
-    cbn. eapply compose_forward_simulations.
-    apply H1. unfold layer_comp.
-
-    eapply open_fsim_ccref. apply cc_compose_id_left.
-    unfold flip. apply cc_compose_id_right.
-    eapply compose_forward_simulations. apply X. clear X.
-
-    eapply open_fsim_ccref. apply cc_compose_id_left.
-    unfold flip. apply cc_compose_id_left.
-    eapply compose_forward_simulations.
-    unfold layer_comp. apply assoc1.
-
-    eapply categorical_compose_simulation';
-      [ | apply identity_forward_simulation
-        | apply linkorder_refl
-        | eapply linkorder_trans; eauto
-      ].
-
-    eapply open_fsim_ccref. apply cc_compose_id_left.
-    unfold flip. apply cc_compose_id_left.
-    eapply compose_forward_simulations.
-    apply lift_categorical_comp2.
-    apply lifting_simulation.
-    apply cmodule_app_simulation'; eauto.
-  Qed.
-
-End ABSFUN.
- *)
-
-(** *** A special case for pure refinement *)
-(*
-Section PUREREF.
-
-  Context {K1 K2 K3 L1 L2 L3} (M: cmodule)
-          (R: krel K1 K2) (S: krel K2 K3) `(!AbsfunRel R) `(!BotRel S)
-          (HL1: forward_simulation 1 (absfun_kcc R) L1 L2) (HL2: L3 ⊢ [S] M : L2).
-
-  Theorem pureref_comp: L3 ⊢ [comp_krel R S] M : L1.
-  Proof.
-    destruct HL2 as [Hsk2 [Hmod2 H2]]. clear HL2.
-    assert (Hsk1: skel L1 = skel L2).
-    { destruct HL1. exact (fsim_skel X). }
-    unfold ksim_mcc. replace (skel L1). clear Hsk1. intuition.
-
-    eapply open_fsim_ccref. apply cc_compose_id_left.
-    apply absfun_ccref; eauto.
-    eapply compose_forward_simulations; eauto.
-  Qed.
-
-End PUREREF.
-
-Instance prod_bot_rel {K1 K2 K3 K4} (R1: krel K1 K2) (R2: krel K3 K4)
-         `(!BotRel R1) `(!BotRel R2): BotRel (R1 * R2).
-Proof. intros [k1 k3] [k2 k4]. split; eauto. Qed.
- *)
 
 (** ** An instance of empty layer *)
 Section NULL.
