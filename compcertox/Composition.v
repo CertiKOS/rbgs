@@ -15,8 +15,8 @@ From compcert.common Require Import
 From compcert.cfrontend Require Import
      Clight Ctypes.
 From compcertox Require Import
-     Lifting AbRel
-     CModule TensorComp.
+     Lifting AbRel CModule
+     TensorComp SkelLinking.
 
 (* FIXME: why the precedence can't be looser than 9? *)
 (* Notation "[ R ]" := (singleton_rel R) (at level 9): krel_scope. *)
@@ -47,7 +47,7 @@ Section LAYER_DEF.
     Record cmod_sim (R: abrel Ks Kf) : Prop :=
       mk_cmod_sim {
           csim_sk_order: linkorder (skel Lf) (skel Ls)
-                         /\ linkorder (cmod_sk M) (skel Ls);
+                         /\ linkorder (cmod_skel M) (skel Ls);
           csim_simulation: forward_simulation 1 R Ls (cmod_layer_comp (skel Ls));
         }.
   End CMOD.
@@ -147,17 +147,25 @@ Section VCOMP.
           `(HL1: cmod_sim Ls Ln M R) `(HL2: cmod_sim Ln Lf N S).
   Hypothesis HR: disjoint_abrel R S.
   Context `{!CategoricalLinkable (semantics M) (semantics N)}.
-  (* TODO: It seems Hlink can be proved because linking gives a least upper
-     bound*)
-  Context MN (HMN: cmod_app M N = Some MN)
-          (Hlink: linkorder (cmod_sk MN) (skel Ls)).
+  Context MN (HMN: cmod_app M N = Some MN).
+
+  Lemma vcomp_skel_link: linkorder (cmod_skel MN) (skel Ls).
+  Proof.
+    destruct HL1 as [[A B] ?].
+    destruct HL2 as [[C D] ?].
+    eapply link_lub.
+    - exact B.
+    - eapply linkorder_trans. exact D. exact A.
+    - now apply cmod_app_skel.
+  Qed.
 
   Theorem layer_vcomp: cmod_sim Ls Lf MN (R @ S).
   Proof.
-    destruct HL1 as [[Hsk1 Hmod1] H1]. clear HL1.
-    destruct HL2 as [[Hsk2 Hmod2] H2]. clear HL2.
+    destruct HL1 as [[Hsk1 Hmod1] H1].
+    destruct HL2 as [[Hsk2 Hmod2] H2].
     split. split; eauto.
     eapply linkorder_trans; eauto.
+    eapply vcomp_skel_link.
 
     edestruct (cmodule_abrel S M).
     exploit @categorical_compose_simulation'.
@@ -181,7 +189,7 @@ Section VCOMP.
 
     eapply categorical_compose_simulation';
       [ | apply identity_forward_simulation
-        | exact Hlink
+        | apply vcomp_skel_link
         | eapply linkorder_trans; eauto
       ].
 
@@ -208,14 +216,13 @@ Section HCOMP.
   Context `{R: abrel Ks Kf} {M N: cmodule}
           `(HL1: cmod_sim Ls1 Lf M R) `(HL2: cmod_sim Ls2 Lf N R).
   Context MN (HMN: cmod_app M N = Some MN).
-  Context sk (Hsk: link (skel Ls1) (skel Ls2) = Some sk)
-          (* TODO: it seems Hlk can be proved
-             if we have:
-             sk1 ⊑ sk3   sk2 ⊑ sk4
-             ----------------------
-             sk1 ⊕ sk2 ⊑ sk3 ⊕ sk4
-           *)
-          (Hlk: linkorder (cmod_sk MN) sk).
+  Context sk (Hsk: link (skel Ls1) (skel Ls2) = Some sk).
+
+  Lemma hcomp_skel_link: linkorder (cmod_skel MN) sk.
+  Proof.
+    eapply link_monotonic.
+    3-4: eauto using cmod_app_skel. apply HL1. apply HL2.
+  Qed.
 
   Let Mi := (fun i : bool => if i then semantics M else semantics N).
   Context `{!FlatLinkable Mi}.
@@ -224,10 +231,11 @@ Section HCOMP.
 
   Theorem layer_hcomp: cmod_sim (flat_comp_semantics' L sk) Lf MN R.
   Proof.
-    destruct HL1 as [[Hsk1 Hmod1] H1]. clear HL1.
-    destruct HL2 as [[Hsk2 Hmod2] H2]. clear HL2.
+    destruct HL1 as [[Hsk1 Hmod1] H1].
+    destruct HL2 as [[Hsk2 Hmod2] H2].
     split. split; cbn; eauto.
     eapply linkorder_trans; eauto. eapply link_linkorder; eauto.
+    apply hcomp_skel_link.
     (* monotonicity *)
     eapply open_fsim_ccref. apply cc_compose_id_left.
     unfold flip. apply cc_compose_id_right.
@@ -254,9 +262,8 @@ Section HCOMP.
     subst Ls. rewrite <- if_rewrite. etransitivity.
     apply lift_flat_comp2. apply lifting_simulation.
     apply cmodule_flat_comp_simulation; auto.
-    eauto.
-    eapply linkorder_trans; eauto.
-    eapply link_linkorder; eauto.
+    apply hcomp_skel_link.
+    eapply linkorder_trans; eauto. eapply link_linkorder; eauto.
   Qed.
 
 End HCOMP.
@@ -270,18 +277,27 @@ Section TCOMP.
   Context sks (Hsks: link (skel Ls1) (skel Ls2) = Some sks)
           skf (Hskf: link (skel Lf1) (skel Lf2) = Some skf)
           MN (HMN: cmod_app M N = Some MN).
-  Hypothesis Hlk1: linkorder skf sks.
-  Hypothesis Hlk2: linkorder (cmod_sk MN) sks.
   Let Mi := (fun i : bool => if i then semantics M else semantics N).
   Context `{!FlatLinkable Mi}.
   Hypothesis HR: disjoint_abrel R1 R2.
 
+  Lemma tens_skel_link1: linkorder skf sks.
+  Proof.
+    eapply link_monotonic.
+    3-4: eauto. apply HL1. apply HL2.
+  Qed.
+  Lemma tens_skel_link2: linkorder (cmod_skel MN) sks.
+  Proof.
+    eapply link_monotonic.
+    3-4: eauto using cmod_app_skel. apply HL1. apply HL2.
+  Qed.
+
   Lemma layer_tcomp: cmod_sim (tensor_comp_semantics' Ls1 Ls2 sks)
                          (tensor_comp_semantics' Lf1 Lf2 skf) MN (R1 * R2).
   Proof.
-    destruct HL1 as [[HLsk1 Hmod1] H1]. clear HL1.
-    destruct HL2 as [[HLsk2 Hmod2] H2]. clear HL2.
-    split; eauto.
+    destruct HL1 as [[HLsk1 Hmod1] H1].
+    destruct HL2 as [[HLsk2 Hmod2] H2].
+    split. split. apply tens_skel_link1. apply tens_skel_link2.
 
     exploit @tensor_compose_simulation;
       [ exact H1 | exact H2 | .. ]; eauto.
@@ -343,8 +359,8 @@ Section TCOMP.
       etransitivity. apply lift_flat_comp2. apply lifting_simulation.
       apply cmodule_flat_comp_simulation; eauto.
     - reflexivity.
-    - exact Hlk2.
-    - exact Hlk1.
+    - apply tens_skel_link2.
+    - apply tens_skel_link1.
   Qed.
 End TCOMP.
 

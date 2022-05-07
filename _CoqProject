@@ -30,12 +30,11 @@ examples/BoundedQueueProof.v
 # examples/CompCertSem.v
 # CompCertOX formalization
 compcertox/Lifting.v
-# compcertox/AbstractStateRel.v
-compcertox/Composition.v
+compcertox/AbRel.v
 compcertox/CModule.v
 compcertox/TensorComp.v
-# compcertox/KRel.v
-compcertox/AbRel.v
+compcertox/SkelLinking.v
+compcertox/Composition.v
 
 interfaces/Category.v
 interfaces/Functor.v

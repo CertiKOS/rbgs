@@ -30,16 +30,16 @@ Require Coq.omega.Omega.
 Record cmodule : Type :=
   mk_cmodule {
       cmod_progs :> list Clight.program;
-      cmod_sk : AST.program unit unit;
-      cmod_sk_order :
+      cmod_skel : AST.program unit unit;
+      cmod_skel_order :
       Forall
-        (fun (p: Clight.program) => linkorder (AST.erase_program p) cmod_sk) cmod_progs;
+        (fun (p: Clight.program) => linkorder (AST.erase_program p) cmod_skel) cmod_progs;
   }.
 
 Program Definition cmod_of_program (p: Clight.program) :=
   {|
     cmod_progs := p :: nil;
-    cmod_sk := AST.erase_program p;
+    cmod_skel := AST.erase_program p;
   |}.
 Next Obligation.
   constructor. apply linkorder_refl. constructor.
@@ -64,7 +64,7 @@ Proof.
 Defined.
 
 Definition semantics (M: cmodule): Smallstep.semantics li_c li_c :=
-  SmallstepLinking.semantics' (ref M) (cmod_sk M).
+  SmallstepLinking.semantics' (ref M) (cmod_skel M).
 
 Require Import FunctionalExtensionality.
 Require Import FinFun.
@@ -81,11 +81,11 @@ Proof.
 Qed.
 
 Program Definition cmod_app M N : option cmodule :=
-  match Linking.link (cmod_sk M) (cmod_sk N) with
+  match Linking.link (cmod_skel M) (cmod_skel N) with
   | Some sk =>
       Some {|
           cmod_progs := cmod_progs M ++ cmod_progs N;
-          cmod_sk := sk;
+          cmod_skel := sk;
         |}
   | None => None
   end.
@@ -95,10 +95,10 @@ Next Obligation.
   apply Forall_forall. intros *. rewrite in_app.
   intros [HM|HN].
   - eapply linkorder_trans. 2: exact H.
-    pose proof (cmod_sk_order M). rewrite Forall_forall in H1.
+    pose proof (cmod_skel_order M). rewrite Forall_forall in H1.
     now apply H1.
   - eapply linkorder_trans. 2: exact H0.
-    pose proof (cmod_sk_order N). rewrite Forall_forall in H1.
+    pose proof (cmod_skel_order N). rewrite Forall_forall in H1.
     now apply H1.
 Qed.
 
@@ -109,8 +109,18 @@ Section APP.
   Lemma cmod_app_progs: cmod_progs MN = cmod_progs M ++ cmod_progs N.
   Proof.
     revert H. unfold cmod_app.
-    generalize (eq_refl (A:=option (AST.program unit unit)) (x:= link (cmod_sk M) (cmod_sk N))).
-    generalize (link (cmod_sk M) (cmod_sk N)) at 1 3.
+    generalize (eq_refl (A:=option (AST.program unit unit)) (x:= link (cmod_skel M) (cmod_skel N))).
+    generalize (link (cmod_skel M) (cmod_skel N)) at 1 3.
+    intros [sk|].
+    - intros. inv H. easy.
+    - easy.
+  Qed.
+
+  Lemma cmod_app_skel: link (cmod_skel M) (cmod_skel N) = Some (cmod_skel MN).
+  Proof.
+    revert H. unfold cmod_app.
+    generalize (eq_refl (A:=option (AST.program unit unit)) (x:= link (cmod_skel M) (cmod_skel N))).
+    generalize (link (cmod_skel M) (cmod_skel N)) at 1 3.
     intros [sk|].
     - intros. inv H. easy.
     - easy.
@@ -125,7 +135,7 @@ Section APP.
     - refine (ref N j).
   Defined.
 
-  Let SK := fun b => match b with | true => cmod_sk M | false => cmod_sk N end.
+  Let SK := fun b => match b with | true => cmod_skel M | false => cmod_skel N end.
   Lemma Leq: L = (fun i => semantics' (fun j => Lij i j) (SK i)).
   Proof.
     apply functional_extensionality. intros [|]; reflexivity.
@@ -196,7 +206,7 @@ Section APP.
   Qed.
 
   Lemma cmodule_app_simulation:
-    SmallstepLinking.semantics' L (cmod_sk MN) ≤ semantics MN.
+    SmallstepLinking.semantics' L (cmod_skel MN) ≤ semantics MN.
   Proof.
     rewrite Leq.
     etransitivity. apply level_simulation1.
@@ -210,7 +220,7 @@ Section APP.
     Context `{!CategoricalLinkable (semantics M) (semantics N)}.
 
     Lemma cmodule_categorical_comp_simulation:
-      comp_semantics' (semantics M) (semantics N) (cmod_sk MN) ≤ semantics MN.
+      comp_semantics' (semantics M) (semantics N) (cmod_skel MN) ≤ semantics MN.
     Proof.
       etransitivity.
       apply categorical_compose_approximation; typeclasses eauto.
@@ -227,7 +237,7 @@ Section APP.
     Context `{!FlatLinkable L}.
 
     Lemma cmodule_flat_comp_simulation:
-      flat_comp_semantics' L (cmod_sk MN) ≤ semantics MN.
+      flat_comp_semantics' L (cmod_skel MN) ≤ semantics MN.
     Proof.
       etransitivity.
       apply flat_composition_approximation;
