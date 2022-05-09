@@ -6,7 +6,7 @@ Require Import structures.Lattice.
 Require Import structures.Effects.
 Require Import lattices.FCD.
 Require Import models.IntSpec.
-Require Import examples.RefConv.
+Require Import cal.RefConv.
 
 Import ISpec.
 
@@ -118,74 +118,12 @@ Definition L_rb : CALspec rb_sig rb_state :=
 
 (** * Layer interfaces and implementations as morphisms *)
 
-(** ** Keeping track of state *)
-
-(** To interpret layer interfaces as morphisms in our category of
-  effect signatures and substitution specifications, we use the
-  following signature which adjoins a state in [S] to the operations
-  and arities of the signature [E]. This is written [E@S] in the paper
-  but since I plan on using [@] for composition I use [E#S] here. *)
-
-(*
-Inductive state_sig (E : Type -> Type) (S : Type) : Type -> Type :=
-  | st {ar} (m : E ar) (k : S) : state_sig E S (ar * S).
-
-Arguments st {E S ar} m k.
-*)
-
 (** A layer interface can then be promoted to a morphism as follows. *)
 
-Coercion CALspec_mor {E S} (L : CALspec E S) : 0 ~> E * s_esig S :=
-  fun _ '(esig_tens_intro m s_ev) =>
+Coercion CALspec_mor {E S} (L : CALspec E S) : 0 ~> E * est S :=
+  fun _ '(etens_intro m s_ev) =>
     match s_ev with
-    | state_event s => L _ m s
-    end.
-
-(*
-Coercion CALspec_mor {E S} (L : CALspec E S) : (0 ~> E # S) :=
-  fun _ '(st m s) => L _ m s.
-*)
-
-(** To connect this with layer implementations, we must lift a
-  state-free morphism [M : E ~> F] to a corresponding stateful
-  morphism [E#S ~> F#S] which passes the state around unchanged. *)
-
-Fixpoint stateful_play {E S A} (k: S) (s: ISpec.play E A): ispec (E#S) (A*S) :=
-  match s with
-    | ISpec.pret v => FCD.emb (ISpec.pret (v, k))
-    | ISpec.pmove m => FCD.emb (ISpec.pmove (st m k))
-    | ISpec.pcons m n t =>
-      sup x : option S,
-      match x with
-      | Some k' => FCD.map (ISpec.pcons (st m k) (n, k')) (stateful_play k' t)
-      | None => FCD.emb (ISpec.pmove (st m k))
-      end
-  end.
-
-Instance stateful_play_mor E S A k :
-  PosetMorphism (@stateful_play E S A k).
-Proof.
-  constructor. intros s t Hst. revert k.
-  induction Hst; cbn; intro.
-  - reflexivity.
-  - reflexivity.
-  - apply (sup_at None).
-    reflexivity.
-  - apply sup_lub. intro x. apply (sup_at x). repeat rstep.
-    unfold FCD.map. repeat rstep. auto.
-Qed.
-
-Definition srun {E S A} (k : S) (x : ispec E A) : ispec (E # S) (prod A S) :=
-  FCD.ext (stateful_play k) x.
-(*
-Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
-  fun ar m =>
-    match m with st m k => srun k (σ _ m) end.
-*)
-Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
-  fun ar '(esig_tens_intro m k) =>
-    match k with
-    | state_event s => srun s (σ _ m)
+    | est_intro s => L _ m s
     end.
 
 (** Then the behavior of [M : E ~> F] running on top of [L : 0 ~> E#S]
@@ -193,77 +131,6 @@ Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
 
 Definition layer {E F S} (M : E ~> F) (L : 0 ~> E#S) : 0 ~> F#S :=
   ISpec.compose (slift M) L.
-
-(** ** Properties *)
-
-Lemma srun_slift {E F S A} (k : S) (x : ispec F A) (σ : E ~> F) :
-  srun k x / slift σ = srun k (x / σ).
-Proof.
-  unfold srun, ISpec.apply.
-  rewrite !@FCD.ext_ext by typeclasses eauto. f_equal.
-  apply functional_extensionality. intros s.
-  induction s; cbn.
-  - rewrite !FCD.ext_ana. cbn.
-    reflexivity.
-  - rewrite !FCD.ext_ana. cbn.
-    unfold srun, ISpec.bind.
-    rewrite !@FCD.ext_ext by typeclasses eauto. f_equal.
-    apply functional_extensionality. intros s.
-    induction s; cbn.
-    + rewrite FCD.ext_ana. cbn.
-      admit. (* rewrite Downset.Sup.mor_bot *)
-    + rewrite !FCD.ext_ana. cbn. reflexivity.
-    + rewrite Downset.Sup.mor.
-      rewrite Downset.Sup.mor_join.
-      apply antisymmetry.
-      * apply sup_lub. intros [k' | ].
-        -- apply join_r. unfold FCD.map.
-           rewrite !@FCD.ext_ext; try typeclasses eauto.
-           ++ repeat setoid_rewrite FCD.ext_ana. cbn.
-Admitted.
-
-Lemma srun_bind {E S A B} (k : S) (f : A -> ispec E B) (x : ispec E A) :
-  srun k (ISpec.bind f x) = ISpec.bind (fun '(a, k') => srun k' (f a)) (srun k x).
-Admitted.
-
-Lemma srun_int {E S ar} (k : S) (m : E ar) :
-  srun k (ISpec.int m) = ISpec.int (st m k).
-Admitted.
-
-Instance slift_proper_ref {E F S}:
-  Proper (ref ==> ref) (@slift E F S).
-Proof.
-  intros x y Hxy. intros ? mk. destruct mk as [? m k]. cbn.
-  (* unfold srun. rstep. apply Hxy. *)
-  unfold srun. destruct s. rstep. apply Hxy.
-Qed.
-
-Lemma slift_identity {E S}:
-  slift (S:=S) (identity (E:=E)) = identity.
-Proof.
-  unfold identity.
-(*   apply antisymmetry; intros ? mk; destruct mk as [? m k]; *)
-(*     cbn; rewrite srun_int; reflexivity. *)
-(* Qed. *)
-Admitted.
-
-Lemma assert_true {E} {P : Prop} (H : P) :
-  @assert E P = ISpec.ret tt.
-Proof.
-  unfold assert.
-  apply antisymmetry.
-  - apply sup_lub. reflexivity.
-  - apply (sup_at H). reflexivity.
-Qed.
-
-(** ** Rewriting tactic *)
-
-Hint Rewrite
-  @srun_bind
-  @srun_int
-  : intm.
-
-Hint Rewrite @assert_true using solve [auto] : intm.
 
 (** ** Example *)
 
@@ -291,30 +158,18 @@ Admitted.
 
 (** ** Simulation relations as morphisms *)
 
-(*
 Definition srel_push {E S1 S2} (R : rel S1 S2) : E#S2 ~> E#S1 :=
-  fun _ '(st m k1) =>
-    sup {k2 | R k1 k2}, ISpec.int (st m k2) >>= fun '(n, k2') =>
-    inf {k1' | R k1' k2'}, ISpec.ret (n, k1').
-
-Definition srel_pull {E S1 S2} (R : rel S1 S2) : E#S1 ~> E#S2 :=
-  fun _ '(st m k2) =>
-    inf {k1 | R k1 k2}, ISpec.int (st m k1) >>= fun '(n, k1') =>
-    sup {k2' | R k1' k2'}, ISpec.ret (n, k2').
-*)
-
-Definition srel_push {E S1 S2} (R : rel S1 S2) : E#S2 ~> E#S1 :=
-  fun _ '(esig_tens_intro m s) =>
+  fun _ '(etens_intro m s) =>
     match s with
-    | state_event k1 =>
+    | est_intro k1 =>
     sup {k2 | R k1 k2}, ISpec.int (st m k2) >>= fun '(n, k2') =>
     inf {k1' | R k1' k2'}, ISpec.ret (n, k1')
     end.
 
 Definition srel_pull {E S1 S2} (R : rel S1 S2) : E#S1 ~> E#S2 :=
-  fun _ '(esig_tens_intro m s) =>
+  fun _ '(etens_intro m s) =>
     match s with
-    | state_event k2 =>
+    | est_intro k2 =>
     inf {k1 | R k1 k2}, ISpec.int (st m k1) >>= fun '(n, k1') =>
     sup {k2' | R k1' k2'}, ISpec.ret (n, k2')
     end.
@@ -383,23 +238,6 @@ Lemma slice_length f c1 n :
   length (slice f c1 n) = n.
 Proof.
   revert c1. induction n; cbn; auto.
-Qed.
-
-Lemma assert_l {E A} (P : Prop) (x y : ispec E A) :
-  (P -> x [= y) ->
-  _ <- assert P; x [= y.
-Proof.
-  intros H. unfold assert.
-  rewrite Downset.Sup.mor. apply sup_lub. intros HP.
-  intm. auto.
-Qed.
-
-Lemma assert_r {E A} (P : Prop) (x y : ispec E A) :
-  x [= y -> P ->
-  x [= _ <- assert P; y.
-Proof.
-  intros Hxy HP.
-  rewrite assert_true; intm; auto.
 Qed.
 
 Lemma bq_rb_correct :

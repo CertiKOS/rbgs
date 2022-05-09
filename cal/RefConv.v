@@ -50,6 +50,11 @@ Tactic Notation "inf_intro" simple_intropattern(p) :=
 Tactic Notation "sup_intro" simple_intropattern(p) :=
   sup_mor; (apply fsup_iff || apply sup_iff) ; intros p; cbn.
 
+Ltac clear_hyp :=
+  repeat match goal with
+         | [ H : (?t = ?t)%type |- _ ] => clear H
+         end.
+
 (** * Adjunctions in Interaction Specification *)
 
 (** An adjunction A ⇆ B is a pair or morphisms which can "cancel" each other *)
@@ -121,7 +126,7 @@ Qed.
   them are satisfactory (but theoretically all of them should work probably).
   Therefore, we introduce a new structure to solve the issue.  *)
 
-(** ** Refinement Convention as Generalized Simulation Convention  *)
+(** ** Definition *)
 
 (* Note: don't use [rel ar1 ar2], otherwise there will be issues with the universe *)
 Definition rc_rel (E F: esig) := forall ar1, E ar1 -> forall ar2, F ar2 -> (ar1 -> ar2 -> Prop) -> Prop.
@@ -144,7 +149,7 @@ Qed.
 
 Infix "<=>" := refconv (at level 50) : type_scope.
 
-(** *** Order on Refinement Conventions  *)
+(** ** Order on Refinement Conventions  *)
 
 Definition rc_ref {E F} (rc1 rc2: E <=> F) :=
   forall ar1 m1 ar2 m2 R1,
@@ -169,7 +174,7 @@ Proof.
   subst. f_equal. apply proof_irrelevance.
 Qed.
 
-(** *** Calculating the upward closure *)
+(** ** Calculating the upward closure *)
 Program Definition normalize_rc {E F: esig} (rc: rc_rel E F) : E <=> F :=
   {|
     refconv_rel ar1 m1 ar2 m2 R := exists R', rc _ m1 _ m2 R' /\ subrel R' R;
@@ -222,7 +227,7 @@ Tactic Notation "rc_intro" tactic(tac) :=
 Ltac rc_econstructor := rc_intro econstructor.
 Ltac rc_eapply H := rc_intro (eapply H).
 
-(** *** Categorical Structures of Refinment Conventions *)
+(** ** Categorical Structures of Refinment Conventions *)
 Inductive rc_id {E} : rc_rel E E :=
 | rc_id_intro ar m: rc_id ar m ar m eq.
 
@@ -283,16 +288,7 @@ Proof.
     apply rel_compose_subrel; eauto. reflexivity.
 Qed.
 
-(** *** Tensor Product Operator on Refinement Conventions *)
-
-Inductive esig_tens (E F: esig): esig :=
-| esig_tens_intro ar1 ar2 :
-  E ar1 -> F ar2 -> esig_tens E F (ar1 * ar2)%type.
-
-Arguments esig_tens_intro {_ _ _ _} _ _.
-Infix "*" := esig_tens: esig_scope.
-Infix "*" := esig_tens_intro: event_scope.
-Delimit Scope event_scope with event.
+(** ** Tensor Product on Refinement Conventions *)
 
 Inductive rc_prod {E1 E2 F1 F2} (rc1: E1 <=> F1) (rc2: E2 <=> F2) : rc_rel (E1 * E2) (F1 * F2) :=
 | rc_prod_intro ar1 m1 ar1' m1' ar2 m2 ar2' m2' R1 R2:
@@ -340,7 +336,10 @@ Proof.
       apply rel_compose_subrel; eauto.
 Qed.
 
-(** ** Functor from RC to ADJ(Ispec) *)
+(** * Functor from RC to ADJ(Ispec) *)
+
+(** ** Definition *)
+
 Section RC_ADJ.
   Context {E F} (rc: E <=> F).
 
@@ -408,8 +407,10 @@ Section RC_ADJ.
     |}.
 
 End RC_ADJ.
-  (* TODO: functoriality *)
-Section PROPS.
+
+(** ** Functoriality *)
+
+Section FUNCTOR.
   Context {E F G} (rc1: E <=> F) (rc2: F <=> G).
 
   Lemma left_arrow_compose:
@@ -578,39 +579,88 @@ Section PROPS.
       + apply (sup_at None). now fcd_simpl.
   Qed.
 
-End PROPS.
+End FUNCTOR.
+
+(** ** Order Preserving *)
+
+Lemma int_ref {E A B} (x: E A) (f g: A -> t E B):
+  (forall a, f a [= g a) ->
+  a <- int x; f a [= a <- int x; g a.
+Proof.
+  intros H. sup_intro [a|].
+  - fcd_simpl. apply join_lub.
+    + apply (sup_at None). fcd_simpl. reflexivity.
+    + apply (sup_at (Some a)). fcd_simpl.
+      apply join_r. rewrite (H a). reflexivity.
+  - apply (sup_at None). fcd_simpl. reflexivity.
+Qed.
+
+Section ORDER.
+
+  Context {E F} (rc1 rc2: E <=> F) (H: rc_ref rc1 rc2).
+
+  Lemma left_arrow_monotonic:
+    left_arrow (rc_adj rc1) [= left_arrow (rc_adj rc2).
+  Proof.
+    intros ? e. cbn. unfold rc_adj_left.
+    apply sup_iff. intros ?. apply sup_iff. intros f.
+    apply sup_iff. intros [R1 H1].
+    unfold rc_ref in H. edestruct H as [R2 [HR2 HX]]. exact H1.
+    apply (sup_at i). apply (sup_at f).
+    eapply (fsup_at R2). exact HR2. cbn.
+    apply int_ref. intros a.
+    apply inf_iff. intros [z Hz].
+    eapply (finf_at z). apply HX. exact Hz. reflexivity.
+  Qed.
+
+  Lemma right_arrow_monotonic:
+    right_arrow (rc_adj rc2) [= right_arrow (rc_adj rc1).
+  Proof.
+    intros ? e. cbn. unfold rc_adj_right.
+    apply inf_iff. intros ?. apply inf_iff. intros f.
+    apply inf_iff. intros [R1 H1].
+    unfold rc_ref in H. edestruct H as [R2 [HR2 HX]]. exact H1.
+    apply (inf_at i). apply (inf_at f).
+    eapply (finf_at R2). exact HR2. cbn.
+    apply int_ref. intros a.
+    apply sup_iff. intros [z Hz].
+    eapply (fsup_at z). apply HX. exact Hz. reflexivity.
+  Qed.
+
+End ORDER.
+
 Coercion rc_adj : refconv >-> poset_adjunction.
 
-(** ** Functor from SC to RC *)
+(** * Functor from SC to RC *)
 
 Require Import Globalenvs.
 
-(** *** Embed Language Interfaces *)
+(** ** Embed Language Interfaces *)
 Section SIG.
 
   Variable li: language_interface.
 
-  Inductive sig: esig :=
-  | li_sig: query li -> Genv.symtbl -> sig (reply li).
+  Inductive eli: esig :=
+  | eli_intro: query li -> Genv.symtbl -> eli (reply li).
 
 End SIG.
 
-Arguments li_sig {_} _ _.
-Coercion sig: language_interface >-> esig.
+Arguments eli_intro {_} _ _.
+Coercion eli: language_interface >-> esig.
 
 (** The primitive operator that triggers a query *)
-Definition query_int {li} (q: query li) se: ispec li _ := @int (sig li) _ (li_sig q se).
+Definition query_int {li} (q: query li) se: ispec li _ := @int (eli li) _ (eli_intro q se).
 (* The expected type of the first argument of @int is a general type constructor
    E: Type -> Type instead of [esig], so the coercion does not work *)
 
-(** *** Embed Calling Conventions  *)
+(** ** Embed Calling Conventions  *)
 Inductive cc_rc {liA liB} (cc: callconv liA liB) : rc_rel liA liB :=
 | cc_rc_intro q1 q2 se1 se2 w:
   match_senv cc w se1 se2 ->
   match_query cc w q1 q2 ->
-  cc_rc cc _ (li_sig q1 se1) _ (li_sig q2 se2) (match_reply cc w).
+  cc_rc cc _ (eli_intro q1 se1) _ (eli_intro q2 se2) (match_reply cc w).
 
-(** *** Properties of the embedding from SC to RC  *)
+(** ** Functoriality *)
 Lemma cc_rc_id {liA}:
   @eq (refconv _ _) (cc_rc (@cc_id liA)) rc_id.
 Proof.
@@ -635,7 +685,7 @@ Proof.
     destruct H as [Hse1 Hse2]. destruct H0 as [q' [Hq1 Hq2]].
     exists (match_reply (cc1 @ cc2) (se', w1, w2)). split; eauto.
     exists (match_reply (cc1 @ cc2) (se', w1, w2)). split; [ | reflexivity ].
-    apply rc_compose_intro with (m2 := (li_sig q' se')).
+    apply rc_compose_intro with (m2 := (eli_intro q' se')).
     + exists (match_reply cc1 w1). split; [ | reflexivity ].
       constructor; eauto.
     + exists (match_reply cc2 w2). split; [ | reflexivity ].
@@ -651,19 +701,32 @@ Proof.
     + apply rel_compose_subrel; eauto.
 Qed.
 
+Require CallconvAlgebra.
+
+(** ** Order *)
+Lemma cc_rc_ref {liA liB} (cc1 cc2: callconv liA liB):
+  CallconvAlgebra.ccref cc1 cc2 ->
+  rc_ref (cc_rc cc1) (cc_rc cc2).
+Proof.
+  intros H. unfold rc_ref. intros * H1.
+  rc_inversion H1. depsubst. clear_hyp.
+  edestruct H as (z & Hq & Hse & Hr); eauto.
+  exists (match_reply cc2 z). split.
+  - rc_econstructor; eauto.
+  - intros r1 r2 ?. eauto.
+Qed.
+
 Coercion cc_refconv {liA liB} (cc: callconv liA liB): refconv liA liB :=
   normalize_rc (cc_rc cc).
 
-(** ** Functor from Rel to RC *)
-Inductive s_esig (S: Type) : esig :=
-| state_event: S -> s_esig S S.
-Arguments state_event {_} _.
+(** * Functor from Rel to RC *)
 
-Inductive rel_rc {S T} (R: S -> T -> Prop) : rc_rel (s_esig S) (s_esig T) :=
+(** ** Definition *)
+Inductive rel_rc {S T} (R: S -> T -> Prop) : rc_rel (est S) (est T) :=
 | rel_rc_intro m1 m2:
-  R m1 m2 -> rel_rc R _ (state_event m1) _ (state_event m2) R.
+  R m1 m2 -> rel_rc R _ (est_intro m1) _ (est_intro m2) R.
 
-(** *** Properties of the embedding from Rel to RC *)
+(** ** Functoriality *)
 Lemma rel_rc_id {S}:
   @eq (refconv _ _) (rel_rc (@eq S)) rc_id.
 Proof.
@@ -694,11 +757,3 @@ Proof.
     econstructor. eexists; split; eauto.
     apply rel_compose_subrel; eauto.
 Qed.
-
-(** *** Lifting Effect Signatures with States  *)
-Definition state_sig (E : esig) (S : Type) : esig := E * s_esig S.
-Definition st {E S ar} (m : E ar) (k : S) : state_sig E S (ar * S)%type :=
-  esig_tens_intro m (state_event k).
-
-Infix "#" := state_sig (at level 40, left associativity) : esig_scope.
-Notation "m # s" := (esig_tens_intro m (state_event s)) (at level 40, left associativity).

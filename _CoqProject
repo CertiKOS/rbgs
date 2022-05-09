@@ -3,7 +3,7 @@
 -R structures structures
 -R lattices lattices
 -R models models
--R examples examples
+-R cal cal
 -R compcertox compcertox
 -R interfaces interfaces
 
@@ -20,14 +20,16 @@ lattices/LatticeProduct.v
 lattices/AdjoinBot.v
 models/IntSpec.v
 models/Coherence.v
-examples/CAL.v
-examples/CompCertIntSpec.v
-examples/CompCertCAL.v
-# examples/ISpecAdjunction.v
-examples/RefConv.v
-examples/BoundedQueueCode.v
-examples/BoundedQueueProof.v
-# examples/CompCertSem.v
+
+
+cal/RefConv.v
+cal/CompCertIntSpec.v
+cal/IntSpecCAL.v
+cal/CompCertCAL.v
+cal/example/BQ.v
+cal/example/BQCode.v
+cal/example/BQProof.v
+
 # CompCertOX formalization
 compcertox/Lifting.v
 compcertox/AbRel.v
@@ -35,6 +37,9 @@ compcertox/CModule.v
 compcertox/TensorComp.v
 compcertox/SkelLinking.v
 compcertox/Composition.v
+
+# misc/CompCertSem.v
+# misc/Bigstep.v
 
 interfaces/Category.v
 interfaces/Functor.v

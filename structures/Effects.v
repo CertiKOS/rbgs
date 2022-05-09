@@ -22,6 +22,18 @@ Arguments esum : clear implicits.
 
 Infix "+" := esum : esig_scope.
 
+(** ** Tensor Product *)
+
+Inductive etens {E F : esig}: esig :=
+| etens_intro {X Y} : E X -> F Y -> etens (X * Y)%type.
+
+Arguments etens : clear implicits.
+Arguments etens_intro {_ _ _ _} _ _.
+
+Infix "*" := etens: esig_scope.
+Infix "*" := etens_intro: event_scope.
+Delimit Scope event_scope with event.
+
 (** ** Empty signature *)
 
 Inductive empty_sig : esig := .

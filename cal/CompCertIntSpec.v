@@ -1,6 +1,5 @@
 From Coq Require Import
-     Relations
-     RelationClasses
+     Relations RelationClasses
      List.
 From models Require Import
      IntSpec.
@@ -14,30 +13,9 @@ From lattices Require Import
      Upset Downset FCD.
 From structures Require Import
      Effects Lattice.
-Require Import examples.RefConv.
+From cal Require Import RefConv.
 
 Import ISpec.
-
-Definition assume {E : esig} (P : Prop) : ispec E unit :=
-  inf H : P, ret tt.
-
-Lemma assume_l {E A} (P : Prop) (x y : ispec E A) :
-  x [= y -> P ->
-  _ <- assume P; x [= y.
-Proof.
-  intros Hxy HP. unfold assume.
-  inf_mor. eapply (inf_at HP).
-  fcd_simpl. apply Hxy.
-Qed.
-
-Lemma assume_r {E A} (P : Prop) (x y : ispec E A) :
-  (P -> x [= y) ->
-  x [= _ <- assume P; y.
-Proof.
-  intros H. unfold assume.
-  inf_intro HP. fcd_simpl.
-  apply H. apply HP.
-Qed.
 
 (** * Embed CompCert Semantics into Game Semantics *)
 
@@ -82,7 +60,7 @@ Section LTS.
       end.
 
     Definition dem_lts_spec: subst liA liB :=
-      fun _ '(li_sig q se) => sup n,
+      fun _ '(eli_intro q se) => sup n,
         _ <- assert (exists s, initial_state (L se) q s);
         inf { s | initial_state (L se) q s }, dem_lts_spec' n s se.
 
@@ -106,7 +84,7 @@ Section LTS.
       end.
 
     Definition ang_lts_spec' sk: subst liA liB :=
-      fun _ '(li_sig q se) =>
+      fun _ '(eli_intro q se) =>
         _ <- assume (Genv.valid_for sk se);
         sup n, sup { s | initial_state (L se) q s }, ang_lts_exec n s se.
 
@@ -186,8 +164,6 @@ Section LTS.
 
 End LTS.
 
-Require Import CAL.
-
 (** The skeleton is used for choosing a compatible symbol table. So a larger
   skeleton accepts less symbol tables and thus leads to less behavior. *)
 Instance skel_order_proper {liA liB} (L: semantics liA liB):
@@ -201,8 +177,6 @@ Qed.
 
 (* Note: it's hard to imply the [esig] from the context, since
    higher-order unification is generally difficult, i.e. to imply [E] from [E X] *)
-
-Local Opaque normalize_rc.
 
 (** ** Monotonicity of Embedding *)
 Section SEM.
@@ -259,7 +233,7 @@ Section SEM.
       sup_mor. eapply (fsup_at qa2). apply H2.
       unfold query_int. intm. unfold rc_adj_left at 3.
       sup_mor. eapply sup_at.
-      sup_mor. eapply (sup_at (li_sig qa1 se1)).
+      sup_mor. eapply (sup_at (eli_intro qa1 se1)).
       sup_mor. eapply (fsup_at (match_reply ccA w)).
       { rc_econstructor; eauto. }
       intm. sup_mor. apply sup_iff. intros [ ra1 | ].
@@ -355,7 +329,7 @@ Section COMP.
              apply join_l. apply join_l.
              eapply fsup_at. apply star_internal2; eauto. reflexivity.
           -- sup_intro [qa Hext2]. unfold query_int. intm.
-             assert (Hcrash: (FCD.emb (@pmove (sig liA) _ _ (li_sig qa se))) [=
+             assert (Hcrash: (FCD.emb (@pmove (eli liA) _ _ (eli_intro qa se))) [=
                                sup n : nat, ang_lts_exec ((comp_semantics' L1 L2 p) ) n (st2 L1 L2 s1 s2) se).
              {
                apply (sup_at 1%nat). cbn. apply join_l. apply join_r.
@@ -404,193 +378,3 @@ Proof.
   cbn -[LatticeProduct.cdlat_prod].
   apply compose_proper_ref; apply skel_order_proper; now apply Linking.link_linkorder in Hlink.
 Qed.
-
-(*
-(** ** Embed Calling Conventions *)
-Section CC.
-
-  (** We treat liB as the implementation. *)
-  Context {liA liB} (cc: callconv liA liB).
-  (** Translate a low level liB to high level liA. The first choice is made
-    angelically because 1) there is usually at most one abstract representation;
-    2) a more refined computation includes behaviors on more abstract
-    representations, which means the computation is described from more angles.
-
-    The second choice is made demonically because for an abstract state, its
-    refinement implements one of the concrete representations.
-
-    As for the choice of worlds, ... *)
-
-  (* FIXME: left vs. right *)
-  Definition cc_left: subst liA liB :=
-    fun _ '(li_sig qb) =>
-      sup w, sup { qa | match_query cc w qa qb },
-      query_int qa >>= (fun ra => inf { rb | match_reply cc w ra rb }, ret rb).
-
-  (** Translate high level liA into low level liB *)
-  Definition cc_right: subst liB liA :=
-    fun _ '(li_sig qa) =>
-      inf w, inf { qb | match_query cc w qa qb },
-      query_int qb >>= (fun rb => sup { ra | match_reply cc w ra rb }, ret ra).
-
-  Lemma cc_epsilon: cc_left @ cc_right [= identity.
-  Proof.
-    intros ? [qb]. unfold identity, cc_left, cc_right, compose.
-    rewrite Sup.mor. apply sup_iff. intros w.
-    unfold fsup. rewrite Sup.mor.
-    apply sup_iff. intros [qa Hq]. cbn.
-    rewrite apply_bind. unfold bind.
-    unfold query_int. rewrite apply_int_r.
-    rewrite Inf.mor. apply (inf_at w).
-    unfold finf. rewrite Inf.mor.
-    apply (inf_at (exist _ qb Hq)). cbn.
-    repeat setoid_rewrite Sup.mor.
-    apply sup_iff. intros [rb|].
-    - rewrite FCD.ext_ana. cbn.
-      rewrite Sup.mor_join.
-      apply join_lub.
-      + rewrite FCD.ext_ana. cbn.
-        unfold int. eapply (sup_at None). reflexivity.
-      + rewrite !Sup.mor.
-        apply sup_iff. intros [ra Hr]. cbn.
-        unfold ret. rewrite FCD.ext_ana.
-        rewrite FCD.ext_ana. cbn.
-        apply join_lub.
-        * eapply (sup_at None). reflexivity.
-        * rewrite !Inf.mor.
-          apply (inf_at (exist _ rb Hr)). cbn.
-          unfold apply at 1. rewrite FCD.ext_ana. cbn.
-          rewrite FCD.ext_ana.
-          unfold int. apply (sup_at (Some rb)). reflexivity.
-    - rewrite FCD.ext_ana. cbn.
-      rewrite FCD.ext_ana. cbn.
-      unfold int. apply (sup_at None). reflexivity.
-  Qed.
-
-  Lemma cc_eta: identity [= cc_right @ cc_left.
-  Proof.
-    intros ? [qa]. unfold identity, cc_left, cc_right, compose.
-    rewrite Inf.mor. apply inf_iff. intros w.
-    unfold finf. rewrite Inf.mor.
-    apply inf_iff. intros [qb Hq]. cbn.
-    unfold query_int. intm.
-    unfold bind. rewrite Sup.mor. apply (sup_at w).
-    unfold fsup. rewrite Sup.mor.
-    apply (sup_at (exist _ qa Hq)). cbn.
-    repeat setoid_rewrite Sup.mor.
-    unfold int at 1. apply sup_iff. intros [ra|].
-    - apply (sup_at (Some ra)).
-      rewrite FCD.ext_ana. cbn.
-      rewrite Sup.mor_join. apply join_r.
-      rewrite !Inf.mor.
-      apply inf_iff. intros [rb Hr]. cbn.
-      unfold ret.
-      rewrite !FCD.ext_ana. cbn.
-      apply join_r.
-      rewrite Sup.mor.
-      apply (sup_at (exist _ ra Hr)). cbn.
-      setoid_rewrite FCD.ext_ana. cbn.
-      rewrite FCD.ext_ana. reflexivity.
-    - apply (sup_at None).
-      rewrite FCD.ext_ana. cbn.
-      rewrite FCD.ext_ana. cbn. reflexivity.
-  Qed.
-
-  (** In particular, the calling conventions in CompCertO forms an adjunction *)
-  Program Definition cc_adjunction: poset_adjunction liA liB :=
-    {|
-      left_arrow := cc_left;
-      right_arrow := cc_right;
-      epsilon := cc_epsilon;
-      eta := cc_eta;
-    |}.
-
-End CC.
-
-Lemma cc_adj_righr_eqv {liA liB} (cc: callconv liA liB):
-  rc_adj_right cc = cc_right cc.
-Proof.
-  unfold rc_adj_right, cc_refconv, cc_right.
-  apply antisymmetry.
-  - cbn. intros ? [ qa ].
-    apply inf_iff. intros w.
-    apply inf_iff. intros [ qb Hq ]. cbn.
-    unfold query_int. eapply inf_at. eapply (inf_at (li_sig qb)).
-    eapply (finf_at (match_reply cc w)).
-    exists (match_reply cc w). split.
-    + constructor. auto.
-    + reflexivity.
-    + reflexivity.
-  - cbn. intros ? [ qa ].
-    apply inf_iff. intros ?. apply inf_iff. intros [ qb ].
-    apply inf_iff. intros [ Rr [Rr' [HRr Hsub]]]. cbn.
-    inv HRr. depsubst.
-    apply (inf_at w). apply (finf_at qb). auto.
-    unfold query_int. unfold int. sup_intro [rb|].
-    + fcd_simpl. apply join_lub.
-      * apply (sup_at None). fcd_simpl. reflexivity.
-      * apply (sup_at (Some rb)).
-        fcd_simpl. apply join_r. sup_intro [ ra Hr ].
-        eapply (fsup_at ra). apply Hsub. auto. cbn. reflexivity.
-    + fcd_simpl. apply (sup_at None). fcd_simpl. reflexivity.
-Qed.
-
-Lemma cc_adj_left_eqv {liA liB} (cc: callconv liA liB):
-  rc_adj_left cc = cc_left cc.
-Proof.
-  unfold rc_adj_left, cc_refconv, cc_left.
-  apply antisymmetry.
-  - cbn. intros ? [ qb ].
-    apply sup_iff. intros ?. apply sup_iff. intros [ qa ].
-    apply sup_iff. intros [ Rr [Rr' [HRr Hsub]]]. cbn.
-    inv HRr. depsubst.
-    apply (sup_at w). apply (fsup_at qa). auto.
-    unfold query_int. unfold int. sup_intro [ra|].
-    + fcd_simpl. apply join_lub.
-      * apply (sup_at None). fcd_simpl. reflexivity.
-      * apply (sup_at (Some ra)).
-        fcd_simpl. apply join_r. inf_intro [ rb Hr ].
-        eapply (finf_at rb). apply Hsub. auto. reflexivity.
-    + fcd_simpl. apply (sup_at None). fcd_simpl. reflexivity.
-  - cbn. intros ? [ qb ].
-    apply sup_iff. intros w.
-    apply sup_iff. intros [ qa Hq ]. cbn.
-    unfold query_int. eapply sup_at. eapply (sup_at (li_sig qa)).
-    eapply (fsup_at (match_reply cc w)).
-    exists (match_reply cc w). split.
-    + constructor. auto.
-    + reflexivity.
-    + reflexivity.
-Qed.
-
-Section CC_SE.
-
-  Context {liA liB} (cc: callconv liA liB).
-  Context (se1 se2: Genv.symtbl).
-
-  Definition cc_l: subst liA liB :=
-    fun _ '(li_sig qb) =>
-      sup { w | match_senv cc w se1 se2 }, sup { qa | match_query cc w qa qb },
-      query_int qa >>= (fun ra => inf { rb | match_reply cc w ra rb }, ret rb).
-
-  Definition cc_r: subst liB liA :=
-    fun _ '(li_sig qa) =>
-      inf { w | match_senv cc w se1 se2 }, inf { qb | match_query cc w qa qb },
-      query_int qb >>= (fun rb => sup { ra | match_reply cc w ra rb }, ret ra).
-
-  Lemma cc_epsilon_se: cc_l @ cc_r [= identity.
-  Proof. Admitted.
-
-  Lemma cc_eta_se: identity [= cc_r @ cc_l.
-  Proof. Admitted.
-
-  Program Definition cc_adjunction_se: poset_adjunction liA liB :=
-    {|
-      left_arrow := cc_l;
-      right_arrow := cc_r;
-      epsilon := cc_epsilon_se;
-      eta := cc_eta_se;
-    |}.
-
-End CC_SE.
-*)

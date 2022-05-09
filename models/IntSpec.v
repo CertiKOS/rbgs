@@ -634,9 +634,6 @@ Notation "x >>= f" := (ISpec.bind f x)
 Notation "v <- x ; M" := (x >>= fun v => M)
   (at level 65, right associativity).
 
-Definition assert {E : esig} (P : Prop) : ispec E unit :=
-  sup H : P, ISpec.ret tt.
-
 Notation "x / f" := (ISpec.apply f x).
 
 (* Infix "@" := ISpec.compose (at level 40, left associativity). *)
@@ -654,6 +651,197 @@ Hint Rewrite
 
 Ltac intm :=
   repeat progress (autorewrite with intm; cbn).
+
+(** * State  *)
+
+Import ISpec.
+
+(** ** Keeping track of state *)
+
+(** To interpret layer interfaces as morphisms in our category of
+  effect signatures and substitution specifications, we use the
+  following signature which adjoins a state in [S] to the operations
+  and arities of the signature [E]. This is written [E@S] in the paper
+  but since I plan on using [@] for composition I use [E#S] here. *)
+
+Inductive est {S: Type} : esig :=
+| est_intro: S -> est S.
+Arguments est : clear implicits.
+
+Definition state_sig (E : esig) (S : Type) : esig := E * est S.
+Definition st {E S X} (m : E X) (k : S) : state_sig E S (X * S)%type :=
+  (m * (est_intro k))%event.
+
+Infix "#" := state_sig (at level 40, left associativity) : esig_scope.
+Infix "#" := st (at level 40, left associativity).
+
+(** To connect this with layer implementations, we must lift a
+  state-free morphism [M : E ~> F] to a corresponding stateful
+  morphism [E#S ~> F#S] which passes the state around unchanged. *)
+
+Fixpoint stateful_play {E S A} (k: S) (s: play E A): t (E # S) (A * S) :=
+  match s with
+    | pret v => FCD.emb (pret (v, k))
+    | pmove m => FCD.emb (pmove (st m k))
+    | pcons m n t =>
+      sup x : option S,
+      match x with
+      | Some k' => FCD.map (pcons (st m k) (n, k')) (stateful_play k' t)
+      | None => FCD.emb (pmove (st m k))
+      end
+  end.
+
+Instance stateful_play_mor E S A k :
+  PosetMorphism (@stateful_play E S A k).
+Proof.
+  constructor. intros s t Hst. revert k.
+  induction Hst; cbn; intro.
+  - reflexivity.
+  - reflexivity.
+  - apply (sup_at None). reflexivity.
+  - apply sup_lub. intro x. apply (sup_at x). repeat rstep.
+    unfold FCD.map. repeat rstep. auto.
+Qed.
+
+Definition srun {E S A} (k : S) (x : t E A) : t (E # S) (A * S) :=
+  FCD.ext (stateful_play k) x.
+
+Instance srun_mor {E S A} (s: S) :
+  CDL.Morphism (@srun E S A s).
+Proof.
+  unfold srun. split.
+  - intros x y. rewrite Sup.mor. reflexivity.
+  - intros x y. rewrite Inf.mor. reflexivity.
+Qed.
+
+Definition slift {E F S} (σ : E ~> F) : E#S ~> F#S :=
+  fun ar '(etens_intro m k) =>
+    match k with
+    | est_intro s => srun s (σ _ m)
+    end.
+
+(** ** Properties *)
+
+Lemma srun_slift {E F S A} (k : S) (x : t F A) (σ : E ~> F) :
+  srun k x / slift σ = srun k (x / σ).
+Proof.
+  unfold srun, apply.
+  rewrite !@FCD.ext_ext by typeclasses eauto. f_equal.
+  apply functional_extensionality. intros s.
+  induction s; cbn.
+  - rewrite !FCD.ext_ana. cbn.
+    reflexivity.
+  - rewrite !FCD.ext_ana. cbn.
+    unfold srun, bind.
+    rewrite !@FCD.ext_ext by typeclasses eauto. f_equal.
+    apply functional_extensionality. intros s.
+    induction s; cbn.
+    + rewrite FCD.ext_ana. cbn.
+      admit. (* rewrite Downset.Sup.mor_bot *)
+    + rewrite !FCD.ext_ana. cbn. reflexivity.
+    + rewrite Downset.Sup.mor.
+      rewrite Downset.Sup.mor_join.
+      apply antisymmetry.
+      * apply sup_lub. intros [k' | ].
+        -- apply join_r. unfold FCD.map.
+           rewrite !@FCD.ext_ext; try typeclasses eauto.
+           ++ repeat setoid_rewrite FCD.ext_ana. cbn.
+Admitted.
+
+Lemma srun_bind {E S A B} (k : S) (f : A -> t E B) (x : t E A) :
+  srun k (bind f x) = bind (fun '(a, k') => srun k' (f a)) (srun k x).
+Admitted.
+
+Lemma srun_int {E S ar} (k : S) (m : E ar) :
+  srun k (int m) = int (st m k).
+Admitted.
+
+Lemma slift_identity {E S}:
+  slift (S:=S) (identity (E:=E)) = identity.
+Proof.
+  unfold identity. extensionality x. extensionality mk.
+  destruct mk as [? ? m [k]]. apply srun_int.
+Qed.
+
+Lemma slift_compose {E F G S} (f: F ~> G) (g: E ~> F):
+  slift (S:=S) (f @ g) = slift f @ slift g.
+Proof.
+  unfold slift. extensionality x. extensionality mk.
+  destruct mk as [? ? m [k]].
+  unfold compose. rewrite <- srun_slift. reflexivity.
+Qed.
+
+Instance slift_proper_ref {E F S}:
+  Proper (ref ==> ref) (@slift E F S).
+Proof.
+  intros x y Hxy. intros ? mk. destruct mk as [? m k]. cbn.
+  unfold srun. destruct e. rstep. apply Hxy.
+Qed.
+
+Instance map_mor {A B: poset} (f: A -> B) :
+  CDL.Morphism (@FCD.map A B f).
+Proof. unfold FCD.map. typeclasses eauto. Qed.
+
+(** ** Rewriting tactic *)
+
+Hint Rewrite
+  @srun_bind
+  @srun_int
+  : intm.
+
+(** * Assert & Assume *)
+
+Definition assert {E : esig} (P : Prop) : ispec E unit :=
+  sup H : P, ISpec.ret tt.
+
+Lemma assert_true {E} {P : Prop} (H : P) :
+  @assert E P = ret tt.
+Proof.
+  unfold assert.
+  apply antisymmetry.
+  - apply sup_lub. reflexivity.
+  - apply (sup_at H). reflexivity.
+Qed.
+
+Lemma assert_l {E A} (P : Prop) (x y : ispec E A) :
+  (P -> x [= y) ->
+  _ <- assert P; x [= y.
+Proof.
+  intros H. unfold assert.
+  rewrite Sup.mor. apply sup_lub. intros HP.
+  intm. auto.
+Qed.
+
+Lemma assert_r {E A} (P : Prop) (x y : ispec E A) :
+  x [= y -> P ->
+  x [= _ <- assert P; y.
+Proof.
+  intros Hxy HP.
+  rewrite assert_true; intm; auto.
+Qed.
+
+Definition assume {E : esig} (P : Prop) : ispec E unit :=
+  inf H : P, ret tt.
+
+Lemma assume_l {E A} (P : Prop) (x y : ispec E A) :
+  x [= y -> P ->
+  _ <- assume P; x [= y.
+Proof.
+  intros Hxy HP. unfold assume.
+  rewrite Inf.mor. eapply (inf_at HP).
+  setoid_rewrite FCD.ext_ana. apply Hxy.
+Qed.
+
+Lemma assume_r {E A} (P : Prop) (x y : ispec E A) :
+  (P -> x [= y) ->
+  x [= _ <- assume P; y.
+Proof.
+  intros H. unfold assume.
+  rewrite Inf.mor. eapply inf_glb. intros HP.
+  setoid_rewrite FCD.ext_ana. eauto.
+Qed.
+
+Hint Rewrite @assert_true using solve [auto] : intm.
 
 (** Misc *)
 Import ISpec.

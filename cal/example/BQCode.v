@@ -1,5 +1,4 @@
 From Coq Require Import List.
-From examples Require Import CAL.
 From compcert Require Import
      Integers Coqlib Maps
      Memory AST Values
@@ -7,6 +6,7 @@ From compcert Require Import
      LanguageInterface
      Events Globalenvs
      Smallstep.
+From cal.example Require Import BQ.
 Import ListNotations.
 
 (** identifies for the functions *)
@@ -37,7 +37,7 @@ Notation tarray := (fun ty size => Tarray ty size noattr).
 Notation tptr := (fun ty => Tpointer ty noattr).
 Notation tvoid := (Tvoid).
 
-Definition Nz: Z := Z.of_nat CAL.N.
+Definition Nz: Z := Z.of_nat BQ.N.
 
 Section CLIGHT.
 
