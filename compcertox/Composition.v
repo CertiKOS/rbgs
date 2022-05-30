@@ -18,6 +18,18 @@ From compcertox Require Import
      Lifting AbRel CModule
      TensorComp SkelLinking.
 
+Program Definition cc_null {liA liB}: callconv liA liB :=
+  {|
+    ccworld := Empty_set;
+    match_senv w _ _ := False;
+    match_query w _ _ := False;
+    match_reply w _ _ := False;
+  |}.
+Solve All Obligations with
+  cbn; intros; subst; intuition auto.
+
+Notation "0" := cc_null : cc_scope.
+
 (* FIXME: why the precedence can't be looser than 9? *)
 (* Notation "[ R ]" := (singleton_rel R) (at level 9): krel_scope. *)
 
@@ -37,7 +49,7 @@ Section LAYER_DEF.
       mk_prog_sim {
           psim_sk_order: linkorder (skel Lf) (skel Ls)
                          /\ linkorder (AST.erase_program p) (skel Ls);
-          psim_simulation: forward_simulation 1 R Ls (prog_layer_comp (skel Ls))
+          psim_simulation: forward_simulation 0 R Ls (prog_layer_comp (skel Ls))
         }.
   End PROG.
 
@@ -48,7 +60,7 @@ Section LAYER_DEF.
       mk_cmod_sim {
           csim_sk_order: linkorder (skel Lf) (skel Ls)
                          /\ linkorder (cmod_skel M) (skel Ls);
-          csim_simulation: forward_simulation 1 R Ls (cmod_layer_comp (skel Ls));
+          csim_simulation: forward_simulation 0 R Ls (cmod_layer_comp (skel Ls));
         }.
   End CMOD.
 
@@ -71,7 +83,7 @@ Proof.
     unfold flip. apply cc_compose_id_left.
     eapply compose_forward_simulations. eauto.
 
-    eapply open_fsim_ccref. apply cc_compose_id_left.
+    eapply open_fsim_ccref. apply cc_compose_id_right.
     unfold flip. apply cc_compose_id_right.
     eapply compose_forward_simulations. eauto.
 
@@ -127,7 +139,7 @@ Proof.
   intros ((?&?)&?). split; [split|]; eauto.
   - unfold cmod_layer_comp, semantics, ref. cbn.
 
-    eapply open_fsim_ccref. apply cc_compose_id_left.
+    eapply open_fsim_ccref. apply cc_compose_id_right.
     unfold flip. apply cc_compose_id_right.
     eapply compose_forward_simulations. eauto.
 
@@ -138,6 +150,10 @@ Proof.
 Qed.
 
 (** ** Composition Rules  *)
+
+Lemma cc_compose_null {a b c}:
+  @ccref a b (cc_compose (li2:=c) 0 0) 0.
+Proof. intros x. destruct x. easy. Qed.
 
 (** *** Vertical Composition *)
 
@@ -173,12 +189,12 @@ Section VCOMP.
     instantiate (1 := (skel Ls)). 1-2: assumption.
     clear X. intros X.
 
-    eapply open_fsim_ccref. apply cc_compose_id_left.
+    eapply open_fsim_ccref. eapply cc_compose_null.
     unfold flip. apply krel_comp_ref; eauto.
     eapply compose_forward_simulations.
     apply H1. unfold cmod_layer_comp.
 
-    eapply open_fsim_ccref. apply cc_compose_id_left.
+    eapply open_fsim_ccref. apply cc_compose_id_right.
     unfold flip. apply cc_compose_id_right.
     eapply compose_forward_simulations. apply X. clear X.
 
@@ -204,6 +220,18 @@ Section VCOMP.
 End VCOMP.
 
 (** *** Horizontal Composition *)
+
+Lemma layer_fsim_id {K} (L: layer K):
+  forward_simulation 0 1 L L.
+Proof.
+  constructor.
+  eapply Forward_simulation with _ (fun _ _ _ => _); auto.
+  - firstorder.
+  - intros se _ [ ] [ ] _.
+    eapply forward_simulation_plus with (match_states := eq);
+    cbn; intros; subst; eauto 10 using plus_one. inv q1.
+  - apply well_founded_ltof.
+Qed.
 
 Lemma if_rewrite {A B} (f: A -> B) a b:
   (fun (i : bool) => f (if i then a else b)) = (fun i => if i then f a else f b).
@@ -237,7 +265,7 @@ Section HCOMP.
     eapply linkorder_trans; eauto. eapply link_linkorder; eauto.
     apply hcomp_skel_link.
     (* monotonicity *)
-    eapply open_fsim_ccref. apply cc_compose_id_left.
+    eapply open_fsim_ccref. eapply cc_compose_null.
     unfold flip. apply cc_compose_id_right.
     eapply compose_forward_simulations.
 
@@ -255,20 +283,29 @@ Section HCOMP.
       f_equal. subst LX. apply Axioms.functional_extensionality.
       intros [|]; reflexivity.
     }
-    etransitivity. eapply distributivity2. constructor. exact true.
+
+    eapply open_fsim_ccref. eapply cc_compose_id_left.
+    unfold flip. apply cc_compose_id_right.
+    eapply compose_forward_simulations.
+    eapply distributivity2. constructor. exact true.
+
     (* under approximation *)
-    eapply categorical_compose_simulation';
-      [ | apply identity_forward_simulation | | ].
-    subst Ls. rewrite <- if_rewrite. etransitivity.
-    apply lift_flat_comp2. apply lifting_simulation.
-    apply cmodule_flat_comp_simulation; auto.
-    apply hcomp_skel_link.
-    eapply linkorder_trans; eauto. eapply link_linkorder; eauto.
+    eapply categorical_compose_simulation'.
+    - subst Ls. rewrite <- if_rewrite. etransitivity.
+      apply lift_flat_comp2. apply lifting_simulation.
+      apply cmodule_flat_comp_simulation; auto.
+    - apply layer_fsim_id.
+    - apply hcomp_skel_link.
+    - eapply linkorder_trans; eauto. eapply link_linkorder; eauto.
   Qed.
 
 End HCOMP.
 
 (** *** Tensor Product *)
+
+Lemma cc_id_null:
+  cceqv (@cc_id li_null) 0.
+Proof. split; intros x *; easy. Qed.
 
 Section TCOMP.
 
@@ -299,6 +336,8 @@ Section TCOMP.
     destruct HL2 as [[HLsk2 Hmod2] H2].
     split. split. apply tens_skel_link1. apply tens_skel_link2.
 
+    rewrite <- (proj1 cc_id_null).
+    rewrite -> (proj2 cc_id_null) in H1, H2.
     exploit @tensor_compose_simulation;
       [ exact H1 | exact H2 | .. ]; eauto.
     1-2: eapply link_linkorder in Hsks; apply Hsks.
@@ -362,6 +401,7 @@ Section TCOMP.
     - apply tens_skel_link2.
     - apply tens_skel_link1.
   Qed.
+
 End TCOMP.
 
 (** ** An instance of empty layer *)
