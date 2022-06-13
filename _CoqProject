@@ -37,6 +37,7 @@ compcertox/CModule.v
 compcertox/TensorComp.v
 compcertox/SkelLinking.v
 compcertox/Composition.v
+compcertox/PcmRel.v
 
 # misc/CompCertSem.v
 # misc/Bigstep.v
