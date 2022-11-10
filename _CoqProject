@@ -38,6 +38,9 @@ compcertox/TensorComp.v
 compcertox/SkelLinking.v
 compcertox/Composition.v
 
+compcertox/BQcode.v
+
+
 # misc/CompCertSem.v
 # misc/Bigstep.v
 
