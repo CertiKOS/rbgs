@@ -39,6 +39,7 @@ compcertox/SkelLinking.v
 compcertox/Composition.v
 
 compcertox/BQcode.v
+compcertox/RBspec.v
 
 
 # misc/CompCertSem.v
