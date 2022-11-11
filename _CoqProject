@@ -1,34 +1,6 @@
 -R coqrel coqrel
 -R compcert compcert
--R structures structures
--R lattices lattices
--R models models
--R cal cal
 -R compcertox compcertox
--R interfaces interfaces
-
-structures/Poset.v
-structures/Lattice.v
-structures/Completion.v
-structures/Category.v
-structures/Monad.v
-structures/Effects.v
-lattices/Downset.v
-lattices/Upset.v
-lattices/FCD.v
-lattices/LatticeProduct.v
-lattices/AdjoinBot.v
-models/IntSpec.v
-models/Coherence.v
-
-
-cal/RefConv.v
-cal/CompCertIntSpec.v
-cal/IntSpecCAL.v
-cal/CompCertCAL.v
-cal/example/BQ.v
-cal/example/BQCode.v
-cal/example/BQProof.v
 
 # CompCertOX formalization
 compcertox/Lifting.v
@@ -44,11 +16,3 @@ compcertox/BQspec.v
 compcertox/BQspecx.v
 compcertox/BQrefine.v
 
-
-# misc/CompCertSem.v
-# misc/Bigstep.v
-
-interfaces/Category.v
-interfaces/Functor.v
-interfaces/MonoidalCategory.v
-interfaces/ConcreteCategory.v

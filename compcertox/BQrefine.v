@@ -62,6 +62,8 @@ Section BQ_LTS.
 
 End BQ_LTS.
 
+Section REFINE.
+
 Hypothesis rb_bq_linking:
   { cprog & Linking.link bq_program rb_program = Some cprog}.
 
@@ -376,3 +378,5 @@ Proof.
     eapply compose_forward_simulations.
     apply bq_refine. apply X.
 Qed.
+
+End REFINE.
