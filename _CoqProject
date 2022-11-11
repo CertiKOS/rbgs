@@ -41,6 +41,8 @@ compcertox/Composition.v
 compcertox/BQcode.v
 compcertox/RBspec.v
 compcertox/BQspec.v
+compcertox/BQspecx.v
+compcertox/BQrefine.v
 
 
 # misc/CompCertSem.v

@@ -130,14 +130,16 @@ Inductive rb_match_mem: Genv.symtbl -> rb_state -> mem -> Prop :=
 
 Inductive rb_match_query: Genv.symtbl -> c_query * rb_state -> c_query -> Prop :=
 | rb_query_intro:
-  forall se m vf sig vargs rbst,
+  forall se m m' vf sig vargs rbst,
     rb_match_mem se rbst m ->
-    rb_match_query se (cq vf sig vargs m, rbst) (cq vf sig vargs m).
+    Mem.nextblock m = Mem.nextblock m' ->
+    rb_match_query se (cq vf sig vargs m', rbst) (cq vf sig vargs m).
 
 Inductive rb_match_reply: Genv.symtbl -> c_reply * rb_state -> c_reply -> Prop :=
 | rb_reply_intro:
   forall se rbst m m' rv,
     rb_match_mem se rbst m' ->
+    Mem.nextblock m = Mem.nextblock m' ->
     rb_match_reply se (cr rv m, rbst) (cr rv m').
 
 Program Definition rb_cc: callconv (li_c@rb_state) li_c :=
@@ -153,28 +155,33 @@ Next Obligation. inv H. reflexivity. Qed.
 
 Inductive rb_ms se: rb_internal_state -> Clight.state -> Prop :=
 | rb_ms_inc1:
-  forall vf  m rbst vs,
+  forall vf  m m' rbst vs,
     rb_match_mem se rbst m ->
     Genv.find_funct (Genv.globalenv se rb_program) vf = Some (Internal rb_inc1) ->
-    rb_ms se  (rb_init inc1 rbst vs m) (Callstate vf vs Kstop m)
+    Mem.nextblock m = Mem.nextblock m' ->
+    rb_ms se  (rb_init inc1 rbst vs m') (Callstate vf vs Kstop m)
 | rb_ms_inc2:
-  forall vf  m rbst vs,
+  forall vf  m m' rbst vs,
     rb_match_mem se rbst m ->
     Genv.find_funct (Genv.globalenv se rb_program) vf = Some (Internal rb_inc2) ->
-    rb_ms se  (rb_init inc2 rbst vs m) (Callstate vf vs Kstop m)
+    Mem.nextblock m = Mem.nextblock m' ->
+    rb_ms se  (rb_init inc2 rbst vs m') (Callstate vf vs Kstop m)
 | rb_ms_set:
-  forall vf  m rbst vs,
+  forall vf  m m' rbst vs,
     rb_match_mem se rbst m ->
     Genv.find_funct (Genv.globalenv se rb_program) vf = Some (Internal rb_set) ->
-    rb_ms se  (rb_init seti rbst vs m) (Callstate vf vs Kstop m)
+    Mem.nextblock m = Mem.nextblock m' ->
+    rb_ms se  (rb_init seti rbst vs m') (Callstate vf vs Kstop m)
 | rb_ms_get:
-  forall vf  m rbst vs,
+  forall vf  m m' rbst vs,
     rb_match_mem se rbst m ->
     Genv.find_funct (Genv.globalenv se rb_program) vf = Some (Internal rb_get) ->
-    rb_ms se  (rb_init geti rbst vs m) (Callstate vf vs Kstop m)
+    Mem.nextblock m = Mem.nextblock m' ->
+    rb_ms se  (rb_init geti rbst vs m') (Callstate vf vs Kstop m)
 | rb_ms_final:
   forall rv m m' rbst,
     rb_match_mem se rbst m' ->
+    Mem.nextblock m = Mem.nextblock m' ->
     rb_ms se (rb_final rbst rv m) (Returnstate rv Kstop m').
 
 Opaque semantics2.
@@ -260,14 +267,14 @@ Proof.
       * econstructor; eauto.
         eapply genv_funct_symbol; eauto. reflexivity.
         unfold type_of_function. f_equal; cbn.
-        constructor.
+        constructor. rewrite H7. eauto.
       * apply rb_ms_inc1; eauto.
         eapply genv_funct_symbol; eauto.
     + eexists. split.
       * econstructor; eauto.
         eapply genv_funct_symbol; eauto. reflexivity.
         unfold type_of_function. f_equal; cbn.
-        constructor.
+        constructor. rewrite H7. eauto.
       * apply rb_ms_inc2; eauto.
         eapply genv_funct_symbol; eauto.
     + eexists. split.
@@ -275,6 +282,7 @@ Proof.
         eapply genv_funct_symbol; eauto. reflexivity.
         unfold type_of_function. f_equal; cbn.
         constructor; eauto. constructor.
+        rewrite H7. eauto.
       * apply rb_ms_get; eauto.
         eapply genv_funct_symbol; eauto.
     + eexists. split.
@@ -282,82 +290,22 @@ Proof.
         eapply genv_funct_symbol; eauto. reflexivity.
         unfold type_of_function. f_equal; cbn.
         constructor; eauto. constructor; eauto. constructor.
+        rewrite H7. eauto.
       * apply rb_ms_set; eauto.
         eapply genv_funct_symbol; eauto.
   - intros. destruct r1. inv H1. inv H.
-    eexists. split. constructor. constructor. eauto.
+    eexists. split. constructor. constructor. eauto. eauto.
   - intros. inv H1.
   - intros. inv H1; inv H.
     (* inc1 *)
-    + inv H2. inv H6. inv H2.
-      edestruct (Mem.valid_access_store m Mint32 b 0) as (m' & Hm').
+    + inv H2. inv H7. inv H2.
+      edestruct (Mem.valid_access_store m Mint32 b 0) as (xm' & Hm').
       {
         constructor.
-        - intros ofs Hofs. apply H5. cbn [size_chunk] in Hofs. lia.
+        - intros ofs Hofs. apply H6. cbn [size_chunk] in Hofs. lia.
         - apply Z.divide_0_r.
       }
-      edestruct (Mem.valid_access_store m' Mint32 b 0) as (m'' & Hm'').
-      {
-        constructor.
-        - intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-        - apply Z.divide_0_r.
-      }
-      eexists. split.
-      * eapply plus_left. cbn.
-        {
-          constructor; eauto.
-          repeat constructor. cbn. solve_list_disjoint.
-        }
-        lts_step. crush_step.
-        lts_step. crush_step.
-        lts_step. crush_step.
-        lts_step. crush_step. crush_expr.
-        lts_step. crush_step.
-        lts_step.
-        (* assign *)
-        crush_step; crush_expr. now constructor.
-        lts_step. crush_step.
-        (* assign *)
-        lts_step.
-        {
-          crush_step; crush_expr.
-          - erewrite Mem.load_store_same; eauto.
-          - apply cop_sem_mod. unfold Int.zero.
-            intros contra. inv contra.
-          - constructor. eauto.
-        }
-        lts_step. crush_step.
-        lts_step. crush_step; crush_expr. now constructor.
-        apply star_refl. reflexivity.
-      *
-        cbn. rewrite H6.
-        replace (Int.repr (Int.intval i)) with i by now rewrite Int.repr_unsigned.
-        constructor.
-        constructor.
-        (* c1 *)
-        -- econstructor; eauto.
-           ++ erewrite Mem.load_store_same; eauto.
-           ++ cbn. constructor.
-              apply cnt_inc_simp; assumption.
-           ++ apply Nat.mod_upper_bound. lia.
-           ++ intros ofs Hofs. eapply Mem.perm_store_1; eauto.
-              eapply Mem.perm_store_1; eauto.
-        (* c2 *)
-        -- cut (rel_cnt se2 cnt2_id c2 m'). intros X.
-           eapply rel_cnt_store_other; eauto. intros x. inv x.
-           eapply rel_cnt_store_other; eauto. intros x. inv x.
-        -- cut (rel_arr se2 f m'). intros X.
-           eapply rel_arr_store_other; eauto. intros x. inv x.
-           eapply rel_arr_store_other; eauto. intros x. inv x.
-    (* inc2 *)
-    + inv H2. inv H8. inv H2.
-      edestruct (Mem.valid_access_store m Mint32 b 0) as (m' & Hm').
-      {
-        constructor.
-        - intros ofs Hofs. apply H5. cbn [size_chunk] in Hofs. lia.
-        - apply Z.divide_0_r.
-      }
-      edestruct (Mem.valid_access_store m' Mint32 b 0) as (m'' & Hm'').
+      edestruct (Mem.valid_access_store xm' Mint32 b 0) as (m'' & Hm'').
       {
         constructor.
         - intros ofs Hofs. eapply Mem.perm_store_1; eauto.
@@ -396,7 +344,70 @@ Proof.
         constructor.
         constructor.
         (* c1 *)
-        -- cut (rel_cnt se2 cnt1_id c1 m'). intros X.
+        -- econstructor; eauto.
+           ++ erewrite Mem.load_store_same; eauto.
+           ++ cbn. constructor.
+              apply cnt_inc_simp; assumption.
+           ++ apply Nat.mod_upper_bound. lia.
+           ++ intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+              eapply Mem.perm_store_1; eauto.
+        (* c2 *)
+        -- cut (rel_cnt se2 cnt2_id c2 xm'). intros X.
+           eapply rel_cnt_store_other; eauto. intros x. inv x.
+           eapply rel_cnt_store_other; eauto. intros x. inv x.
+        -- cut (rel_arr se2 f xm'). intros X.
+           eapply rel_arr_store_other; eauto. intros x. inv x.
+           eapply rel_arr_store_other; eauto. intros x. inv x.
+        -- apply Mem.nextblock_store in Hm'.
+           apply Mem.nextblock_store in Hm''. congruence.
+    (* inc2 *)
+    + inv H2. inv H9. inv H2.
+      edestruct (Mem.valid_access_store m Mint32 b 0) as (xm' & Hm').
+      {
+        constructor.
+        - intros ofs Hofs. apply H6. cbn [size_chunk] in Hofs. lia.
+        - apply Z.divide_0_r.
+      }
+      edestruct (Mem.valid_access_store xm' Mint32 b 0) as (m'' & Hm'').
+      {
+        constructor.
+        - intros ofs Hofs. eapply Mem.perm_store_1; eauto.
+        - apply Z.divide_0_r.
+      }
+      eexists. split.
+      * eapply plus_left. cbn.
+        {
+          constructor; eauto.
+          repeat constructor. cbn. solve_list_disjoint.
+        }
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step. crush_expr.
+        lts_step. crush_step.
+        lts_step.
+        (* assign *)
+        crush_step; crush_expr. now constructor.
+        lts_step. crush_step.
+        (* assign *)
+        lts_step.
+        {
+          crush_step; crush_expr.
+          - erewrite Mem.load_store_same; eauto.
+          - apply cop_sem_mod. unfold Int.zero.
+            intros contra. inv contra.
+          - constructor. eauto.
+        }
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr. now constructor.
+        apply star_refl. reflexivity.
+      *
+        cbn. rewrite H8.
+        replace (Int.repr (Int.intval i)) with i by now rewrite Int.repr_unsigned.
+        constructor.
+        constructor.
+        (* c1 *)
+        -- cut (rel_cnt se2 cnt1_id c1 xm'). intros X.
            eapply rel_cnt_store_other; eauto. intros x. inv x.
            eapply rel_cnt_store_other; eauto. intros x. inv x.
         (* c2 *)
@@ -407,12 +418,14 @@ Proof.
            ++ apply Nat.mod_upper_bound. lia.
            ++ intros ofs Hofs. eapply Mem.perm_store_1; eauto.
               eapply Mem.perm_store_1; eauto.
-        -- cut (rel_arr se2 f m'). intros X.
+        -- cut (rel_arr se2 f xm'). intros X.
            eapply rel_arr_store_other; eauto. intros x. inv x.
            eapply rel_arr_store_other; eauto. intros x. inv x.
+        -- apply Mem.nextblock_store in Hm'.
+           apply Mem.nextblock_store in Hm''. congruence.
     (* set *)
-    + inv H2. inv H11.
-      edestruct (Mem.valid_access_store m Mint32 b (4 * Z.of_nat i)) as (m' & Hm').
+    + inv H2. inv H12.
+      edestruct (Mem.valid_access_store m Mint32 b (4 * Z.of_nat i)) as (xm' & Hm').
       {
         constructor.
         - intros ofs Hofs. apply H2. unfold Nz. split.
@@ -457,10 +470,11 @@ Proof.
               exists vx; split; auto.
               erewrite Mem.load_store_other; eauto. right.
               apply not_eq in n. destruct n.
-              ** right. apply inj_lt in H4. cbn [size_chunk]. lia.
-              ** left. apply inj_lt in H4. cbn [size_chunk]. lia.
+              ** right. apply inj_lt in H5. cbn [size_chunk]. lia.
+              ** left. apply inj_lt in H5. cbn [size_chunk]. lia.
+        -- apply Mem.nextblock_store in Hm'. congruence.
     (* get *)
-    + inv H2. inv H10. edestruct (H1 _ H9) as (vx & Hvx & Hvr & Hrt).
+    + inv H2. inv H11. edestruct (H1 _ H10) as (vx & Hvx & Hvr & Hrt).
       eexists. split.
       * eapply plus_left.
         {
@@ -482,5 +496,6 @@ Proof.
         }
         apply star_refl. reflexivity.
       * subst. constructor. constructor; eauto. econstructor; eauto.
+        congruence.
   - apply well_founded_ltof.
 Qed.

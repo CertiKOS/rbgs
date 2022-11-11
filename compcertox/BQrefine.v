@@ -8,12 +8,13 @@ From compcert Require Import
      Smallstep SimplLocalsproof.
 (* From cal.example Require Import BQ. *)
 Import ListNotations.
-From compcertox Require Import Lifting BQcode RBspec BQspec.
+From compcertox Require Import Lifting BQcode RBspec BQspecx.
+Require Import CallconvAlgebra.
 
 Definition bq_state : Type := list val.
 
 Inductive bq_abs_state: Type :=
-| bq_abs_init: forall (sig: BQspec.sig) (s: bq_state) (vs: list val) (m: mem), bq_abs_state
+| bq_abs_init: forall (sig: BQspecx.sig) (s: bq_state) (vs: list val) (m: mem), bq_abs_state
 | bq_abs_final: forall (s: bq_state) (v: val) (m: mem), bq_abs_state.
 
 Section BQ_LTS.
@@ -43,10 +44,10 @@ Section BQ_LTS.
   | enq_step:
     forall m vs v,
       (List.length vs < N)%nat ->
-      bq_abs_step (bq_abs_init BQspec.enq vs [v] m) E0 (bq_abs_final (vs++[v]) Vundef m)
+      bq_abs_step (bq_abs_init enq vs [v] m) E0 (bq_abs_final (vs++[v]) Vundef m)
   | deq_step:
     forall m vs v,
-      bq_abs_step (bq_abs_init BQspec.deq (v::vs) [] m) E0 (bq_abs_final vs v m).
+      bq_abs_step (bq_abs_init deq (v::vs) [] m) E0 (bq_abs_final vs v m).
 
   Program Definition bq_lts: lts li_c (li_c@bq_state) bq_abs_state :=
     {|
@@ -335,4 +336,20 @@ Proof.
       * eapply bq_correct1 in H2 as [X Y]. subst.
         constructor. auto.
   - apply well_founded_ltof.
+Qed.
+
+Lemma rb_bq_correct: forward_simulation cc_id (bq_cc @ rb_cc)%cc bq_abs_spec
+                       (CategoricalComp.comp_semantics'
+                          (semantics2 bq_program) (semantics2 rb_program) rb_bq_skel).
+Proof.
+    exploit @categorical_compose_simulation'.
+    apply bq_correct'. apply rb_correct.
+    instantiate (1 := rb_bq_skel).
+    apply linkorder_erase. apply bq_linkorder.
+    apply linkorder_erase. apply rb_linkorder.
+    intros X.
+    eapply open_fsim_ccref. apply cc_compose_id_left.
+    unfold flip. reflexivity.
+    eapply compose_forward_simulations.
+    apply bq_refine. apply X.
 Qed.
