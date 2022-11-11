@@ -297,7 +297,7 @@ Proof.
     subst. unfold Genv.find_funct_ptr in H0.
     destruct Genv.find_def eqn: Hdef; try congruence.
     destruct g; try congruence. inv H0.
-    unfold globalenv in Hdef; cbn in *.
+    unfold globalenv in Hdef; cbn -[Genv.find_def] in *.
     rewrite Genv.find_def_spec in Hdef.
     destruct Genv.invert_symbol eqn: Hse; try congruence.
     exists i. split. unfold footprint_of_program.
@@ -313,7 +313,7 @@ Proof.
     unfold Genv.find_funct_ptr in H0.
     destruct Genv.find_def eqn: Hdef; try congruence.
     destruct g eqn: Hg; try congruence. inv H0.
-    unfold globalenv in Hdef. cbn in *.
+    unfold globalenv in Hdef. cbn -[Genv.find_def] in *.
     rewrite Genv.find_def_spec in Hdef.
     destruct Genv.invert_symbol eqn: Hs; try congruence.
     apply Genv.invert_find_symbol in Hs.
@@ -407,6 +407,7 @@ Section LINKABLE.
 
 End LINKABLE.
 
+(* Deal with dependent rewriting *)
 Section XXX.
 
   Variable A : Type.
@@ -447,7 +448,7 @@ Section XXX.
     unfold comp_r.
     generalize (@eq_refl (option B) (comp_b (R_b r1) (R_b r2))).
     generalize (comp_b (R_b r1) (R_b r2)) at 1 3.
-    intros [o|].
+    intros [x|].
     - intros H X. inv X. reflexivity.
     - intros H X. inv X.
   Qed.

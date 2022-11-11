@@ -28,8 +28,9 @@ Lemma perm_unchecked_free_3:
   Mem.perm m2 b ofs k p -> Mem.perm m1 b ofs k p.
 Proof.
   intros until p. rewrite <- H.
-  unfold Mem.perm, Mem.unchecked_free; simpl.
-  rewrite PMap.gsspec. destruct (peq b bf). subst b.
+  unfold Mem.perm, Mem.unchecked_free. simpl.
+  rewrite PMap.gsspec.
+  destruct (peq b bf). subst b.
   destruct (zle lo ofs); simpl.
   destruct (zlt ofs hi); simpl. tauto.
   auto. auto. auto.
@@ -54,7 +55,7 @@ Lemma perm_unchecked_free_2:
   forall ofs k p, lo <= ofs < hi -> ~ Mem.perm m2 bf ofs k p.
 Proof.
   intros. rewrite <- H. unfold Mem.perm, Mem.unchecked_free; simpl.
-  rewrite PMap.gss. unfold proj_sumbool.
+  unfold NMap.get. rewrite PMap.gss. unfold proj_sumbool.
   rewrite zle_true. rewrite zlt_true.
   simpl. tauto. omega. omega.
 Qed.
@@ -210,7 +211,7 @@ Lemma unchecked_free_unchanged_on P m b lo hi m':
   (forall i : Z, lo <= i < hi -> ~ P b i) -> Mem.unchanged_on P m m'.
 Proof.
   intros; constructor; intros.
-  - subst. reflexivity.
+  - subst. easy.
   - split; intros.
     eapply perm_unchecked_free_1; eauto.
     destruct (eq_block b0 b); auto. destruct (zlt ofs lo); auto. destruct (zle hi ofs); auto.
@@ -464,7 +465,7 @@ Lemma mext_unchanged_on_defined_1 ms mf P
   Mem.unchanged_on P ms mf.
 Proof.
   constructor.
-  - erewrite Mem.mext_next. reflexivity. exact MEXT.
+  - erewrite Mem.mext_next. easy. exact MEXT.
   - intros * X HV. split; intros HP.
     + eapply Mem.perm_extends; eauto.
     + exploit Mem.perm_extends_inv; eauto.
@@ -499,7 +500,7 @@ Proof.
     * exfalso. apply A. eauto with mem.
   }
   constructor.
-  - erewrite <- Mem.mext_next. reflexivity. exact MEXT.
+  - erewrite <- Mem.mext_next. easy. exact MEXT.
   - intros * X HV. split; intros HP.
     + eauto.
     + eapply Mem.perm_extends; eauto.
@@ -567,13 +568,12 @@ Lemma unchanged_on_union P Q m1 m2:
   Mem.unchanged_on (fun b ofs => P b ofs \/ Q b ofs) m1 m2.
 Proof.
   intros HP HQ. constructor.
-  - rewrite Mem.unchanged_on_nextblock. reflexivity. eauto.
+  - eapply Mem.unchanged_on_nextblock; eauto.
   - intros * [A|A] Hv.
     eapply Mem.unchanged_on_perm. apply HP. all: eauto.
     eapply Mem.unchanged_on_perm. apply HQ. all: eauto.
   - intros * [A|A] Hp.
-    eapply Mem.unchanged_on_contents. apply HP. all: eauto.
-    eapply Mem.unchanged_on_contents. apply HQ. all: eauto.
+    apply HP. all: eauto. apply HQ. all: eauto.
 Qed.
 
 Lemma loc_out_of_bounds_dec m b ofs:
@@ -1088,7 +1088,7 @@ Section CKLR.
   Qed.
   (* cklr_representable *)
   Next Obligation.
-    intros. inv H1. xomega.
+    intros. inv H1. omega.
   Qed.
   (* cklr_aligned_area_inject *)
   Next Obligation.
@@ -1096,7 +1096,7 @@ Section CKLR.
   Qed.
   (* cklr_disjoint_or_equal_inject *)
   Next Obligation.
-    intros. inv H0. inv H1. intuition xomega.
+    intros. inv H0. inv H1. intuition omega.
   Qed.
   (* cklr_perm_inv *)
   Next Obligation.
