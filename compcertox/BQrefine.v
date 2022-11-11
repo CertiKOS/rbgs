@@ -157,10 +157,33 @@ Proof.
   revert c1. induction n; cbn; auto.
 Qed.
 
+Lemma mod_minus:
+  forall a, N <= a < N * 2 -> a mod N = a - N.
+Proof.
+  intros.
+  rewrite Nat.mod_eq.
+  cut (a / N = 1). intros. rewrite H0. lia.
+  assert (exists b, a = b + 1 * N).
+  exists (a - N). lia.
+  destruct H0 as (b & Hb). rewrite Hb.
+  rewrite Nat.div_add. subst.
+  cut (b < N). intros.
+  rewrite Nat.div_small. easy. easy. lia.
+  unfold N. lia. unfold N. lia.
+Qed.
+
 Lemma mod_add_not_same a b:
   a < N -> b < N -> b <> 0 -> (a + b) mod N <> a.
 Proof.
-Admitted.
+  intros. intros X.
+  cut (a <> 0).
+  2: { intros ->. cbn in *. apply Nat.mod_small in H0. omega. }
+  intros Y.
+  cut (a + b < N \/ N <= a + b < N * 2). intros [A|A].
+  rewrite Nat.mod_small in X; try easy. omega.
+  rewrite mod_minus in X; try easy. omega.
+  destruct (lt_dec (a+b) N). lia. lia.
+Qed.
 
 Lemma bq_correct2:
   forall v vs f c1 c2,
