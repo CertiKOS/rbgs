@@ -1275,8 +1275,14 @@ Section LI_FUNC.
     |}.
   Next Obligation. eauto using match_senv_public_preserved. Qed.
   Next Obligation. eauto using match_senv_valid_for. Qed.
-  Next Obligation. (* Admitted *). eauto using match_senv_symbol_address. Qed.
-  Next Obligation. (* Admitted. *) eauto using match_query_defined. Qed.
+  Next Obligation.
+    erewrite (entry_same _ q1). erewrite (entry_same _ q2).
+    eauto using match_senv_symbol_address.
+  Qed.
+  Next Obligation.
+    erewrite (entry_same _ q1). erewrite (entry_same _ q2).
+    eauto using match_query_defined.
+  Qed.
 
   Program Definition st_callconv_map
           `(F: LiIso liA1 liX1) `(G: LiIso liB1 liY1) cc : ST.callconv liX1 liY1 :=
