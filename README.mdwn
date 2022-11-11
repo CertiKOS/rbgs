@@ -9,10 +9,6 @@ the following works as of 2020-03-06:
     $ opam init
     $ opam install coq.8.9.1 menhir.20200211
 
-You can then clone the git repository using the following command:
-
-    $ git clone https://github.com/CertiKOS/rbgs.git
-
 Our `configure` script will take care of retreiving the git submodule
 for Coqrel and CompCertO, and will configure them:
 
@@ -35,6 +31,7 @@ For example on my 8-cores machine:
 Our constructions are mainly in the compcertox/ directory
 
 * The formalization to equip the CompCertO with a notion of composition state:
+```
   compcertox/Lifting.v
   compcertox/AbRel.v
   compcertox/CModule.v
@@ -43,13 +40,18 @@ Our constructions are mainly in the compcertox/ directory
   compcertox/Composition.v
   compcert/common/CategoricalComp.v
   compcert/common/FlatComp.v
+```
 
 * The development for state encapsulation
+```
   compcertox/Encapsulation.v
+```
 
 * The ring buffer and bounded example
+```
   compcertox/BQcode.v
   compcertox/RBspec.v
   compcertox/BQspec.v
   compcertox/BQspecx.v
   compcertox/BQrefine.v
+```
