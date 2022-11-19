@@ -148,6 +148,7 @@ Proof.
     right; eapply perm_unchecked_free_2; eauto.
     rewrite A. reflexivity.
     left. apply A. intuition eauto using perm_unchecked_free_3.
+  - easy.
 Qed.
 
 Lemma unchecked_free_right_extends:
@@ -169,6 +170,7 @@ Proof.
     + eapply mi_align; eauto.
     + intros. simpl. eauto.
   - intros. eauto using perm_unchecked_free_3.
+  - easy.
 Qed.
 
 Lemma unchecked_free_list_left_extends:
@@ -218,6 +220,7 @@ Proof.
     subst b0. elim (H0 ofs). omega. auto.
     eapply perm_unchecked_free_3; eauto.
   - subst. simpl. auto.
+  - inv H. easy.
 Qed.
 
 Lemma unchecked_free_list_unchanged_on P m l m':
@@ -484,6 +487,7 @@ Proof.
           by (symmetry; apply Ptrofs.add_zero).
       * easy.
     + rewrite <- H0 in MDEF. specialize (MDEF A). inv MDEF.
+  - inv MEXT. easy.
 Qed.
 
 Lemma mext_unchanged_on_defined_2 ms mf P
@@ -517,6 +521,7 @@ Proof.
       * easy.
     + rewrite <- H0 in MDEF. exploit MDEF. eauto.
       inversion 1.
+  - inv MEXT. easy.
 Qed.
 
 Lemma mext_defined_on (P: block -> Z -> Prop) m m':
@@ -574,6 +579,7 @@ Proof.
     eapply Mem.unchanged_on_perm. apply HQ. all: eauto.
   - intros * [A|A] Hp.
     apply HP. all: eauto. apply HQ. all: eauto.
+  - inv HP. easy.
 Qed.
 
 Lemma loc_out_of_bounds_dec m b ofs:
@@ -881,9 +887,10 @@ Section CKLR.
   (* cklr_alloc *)
   Next Obligation.
     intros w ms mf Hm lo hi. inv Hm.
-    destruct (Mem.alloc ms lo hi) as [ms' b1] eqn: Hms.
+    destruct (Mem.alloc ms lo hi) as [[ms' b1]|] eqn: Hms. 2: constructor.
     edestruct Mem.alloc_extends as (mf' & Hmf & Hm'); eauto; try reflexivity.
     rewrite Hmf.
+    red. constructor.
     exists (mk_mkw se ms' mf' ks kf); split.
     2: split; repeat rstep. 2: constructor; eauto.
     - constructor.
