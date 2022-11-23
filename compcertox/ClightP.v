@@ -191,27 +191,20 @@ Module ClightP.
     Definition penv : Type := PTree.t val.
     (** typed location: the type information is used to calculate the correct
         offset when we establish a relation between penv and CompCert memory *)
-    Inductive loc : Type :=
-    | Lbase : (* TODO: fix the name: this is not base actually *)
-      type -> (* type is needed for resolve overlapping issue *)
-      loc
-    | Lindex :
-      loc -> (* TODO: explain better *)
-      Z -> (* array index *)
-      type -> (* an array type *)
-      loc.
+    Definition loc : Type := list (Z * type).
 
     (** Again, the type information is used when relate [pread] with
     [deref_loc]. Consider this relation as a specification of the function of
     type [val -> loc -> Values.val * type] *)
     Inductive pread_val: val -> loc -> Values.val -> type -> Prop :=
     (* TODO: be more tolerent on typing *)
-    | pread_prim: forall v ty, pread_val (Val v ty) (Lbase ty) v ty
-    | pread_arr:
-      forall n arr ty l i v ty_v,
+    | pread_nil: forall v ty, pread_val (Val v ty) nil v ty
+    | pread_cons:
+      forall n arr ty ty_elem ty_v i v attr rest,
         0 <= i < n ->
-        pread_val (ZMap.get i arr) l v ty_v ->
-        pread_val (Array n arr ty) (Lindex l i ty) v ty_v.
+        pread_val (ZMap.get i arr) rest v ty_v ->
+        ty = Tarray ty_elem n attr ->
+        pread_val (Array n arr ty) ((i, ty_elem) :: rest) v ty_v.
 
     Inductive pread: penv -> ident -> loc -> Values.val -> type -> Prop :=
     | pread_intro: forall pe id l pv v ty,
@@ -221,16 +214,17 @@ Module ClightP.
 
     (* TODO: maybe we will need ty information like in [pread] *)
     Inductive pwrite_val: val -> loc -> Values.val -> val -> type -> Prop :=
-    | pwrite_prim: forall old_v new_v ty
+    | pwrite_nil: forall old_v new_v ty
         (VTY: val_casted new_v ty),
-        pwrite_val (Val old_v ty) (Lbase ty) new_v (Val new_v ty) ty
-    | pwrite_arr:
-        forall old_arr new_arr n i ty old_pv new_pv l new_v ty_v,
+        pwrite_val (Val old_v ty) nil new_v (Val new_v ty) ty
+    | pwrite_cons:
+        forall old_arr new_arr n i ty old_pv new_pv rest new_v ty_v attr ty_elem,
         0 <= i < n ->
         old_pv = ZMap.get i old_arr ->
-        pwrite_val old_pv l new_v new_pv ty_v ->
+        pwrite_val old_pv rest new_v new_pv ty_v ->
         new_arr = ZMap.set i new_pv old_arr ->
-        pwrite_val (Array n old_arr ty) (Lindex l i ty) new_v (Array n new_arr ty) ty_v.
+        ty = Tarray ty_elem n attr ->
+        pwrite_val (Array n old_arr ty) ((i, ty_elem) :: rest) new_v (Array n new_arr ty) ty_v.
 
     Inductive pwrite: penv -> ident -> loc -> Values.val -> penv -> type -> Prop :=
     | pwrite_intro:  forall pe id l pe' v old_pv new_pv ty ch,
@@ -345,14 +339,14 @@ Module ClightP.
       | eval_Epvar: forall id ty v,
           e!id = None ->
           PTree.get id pe = Some v ->
-          eval_loc (Epvar id ty) id (Lbase ty)
-      | eval_Eindex: forall earr ei i ty id l n attr,
-          typeof earr = Tarray ty n attr ->
+          eval_loc (Epvar id ty) id nil
+      | eval_Eindex: forall earr ei i ty_elem ty id l n attr l',
+          typeof earr = Tarray ty_elem n attr ->
           typeof ei = Tint I32 Unsigned noattr ->
           eval_loc earr id l ->
           eval_expr ei (Vint i) ->
-          eval_loc (Eaccess earr ei ty) id
-            (Lindex l (Int.unsigned i) (Tarray ty n attr)).
+          l' = l ++ ((Int.unsigned i, ty_elem):: nil) ->
+          eval_loc (Eaccess earr ei ty) id l'.
       Scheme eval_expr_ind2 := Minimality for eval_expr Sort Prop
           with eval_lvalue_ind2 := Minimality for eval_lvalue Sort Prop
           with eval_loc_ind2 := Minimality for eval_loc Sort Prop.
@@ -1014,36 +1008,27 @@ Section PRESERVATION.
     intros TE; destruct e; monadInv TE; cbn in *; eauto.
   Qed.
 
-  Fixpoint prim_type_of (l: ClightP.loc) :=
-    match l with
-    | ClightP.Lbase ty => ty
-    | ClightP.Lindex l _ _ => prim_type_of l
-    end.
-
-  (* TODO: ident and block are redundant *)
-  Inductive match_loc: ident -> ClightP.loc -> block -> ptrofs -> Prop :=
+  Inductive match_loc: ClightP.loc -> ptrofs -> Prop :=
   | match_base:
-    forall id b ty
-      (* TODO: this is unnecessary *)
-      (SYMBOL: Genv.find_symbol se id = Some b),
-      match_loc id (ClightP.Lbase ty) b Ptrofs.zero
+      match_loc nil Ptrofs.zero
   | match_index:
-    forall id l i b ofs ofs' ty ty_elem sz attr ty_prim ch
-      (BASE: match_loc id l b ofs)
-      (TY: ty = Tarray ty_elem sz attr)
-      (OFS: ofs' = i * ClightP.psizeof ty_elem)
-      (NO_OVERFLOW:  Ptrofs.unsigned ofs + ofs' <= Ptrofs.max_unsigned)
-      (TY_PRIM: prim_type_of l = ty_prim)
-      (CHUNK: access_mode ty_prim = By_value ch)
-      (NO_OVERLAP: Ptrofs.unsigned ofs + size_chunk ch < ClightP.psizeof ty_elem)
-      (BOUND: i < sz),
-      match_loc id (ClightP.Lindex l i ty) b (Ptrofs.repr (Ptrofs.unsigned ofs + ofs')).
+    forall i rest ofs ofs' ty
+      (BASE: match_loc rest ofs)
+      (OFS: ofs' = i * ClightP.psizeof ty)
+      (NO_OVERFLOW:  Ptrofs.unsigned ofs + ofs' <= Ptrofs.max_unsigned),
+      match_loc ((i, ty) :: rest) (Ptrofs.repr (Ptrofs.unsigned ofs + ofs')).
 
-  Lemma match_loc_block:
-    forall b id l ofs,
-    match_loc id l b ofs ->
-    Genv.find_symbol se id = Some b.
-  Proof. induction 1; eauto. Qed.
+  Lemma match_loc_app:
+    forall l ofs i ty ofs',
+      match_loc l ofs ->
+      ofs' = i * ClightP.psizeof ty ->
+      Ptrofs.unsigned ofs + ofs' <= Ptrofs.max_unsigned ->
+      match_loc (l ++ (i, ty) :: nil) (Ptrofs.repr (Ptrofs.unsigned ofs + ofs')).
+  Proof.
+    intros l. induction l.
+    - admit.
+    - admit.
+  Admitted.
 
   (** This lemma represents the following diagram
     pv ---- loc ---->  v
@@ -1052,9 +1037,9 @@ Section PRESERVATION.
     |                  |
     m --- (b, ofs) --> v *)
   Lemma pread_val_correct:
-    forall pv l ty id ofs v tm b,
+    forall pv l ty ofs v tm b,
     ClightP.pread_val pv l v ty ->
-    match_loc id l b ofs ->
+    match_loc l ofs ->
     pvalue_match b 0 pv tm ->
     deref_loc ty tm b ofs v.
   Proof.
@@ -1068,7 +1053,7 @@ Section PRESERVATION.
       eapply deref_loc_value; eauto.
       rewrite Ptrofs.add_zero_l.
       unfold Mem.loadv. eauto.
-    - intros. inv H1. inv H2. inv TARRAY.
+    - intros. inv H2. inv H3. inv TARRAY.
       rewrite Valuesrel.add_repr.
       rewrite Ptrofs.add_assoc.
       rewrite Ptrofs.repr_unsigned. apply IHpread_val; eauto.
@@ -1098,16 +1083,17 @@ Section PRESERVATION.
       type_of_pv pv = type_of_pv pv'.
   Proof. intros * H. induction H; eauto. Qed.
 
-  Lemma pwrite_val_prim_type:
-    forall pv l v pv' ty,
-      ClightP.pwrite_val pv l v pv' ty ->
-      prim_type_of l = ty.
-  Proof. intros * H. induction H; eauto. Qed.
+
+  (* Lemma pwrite_val_prim_type: *)
+  (*   forall pv l v pv' ty, *)
+  (*     ClightP.pwrite_val pv l v pv' ty -> *)
+  (*     prim_type_of l = ty. *)
+  (* Proof. intros * H. induction H; eauto. Qed. *)
 
   Lemma pwrite_val_correct':
-    forall pv pv' ch id l ty base ofs v tm b,
+    forall pv pv' ch l ty base ofs v tm b,
     ClightP.pwrite_val pv l v pv' ty ->
-    match_loc id l b ofs ->
+    match_loc l ofs ->
     pvalue_match b base pv tm ->
     access_mode ty = By_value ch ->
     exists tm', Mem.store ch tm b (base + Ptrofs.unsigned ofs) v = Some tm'
@@ -1123,7 +1109,7 @@ Section PRESERVATION.
       + erewrite Mem.load_store_same; eauto. f_equal.
         eapply SimplLocalsproof.val_casted_load_result; eauto.
       + eapply Mem.store_valid_access_1; eauto.
-    - intros. inv H3. inv H4. inv TARRAY.
+    - intros. inv H4. inv H5. inv TARRAY.
       exploit MATCH; eauto. intros.
       edestruct IHpwrite_val as (tm' & A & B); eauto.
       pose proof (Ptrofs.unsigned_range ofs0) as HP1.
@@ -1156,10 +1142,9 @@ Section PRESERVATION.
              eapply Mem.store_unchanged_on; eauto.
              intros z Hz. lia.
              cbn. intros z Hz. rewrite <- Hsz in Hz.
-             assert (Ptrofs.unsigned ofs0 + size_chunk ch < elem_sz).
+             assert (Ptrofs.unsigned ofs0 + size_chunk ch <= elem_sz).
              {
-               erewrite pwrite_val_prim_type in CHUNK; eauto.
-               congruence.
+               admit.
              }
              cut (i < ix \/ i > ix). 2: lia.
              intros [C | C].
@@ -1174,9 +1159,9 @@ Section PRESERVATION.
   Qed.
 
   Lemma pwrite_val_correct:
-    forall pv pv' ch id l ty ofs v tm b,
+    forall pv pv' ch l ty ofs v tm b,
     ClightP.pwrite_val pv l v pv' ty ->
-    match_loc id l b ofs ->
+    match_loc l ofs ->
     pvalue_match b 0 pv tm ->
     access_mode ty = By_value ch ->
     exists tm', Mem.storev ch tm (Vptr b ofs) v = Some tm'
@@ -1200,7 +1185,8 @@ Section PRESERVATION.
         ClightP.eval_loc ge e le pe m expr id l ->
         forall texpr (TR: transl_expr expr = OK texpr),
         exists b ofs, Clight.eval_lvalue tge e le tm texpr b ofs
-                    /\ match_loc id l b ofs).
+                 /\ Genv.find_symbol se id = Some b
+                 /\ match_loc l ofs).
   Proof.
     intros e le t tm pe HP.
     apply ClightP.eval_expr_lvalue_loc_ind.
@@ -1235,12 +1221,10 @@ Section PRESERVATION.
       erewrite <- transl_expr_typeof; eauto.
       inv HP. exploit deref_loc_join.
       apply MJOIN. apply H1. easy.
-    - intros. specialize (H0 _ TR) as (b & ofs & A & B).
+    - intros. specialize (H0 _ TR) as (b & ofs & A & B & C).
       eapply eval_Elvalue. apply A.
       inv H1. inv HP. specialize (MVALUE _ _ H0) as (b' & Hb & Hv).
-      assert (b = b').
-      { exploit match_loc_block. eauto. intros. congruence. }
-      subst b'.
+      assert (b = b') by congruence. subst b'.
       erewrite <- transl_expr_typeof; eauto.
       eapply pread_val_correct; eauto.
       eapply pvalue_match_join; eauto.
@@ -1257,22 +1241,24 @@ Section PRESERVATION.
       erewrite <- transl_expr_typeof; eauto.
     - intros. monadInv TR. inv HP.
       specialize (MVALUE _ _ H0) as (b & Hb & Hv).
-      exists b, Ptrofs.zero. split.
+      exists b, Ptrofs.zero. split. 2: split.
       + apply Clight.eval_Evar_global; eauto.
-      + constructor; eauto.
+      + eauto.
+      + constructor.
     - intros. monadInv TR.
-      specialize (H2 _ EQ) as (b & ofs & Hb & Hloc).
+      specialize (H2 _ EQ) as (b & ofs & A & B & C).
       specialize (H4 _ EQ1).
       eexists b, _. split.
       + constructor. econstructor.
-        * eapply Clight.eval_Elvalue. apply Hb.
+        * eapply Clight.eval_Elvalue. apply A.
           apply deref_loc_reference.
           erewrite <- transl_expr_typeof; eauto.
           rewrite H. reflexivity.
         * apply H4.
         * erewrite <- !transl_expr_typeof; eauto.
           rewrite H. rewrite H0. reflexivity.
-      + replace (Ptrofs.add ofs (Ptrofs.mul (Ptrofs.repr (sizeof tge ty)) (ptrofs_of_int Unsigned i)))
+      + split; eauto.
+        replace (Ptrofs.add ofs (Ptrofs.mul (Ptrofs.repr (sizeof tge ty)) (ptrofs_of_int Unsigned i)))
           with (Ptrofs.repr (Ptrofs.unsigned ofs + Int.unsigned i * (sizeof tge ty) )).
         econstructor; eauto.
         admit.
