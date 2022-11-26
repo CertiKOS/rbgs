@@ -191,20 +191,20 @@ Module ClightP.
     Definition penv : Type := PTree.t val.
     (** typed location: the type information is used to calculate the correct
         offset when we establish a relation between penv and CompCert memory *)
-    Definition loc : Type := list (Z * type).
+    Inductive loc : Type := Loc: type -> list (Z * type) -> loc.
 
     (** Again, the type information is used when relate [pread] with
     [deref_loc]. Consider this relation as a specification of the function of
     type [val -> loc -> Values.val * type] *)
     Inductive pread_val: val -> loc -> Values.val -> type -> Prop :=
     (* TODO: be more tolerent on typing *)
-    | pread_nil: forall v ty, pread_val (Val v ty) nil v ty
+    | pread_nil: forall v ty, pread_val (Val v ty) (Loc ty nil) v ty
     | pread_cons:
       forall n arr ty ty_elem ty_v i v attr rest,
         0 <= i < n ->
-        pread_val (ZMap.get i arr) rest v ty_v ->
+        pread_val (ZMap.get i arr) (Loc ty_v rest) v ty_v ->
         ty = Tarray ty_elem n attr ->
-        pread_val (Array n arr ty) ((i, ty_elem) :: rest) v ty_v.
+        pread_val (Array n arr ty) (Loc ty_v ((i, ty_elem) :: rest)) v ty_v.
 
     Inductive pread: penv -> ident -> loc -> Values.val -> type -> Prop :=
     | pread_intro: forall pe id l pv v ty,
@@ -216,15 +216,16 @@ Module ClightP.
     Inductive pwrite_val: val -> loc -> Values.val -> val -> type -> Prop :=
     | pwrite_nil: forall old_v new_v ty
         (VTY: val_casted new_v ty),
-        pwrite_val (Val old_v ty) nil new_v (Val new_v ty) ty
+        pwrite_val (Val old_v ty) (Loc ty nil) new_v (Val new_v ty) ty
     | pwrite_cons:
         forall old_arr new_arr n i ty old_pv new_pv rest new_v ty_v attr ty_elem,
         0 <= i < n ->
         old_pv = ZMap.get i old_arr ->
-        pwrite_val old_pv rest new_v new_pv ty_v ->
+        pwrite_val old_pv (Loc ty_v rest) new_v new_pv ty_v ->
         new_arr = ZMap.set i new_pv old_arr ->
         ty = Tarray ty_elem n attr ->
-        pwrite_val (Array n old_arr ty) ((i, ty_elem) :: rest) new_v (Array n new_arr ty) ty_v.
+        pwrite_val (Array n old_arr ty) (Loc ty_v ((i, ty_elem) :: rest))
+          new_v (Array n new_arr ty) ty_v.
 
     Inductive pwrite: penv -> ident -> loc -> Values.val -> penv -> type -> Prop :=
     | pwrite_intro:  forall pe id l pe' v old_pv new_pv ty ch,
@@ -339,14 +340,15 @@ Module ClightP.
       | eval_Epvar: forall id ty v,
           e!id = None ->
           PTree.get id pe = Some v ->
-          eval_loc (Epvar id ty) id nil
-      | eval_Eindex: forall earr ei i ty_elem ty id l n attr l',
+          eval_loc (Epvar id ty) id (Loc ty nil)
+      | eval_Eindex: forall earr ei i ty_prev ty_elem id l n attr l',
           typeof earr = Tarray ty_elem n attr ->
           typeof ei = Tint I32 Unsigned noattr ->
-          eval_loc earr id l ->
+          ty_prev = typeof earr ->
+          eval_loc earr id (Loc ty_prev l) ->
           eval_expr ei (Vint i) ->
           l' = l ++ ((Int.unsigned i, ty_elem):: nil) ->
-          eval_loc (Eaccess earr ei ty) id l'.
+          eval_loc (Eaccess earr ei ty_elem) id (Loc ty_elem l').
       Scheme eval_expr_ind2 := Minimality for eval_expr Sort Prop
           with eval_lvalue_ind2 := Minimality for eval_lvalue Sort Prop
           with eval_loc_ind2 := Minimality for eval_loc Sort Prop.
@@ -1010,24 +1012,44 @@ Section PRESERVATION.
 
   Inductive match_loc: ClightP.loc -> ptrofs -> Prop :=
   | match_base:
-      match_loc nil Ptrofs.zero
+    forall ty, match_loc (ClightP.Loc ty nil) Ptrofs.zero
   | match_index:
-    forall i rest ofs ofs' ty
-      (BASE: match_loc rest ofs)
+    forall i rest ofs ofs' ty ty_v
+      (BASE: match_loc (ClightP.Loc ty_v rest) ofs)
       (OFS: ofs' = i * ClightP.psizeof ty)
-      (NO_OVERFLOW:  Ptrofs.unsigned ofs + ofs' <= Ptrofs.max_unsigned),
-      match_loc ((i, ty) :: rest) (Ptrofs.repr (Ptrofs.unsigned ofs + ofs')).
+      (NO_OVERFLOW:  Ptrofs.unsigned ofs + ofs' <= Ptrofs.max_unsigned)
+      (NO_OVERLAP:
+        Ptrofs.unsigned ofs + ClightP.psizeof ty_v <= ClightP.psizeof ty),
+      match_loc (ClightP.Loc ty_v ((i, ty) :: rest)) (Ptrofs.repr (Ptrofs.unsigned ofs + ofs')).
+
+  Lemma pwrite_val_type:
+    forall ty_v ty_v' l pv v pv',
+      ClightP.pwrite_val pv (ClightP.Loc ty_v l) v pv' ty_v' -> ty_v = ty_v'.
+  Proof. intros * H. inv H; reflexivity. Qed.
 
   Lemma match_loc_app:
-    forall l ofs i ty ofs',
-      match_loc l ofs ->
+    forall l ofs i ty ofs' ty_prev n attr,
+      match_loc (ClightP.Loc ty_prev l) ofs ->
       ofs' = i * ClightP.psizeof ty ->
       Ptrofs.unsigned ofs + ofs' <= Ptrofs.max_unsigned ->
-      match_loc (l ++ (i, ty) :: nil) (Ptrofs.repr (Ptrofs.unsigned ofs + ofs')).
+      ty_prev = Tarray ty n attr ->
+      match_loc (ClightP.Loc ty (l ++ (i, ty) :: nil))
+        (Ptrofs.repr (Ptrofs.unsigned ofs + ofs')).
   Proof.
     intros l. induction l.
-    - admit.
-    - admit.
+    - intros * A B C D.
+      inv A. cbn. constructor; eauto.
+      constructor.
+      rewrite Ptrofs.unsigned_zero. reflexivity.
+    - intros * A B C D. inv A. rewrite <- app_comm_cons.
+      replace (Ptrofs.repr (Ptrofs.unsigned (Ptrofs.repr (Ptrofs.unsigned ofs0 + i0 * ClightP.psizeof ty0)) + i * ClightP.psizeof ty))
+        with (Ptrofs.repr (Ptrofs.unsigned (Ptrofs.repr (Ptrofs.unsigned ofs0 + i * ClightP.psizeof ty)) + i0 * ClightP.psizeof ty0))
+        by admit.
+      constructor; eauto.
+      + eapply IHl; eauto.
+        admit.
+      + admit.
+      +
   Admitted.
 
   (** This lemma represents the following diagram
@@ -1083,7 +1105,6 @@ Section PRESERVATION.
       type_of_pv pv = type_of_pv pv'.
   Proof. intros * H. induction H; eauto. Qed.
 
-
   (* Lemma pwrite_val_prim_type: *)
   (*   forall pv l v pv' ty, *)
   (*     ClightP.pwrite_val pv l v pv' ty -> *)
@@ -1109,7 +1130,8 @@ Section PRESERVATION.
       + erewrite Mem.load_store_same; eauto. f_equal.
         eapply SimplLocalsproof.val_casted_load_result; eauto.
       + eapply Mem.store_valid_access_1; eauto.
-    - intros. inv H4. inv H5. inv TARRAY.
+    - intros.
+      inv H4. inv H5. inv TARRAY.
       exploit MATCH; eauto. intros.
       edestruct IHpwrite_val as (tm' & A & B); eauto.
       pose proof (Ptrofs.unsigned_range ofs0) as HP1.
@@ -1143,9 +1165,7 @@ Section PRESERVATION.
              intros z Hz. lia.
              cbn. intros z Hz. rewrite <- Hsz in Hz.
              assert (Ptrofs.unsigned ofs0 + size_chunk ch <= elem_sz).
-             {
-               admit.
-             }
+             { erewrite size_type_chunk; eauto. }
              cut (i < ix \/ i > ix). 2: lia.
              intros [C | C].
              ++ right.
@@ -1246,21 +1266,24 @@ Section PRESERVATION.
       + eauto.
       + constructor.
     - intros. monadInv TR.
-      specialize (H2 _ EQ) as (b & ofs & A & B & C).
-      specialize (H4 _ EQ1).
+      specialize (H3 _ EQ) as (b & ofs & A & B & C).
+      specialize (H5 _ EQ1).
       eexists b, _. split.
       + constructor. econstructor.
         * eapply Clight.eval_Elvalue. apply A.
           apply deref_loc_reference.
           erewrite <- transl_expr_typeof; eauto.
           rewrite H. reflexivity.
-        * apply H4.
+        * apply H5.
         * erewrite <- !transl_expr_typeof; eauto.
           rewrite H. rewrite H0. reflexivity.
       + split; eauto.
-        replace (Ptrofs.add ofs (Ptrofs.mul (Ptrofs.repr (sizeof tge ty)) (ptrofs_of_int Unsigned i)))
-          with (Ptrofs.repr (Ptrofs.unsigned ofs + Int.unsigned i * (sizeof tge ty) )).
-        econstructor; eauto.
+        replace (Ptrofs.add ofs (Ptrofs.mul (Ptrofs.repr (sizeof tge ty_elem)) (ptrofs_of_int Unsigned i)))
+          with (Ptrofs.repr (Ptrofs.unsigned ofs + Int.unsigned i * (sizeof tge ty_elem)))
+          by admit.
+        replace (sizeof tge ty_elem) with (ClightP.psizeof ty_elem).
+        2: { admit. }
+        eapply match_loc_app; eauto.
         admit.
         admit. admit.
         generalize (sizeof tge ty). intros z.
