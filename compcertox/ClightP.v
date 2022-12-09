@@ -22,6 +22,8 @@ Module ClightP.
         pvar_init: val;       (**r initialization data *)
       }.
 
+  Hypothesis val_init_data: val -> list init_data.
+
   Inductive expr : Type :=
   | Econst_int: int -> type -> expr       (**r integer literal *)
   | Econst_float: float -> type -> expr   (**r double float literal *)
@@ -611,21 +613,52 @@ Module ClightP.
   Definition add_privates (pe: penv) (x: list (ident * privvar type)) : penv :=
     List.fold_left add_private x pe.
 
+  Program Definition clightp_erase_privvar (v: privvar type) : globdef unit unit :=
+    Gvar {|
+        gvar_info := tt;
+        gvar_init := val_init_data (pvar_init _ v);
+        gvar_readonly := false;
+        gvar_volatile := false;
+      |}.
+
+  Definition clightp_erase_program (p: program) : AST.program unit unit :=
+    mkprogram
+      (List.map (fun '(id, pv) => (id, clightp_erase_privvar pv)) p.(prog_private) ++
+       List.map (fun '(id, g) => (id, erase_globdef g)) p.(prog_defs))
+      p.(prog_public)
+      p.(prog_main).
+
   Program Definition clightp1 (p : program) : semantics _ (li_c@penv) :=
-      Semantics_gen step1
-        initial_state
-        at_external
-        (fun _ => after_external)
-        (fun _ => final_state)
-        globalenv p.
+    {|
+      skel := clightp_erase_program p;
+      activate se :=
+        let ge := globalenv se p in
+        {|
+          Smallstep.step := step1;
+          Smallstep.initial_state := initial_state ge;
+          Smallstep.at_external := at_external ge;
+          Smallstep.after_external := after_external;
+          Smallstep.final_state := final_state;
+          Smallstep.globalenv := ge;
+        |};
+      footprint := AST.footprint_of_program p;
+    |}.
 
   Program Definition clightp2 (p : program) : semantics _ (li_c@penv) :=
-      Semantics_gen step2
-        initial_state
-        at_external
-        (fun _ => after_external)
-        (fun _ => final_state)
-        globalenv p.
+    {|
+      skel := clightp_erase_program p;
+      activate se :=
+        let ge := globalenv se p in
+        {|
+          Smallstep.step := step2;
+          Smallstep.initial_state := initial_state ge;
+          Smallstep.at_external := at_external ge;
+          Smallstep.after_external := after_external;
+          Smallstep.final_state := final_state;
+          Smallstep.globalenv := ge;
+        |};
+      footprint := AST.footprint_of_program p;
+    |}.
 
 End ClightP.
 
@@ -770,29 +803,20 @@ Section TRANSF.
 
   Definition transl_globvar (id: ident) (ty: type) := OK ty.
 
-  Definition val_init_data (v: val) : res (list init_data). Admitted.
-
   Definition transl_privvar {V} (v: privvar V) :=
-    do x <- val_init_data (pvar_init _ v);
-    OK {|
-        gvar_info := pvar_info _ v;
-        gvar_init := x;
-        gvar_volatile := false;
-        gvar_readonly := false;
-      |}.
+    {|
+      gvar_info := pvar_info _ v;
+      gvar_init := ClightP.val_init_data (pvar_init _ v);
+      gvar_volatile := false;
+      gvar_readonly := false;
+    |}.
 
-  Fixpoint transl_privvars {F V} (l: list (ident * privvar V)) :=
-    match l with
-    | nil => OK nil
-    | (id, pv) :: l' =>
-        do gv <- transl_privvar pv;
-        do gv' <- transl_privvars l';
-        OK ((id, Gvar (F:=F) gv) :: gv')
-    end.
+  Definition transl_privvars {F V} (l: list (ident * privvar V)) :=
+    List.map (fun '(id, pv) => (id, Gvar (F:=F) (transl_privvar pv))) l.
 
   Definition transl_program (p: program) : res Clight.program :=
     do tgl <- transf_globdefs (transl_fundef p.(prog_comp_env)) transl_globvar p.(prog_defs);
-    do tgv <- transl_privvars (prog_private p);
+    let tgv := transl_privvars (prog_private p) in
     OK ({|
            Ctypes.prog_defs := tgv ++ tgl;
            Ctypes.prog_public := prog_public p;
@@ -1130,6 +1154,12 @@ Proof.
   rewrite ptree_of_list_skip. reflexivity.
   apply in_map_iff. exists (i, v). split; eauto.
 Qed.
+
+Lemma ptree_of_list_app_none {A} (xs: list (PTree.elt * A)) ys i:
+  (PTree_Properties.of_list ys) ! i = None ->
+  (PTree_Properties.of_list (xs ++ ys)) ! i = (PTree_Properties.of_list xs) ! i.
+Proof.
+Admitted.
 
 (** ------------------------------------------------------------------------- *)
 (** Preservation *)
@@ -2021,11 +2051,12 @@ Inductive penv_mem_match ce: Genv.symtbl -> ClightP.penv -> Mem.mem -> Prop :=
 | penv_mem_match_intro se pe m
     (MPE: forall id v, PTree.get id pe = Some v ->
                   exists b, Genv.find_symbol se id = Some b /\
-                         pvalue_match ce b 0 v m)
-  : penv_mem_match ce se pe m.
+                         pvalue_match ce b 0 v m):
+  penv_mem_match ce se pe m.
 
 Inductive pin_query R: Memory.mem * Genv.symtbl -> query (li_c @ ClightP.penv) -> query li_c -> Prop :=
 | pin_query_intro se vf sg vargs m msrc mtgt pe
+    (MBOUND: Ple (Genv.genv_next se) (Mem.nextblock mtgt))
     (MJOIN: join m msrc mtgt)
     (MPE: R se pe m):
   pin_query R (m, se) (cq vf sg vargs msrc, pe) (cq vf sg vargs mtgt).
@@ -2043,7 +2074,7 @@ Program Definition pin ce: callconv (li_c @ ClightP.penv) li_c :=
     ccworld := Memory.mem * Genv.symtbl;
     match_senv '(_, se) se1 se2 := se = se1 /\ se = se2;
     match_query := pin_query (penv_mem_match ce);
-    match_reply := pin_reply (penv_mem_match ce);
+    match_reply '(_, se) r1 r2 := exists m, pin_reply (penv_mem_match ce) (m, se) r1 r2;
   |}.
 Next Obligation. reflexivity. Qed.
 Next Obligation. inv H0. reflexivity. Qed.
@@ -2070,16 +2101,73 @@ Next Obligation. reflexivity. Qed.
 Next Obligation. inv H0. reflexivity. Qed.
 Next Obligation. inv H. reflexivity. Qed.
 
+Lemma pairwise_implies_equal:
+  forall (A : Type) (l1 l2 : list A),
+    (forall i : nat, nth_error l1 i = nth_error l2 i) -> l1 = l2.
+intros A l1.
+  induction l1 as [| h1 t1].
+  - intros l2 H.
+    simpl.
+    destruct l2 as [| h2 t2].
+    + reflexivity.
+    + specialize (H 0%nat). inv H.
+  - intros l2 H.
+    destruct l2 as [| h2 t2].
+    + simpl in H.
+      specialize (H 0%nat). inv H.
+    + simpl in H. f_equal.
+      * specialize (H 0%nat). cbn in *. congruence.
+      * apply IHt1.
+        intros i.
+        specialize (H (S i)%nat). apply H.
+Qed.
+
 Theorem transl_program_correct prog tprog:
   transl_program prog = OK tprog ->
   forward_simulation pout (pin prog.(ClightP.prog_comp_env))
     (ClightP.clightp1 prog) (Clight.semantics1 tprog).
 Proof.
   intros H. constructor. econstructor.
-  - cbn. monadInv H. unfold ClightP.program_of_program.
-  (* TODO: add private vars to prog_defs *)
-  - intros. cbn.                (* again, same prog_def *)
-    admit.
+  - cbn. monadInv H.
+    unfold ClightP.clightp_erase_program, erase_program. cbn.
+    f_equal. rewrite map_app. f_equal.
+    + unfold transl_privvars.
+      rewrite map_map. apply map_ext.
+      intros a. destruct a. reflexivity.
+    + revert x EQ. generalize (ClightP.prog_defs prog).
+      induction l.
+      * intros. inv EQ. reflexivity.
+      * intros x Hx. inv Hx. destruct a. destruct g.
+        -- destruct (transl_fundef (ClightP.prog_comp_env prog) i f); try congruence.
+           monadInv H0. cbn. f_equal. apply IHl. eauto.
+        -- monadInv H0. cbn. f_equal. apply IHl. eauto.
+  - intros. cbn. monadInv H.
+    unfold footprint_of_program.
+    apply def_translated with (i:=i) in EQ.
+    (* assert (list_norepet (transl_privvars (ClightP.prog_private prog) ++ x)). *)
+    (* admit. *)
+    destruct PTree.get eqn: Hx;
+    match goal with
+    | [ |- _ <-> match ?y with _ => _ end ] => destruct y eqn: Hy
+    end; try easy.
+    Local Opaque PTree_Properties.of_list.
+    + inv EQ.
+      unfold prog_defmap in Hy. cbn in Hy.
+      exploit @ptree_of_list_app. symmetry. apply H0.
+      intros A. rewrite A in Hy. inv Hy.
+      inv H1. reflexivity. destruct f; monadInv H; cbn; easy.
+    + inv EQ.
+      unfold prog_defmap in Hy. cbn in Hy.
+      exploit @ptree_of_list_app. symmetry. apply H0.
+      intros A. rewrite A in Hy. inv Hy.
+    + inv EQ.
+      unfold prog_defmap in Hy. cbn in Hy.
+      exploit @ptree_of_list_app_none. symmetry. apply H.
+      intros A. rewrite A in Hy.
+      apply PTree_Properties.in_of_list in Hy.
+      unfold transl_privvars in Hy.
+      apply list_in_map_inv in Hy as ((a & b) & B & C). inv B.
+      reflexivity.
   - intros se1 se2 wb Hse Hse1. instantiate (1 := fun _ _ _ => _). cbn beta.
     eapply forward_simulation_step with (match_states := pmatch_state prog se2).
     + intros. destruct H0. inv H1. destruct Hse. subst.
@@ -2088,15 +2176,29 @@ Proof.
       eexists. split. econstructor; eauto.
       * unfold ClightP.type_of_function in *. rewrite <- H8.
         unfold type_of_function. monadInv EQ. reflexivity.
-      * admit.
       * repeat constructor.
         inv MPE. econstructor; eauto.
-    + admit.
-    + admit.
+    + cbn. intros [s1 pe1] s2 [r1 per1] HS HX. inv HX. inv HS. inv MK.
+      eexists. split. constructor.
+      destruct wb. inv MP.
+      eexists. constructor; eauto.
+      constructor. inv Hse. eauto.
+    + intros * HS HX. destruct wb. destruct s1. inv Hse.
+      inv HX. inv HS. inv MP.
+      exploit functions_translated; eauto.
+      intros (i & tfd & A & B).
+      subst f. monadInv B.
+      eexists mpersistent, _. split. econstructor; eauto.
+      split. constructor; eauto.
+      split. constructor.
+      intros * HR HY. inv HR. inv HY.
+      eexists. split. cbn. constructor.
+      constructor; eauto.
+      econstructor; eauto.
     + cbn.
       intros. destruct s1, s1'.
       eapply step_correct; eauto.
       destruct wb. destruct Hse. subst.
       eauto.
   - apply well_founded_ltof.
-Admitted.
+Qed.
