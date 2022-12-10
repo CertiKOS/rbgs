@@ -104,6 +104,7 @@ Instance world_symtbl : World (option Genv.symtbl) :=
     w_ext_step := {| rel := OptionRel.option_le eq |};
   |}.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Semantics with Encapsulation *)
 Record esemantics {liA liB} := {
     pstate : Type;              (** persistent state *)
@@ -129,17 +130,14 @@ Definition comp_esem `(L1: liB +-> liC) `(L2: liA +-> liB) : option (liA +-> liC
   end.
 
 (** *** Construction *)
-
-Definition semantics_fbk `{PSet K} {liA liB} (L: liA +-> liB@K) : liA +-> liB :=
-  {|
-    pstate := K * pstate L; esem := $L
-  |}.
+(* TODO: primitive *)
 
 Definition semantics_embed `(L: semantics liA liB) : liA +-> liB :=
   {|
     pstate := unit; esem := semantics_map L lf (li_iso_inv _);
   |}.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Stateful Simulation Convention and Simulation *)
 Require Import Relation_Operators.
 
@@ -348,6 +346,7 @@ Module E.
     STCAT.forward_simulation ccA (ST.callconv_lift ccB (pstate L1) (pstate L2)) L1 L2.
 End E.
 
+(** ------------------------------------------------------------------------- *)
 (** * Properties about Stateful Simulations *)
 
 (** ** Embedding Stateless Simulations *)
@@ -442,6 +441,16 @@ Lemma st_fsim_lift `(ccA: ST.callconv liA1 liA2) `(ccB: ST.callconv liB1 liB2)
                         (L1@K1) (L2@K2).
 Proof. intros [X]. apply st_fsim_lift'. apply X. Qed.
 
+
+(** The composition can be represented by the diagram:
+
+  A₁ ———Ls₂——>> B₁ ———Ls₁——>> C₁
+  |             |             |
+ ccA           ccB           ccC
+  |             |             |
+  A₂ ———Lt₂——>> B₂ ———Lt₂—–>> C₂
+
+ *)
 (** ** Composition of Stateful Simulations *)
 
 Section FSIM.
@@ -637,8 +646,22 @@ Section COMP.
   Qed.
 End COMP.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Composition of Stateful Simulation Conventions *)
 
+(** The composition can be represented by the diagram:
+
+  A♯ ———L♯ ——>>B♯
+  |            |
+ ccA₁         ccB₁
+  |            |
+  A♮ ———L♮ ——>> B♮
+  |            |
+ ccA₂         ccB₂
+  |            |
+  A♭ ———L♭ ——>> B♭
+
+ *)
 Section COMP_FSIM.
 
   Context `(ccA1: ST.callconv liAs liAn) `(ccA2: ST.callconv liAn liAf)
@@ -771,6 +794,7 @@ Proof.
   intros [X] [Y]. constructor. eapply st_fsim_vcomp'; eauto.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Left and Right Unit Laws *)
 
 Section ID_FSIM.
@@ -944,6 +968,7 @@ Section CAT_SIM.
 
 End CAT_SIM.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Refinement between Stateful Simulation Conventions *)
 
 Definition st_ccref {li1 li2} (cc1 cc2: ST.callconv li1 li2) : Prop :=
@@ -1152,7 +1177,19 @@ Section CC_UNIT.
 
 End CC_UNIT.
 
+
+(** ------------------------------------------------------------------------- *)
 (** ** Monotonicity of Sim. Conv. *)
+
+(** The property can be represented as:
+
+         A♯ ———L♯ ——>>B♯
+         |            |
+ ccA' ⊒ ccA          ccB ⊑ ccB'
+         |            |
+         A♭ ———L♭ ——>> B♭
+
+ *)
 
 Require Import LogicalRelations.
 
@@ -1258,6 +1295,7 @@ Proof.
   apply (cc_left_unit (cc_right_unit X)).
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** * Encapsulation Properties *)
 
 (** ** Composition of Components with Encapsulated States *)
@@ -1297,6 +1335,7 @@ Section LI_FUNC.
   Context `(F1: LiIso liA1 liX1) `(G1: LiIso liB1 liY1)
           `(F2: LiIso liA2 liX2) `(G2: LiIso liB2 liY2).
 
+  (** Generalized version of map_monotonicity in Tensorcomp.v *)
   Section NO_STATE.
     Context (cc1: callconv liA1 liB1) (cc2: callconv liA2 liB2).
     Lemma map_monotonicity_cc L1 L2:
@@ -1361,118 +1400,6 @@ Section LI_FUNC.
 
 End LI_FUNC.
 
-(* TODO: move to somewhere else *)
-Section MAP_NORMALIZE.
-
-  Context `(F: LiIso liA1 liA2) `(G: LiIso liB1 liB2) (L : semantics liA1 liB1).
-
-  Inductive mn_ms: state (normalize_sem $L) -> state $(normalize_sem L) -> Prop :=
-  | mn_ms1 q1 q2:
-    fq G q1 = q2 -> mn_ms (st1 1 _ (st_q q1)) (st1 1 _ (st_q q2))
-  | mn_ms2 q1 q2 s:
-    fq G q1 = q2 ->
-    mn_ms (st2 1 ((semantics_map L F G) o 1) (st_q q1) (st1 (semantics_map L F G) _ s))
-          (st2 1 (L o 1) (st_q q2) (st1 L _ s))
-  | mn_ms3 q1 q2 s q3 q4:
-    fq G q1 = q2 -> fq F q3 = q4 ->
-    mn_ms (st2 1 ((semantics_map L F G) o 1) (st_q q1) (st2 (semantics_map L F G) 1 s (st_q q3)))
-          (st2 1 (L o 1) (st_q q2) (st2 L 1 s (st_q q4)))
-  | mn_ms4 q1 q2 s r1 r2:
-    fq G q1 = q2 -> fr F r2 = r1 ->
-    mn_ms (st2 1 ((semantics_map L F G) o 1) (st_q q1) (st2 (semantics_map L F G) 1 s (st_r r1)))
-          (st2 1 (L o 1) (st_q q2) (st2 L 1 s (st_r r2)))
-  | mn_ms5 r1 r2:
-    fr G r2 = r1 -> mn_ms (st1 1 _ (st_r r1)) (st1 1 _ (st_r r2)).
-
-  Lemma map_normalize1:
-    forward_simulation 1 1 (normalize_sem $L) $(normalize_sem L).
-  Proof.
-    constructor. econstructor.
-    reflexivity. firstorder.
-    intros. inv H.
-    eapply forward_simulation_step with (match_states := mn_ms).
-    - intros q ? s1 [] H. inv H. inv H1.
-      eexists. split; repeat constructor.
-    - intros s1 s2 r1 Hs H. inv H. inv H1. inv Hs.
-      eexists. split; repeat constructor.
-      eexists. repeat split; eauto.
-    - intros s1 s2 q1 Hs H. exists tt. inv H. inv H1. inv H. inv Hs.
-      eexists. repeat split.
-      intros r ? s1' [] H. inv H. inv H5. inv H4.
-      edestruct (@fr_surj _ _ F r). subst.
-      eexists. repeat split; eauto.
-      eexists; repeat split; eauto.
-      constructor; reflexivity.
-    - intros * HSTEP * HS. inv HS.
-      + inv HSTEP. inv H1. inv H1. inv H2.
-        eexists; split.
-        eapply step_push; constructor; eauto. apply H.
-        constructor; reflexivity.
-      + inv HSTEP. inv H4.
-        * eexists; split.
-          apply step2. apply step1. apply H1.
-          constructor; reflexivity.
-        * inv H2. eexists; split.
-          eapply step2. eapply step_push. apply H1. constructor.
-          constructor; easy.
-        * inv H2. inv H5. cbn in *. eprod_crush. subst.
-          eexists; split.
-          eapply step_pop; constructor. apply H1.
-          constructor; easy.
-      + inv HSTEP. inv H4. inv H5. inv H2. inv H2.
-      + inv HSTEP. inv H4. inv H5. 2: inv H2. inv H2.
-        cbn in *. eprod_crush. eapply fr_inj in H. subst.
-        eexists. split. apply step2. eapply step_pop.
-        constructor. eauto. constructor; easy.
-      + inv HSTEP. inv H1. inv H1.
-    - apply well_founded_ltof.
-  Qed.
-
-  Lemma map_normalize2:
-    forward_simulation 1 1 $(normalize_sem L) (normalize_sem $L).
-  Proof.
-    constructor. econstructor.
-    reflexivity. firstorder.
-    intros. inv H.
-    eapply forward_simulation_step with (match_states := flip mn_ms).
-    - intros q ? s1 [] H. inv H. inv H1.
-      eexists. split; repeat constructor.
-    - intros s1 s2 r1 Hs H. inv H. inv H1. inv H2. inv H. inv Hs.
-      eexists. split; repeat constructor.
-    - intros s1 s2 q1 Hs H. exists tt. inv H. inv H1. inv H. inv Hs.
-      apply fq_inj in H5. subst.
-      eexists. repeat split.
-      intros. inv H. cbn in *. eprod_crush. subst.
-      inv H1. inv H5. inv H4.
-      eexists. repeat split. constructor; reflexivity.
-    - intros * HSTEP * HS. inv HS.
-      + inv HSTEP. inv H1. inv H1. inv H2.
-        eexists; split.
-        eapply step_push; constructor; eauto. apply H.
-        constructor; reflexivity.
-      + inv HSTEP. inv H4.
-        * eexists; split.
-          apply step2. apply step1. apply H1.
-          constructor; reflexivity.
-        * inv H2. edestruct (@fq_surj _ _ F q). subst.
-          eexists; split. eapply step2. eapply step_push.
-          apply H1. constructor.
-          constructor; easy.
-        * inv H2. inv H5.
-          eexists; split. eapply step_pop; constructor.
-          eexists; split; eauto. constructor; easy.
-      + inv HSTEP. inv H4. inv H5. inv H2. inv H2.
-      + inv HSTEP. inv H4. inv H5. 2: inv H2. inv H2.
-        eexists. split.
-        apply step2. eapply step_pop. constructor.
-        eexists; split; eauto.
-        constructor; easy.
-      + inv HSTEP. inv H1. inv H1.
-    - apply well_founded_ltof.
-  Qed.
-
-End MAP_NORMALIZE.
-
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
 
@@ -1522,79 +1449,7 @@ Proof.
     eprod_crush. subst. repeat split; easy.
 Qed.
 
-Section LIFT_UNIT.
-
-  Context {li: language_interface} {S: Type}.
-  Inductive su_ms: @state (li@S) _ 1 ->
-                   @state (li@S) _ (1@S) -> Prop :=
-  | su_ms_q q s:
-    su_ms (@st_q (li@S) (q,s)) ((st_q q), s)
-  | su_ms_r r s:
-    su_ms (@st_r (li@S) (r,s)) ((st_r r), s).
-  Hint Constructors su_ms.
-  Lemma lift_unit1: forward_simulation (@cc_id (li@S)) 1 1 (1 @ S).
-  Proof.
-    constructor. econstructor.
-    reflexivity. firstorder.
-    intros. inv H.
-    apply forward_simulation_step with (match_states := su_ms).
-    - intros. inv H. inv H1. cbn in *. eprod_crush.
-      eexists (_, _). repeat split; eauto.
-    - intros. inv H1. inv H.
-      eexists (_, _). repeat split.
-    - intros. inv H1. inv H.
-      eexists tt, (_, _). repeat split.
-      intros. inv H. inv H1. cbn in *. eprod_crush.
-      eexists (_, _). repeat split; eauto.
-    - easy.
-    - apply well_founded_ltof.
-  Qed.
-
-  Lemma lift_unit2: forward_simulation (@cc_id (li@S)) 1 (1 @ S) 1.
-    constructor. econstructor.
-    reflexivity. firstorder.
-    intros. inv H.
-    apply forward_simulation_step with (match_states := flip su_ms).
-    - intros. inv H. inv H1. inv H. cbn in *. eprod_crush.
-      eexists. repeat split; eauto. constructor.
-    - intros. inv H1. inv H. inv H2. inv H2. cbn in *. eprod_crush.
-      eexists. repeat split.
-    - intros. inv H1. inv H. inv H2. cbn in *.  eprod_crush.
-      eexists tt, _. repeat split.
-      intros. inv H. inv H1. inv H. cbn in *. eprod_crush.
-      eexists. repeat split; eauto. constructor. inv H2.
-    - intros. cbn in *. eprod_crush. inv H.
-    - apply well_founded_ltof.
-  Qed.
-
-End LIFT_UNIT.
-
-(* TODO: move to Lifting.v *)
-Lemma fsim_lift_normalize1 {S} `(L: semantics liA liB):
-  forward_simulation 1 1 (normalize_sem (L @ S)) (normalize_sem L @ S).
-Proof.
-  setoid_rewrite <- lift_categorical_comp2.
-  eapply categorical_compose_simulation'.
-  apply lift_unit1.
-  setoid_rewrite <- lift_categorical_comp2.
-  eapply categorical_compose_simulation'.
-  reflexivity.
-  apply lift_unit1.
-  all: cbn; (apply Linking.linkorder_refl || apply CategoricalComp.id_skel_order).
-Qed.
-
-Lemma fsim_lift_normalize2 {S} `(L: semantics liA liB):
-  forward_simulation 1 1 (normalize_sem L @ S) (normalize_sem (L @ S)).
-Proof.
-  setoid_rewrite lift_categorical_comp1.
-  eapply categorical_compose_simulation'.
-  apply lift_unit2.
-  setoid_rewrite -> lift_categorical_comp1.
-  eapply categorical_compose_simulation'.
-  reflexivity.
-  apply lift_unit2.
-  all: cbn; (apply Linking.linkorder_refl || apply CategoricalComp.id_skel_order).
-Qed.
+(** ------------------------------------------------------------------------- *)
 
 Section COMP.
   Context `(ccA: ST.callconv liA1 liA2)
@@ -1607,7 +1462,7 @@ Section COMP.
           sk (Hsk1: Linking.linkorder (skel L1s) sk)
           (Hsk2: Linking.linkorder (skel L2s) sk).
 
-  Lemma encap_fsim_lcomp_sk:
+  Theorem encap_fsim_lcomp_sk:
     E.forward_simulation ccA ccC (comp_esem' L1s L2s sk) (comp_esem' L1t L2t sk).
   Proof.
     unfold E.forward_simulation in *. unfold comp_esem in *.
@@ -1648,6 +1503,8 @@ Section COMP.
   Qed.
 
 End COMP.
+
+(** ------------------------------------------------------------------------- *)
 
 (** A simplified condition for ccB ⊑ ccA, where the wB is a substructure of
     wA. Additional invariant is required on wA to constrain the redundant
@@ -1738,8 +1595,7 @@ Section ENCAP_COMP_FSIM.
   Context (H1: E.forward_simulation ccA1 ccB1 Ls Ln)
           (H2: E.forward_simulation ccA2 ccB2 Ln Lf).
 
-  (** Lemma 3.11 *)
-  Lemma encap_fsim_vcomp:
+  Theorem encap_fsim_vcomp:
     E.forward_simulation (ST.cc_compose ccA1 ccA2)
                          (ST.cc_compose ccB1 ccB2) Ls Lf.
   Proof.
@@ -1749,6 +1605,8 @@ Section ENCAP_COMP_FSIM.
     rewrite @lift_comp_ccref. apply X.
   Qed.
 End ENCAP_COMP_FSIM.
+
+(** ------------------------------------------------------------------------- *)
 
 Lemma cc_lift_unit `(cc: ST.callconv liA liB):
   st_ccref (ST.callconv_lift cc unit unit)
@@ -1793,6 +1651,14 @@ Proof.
   apply st_map_monotonicity_cc.
   apply fsim_embed. apply fsim_normalize. assumption.
 Qed.
+
+(** ------------------------------------------------------------------------- *)
+(** Obsolete FBK and REVEAL construction *)
+
+Definition semantics_fbk `{PSet K} {liA liB} (L: liA +-> liB@K) : liA +-> liB :=
+  {|
+    pstate := K * pstate L; esem := $L
+  |}.
 
 (** ** Simulation Convention FBK *)
 Definition callconv_fbk `{PSet K1} `{PSet K2}
@@ -2029,6 +1895,7 @@ Proof.
   apply X.
 Qed.
 
+(* TODO: replace with primitive *)
 (** ** REVEAL Simulation Convention *)
 
 Program Definition cc_reveal `{PSet K} {li} : ST.callconv li (li@K) :=

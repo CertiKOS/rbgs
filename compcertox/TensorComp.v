@@ -18,17 +18,6 @@ Close Scope Z_scope.
 
 Typeclasses eauto := 20.
 
-Ltac eprod_crush :=
-  repeat
-    (match goal with
-     | [ H: ?a * ?b |- _ ] => destruct H;cbn [fst snd] in *; subst
-     | [ H: (?a, ?b) = (?c, ?d) |- _ ] => inv H
-     | [ H: (?x * ?y)%rel _ _ |- _] => destruct H; cbn [fst snd] in *; subst
-     | [ H: ?x /\ ?y |- _] => destruct H
-     | [ H: (exists _, _) |- _] => destruct H
-     | [ H: unit |- _] => destruct H
-     end).
-
 (* A li_func convert from one language interface to another. This is useful
    because equivalence on the level of language interfaces can't be defined
    as definitional equality. *)
@@ -637,3 +626,115 @@ Section INTERC.
   Qed.
 
 End INTERC.
+
+(** ------------------------------------------------------------------------- *)
+Section MAP_NORMALIZE.
+
+  Context `(F: LiIso liA1 liA2) `(G: LiIso liB1 liB2) (L : semantics liA1 liB1).
+
+  Inductive mn_ms: state (normalize_sem $L) -> state $(normalize_sem L) -> Prop :=
+  | mn_ms1 q1 q2:
+    fq G q1 = q2 -> mn_ms (st1 1 _ (st_q q1)) (st1 1 _ (st_q q2))
+  | mn_ms2 q1 q2 s:
+    fq G q1 = q2 ->
+    mn_ms (st2 1 ((semantics_map L F G) o 1) (st_q q1) (st1 (semantics_map L F G) _ s))
+          (st2 1 (L o 1) (st_q q2) (st1 L _ s))
+  | mn_ms3 q1 q2 s q3 q4:
+    fq G q1 = q2 -> fq F q3 = q4 ->
+    mn_ms (st2 1 ((semantics_map L F G) o 1) (st_q q1) (st2 (semantics_map L F G) 1 s (st_q q3)))
+          (st2 1 (L o 1) (st_q q2) (st2 L 1 s (st_q q4)))
+  | mn_ms4 q1 q2 s r1 r2:
+    fq G q1 = q2 -> fr F r2 = r1 ->
+    mn_ms (st2 1 ((semantics_map L F G) o 1) (st_q q1) (st2 (semantics_map L F G) 1 s (st_r r1)))
+          (st2 1 (L o 1) (st_q q2) (st2 L 1 s (st_r r2)))
+  | mn_ms5 r1 r2:
+    fr G r2 = r1 -> mn_ms (st1 1 _ (st_r r1)) (st1 1 _ (st_r r2)).
+
+  Lemma map_normalize1:
+    forward_simulation 1 1 (normalize_sem $L) $(normalize_sem L).
+  Proof.
+    constructor. econstructor.
+    reflexivity. firstorder.
+    intros. inv H.
+    eapply forward_simulation_step with (match_states := mn_ms).
+    - intros q ? s1 [] H. inv H. inv H1.
+      eexists. split; repeat constructor.
+    - intros s1 s2 r1 Hs H. inv H. inv H1. inv Hs.
+      eexists. split; repeat constructor.
+      eexists. repeat split; eauto.
+    - intros s1 s2 q1 Hs H. exists tt. inv H. inv H1. inv H. inv Hs.
+      eexists. repeat split.
+      intros r ? s1' [] H. inv H. inv H5. inv H4.
+      edestruct (@fr_surj _ _ F r). subst.
+      eexists. repeat split; eauto.
+      eexists; repeat split; eauto.
+      constructor; reflexivity.
+    - intros * HSTEP * HS. inv HS.
+      + inv HSTEP. inv H1. inv H1. inv H2.
+        eexists; split.
+        eapply step_push; constructor; eauto. apply H.
+        constructor; reflexivity.
+      + inv HSTEP. inv H4.
+        * eexists; split.
+          apply step2. apply step1. apply H1.
+          constructor; reflexivity.
+        * inv H2. eexists; split.
+          eapply step2. eapply step_push. apply H1. constructor.
+          constructor; easy.
+        * inv H2. inv H5. cbn in *. eprod_crush. subst.
+          eexists; split.
+          eapply step_pop; constructor. apply H1.
+          constructor; easy.
+      + inv HSTEP. inv H4. inv H5. inv H2. inv H2.
+      + inv HSTEP. inv H4. inv H5. 2: inv H2. inv H2.
+        cbn in *. eprod_crush. eapply fr_inj in H. subst.
+        eexists. split. apply step2. eapply step_pop.
+        constructor. eauto. constructor; easy.
+      + inv HSTEP. inv H1. inv H1.
+    - apply well_founded_ltof.
+  Qed.
+
+  Lemma map_normalize2:
+    forward_simulation 1 1 $(normalize_sem L) (normalize_sem $L).
+  Proof.
+    constructor. econstructor.
+    reflexivity. firstorder.
+    intros. inv H.
+    eapply forward_simulation_step with (match_states := flip mn_ms).
+    - intros q ? s1 [] H. inv H. inv H1.
+      eexists. split; repeat constructor.
+    - intros s1 s2 r1 Hs H. inv H. inv H1. inv H2. inv H. inv Hs.
+      eexists. split; repeat constructor.
+    - intros s1 s2 q1 Hs H. exists tt. inv H. inv H1. inv H. inv Hs.
+      apply fq_inj in H5. subst.
+      eexists. repeat split.
+      intros. inv H. cbn in *. eprod_crush. subst.
+      inv H1. inv H5. inv H4.
+      eexists. repeat split. constructor; reflexivity.
+    - intros * HSTEP * HS. inv HS.
+      + inv HSTEP. inv H1. inv H1. inv H2.
+        eexists; split.
+        eapply step_push; constructor; eauto. apply H.
+        constructor; reflexivity.
+      + inv HSTEP. inv H4.
+        * eexists; split.
+          apply step2. apply step1. apply H1.
+          constructor; reflexivity.
+        * inv H2. edestruct (@fq_surj _ _ F q). subst.
+          eexists; split. eapply step2. eapply step_push.
+          apply H1. constructor.
+          constructor; easy.
+        * inv H2. inv H5.
+          eexists; split. eapply step_pop; constructor.
+          eexists; split; eauto. constructor; easy.
+      + inv HSTEP. inv H4. inv H5. inv H2. inv H2.
+      + inv HSTEP. inv H4. inv H5. 2: inv H2. inv H2.
+        eexists. split.
+        apply step2. eapply step_pop. constructor.
+        eexists; split; eauto.
+        constructor; easy.
+      + inv HSTEP. inv H1. inv H1.
+    - apply well_founded_ltof.
+  Qed.
+
+End MAP_NORMALIZE.
