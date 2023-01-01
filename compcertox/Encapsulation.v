@@ -1652,23 +1652,6 @@ Proof.
   apply fsim_embed. apply fsim_normalize. assumption.
 Qed.
 
-(** ------------------------------------------------------------------------- *)
-(** Obsolete FBK and REVEAL construction *)
-
-Definition semantics_fbk `{PSet K} {liA liB} (L: liA +-> liB@K) : liA +-> liB :=
-  {|
-    pstate := K * pstate L; esem := $L
-  |}.
-
-(** ** Simulation Convention FBK *)
-Definition callconv_fbk `{PSet K1} `{PSet K2}
-        `(cc: ST.callconv (li1@K1) (li2@K2)): ST.callconv li1 li2 :=
-  {|
-    ST.ccworld := ST.ccworld cc * K1 * K2;
-    ST.match_query '(w, k1, k2) q1 q2 := ST.match_query cc w (q1, k1) (q2, k2);
-    ST.match_reply '(w, k1, k2) r1 r2 := ST.match_reply cc w (r1, k1) (r2, k2);
-  |}.
-
 Lemma ccref_lift `{PSet K1} `{PSet K2} {li1 li2} (ccA ccB: ST.callconv li1 li2):
   st_ccref ccA ccB -> st_ccref (ST.callconv_lift ccA K1 K2) (ST.callconv_lift ccB K1 K2).
 Proof.
@@ -1692,6 +1675,38 @@ Proof.
   rewrite (fsim_embed X). rewrite <- (fsim_embed Y).
   apply st_fsim_lift. apply A.
 Qed.
+
+Global Instance encap_fsim_ccref:
+  Monotonic
+    (@E.forward_simulation)
+    (forallr - @ liA1, forallr - @ liA2, st_ccref ++>
+     forallr - @ liB1, forallr - @ liB2, st_ccref -->
+     subrel).
+Proof.
+  intros liA1 liA2 ccA1 ccA2 HA
+         liB1 liB2 ccB1 ccB2 HB L1 L2 H.
+  unfold E.forward_simulation in H |- *.
+  rewrite <- HA.
+  rewrite (ccref_lift HB).
+  apply H.
+Qed.
+
+(** ------------------------------------------------------------------------- *)
+(** Obsolete FBK and REVEAL construction *)
+
+Definition semantics_fbk `{PSet K} {liA liB} (L: liA +-> liB@K) : liA +-> liB :=
+  {|
+    pstate := K * pstate L; esem := $L
+  |}.
+
+(** ** Simulation Convention FBK *)
+Definition callconv_fbk `{PSet K1} `{PSet K2}
+        `(cc: ST.callconv (li1@K1) (li2@K2)): ST.callconv li1 li2 :=
+  {|
+    ST.ccworld := ST.ccworld cc * K1 * K2;
+    ST.match_query '(w, k1, k2) q1 q2 := ST.match_query cc w (q1, k1) (q2, k2);
+    ST.match_reply '(w, k1, k2) r1 r2 := ST.match_reply cc w (r1, k1) (r2, k2);
+  |}.
 
 (** ** FBK vs LIFT *)
 

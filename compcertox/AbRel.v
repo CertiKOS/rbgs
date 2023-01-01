@@ -1121,6 +1121,10 @@ Section CKLR.
     rewrite MEXT. rewrite MEXT0. reflexivity.
   Qed.
 
+  Next Obligation.
+    intros. inv H. inv MEXT. easy.
+  Qed.
+
 End CKLR.
 
 Section SIMULATION.

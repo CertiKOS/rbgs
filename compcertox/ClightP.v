@@ -586,6 +586,7 @@ Module ClightP.
       alloc_variables ge empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
       bind_parameters ge e m1 f.(fn_params) vargs m' ->
       le = create_undef_temps f.(fn_temps) ->
+      Mem.alloc_flag m = true ->
       function_entry1 ge f vargs m e le m'.
 
   Definition step1 (ge: genv) := step ge (function_entry1 ge).
@@ -1602,6 +1603,7 @@ Section PRESERVATION.
     edestruct bind_parameters_join as (? & ? & ?); eauto.
     eexists. split.
     - econstructor; eauto; monadInv TR; cbn; eauto.
+      inv MJOIN. inv mjoin_alloc_flag; congruence.
     - econstructor; eauto.
   Qed.
 
