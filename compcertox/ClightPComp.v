@@ -406,7 +406,12 @@ Section YYY.
       destruct HW as [[HW []] []]. inv HW.
       inv HX. inv HQ. inv H4. inv H3.
       eexists tt, _. split.
-      econstructor; eauto. admit.
+      econstructor; eauto.
+      apply mjoin_nextblock in MJOIN.
+      rewrite MJOIN.
+      unfold Ple in *.
+      etransitivity; eauto.
+      apply Pos.le_max_r.
       eexists m, (m, tt, tt). split. reflexivity.
       split. reflexivity.
       constructor. eauto.
@@ -434,7 +439,7 @@ Section YYY.
       eexists tt, s2'. split.
       left. apply plus_one. apply HY.
       eexists _, (_, tt, tt). repeat constructor; eauto.
-  Admitted.
+  Qed.
 
 End YYY.
 
@@ -589,9 +594,11 @@ Section ZZZ.
     - intros [q1 pe1] [q2 pe2] [s1 pe1'] HQ HX.
       inv HQ. inv HX. eexists (_, _). split.
       + econstructor; eauto.
-        Search join Mem.nextblock.
         apply mjoin_nextblock in MJOIN.
-        admit.
+        rewrite MJOIN.
+        unfold Ple in *.
+        etransitivity; eauto.
+        apply Pos.le_max_r.
       + constructor. eauto.
     - intros [s1 pe1] [s2 pe2] [r1 pe1'] HS HX.
       inv HX. inv HS. eexists (_, _). split.
@@ -610,14 +617,67 @@ Section ZZZ.
       constructor. eauto.
     - intros. eapply clightp_out_step; eauto.
     - apply well_founded_ltof.
-  Admitted.
+  Qed.
+
+  Inductive penv_inv: ST.ccworld cc_out_penv' ->
+                      ST.ccworld (ST.callconv_lift cc_out' ClightP.penv ClightP.penv) -> Prop :=
+  | penv_inv_intro m pe:
+    penv_inv m (m, pe, pe).
+
+  Inductive penv_ms: ST.ccworld cc_out_penv' ->
+                     ST.ccworld (ST.callconv_lift cc_out' ClightP.penv ClightP.penv) ->
+                     @state (li_c@ClightP.penv) (li_c@ClightP.penv) (id_semantics skel) ->
+                     @state (li_c@ClightP.penv) (li_c@ClightP.penv) (id_semantics skel) -> Prop :=
+  | penv_ms_query:
+    forall q1 q2 m pe,
+      ST.match_query cc_out' m q1 q2 ->
+      penv_ms m (m, pe, pe)
+        (@st_q (li_c@ClightP.penv) (q1, pe))
+        (@st_q (li_c@ClightP.penv) (q2, pe))
+  | penv_ms_reply:
+    forall r1 r2 m pe,
+      ST.match_reply cc_out' m r1 r2 ->
+      penv_ms m (m, pe, pe)
+        (@st_r (li_c@ClightP.penv) (r1, pe))
+        (@st_r (li_c@ClightP.penv) (r2, pe)).
+
+  Lemma encap_prim_out:
+    E.forward_simulation cc_out_penv' cc_out' (encap_prim ClightP.penv) (encap_prim ClightP.penv).
+  Proof.
+    apply st_normalize_fsim. cbn. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0)) (fun _ wa wb _ => penv_ms wa wb)
+      (fun wa wb => penv_inv wa wb); try easy.
+    - intros. cbn in *. eprod_crush. subst. eauto.
+    - intros. inv H. constructor.
+      + intros. cbn in *. eprod_crush. subst. inv H1. inv H0.
+        eexists tt, _. split. constructor.
+        eexists _, (_, _, _). split; eauto.
+        split. repeat constructor.
+        constructor. constructor; eauto.
+      + intros. cbn in *. eprod_crush. inv H. inv H0. inv H0. inv H7.
+        eexists (_, _). split. constructor.
+        eexists (_, _, _). split. repeat constructor.
+        split. split. constructor. eauto.
+        split; eauto. constructor.
+      + intros. cbn in *. eprod_crush. inv H0. inv H. inv H7.
+        eexists (_, _). split. constructor.
+        eexists _. split; eauto.
+        split. constructor; eauto.
+        intros. eprod_crush. inv H1. inv H0.
+        eexists tt, _. split. constructor.
+        eexists _, (_, _, _). split; eauto.
+        split. repeat constructor.
+        constructor. constructor. eauto.
+      + easy.
+  Qed.
 
   Lemma eclightp_out: E.forward_simulation cc_out' cc_out' (eclightp p) (eclightp p).
   Proof.
     unfold eclightp.
     eapply encap_fsim_lcomp_sk; eauto.
     instantiate (1 := cc_out_penv').
-    - admit.
+    - apply encap_prim_out.
     - apply encap_fsim_embed.
       apply clightp_out.
   Admitted.
