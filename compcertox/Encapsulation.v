@@ -122,6 +122,7 @@ Arguments w_pset {_} _.
 Inductive int_step' `{World T} : T -> T -> Prop :=
 | int_step_intro s1 s2 t1 t2:
   w_int_step s1 s2 -> s1 = get t1 -> t2 = set t1 s2 ->
+  w_acc t1 t2 ->
   int_step' t1 t2.
 
 Inductive ext_step' `{World T} : T -> T -> Prop :=
@@ -131,24 +132,21 @@ Inductive ext_step' `{World T} : T -> T -> Prop :=
   ext_step' t1 t2.
 
 Program Definition int_step `{World T}: ReflTranRel T :=
-  {|
-    rel := int_step';
-  |}.
+  {| rel := int_step'; |}.
 Next Obligation.
   intros x. econstructor; eauto. reflexivity.
-  symmetry. apply set_get.
+  symmetry. apply set_get. reflexivity.
 Qed.
 Next Obligation.
   intros x y z A B. inv A. inv B.
   replace (get (set x s2)) with s2 in H1 by now rewrite get_set.
   replace (set (set x s2) s0) with (set x s0) by now rewrite set_set.
   econstructor. 2-3: eauto. etransitivity; eauto.
+  rewrite set_set in H5. etransitivity; eauto.
 Qed.
 
 Program Definition ext_step `{World T}: ReflTranRel T :=
-  {|
-    rel := ext_step';
-  |}.
+  {| rel := ext_step'; |}.
 Next Obligation.
   intros x. econstructor; eauto. reflexivity. reflexivity.
 Qed.
@@ -203,18 +201,16 @@ Section PROD.
   Proof.
     split.
     - intros H. inv H. cbn in *. eprod_crush. split.
-      econstructor. apply H. all: eauto.
       econstructor. apply H0. all: eauto.
+      econstructor. apply H2. all: eauto.
     - intros [X Y]. inv X. inv Y. cbn in *. econstructor.
       2-3: cbn; eauto.
       instantiate (1 := (_, _)). split; eauto.
-      reflexivity.
+      reflexivity. split; eauto.
   Qed.
 
 End PROD.
-
 Arguments world_prod {_} _ {_} _.
-
 
 Section SYMTBL.
 
@@ -251,6 +247,7 @@ Section SYMTBL.
       econstructor; eauto.
     - intros [X Y]. inv X. inv Y. cbn in *. econstructor.
       2-3: cbn; eauto. eauto.
+      split; eauto.
   Qed.
 
 End SYMTBL.
@@ -291,12 +288,9 @@ Definition comp_esem `(L1: liB +-> liC) `(L2: liA +-> liB) : option (liA +-> liC
   end.
 
 (** *** Construction *)
-(* TODO: primitive *)
 
 Definition semantics_embed `(L: semantics liA liB) : liA +-> liB :=
-  {|
-    pstate := unit; esem := semantics_map L lf (li_iso_inv _);
-  |}.
+  {| pstate := unit; esem := semantics_map L lf (li_iso_inv _); |}.
 
 (** ------------------------------------------------------------------------- *)
 (** ** Stateful Simulation Convention and Simulation *)
@@ -314,8 +308,6 @@ Module ST.
     }.
   Arguments callconv: clear implicits.
   Existing Instance ccworld_world | 3.
-
-  Set Printing All.
 
   Definition ccstate `(cc: callconv li1 li2) := w_state (ccworld_world cc).
   Definition ccstate_init `(cc: callconv li1 li2) := pset_init (ccstate cc).
@@ -370,7 +362,7 @@ Module ST.
         fsim_match_final_states:
           forall wA wB i s1 s2 r1, match_states wA wB i s1 s2 -> final_state L1 s1 r1 ->
           exists r2, final_state L2 s2 r2 /\
-          exists wB', wB *-> wB' /\ match_reply ccB wB' r1 r2 /\ winv (w_get wA) (w_get wB');
+          exists wB', wB *-> wB' /\ match_reply ccB wB' r1 r2 /\ winv (get wA) (get wB');
         fsim_match_external:
           forall wA wB i s1 s2 q1, match_states wA wB i s1 s2 -> at_external L1 s1 q1 ->
           exists q2, at_external L2 s2 q2 /\ exists wA', wA :-> wA' /\ match_query ccA wA' q1 q2 /\
@@ -476,19 +468,26 @@ Module ST.
         fsim_order: fsim_index -> fsim_index -> Prop;
         fsim_match_states: _;
         fsim_invariant: ccstate ccA -> ccstate ccB -> Prop;
+        (* ad-hoc condition for symbol tables *)
+        fsim_world_consistency: ccworld ccA -> ccworld ccB -> Prop;
 
         fsim_invariant_env_step:
-          forall wA wB, fsim_invariant (w_get wA) (w_get wB) -> forall wB', wB :-> wB' -> fsim_invariant (w_get wA) (w_get wB');
+          forall wA wB, fsim_invariant (get wA) (get wB) -> forall wB', wB :-> wB' -> fsim_invariant (get wA) (get wB');
         fsim_skel: skel L1 = skel L2;
         fsim_initial_world: fsim_invariant (ccstate_init ccA) (ccstate_init ccB);
         fsim_footprint: forall i, footprint L1 i <-> footprint L2 i;
-        fsim_lts wA wB se1 se2:
+        fsim_lts
+          wA wB se1 se2:
           Genv.valid_for (skel L1) se1 ->
-          fsim_invariant (w_get wA) (w_get wB) ->
+          fsim_invariant (get wA) (get wB) ->
+          fsim_world_consistency wA wB ->
           fsim_properties ccA ccB se1 se2 wA wB fsim_invariant (activate L1 se1) (activate L2 se2)
-                          fsim_index fsim_order (fsim_match_states se1 se2);
+                          fsim_index fsim_order (fsim_match_states se1 se2 wB);
         fsim_order_wf:
           well_founded fsim_order;
+        fsim_world_consistency_acc:
+          forall wA wB, fsim_world_consistency wA wB ->
+          forall wA' wB', w_acc wA wA' -> w_acc wB wB' -> fsim_world_consistency wA' wB';
       }.
   Arguments Forward_simulation {_ _ ccA _ _ ccB L1 L2 fsim_index}.
 
@@ -535,9 +534,9 @@ Proof.
   intros * [H]. destruct H. constructor.
   eapply ST.Forward_simulation
     with fsim_order
-         (fun se1 se2 wa wb i s1 s2 => fsim_match_states se1 se2 wb i s1 s2 /\ match_senv ccB wb se1 se2)
-         (fun _ _ => True); try easy.
-  cbn -[ext_step]. intros wa wb se1 se2 Hsk [].
+         (fun se1 se2 _ wa wb i s1 s2 => fsim_match_states se1 se2 wb i s1 s2 /\ match_senv ccB wb se1 se2)
+         (fun _ _ => True) (fun _ _ => True); try easy.
+  cbn -[ext_step]. intros wa wb se1 se2 Hsk [] [].
   constructor.
   - intros * Hw Hq Hs Hse. specialize (fsim_lts _ _ _ Hse Hsk).
     edestruct (fsim_match_initial_states fsim_lts) as (ix & sx & A & B); eauto.
@@ -550,7 +549,9 @@ Proof.
   - intros * [Hs Hse] Hq. specialize (fsim_lts _ _ _ Hse Hsk).
     edestruct (fsim_match_external fsim_lts) as (wx & qx & A & B & C & D); eauto.
     exists qx. split; eauto.
-    exists wx. repeat split;  eauto. econstructor; eauto. econstructor.
+    exists wx. repeat split;  eauto.
+    (* the arbitrarily chosen [wx] also works in the stateful simulation *)
+    repeat econstructor; eauto.
     intros * Hw Hr Hrs.
     assert (wx = wA''). { inv Hw. reflexivity. } subst wA''.
     edestruct D as (iy & sy & E & F);  eauto.
@@ -579,22 +580,29 @@ Section LIFT.
     constructor.
     eapply ST.Forward_simulation with
       (ST.fsim_order X)
-      (fun se1 se2 '(wa, (k1a, k2a)) '(wb, (k1b, k2b)) i '(s1, k1) '(s2, k2) =>
-         ST.fsim_match_states X se1 se2 wa wb i s1 s2 /\
+      (fun se1 se2 '(wb0, _) '(wa, (k1a, k2a)) '(wb, (k1b, k2b)) i '(s1, k1) '(s2, k2) =>
+         ST.fsim_match_states X se1 se2 wb0 wa wb i s1 s2 /\
            k1a = k1 /\ k1b = k1 /\ k2a = k2 /\ k2b = k2)
-      (fun '(wa, (k1a, k2a)) '(wb, (k1b, k2b)) => ST.fsim_invariant X wa wb /\ k1a = k1b /\ k2a = k2b).
-    - intros [wa [k1a k2a]] [wb [k1b k2b]]. cbn. intros (INV & -> & ->) [wb' [k1b' k2b']] W.
-      inv W.  inv H1. inv H3. cbn in *. subst.
-      repeat split; eauto.
-      eapply ST.fsim_invariant_env_step; eauto. econstructor; eauto.
+      (fun '(wa, (k1a, k2a)) '(wb, (k1b, k2b)) => ST.fsim_invariant X wa wb /\ k1a = k1b /\ k2a = k2b)
+      (fun '(wa, _) '(wb, _) => ST.fsim_world_consistency X wa wb).
+    - intros [wa [k1a k2a]] [wb [k1b k2b]]. cbn - [ext_step].
+      intros (INV & -> & ->) [wb' [k1b' k2b']] W.
+      apply ext_step_prod in W as (A & B).
+      apply ext_step_prod in B as (B & C).
+      split. eapply ST.fsim_invariant_env_step; eauto.
+      split. inv B. eauto. inv C. eauto.
     - apply X.
-    - cbn. repeat split; eauto. apply X.
+    - intros. cbn in *. eprod_crush.  repeat split.
+      apply X.
+      all: unfold pset_prod in H1, H2.
+      all: unfold ST.ccstate_init, ST.ccstate; congruence.
     - intros i. cbn. apply X.
-    - intros [wa [k1a k2a]] [wb [k1b k2b]] se1 se2 Hse (I & HK1 & HK2).
-      cbn in HK1, HK2. subst. econstructor; cbn -[ext_step int_step].
+    - intros [wa [k1a k2a]] [wb [k1b k2b]] se1 se2 Hse (I & HK1 & HK2) MSE.
+      subst. econstructor; cbn -[ext_step int_step].
       + intros. eprod_crush. subst.
-        inv H1. cbn in H5. destruct H5 as (HW & -> & ->).
-        assert (wb :-> c). { econstructor; eauto. }
+        apply ext_step_prod in H1 as (WA & WB).
+        apply ext_step_prod in WB as (WB & WC).
+        inv WB. cbn in H1. subst. inv WC. cbn in H1, HK1, HK2. subst.
         pose proof (ST.fsim_lts X) as HX.
         edestruct @ST.fsim_match_initial_states as (idx & s' & Hs' & Hs); eauto.
         destruct Hs as (wa' & wb'' & W1 & W2 & HS).
@@ -638,6 +646,8 @@ Section LIFT.
              repeat split; eauto.
              now apply ext_step_prod. now apply int_step_prod.
     - apply X.
+    - intros. cbn in *. eprod_crush.
+      eapply ST.fsim_world_consistency_acc;  eauto.
   Qed.
 
 End LIFT.
@@ -670,8 +680,8 @@ Section FSIM.
           (L1t: semantics liB2 liC2) (L2t: semantics liA2 liB2).
   Context (HL1: ST.fsim_components ccB ccC L1s L1t)
           (HL2: ST.fsim_components ccA ccB L2s L2t)
-          (wA : ST.ccworld ccA) (wC: ST.ccworld ccC)
-          (se1: Genv.symtbl) (se2: Genv.symtbl).
+          (se1: Genv.symtbl) (se2: Genv.symtbl)
+          (wa0: ST.ccworld ccA) (wc0: ST.ccworld ccC).
 
   Variant index := | index1: ST.fsim_index HL1 -> index
                    | index2: ST.fsim_index HL1 -> ST.fsim_index HL2 -> index.
@@ -682,66 +692,86 @@ Section FSIM.
     | order2 i1 i2 i2': ST.fsim_order HL2 i2 i2' ->
                         order (index2 i1 i2) (index2 i1 i2').
 
-  Inductive match_states: ST.ccworld ccA -> ST.ccworld ccC -> index ->
+  Inductive match_states : ST.ccworld ccA -> ST.ccworld ccC -> index ->
                           comp_state L1s L2s -> comp_state L1t L2t -> Prop :=
-  | match_st1 wa wb wc i1 s1 s1':
-    ST.fsim_match_states HL1 se1 se2 wb wc i1 s1 s1' ->
-    ST.fsim_invariant HL2 (w_get wa) (w_get wb) ->
-    match_states wa wc (index1 i1) (st1 L1s L2s s1) (st1 L1t L2t s1')
-  | match_st2 wa wb wc i1 i2 s1 t1 s2 t2 :
-    ST.fsim_match_states HL2 se1 se2 wa wb i2 s2 t2 ->
-    (forall r1 r2 (s1' : state L1s) wb',
+  | match_st1 wa wb wc i1 s1 s1'
+    (MST: ST.fsim_match_states HL1 se1 se2 wc0 wb wc i1 s1 s1')
+    (MINV: ST.fsim_invariant HL2 (get wa) (get wb))
+    (MC: ST.fsim_world_consistency HL2 wa wb):
+    match_states  wa wc (index1 i1) (st1 L1s L2s s1) (st1 L1t L2t s1')
+  | match_st2 wa wb wc i1 i2 s1 t1 s2 t2 wa_ wb0
+    (MST: ST.fsim_match_states HL2 se1 se2 wb0 wa wb i2 s2 t2)
+    (MINV: ST.fsim_invariant HL2  (get wa_)  (get wb0))
+    (MC1: ST.fsim_world_consistency HL2 wa wb)
+    (MC2: ST.fsim_world_consistency HL2 wa_ wb0)
+    (MR: forall r1 r2 (s1' : state L1s) wb',
         wb *-> wb' ->
         ST.match_reply ccB wb' r1 r2 ->
         after_external (L1s se1) s1 r1 s1' ->
         exists (i' : ST.fsim_index HL1) (t1' : state L1t),
           after_external (L1t se2) t1 r2 t1' /\
             exists wb'' wc', wb' :-> wb'' /\ wc *-> wc' /\
-            ST.fsim_match_states HL1 se1 se2 wb'' wc' i' s1' t1') ->
+            ST.fsim_match_states HL1 se1 se2 wc0 wb'' wc' i' s1' t1'):
     match_states wa wc (index2 i1 i2) (st2 L1s L2s s1 s2) (st2 L1t L2t t1 t2).
 
   Definition inv : ST.ccstate ccA -> ST.ccstate ccC -> Prop :=
-    fun wa wc => exists wb, ST.fsim_invariant HL1 (w_get wb) wc /\ ST.fsim_invariant HL2 wa (w_get wb).
+    fun sa sc => exists sb, ST.fsim_invariant HL1 sb sc /\ ST.fsim_invariant HL2 sa sb.
+
+  Definition consistency : ST.ccworld ccA -> ST.ccworld ccC -> Prop :=
+    fun wa wc => exists wb, forall sb, ST.fsim_world_consistency HL1 (set wb sb) wc /\
+                            ST.fsim_world_consistency HL2 wa (set wb sb).
 
   Lemma st_fsim_lcomp' sk sk':
-    inv (w_get wA) (w_get wC) ->
-    Genv.valid_for (skel L1s) se1 ->
-    Genv.valid_for (skel L2s) se1 ->
-    ST.fsim_properties ccA ccC se1 se2 wA wC inv
+    inv (get wa0) (get wc0) -> consistency wa0 wc0 ->
+    Genv.valid_for (skel L1s) se1 -> Genv.valid_for (skel L2s) se1 ->
+    ST.fsim_properties ccA ccC se1 se2 wa0 wc0 inv
                        (comp_semantics' L1s L2s sk se1)
                        (comp_semantics' L1t L2t sk' se2)
                        index order match_states.
   Proof.
-    intros (wB & INV1 & INV2) HSK1 HSK2. split; cbn -[ext_step int_step].
-    - intros q1 q2 s1 wC' WC Hq H Hse. inv H.
+    intros (sb0 & INV1' & INV2') (wbx & HWB) HSK1 HSK2.
+    specialize (HWB sb0) as (C1 & C2).
+    match type of C1 with
+    | ST.fsim_world_consistency _ ?x _ => remember x as wb0  in *
+    end.
+    assert (INV1 : ST.fsim_invariant HL1 (get wb0) (get wc0)).
+    { subst wb0. now rewrite get_set. }
+    assert (INV2 : ST.fsim_invariant HL2 (get wa0) (get wb0)).
+    { subst wb0. now rewrite get_set. }
+    clear INV1' INV2' sb0 Heqwb0. split; cbn -[ext_step int_step].
+    - intros q1 q2 s1 wc WC Hq H Hse. inv H.
       pose proof (ST.fsim_lts HL1).
       edestruct @ST.fsim_match_initial_states as (idx & s' & Hs' & Hs); eauto.
-      destruct Hs as (wB' & wC'' & W1 & W2 & HS).
+      destruct Hs as (wb & wc' & W1 & W2 & HS).
       exists (index1 idx), (st1 L1t L2t s').
       split. econstructor; eauto.
-      exists wA, wC''. repeat split; eauto. reflexivity.
+      exists wa0, wc'. repeat split; eauto. reflexivity.
       econstructor. apply HS. eapply ST.fsim_invariant_env_step; eauto.
+      eapply  ST.fsim_world_consistency_acc; eauto. reflexivity. inv W1. eauto.
     - intros wa wb i s1 s2 r1 Hs Hf. inv Hf. inv Hs.
-      rename wb into wc. rename wb0 into wb.
+      rename wb into wc. rename wb1 into wb.
       pose proof (ST.fsim_lts HL1).
       edestruct @ST.fsim_match_final_states as (r' & H' & Hr'); eauto.
       destruct Hr' as (wc' & W & Hr' & INV).
       exists r'. split. econstructor; eauto.
       exists wc'. repeat split; eauto.
-      exists wb. split; eauto.
+      exists (get wb). split; eauto.
     - intros wa wc i s1 s2 q1 Hs H. inv H. inv Hs.
       pose proof (ST.fsim_lts HL2).
       edestruct @ST.fsim_match_external as (q' & H' & wa' & WA & Hq' & HSE & HH); eauto.
       exists q'. split. econstructor; eauto.
       exists wa'. repeat split; eauto.
       intros r1 r2 xs1 wa'' WA' Hr HH'. inv HH'.
-      specialize (HH _ _ _ _ WA' Hr H6) as (i2' & xs2 & Haft & Hss).
+      specialize (HH _ _ _ _ WA' Hr H5) as (i2' & xs2 & Haft & Hss).
       destruct Hss as (wa''' & wb' & WA'' & WB & HS).
       eexists (index2 i1 i2'), (st2 L1t L2t _ _).
       split. econstructor; eauto.
       exists wa''', wc. repeat split; eauto. reflexivity.
-      econstructor. exact HS.
-      intros ? ? ? wbx WBX. apply H7. etransitivity; eauto.
+      econstructor; eauto.
+      eapply ST.fsim_world_consistency_acc. apply MC1.
+      inv WA. inv WA'. inv WA''. etransitivity; eauto. etransitivity; eauto.
+      inv WB. eauto.
+      intros ? ? ? wb'' WB''. apply MR. etransitivity; eauto.
     - intros s1 t s2 Hstep wa wc idx t1 Hs.
       inv Hstep; inv Hs.
       + pose proof (ST.fsim_lts HL1).
@@ -750,9 +780,10 @@ Section FSIM.
         exists (index1 idx'), (st1 L1t L2t s2'). split.
         * destruct Hs2'; [ left | right ].
           apply plus_internal1. auto.
-          split. apply star_internal1. apply H2. constructor; apply H2.
+          split. apply star_internal1. apply H1. constructor; apply H1.
         * exists wa, wc'. repeat split; eauto. reflexivity.
           econstructor; eauto. eapply @ST.fsim_invariant_env_step; eauto.
+          eapply ST.fsim_world_consistency_acc; eauto. reflexivity. inv WB. eauto.
       + pose proof (ST.fsim_lts HL2).
         edestruct @ST.fsim_simulation as (idx' & xs2' & Hs2' & Hs'); eauto.
         destruct Hs' as (wa' & wb' & WA & WB & HS).
@@ -763,7 +794,9 @@ Section FSIM.
              constructor. apply H1.
         * exists wa', wc. repeat split; eauto. reflexivity.
           econstructor; eauto.
-          intros r1 r2 sr wb'' WB'. apply H7. etransitivity; eauto.
+          eapply ST.fsim_world_consistency_acc. apply MC1.
+          inv WA. eauto. inv WB. eauto.
+          intros r1 r2 sr wb'' WB'. apply MR. etransitivity; eauto.
       + pose proof (ST.fsim_lts HL1) as X.
         edestruct @ST.fsim_match_external as (q' & H' & wb' & WB & Hq' & Hse & HH); eauto.
         clear X.
@@ -774,19 +807,23 @@ Section FSIM.
         * left. apply plus_one. eapply step_push; eauto.
         * exists wa', wc. repeat split; eauto. reflexivity.
           econstructor; eauto.
+          eapply ST.fsim_world_consistency_acc; eauto.
+          inv WA. eauto. inv WB. inv WB'. etransitivity; eauto.
           intros r1 r2 sr wb''' WB'' HR Haft.
           specialize (HH r1 r2 sr wb'''). apply HH. etransitivity; eauto.
           exact HR. exact Haft.
       + pose proof (ST.fsim_lts HL2).
         edestruct @ST.fsim_match_final_states as (r' & H' & Hr'); eauto.
         edestruct Hr' as (wb' & WB & Hr & INV).
-        edestruct H8 as (idx & t1 & HH & HX); eauto.
+        edestruct MR as (idx & t1 & HH & HX); eauto.
         destruct HX as (wb'' & wc' & WB' & WC & HS).
         exists (index1 idx), (st1 L1t L2t t1). split.
         * left. apply plus_one. eapply step_pop; eauto.
         * exists wa, wc'. repeat split; eauto. reflexivity.
           econstructor. exact HS.
           eapply ST.fsim_invariant_env_step; eauto.
+          eapply ST.fsim_world_consistency_acc. apply MC1.
+          reflexivity. inv WB. inv WB'. etransitivity; eauto.
   Qed.
 
 End FSIM.
@@ -813,15 +850,17 @@ Section COMP.
     eapply ST.Forward_simulation
       with (@order _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb)
            (@match_states _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb)
-           (@inv _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb).
+           (@inv _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb)
+           (@consistency _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb).
     - intros wa wc (wb & I1 & I2) wc' WC.
-      exists wb; split; eauto. eapply ST.fsim_invariant_env_step; eauto.
+      exists wb; split; eauto.
+      admit.
+      (* eapply ST.fsim_invariant_env_step; eauto. *)
     - destruct Ha. destruct Hb. cbn. congruence.
-    - unfold inv. admit.
-      (* split. apply Ha. apply Hb. *)
+    - unfold inv. exists (ST.ccstate_init ccB). split. apply Ha. apply Hb.
     - cbn. intros i. destruct Ha, Hb.
       rewrite fsim_footprint, fsim_footprint0. reflexivity.
-    - intros wa wc se1 se2 Hse INV.
+    - intros wa wc se1 se2 Hse INV HC.
       apply Linking.link_linkorder in Hsk1.
       apply Linking.link_linkorder in Hsk2.
       eapply st_fsim_lcomp'; eauto.
@@ -832,6 +871,10 @@ Section COMP.
         intros. inv H1. apply H0. auto.
       + induction (ST.fsim_order_wf Hb f0). constructor.
         intros. inv H1. apply H0. auto.
+    - intros. destruct H as (x & H). exists x. intros sb.
+      specialize (H sb) as (HA & HB). split.
+      eapply ST.fsim_world_consistency_acc; eauto. reflexivity.
+      eapply ST.fsim_world_consistency_acc; eauto. reflexivity.
   Admitted.
 
   (* TODO: clean up the copy-paste *)
@@ -840,29 +883,29 @@ Section COMP.
     Linking.linkorder (skel L2s) sk ->
     ST.forward_simulation ccA ccC (comp_semantics' L1s L2s sk) (comp_semantics' L1t L2t sk).
   Proof.
-    intros H1 H2.
-    destruct HL1 as [Ha]. destruct HL2 as [Hb].
-    constructor.
-    eapply ST.Forward_simulation
-      with (@order _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb)
-           (@match_states _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb)
-           (@inv _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb).
-    - intros wa wc (wb & I1 & I2) wc' WC.
-      exists wb; split; eauto. eapply ST.fsim_invariant_env_step; eauto.
-    - destruct Ha. destruct Hb. cbn. congruence.
-    - admit.
-      (* split. apply Ha. apply Hb. *)
-    - cbn. intros i. destruct Ha, Hb.
-      rewrite fsim_footprint, fsim_footprint0. reflexivity.
-    - intros wa wc se1 se2 Hse INV.
-      eapply st_fsim_lcomp'; eauto.
-      eapply Genv.valid_for_linkorder; eauto.
-      eapply Genv.valid_for_linkorder; eauto.
-    - clear - Ha Hb. intros [|].
-      + induction (ST.fsim_order_wf Ha f). constructor.
-        intros. inv H1. apply H0. auto.
-      + induction (ST.fsim_order_wf Hb f0). constructor.
-        intros. inv H1. apply H0. auto.
+    (* intros H1 H2. *)
+    (* destruct HL1 as [Ha]. destruct HL2 as [Hb]. *)
+    (* constructor. *)
+    (* eapply ST.Forward_simulation *)
+    (*   with (@order _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb) *)
+    (*        (@match_states _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb) *)
+    (*        (@inv _ _ ccA _ _ ccB _ _ ccC L1s L2s L1t L2t Ha Hb). *)
+    (* - intros wa wc (wb & I1 & I2) wc' WC. *)
+    (*   exists wb; split; eauto. eapply ST.fsim_invariant_env_step; eauto. *)
+    (* - destruct Ha. destruct Hb. cbn. congruence. *)
+    (* - admit. *)
+    (*   (* split. apply Ha. apply Hb. *) *)
+    (* - cbn. intros i. destruct Ha, Hb. *)
+    (*   rewrite fsim_footprint, fsim_footprint0. reflexivity. *)
+    (* - intros wa wc se1 se2 Hse INV. *)
+    (*   eapply st_fsim_lcomp'; eauto. *)
+    (*   eapply Genv.valid_for_linkorder; eauto. *)
+    (*   eapply Genv.valid_for_linkorder; eauto. *)
+    (* - clear - Ha Hb. intros [|]. *)
+    (*   + induction (ST.fsim_order_wf Ha f). constructor. *)
+    (*     intros. inv H1. apply H0. auto. *)
+    (*   + induction (ST.fsim_order_wf Hb f0). constructor. *)
+    (*     intros. inv H1. apply H0. auto. *)
   Admitted.
 End COMP.
 
@@ -891,26 +934,32 @@ Section COMP_FSIM.
           (H2: ST.fsim_components ccA2 ccB2 Ln Lf).
 
   Inductive compose_fsim_match_states se1 se3:
+    ST.ccworld (ST.cc_compose ccB1 ccB2) ->
     ST.ccworld (ST.cc_compose ccA1 ccA2) ->
     ST.ccworld (ST.cc_compose ccB1 ccB2) ->
     (ST.fsim_index H2 * ST.fsim_index H1) ->
     state Ls -> state Lf -> Prop :=
-  | compose_match_states_intro se2 s1 s2 s3 i1 i2 wa1 wa2 wb1 wb2:
-    ST.fsim_match_states H1 se1 se2 wa1 wb1 i1 s1 s2 ->
-    ST.fsim_match_states H2 se2 se3 wa2 wb2 i2 s2 s3 ->
-    compose_fsim_match_states se1 se3 (se2, (wa1, wa2)) (se2, (wb1, wb2)) (i2, i1) s1 s3.
+  | compose_match_states_intro se2 s1 s2 s3 i1 i2 wa1 wa2 wb1 wb2 wb10 wb20
+    (HS1: ST.fsim_match_states H1 se1 se2 wb10 wa1 wb1 i1 s1 s2)
+    (HS2: ST.fsim_match_states H2 se2 se3 wb20 wa2 wb2 i2 s2 s3):
+    compose_fsim_match_states se1 se3 (se2, (wb10, wb20)) (se2, (wa1, wa2)) (se2, (wb1, wb2)) (i2, i1) s1 s3.
 
   Inductive compose_fsim_inv:
-    ST.ccstate (ST.cc_compose ccA1 ccA2) ->
-    ST.ccstate (ST.cc_compose ccB1 ccB2) -> Prop :=
-  | compose_fsim_inv_intro wa1 wa2 wb1 wb2:
-    ST.fsim_invariant H1 wa1 wb1 -> ST.fsim_invariant H2 wa2 wb2 ->
+    ST.ccstate (ST.cc_compose ccA1 ccA2) -> ST.ccstate (ST.cc_compose ccB1 ccB2) -> Prop :=
+  | compose_fsim_inv_intro wa1 wa2 wb1 wb2
+      (INV1: ST.fsim_invariant H1 wa1 wb1)
+      (INV2: ST.fsim_invariant H2 wa2 wb2):
     compose_fsim_inv (wa1, wa2) (wb1, wb2).
 
+  Inductive compose_fsim_consistency:
+    ST.ccworld (ST.cc_compose ccA1 ccA2) -> ST.ccworld (ST.cc_compose ccB1 ccB2) -> Prop :=
+  | compose_fsim_consistency_intro se wa1 wa2 wb1 wb2
+      (C1: ST.fsim_world_consistency H1 wa1 wb1)
+      (C2: ST.fsim_world_consistency H2 wa2 wb2):
+    compose_fsim_consistency (se, (wa1, wa2)) (se, (wb1, wb2)).
+
   Lemma st_fsim_vcomp':
-    ST.fsim_components (ST.cc_compose ccA1 ccA2)
-                       (ST.cc_compose ccB1 ccB2)
-                       Ls Lf.
+    ST.fsim_components (ST.cc_compose ccA1 ccA2) (ST.cc_compose ccB1 ccB2) Ls Lf.
   Proof.
     (* destruct H1 as [ index1 order1 match_states1 inv1 A1 B1 C1 D1 E1 F1 ]. *)
     (* destruct H2 as [ index2 order2 match_states2 inv2 A2 B2 C2 D2 E2 F2 ]. *)
@@ -932,53 +981,67 @@ Section COMP_FSIM.
     (*   with ff_index in ff_match_states. *)
     (* 2: { subst ff_index. rewrite X1. rewrite X2. reflexivity. } *)
     (* clear X1 X2. *)
-    apply ST.Forward_simulation with ff_order compose_fsim_match_states compose_fsim_inv.
+    apply ST.Forward_simulation with ff_order compose_fsim_match_states
+                                     compose_fsim_inv compose_fsim_consistency.
     - intros [se2a [wa1 wa2]] [se2b [wb1 wb2]] I [se2c [wb1' wb2']] X.
-      cbn in *. inv X. cbn in H. destruct H as [X Y].
-      (* this is tricky *)
-      inversion I as  [I1 I2]. econstructor.
-      eapply (ST.fsim_invariant_env_step H1); eauto. econstructor; eauto.
-      eapply (ST.fsim_invariant_env_step H2); eauto. econstructor; eauto.
+      apply ext_step_symtbl in X as  (A & B). subst.
+      apply ext_step_prod in B as (A & B).
+      cbn in I. inversion I as  [I1 I2]. econstructor.
+      eapply (ST.fsim_invariant_env_step H1); eauto.
+      eapply (ST.fsim_invariant_env_step H2); eauto.
     - rewrite (ST.fsim_skel H1); apply (ST.fsim_skel H2).
-    - econstructor. apply (ST.fsim_initial_world H1).
-      apply (ST.fsim_initial_world).
+    - cbn in *. econstructor.
+      apply ST.fsim_initial_world. apply ST.fsim_initial_world.
     - intros i. rewrite (ST.fsim_footprint H1). apply (ST.fsim_footprint H2).
-    - intros [se2a [wa1 wa2]] [se2b [wb1 wb2]] se1 se3 Hse I.
-      cbn in I. inv I.
-      pose proof (@ST.fsim_lts _ _ _ _ _ _ _ _ H1 wa1 wb1 se1 se2b Hse H4) as X1.
-      assert (HSE: Genv.valid_for (skel Ln) se2b). admit.
-      pose proof (@ST.fsim_lts _ _ _ _ _ _ _ _ H2 wa2 wb2 se2b se3 HSE H6) as X2.
+    - intros [se2a [wa1 wa2]] [se2b [wb1 wb2]] se1 se3 Hse1 I C.
+      cbn in I. inv I. inv C.
+      pose proof (@ST.fsim_lts _ _ _ _ _ _ _ _ H1 wa1 wb1 se1 se2b Hse1 INV1 C1) as X1.
+      assert (Hse2: Genv.valid_for (skel Ln) se2b). admit.
+      pose proof (@ST.fsim_lts _ _ _ _ _ _ _ _ H2 wa2 wb2 se2b se3 Hse2 INV2 C2) as X2.
+      clear Hse1 Hse2.
       constructor.
-      + intros q1 q3 s1 (se2b' & wb1' & wb2') WB (q2 & Hq12 & Hq23) Hi Hse1.
+      + intros q1 q3 s1 (se2b' & wb1' & wb2') WB (q2 & Hq12 & Hq23) Hi Hse.
+        apply ext_step_symtbl in WB as (WSE & WB).
+        apply ext_step_prod in WB as (WB1 & WB2). subst.
+        destruct Hse as (Hse1 & Hse2).
         edestruct (@ST.fsim_match_initial_states liAs) as (i & s2 & A & B); eauto.
         edestruct (@ST.fsim_match_initial_states liAn) as (i' & s3 & C & D); eauto.
         destruct B as (wa1' & wb1'' & WA1 & WB1' & B).
         destruct D as (wa2' & wb2'' & WA2 & WB2' & D).
         eexists (i', i), s3. split; eauto.
-        eexists (wa1', wa2'), (wb1'', wb2''). repeat split; eauto.
+        eexists (_, (wa1', wa2')), (_, (wb1'', wb2'')). repeat split; eauto.
+        apply ext_step_symtbl. split; eauto. apply ext_step_prod. split; eauto.
+        apply int_step_symtbl. split; eauto. apply int_step_prod. split; eauto.
         econstructor; eauto.
-      + intros (wa1' & wa2') (wb1' & wb2') (i2, i1) s1 s3 r1 Hs H.
+      + intros (sea & wa1' & wa2') (seb & wb1' & wb2') (i2, i1) s1 s3 r1 Hs H.
         inv Hs.
         edestruct (@ST.fsim_match_final_states liAs) as (r2 & Hr2 & A); eauto.
         edestruct (@ST.fsim_match_final_states liAn) as (r3 & Hr3 & B); eauto.
         destruct A as (wb1'' & WB1' & R1 & I1).
         destruct B as (wb2'' & WB2' & R2 & I2).
         exists r3. repeat split; eauto.
-        exists (wb1'', wb2''). repeat split; eauto.
-        econstructor; eauto.
-      + intros (wa1' & wa2') (wb1' & wb2') (i2, i1) s1 s3 q1 Hs H.
+        eexists (_, (wb1'', wb2'')). repeat split; eauto.
+        * apply int_step_symtbl. split; eauto. apply int_step_prod; split; eauto.
+        * econstructor; eauto.
+      + intros (? & wa1' & wa2') (? & wb1' & wb2') (i2, i1) s1 s3 q1 Hs H.
         inv Hs.
-        edestruct (@ST.fsim_match_external liAs) as (q2 & Hq2 & wax & Hwx & Hq12 & Hk12); eauto.
-        edestruct (@ST.fsim_match_external liAn) as (q3 & Hq3 & way & Hwy & Hq23 & Hk23); eauto.
-        exists q3. repeat split; eauto. exists (wax, way). repeat split; eauto.
-        econstructor; eauto.
-        intros r1 r3 s1' (wai, waj) (Hwi & Hwj) (r2 & Hr12 & Hr23) HH.
-        edestruct Hk12 as (i2' & s2' & Hs2' & wam & wbm & Ham & Hbm & Hm); eauto.
-        edestruct Hk23 as (i1' & s3' & Hs3' & wan & wbn & Han & Hbn & Hn); eauto.
-        eexists (_, _), _. repeat split; eauto.
-        eexists (_, _), (_, _). repeat split; eauto.
-        econstructor; eauto.
-      + intros s1 t s1' Hstep (wai & waj) (wbi & wbj) (i2, i1) s3 Hs.
+        edestruct (@ST.fsim_match_external liAs) as (q2 & Hq2 & wax & Hwx & Hq12 & HSE12 & Hk12); eauto.
+        edestruct (@ST.fsim_match_external liAn) as (q3 & Hq3 & way & Hwy & Hq23 & HSE23 & Hk23); eauto.
+        exists q3. repeat split; eauto. eexists (s0, (wax, way)). repeat split; eauto.
+        * apply ext_step_symtbl. split; eauto.
+          apply ext_step_prod. split; eauto.
+        * econstructor; eauto.
+        * intros r1 r3 s1' (? & wai & waj) Hw (r2 & Hr12 & Hr23) HH.
+          apply int_step_symtbl in Hw. destruct Hw as (HSE1 & HW). subst.
+          apply int_step_prod in HW. destruct HW as (HW1 & HW2).
+          edestruct Hk12 as (i2' & s2' & Hs2' & wam & wbm & Ham & Hbm & Hm); eauto.
+          edestruct Hk23 as (i1' & s3' & Hs3' & wan & wbn & Han & Hbn & Hn); eauto.
+          eexists (_, _), _. repeat split; eauto.
+          eexists (_, (_, _)), (_, (_, _)). repeat split; eauto.
+          apply ext_step_symtbl. split; eauto. apply ext_step_prod. split; eauto.
+          apply int_step_symtbl. split; eauto. apply int_step_prod. split; eauto.
+          econstructor; eauto.
+      + intros s1 t s1' Hstep (? & wai & waj) (? & wbi & wbj) (i2, i1) s3 Hs.
         inv Hs.
         edestruct (@ST.fsim_simulation' liAs) as (i1' & waii & wbii & Hai & Hbi & Hx); eauto.
         destruct Hx as [[s2' [A B]] | [A [B C]]].
@@ -988,22 +1051,32 @@ Section COMP_FSIM.
           -- (* L3 makes one or several steps *)
             exists (i2', i1'); exists s3'; split.
             left; eauto.
-            eexists (_, _), (_, _). repeat split; eauto.
+            eexists (_, (_, _)), (_, (_, _)). repeat split; eauto.
+            apply ext_step_symtbl. split; eauto. apply ext_step_prod. split; eauto.
+            apply int_step_symtbl. split; eauto. apply int_step_prod. split; eauto.
             econstructor; eauto.
           -- (* L3 makes no step *)
             exists (i2', i1'); exists s3; split.
             right; split. subst t; apply star_refl. red. left. auto.
-            eexists (_, _), (_, _). repeat split; eauto.
+            eexists (_, (_, _)), (_, (_, _)). repeat split; eauto.
+            apply ext_step_symtbl. split; eauto. apply ext_step_prod. split; eauto.
+            apply int_step_symtbl. split; eauto. apply int_step_prod. split; eauto.
             econstructor; eauto.
         * (* L2 makes no step *)
           exists (i2, i1'); exists s3; split.
           right; split. subst t; apply star_refl. red. right. auto.
-            eexists (_, _), (_, _). repeat split; eauto. 1-2: reflexivity.
+            eexists (_, (_, _)), (_, (_, _)). repeat split; eauto.
+            apply ext_step_symtbl. split; eauto. apply ext_step_prod. split; eauto. reflexivity.
+            apply int_step_symtbl. split; eauto. apply int_step_prod. split; eauto. reflexivity.
             econstructor; eauto.
     - unfold ff_order.
       apply wf_lex_ord. apply Transitive_Closure.wf_clos_trans.
       eapply (ST.fsim_order_wf H2). eapply (ST.fsim_order_wf H1).
-  Qed.
+    - intros. cbn in *. eprod_crush.
+      inv H. econstructor.
+      eapply ST.fsim_world_consistency_acc; eauto.
+      eapply ST.fsim_world_consistency_acc; eauto.
+  Admitted.
 
 End COMP_FSIM.
 
