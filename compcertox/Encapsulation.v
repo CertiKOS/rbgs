@@ -977,14 +977,14 @@ Qed.
 Section ID_FSIM.
 
   Context `(cc: ST.callconv liA liB) (sk: AST.program unit unit).
-  Inductive sf_ms se1 se2: ST.ccworld cc ->  ST.ccworld cc ->
+  Inductive sf_ms se1 se2 w: ST.ccstate cc ->  ST.ccstate cc ->
                    @state liA _ (id_semantics sk) ->
                    @state liB _ (id_semantics sk) -> Prop :=
-  | sf_ms_q w q1 q2:
-    ST.match_senv cc w se1 se2 ->
-    ST.match_query cc w q1 q2 -> sf_ms se1 se2 w w (st_q q1) (st_q q2)
-  | sf_ms_r w r1 r2:
-    ST.match_reply cc w r1 r2 -> sf_ms se1 se2 w w (st_r r1) (st_r r2).
+  | sf_ms_q s q1 q2:
+    ST.match_senv cc (set w s) se1 se2 ->
+    ST.match_query cc (set w s) q1 q2 -> sf_ms se1 se2 w s s (st_q q1) (st_q q2)
+  | sf_ms_r s r1 r2:
+    ST.match_reply cc (set w s) r1 r2 -> sf_ms se1 se2 w s s (st_r r1) (st_r r2).
   Hint Constructors sf_ms.
 
   Lemma id_self_fsim :
@@ -993,13 +993,12 @@ Section ID_FSIM.
     constructor.
     eapply ST.Forward_simulation with
       (ltof _ (fun (_:unit) => 0))
-      (fun se1 se2 _ wa wb _ s1 s2 => sf_ms se1 se2 wa wb s1 s2)
-      (fun w1 w2 => w_ext_step w1 w2)
-      (fun w1 w2 => w_acc w1 w2 /\ forall w1' w2', w_acc w1 w1' -> w_acc w2 w2' -> w_acc w1' w2' );
+      (fun se1 se2 w sa sb _ => sf_ms se1 se2 w sa sb)
+      (fun w1 w2 => w1 :-> w2);
       try reflexivity.
-    - intros. inv H0. etransitivity; eauto.
-    - intros wa wb se1 se2 Hse Hw [ACC1 ACC2]. constructor.
-      + intros q1 q2 s1 wb1 Hb Hq H. inv H. exists tt.
+    - intros. etransitivity; eauto.
+    - intros wa wb se1 se2 Hse Hw. constructor.
+      + intros q1 q2 s1 wb1 Hb Hq H HE. inv H. exists tt.
         eexists. split. constructor.
         exists wb1, wb1. repeat split; eauto; try easy.
         etransitivity; cbn; eauto.
@@ -1008,15 +1007,16 @@ Section ID_FSIM.
         exists wb1. repeat split; easy.
       + intros wa1 wb1 [] s1 s2 q1 Hs H. inv H. inv Hs.
         eexists. split. constructor.
-        exists wb1. split. reflexivity. split; eauto. split; eauto.
+        exists wb1, (set wb wb1).
+        split. reflexivity.
+        split. now rewrite get_set.
+        split; eauto. split; eauto.
         intros r1 r2 s1' wb2 Hb Hr H. inv H.
         eexists tt, _. split. constructor.
+        rewrite set_set in Hr.
         exists wb2, wb2. repeat split; eauto. reflexivity.
       + intros. easy.
     - apply well_founded_ltof.
-    - intros. destruct H. split.
-      + eapply H2; eauto.
-      + intros. apply H2; etransitivity; eauto.
   Qed.
 
 End ID_FSIM.
