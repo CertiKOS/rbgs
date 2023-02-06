@@ -17,22 +17,18 @@ Typeclasses eauto := 20.
 
 (** * State Encapsulation of CompCert LTS *)
 
+(** ------------------------------------------------------------------------- *)
 (** ** Preliminaries *)
 Class PSet (T: Type) : Type :=
-  pset_init : T.
+  pset_init : Genv.symtbl -> T.
 
 Arguments pset_init _ {_}.
 
 Instance pset_unit: PSet unit :=
-  { pset_init := tt }.
+  { pset_init _ := tt }.
 
 Instance pset_prod `{PSet A} `{PSet B} : PSet (A * B) | 8 :=
-  { pset_init := (pset_init A, pset_init B) }.
-(* Infix "*" := pset_prod. *)
-
-(* embed a regular type into a pointed set *)
-Instance pset_option (T: Type) : PSet (option T) :=
-  { pset_init := None }.
+  { pset_init se := (pset_init A se, pset_init B se) }.
 
 Record ReflTranRel (X: Type) :=
   {
@@ -432,7 +428,8 @@ Module ST.
         fsim_invariant_env_step:
           forall sa sb, fsim_invariant sa sb -> forall sb', sb :-> sb' -> fsim_invariant sa sb';
         fsim_skel: skel L1 = skel L2;
-        fsim_initial_world: fsim_invariant (ccstate_init ccA) (ccstate_init ccB);
+        fsim_initial_world:
+          forall se, fsim_invariant (ccstate_init ccA se) (ccstate_init ccB se);
         fsim_footprint: forall i, footprint L1 i <-> footprint L2 i;
         fsim_lts
           sa wb se1 se2:
@@ -784,7 +781,8 @@ Section COMP.
       exists wb; split; eauto.
       eapply ST.fsim_invariant_env_step; eauto.
     - destruct Ha. destruct Hb. cbn. congruence.
-    - unfold inv. exists (ST.ccstate_init ccB). split. apply Ha. apply Hb.
+    - intros se. unfold inv.
+      exists (ST.ccstate_init ccB se). split. apply Ha. apply Hb.
     - cbn. intros i. destruct Ha, Hb.
       rewrite fsim_footprint, fsim_footprint0. reflexivity.
     - intros wa wc se1 se2 Hse0 Hse INV.
@@ -816,7 +814,8 @@ Section COMP.
       exists wb; split; eauto.
       eapply ST.fsim_invariant_env_step; eauto.
     - destruct Ha. destruct Hb. cbn. congruence.
-    - unfold inv. exists (ST.ccstate_init ccB). split. apply Ha. apply Hb.
+    - intros se. unfold inv.
+      exists (ST.ccstate_init ccB se). split. apply Ha. apply Hb.
     - cbn. intros i. destruct Ha, Hb.
       rewrite fsim_footprint, fsim_footprint0. reflexivity.
     - intros wa wc se1 se2 Hse0 Hse INV.
