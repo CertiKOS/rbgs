@@ -7,6 +7,9 @@ From compcertox Require Import
      TensorComp Lifting
      ClightP Encapsulation.
 From compcert Require Import Join.
+Require Import Lia.
+
+Generalizable All Variables.
 
 (** ------------------------------------------------------------------------- *)
 (** simulation conventions *)
@@ -20,6 +23,8 @@ Instance mem_pset (vars: list (ident * Z)) : PSet mem :=
   { pset_init se := m0 vars se }.
 Instance penv_pset (vars: list (ident * Z)) : PSet ClightP.penv :=
   { pset_init _ := p0 vars }.
+Instance symtbl_pset : PSet Genv.symtbl :=
+  { pset_init se := se }.
 
 Instance mem_world (vars: list (ident * Z)): World mem :=
   {|
@@ -27,6 +32,14 @@ Instance mem_world (vars: list (ident * Z)): World mem :=
     w_pset := mem_pset vars;
     (* maybe we need unchanged_on *)
     w_int_step := {| rel := fun m1 m2 => True |};
+    w_ext_step := {| rel := eq |};
+  |}.
+
+Instance se_world : World Genv.symtbl :=
+  {|
+    w_state := Genv.symtbl;
+    w_pset := symtbl_pset;
+    w_int_step := {| rel := eq |};
     w_ext_step := {| rel := eq |};
   |}.
 
@@ -93,24 +106,24 @@ Inductive unp_in_reply: Memory.mem -> reply li_c -> reply li_c -> Prop :=
 
 Program Definition unp_in vars : ST.callconv li_c li_c :=
   {|
-    ST.ccworld := mem;
-    ST.ccworld_world := mem_world vars;
-    ST.match_senv _ se1 se2 := se1 = se2;
-    ST.match_query := unp_in_query;
-    ST.match_reply := unp_in_reply;
+    ST.ccworld := Genv.symtbl * mem;
+    ST.ccworld_world := world_prod se_world (mem_world vars);
+    ST.match_senv '(se, _) se1 se2 := se = se1 /\ se = se2;
+    ST.match_query '(_, m) := unp_in_query m;
+    ST.match_reply '(_, m) := unp_in_reply m;
   |}.
 Next Obligation. reflexivity. Qed.
 Next Obligation. inv H0. reflexivity. Qed.
 Next Obligation. inv H. reflexivity. Qed.
 
-Variable skel: AST.program unit unit.
-
-Definition encap_prim (U: Type) `{PSet U}: li_c@U +-> li_c :=
+Definition encap_prim (U: Type) `{PSet U} : li_c@U +-> li_c :=
   {|
     pstate := U;
-    esem := id_semantics skel;
+    esem := 1%lts;
   |}.
 
+(* TODO: *)
+Hypothesis id_skel_least: forall sk, Linking.linkorder CategoricalComp.id_skel sk.
 Variable vars_of_program : ClightP.program -> list (ident * Z).
 Hypothesis vars_init :
   forall p se, ClightP.penv_mem_match
@@ -121,7 +134,8 @@ Hypothesis vars_init :
 Definition eclightp (p: ClightP.program) :=
   comp_esem'
     (@encap_prim ClightP.penv (penv_pset (vars_of_program p)))
-    (semantics_embed (ClightP.clightp1 p)) (ClightP.clightp_erase_program p).
+    (semantics_embed (ClightP.clightp1 p))
+    (ClightP.clightp_erase_program p).
 
 
 (** ------------------------------------------------------------------------- *)
@@ -133,44 +147,90 @@ Section ESIM.
   Let T := semantics_embed (Clight.semantics1 tprog).
   Let vars := vars_of_program prog.
   Let ce := prog.(ClightP.prog_comp_env).
+  Let sk := ClightP.clightp_erase_program prog.
 
-  (* Program Definition unp_mid : ST.callconv (li_c@ClightP.penv) li_c := *)
-  (* {| *)
-  (*   ST.ccworld := Genv.symtbl * mem; *)
-  (*   ST.ccworld_world := @symtbl_world _ (mem_world vars); *)
-  (*   ST.match_senv '(se, _) se1 se2 := se = se1 /\ se = se2; *)
-  (*   ST.match_query '(se, m) := *)
-  (*     ClightP.pin_query (ClightP.penv_mem_match ce) (m, se); *)
-  (*   ST.match_reply '(se, _) r1 r2 := *)
-  (*     exists m, ClightP.pin_reply (ClightP.penv_mem_match ce) *)
-  (* |}. *)
+  Inductive encap_ms se : mem -> ClightP.penv -> @state (li_c@ClightP.penv) (li_c@ClightP.penv) 1 -> @state li_c li_c 1 -> Prop :=
+  | encap_ms_q m pe vf sg vargs msrc mtgt
+      (MJOIN: join m msrc mtgt)
+      (HPE: ClightP.penv_mem_match ce se pe m):
+    encap_ms se m pe (@st_q (li_c@ClightP.penv) ((cq vf sg vargs msrc), pe)) (st_q (cq vf sg vargs mtgt))
+  | encap_ms_r m pe rv msrc mtgt
+      (MJOIN: join m msrc mtgt)
+      (HPE: ClightP.penv_mem_match ce se pe m):
+    encap_ms se m pe (@st_r (li_c@ClightP.penv) ((cr rv msrc), pe)) (st_r (cr rv mtgt)).
+
+  Lemma penv_encap:
+    E.forward_simulation
+     (& (pin ce)) (unp_in vars)
+     (@encap_prim ClightP.penv (penv_pset vars))
+     (semantics_embed 1%lts).
+  Proof.
+    apply st_normalize_fsim. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0))
+      (fun se0 _ _ _ '((se, m), (pe, _)) _ s1 s2 =>
+         encap_ms se m pe s1 s2 /\ se0 = se)
+      (fun _ '((se, m), (pe, _)) => ClightP.penv_mem_match ce se pe m);
+      try easy.
+    - intros. cbn in *. eprod_crush. eauto.
+    - intros. cbn in *. apply vars_init.
+    - intros. cbn in *. constructor; cbn.
+      + intros. eprod_crush. subst. inv H3. inv H4.
+        eexists tt, _. split. constructor.
+        eexists tt, (_, _, (_, tt)). repeat split; eauto.
+        econstructor; eauto.
+      + intros. eprod_crush. inv H2. inv H3. inv H3.
+        eexists (_, tt). split; eauto.
+        eexists. repeat split.
+        eexists (_, _, (_, tt)). split.
+        repeat split; eauto. split; eauto.
+        split; eauto. constructor; eauto.
+      + intros. eprod_crush. inv H3. inv H2.
+        eexists. split. constructor.
+        eexists _, (_, _). split; eauto. split; eauto. split.
+        constructor; eauto. split; eauto.
+        intros. eprod_crush. inv H3. inv H2.
+        eexists tt, _. split.
+        eexists _. split. reflexivity. constructor.
+        eexists tt, (_, _, (_, tt)). split; eauto.
+        split. 2: split; constructor; eauto.
+        repeat split.
+      + easy.
+  Qed.
 
   Lemma promote_clightp:
     E.forward_simulation unp_out (unp_in vars) S T.
   Proof.
-    set (sk := ClightP.clightp_erase_program prog).
     rewrite <- (ccref_right_unit2 unp_out).
     rewrite (ccref_right_unit1 (unp_in vars)).
     eapply encap_fsim_vcomp.
-    instantiate (1 := (comp_esem' (semantics_embed (id_semantics sk)) T sk)).
+    instantiate (1 := (comp_esem' (semantics_embed 1%lts) T sk)).
     - eapply encap_fsim_lcomp_sk.
       instantiate (1 := &(pin ce)).
-      + admit.
+      + apply penv_encap.
       + apply encap_fsim_embed.
         apply transl_program_correct. eauto.
-      + admit.
-      + admit.
-    - admit.
-  Admitted.
+      + apply id_skel_least.
+      + apply Linking.linkorder_refl.
+    - rewrite ccref_left_unit1 at 2.
+      rewrite <- ccref_left_unit2 at 1.
+      eapply encap_fsim_vcomp; eauto.
+      instantiate (1 := semantics_embed _).
+      2: { apply encap_fsim_embed_cat; apply CAT.left_unit_2. }
+      assert (skel (Clight.semantics1 tprog) = sk).
+      {
+        apply transl_program_correct in HT as [X].
+        symmetry. apply X.
+      }
+      unfold left_comp_id.
+      rewrite H.
+      apply encap_comp_embed.
+  Qed.
 
 End ESIM.
 
 (** ------------------------------------------------------------------------- *)
 (** Properties *)
-
-Lemma join_associative m1 m2 m3 m12 m23 m123:
-  join m1 m2 m12 -> join m12 m3 m123 -> join m2 m3 m23 -> join m1 m23 m123.
-Admitted.
 
 Lemma join_associative_exist m1 m2 m3 m12 m123:
   join m1 m2 m12 -> join m12 m3 m123 ->
@@ -181,68 +241,72 @@ Section UNP_IN.
 
   Context (vars1 vars2: list (ident * Z)).
   Let vars := vars1 ++ vars2.
-  Inductive unp_in_inv: ST.ccstate (ST.cc_compose (unp_in vars1) (unp_in vars2)) -> ST.ccstate (unp_in vars) -> Prop :=
+  Inductive unp_in_inv:
+    ST.ccstate (ST.cc_compose (unp_in vars1) (unp_in vars2)) ->
+    ST.ccstate (unp_in vars) -> Prop :=
   | unp_in_inv_intro:
-    forall m m1 m2, join m1 m2 m -> unp_in_inv (m1, m2) m.
-  Inductive unp_in_ms: ST.ccstate (ST.cc_compose (unp_in vars1) (unp_in vars2)) ->
-                      ST.ccstate (unp_in vars) -> @state li_c li_c 1 -> @state li_c li_c 1 -> Prop :=
+    forall m m1 m2 se, join m1 m2 m -> unp_in_inv ((se, m1), (se, m2)) (se, m).
+  Inductive unp_in_ms se:
+    ST.ccstate (ST.cc_compose (unp_in vars1) (unp_in vars2)) ->
+    ST.ccstate (unp_in vars) -> @state li_c li_c 1 -> @state li_c li_c 1 -> Prop :=
   | unp_in_ms_query:
-    forall q1 q2 m1 m2 m,
-      ST.match_query (unp_in vars) m q1 q2 ->
-      join m1 m2 m ->
-      unp_in_ms (m1, m2) m (st_q q1) (st_q q2)
+    forall q1 q2 m1 m2 m
+      (MQ: ST.match_query (unp_in vars) (se, m) q1 q2)
+      (MJ: join m1 m2 m),
+      unp_in_ms se ((se, m1), (se, m2)) (se, m) (st_q q1) (st_q q2)
   | unp_in_ms_reply:
-    forall r1 r2 m1 m2 m,
-      ST.match_reply (unp_in vars) m r1 r2 ->
-      join m1 m2 m ->
-      unp_in_ms (m1, m2) m (st_r r1) (st_r r2).
+    forall r1 r2 m1 m2 m
+      (MR: ST.match_reply (unp_in vars) (se, m) r1 r2)
+      (MJ: join m1 m2 m),
+      unp_in_ms se ((se, m1), (se, m2)) (se, m) (st_r r1) (st_r r2).
 
   Lemma unp_in_idemp:
     st_ccref (unp_in vars) (ST.cc_compose (unp_in vars1) (unp_in vars2)).
   Proof.
     apply st_normalize_fsim. constructor.
     eapply ST.Forward_simulation with
-      (ltof _ (fun (_: unit) => 0)) (fun _ _ _ wa wb _ => unp_in_ms wa wb)
+      (ltof _ (fun (_: unit) => 0)) (fun se _ _ wa wb _ => unp_in_ms se wa wb)
       (fun wa wb => unp_in_inv wa wb); try easy.
-    - intros. inv H0. eauto.
+    - intros. cbn in *. eprod_crush. inv H. constructor; eauto.
     - cbn. admit.
-    - intros sa wb se1 se2 Hse0 Hsk I. inv I.  inv Hse0. constructor.
-      + intros q1 q2 s1 sb1 Hb Hq Hx Hse. exists tt, (st_q q2).
-        inv Hx. inv Hb. inv Hq.
+    - intros sa wb se1 se2 Hse0 Hsk I. inv I.
+      cbn in *. eprod_crush. subst. constructor.
+      + intros q1 q2 s1 sb1 Hb Hq Hx Hse.
+        cbn in *. eprod_crush.
+        exists tt, (st_q q2). inv Hx. inv Hq.
         split. constructor.
         eexists (_, _), _. repeat split; eauto.
         constructor; eauto.
-        constructor. eauto.
-      + intros sa1 sb1 [] s1 s2 r1 HS HF. inv HF. inv HS. inv H1.
-        eexists. split. econstructor.
-        eexists _. split. reflexivity.
-        split. 2: constructor; eauto.
-        constructor. eauto.
-      + intros sa sb1 [ ] s1 s2 q1 HS HE.
-        inv HE. inv HS. inv H1.
-        eexists. split. constructor.
-        eexists (_, _), (_, (_, _)).
-        split. reflexivity.
-        split. reflexivity.
-        split.
-        apply join_commutative in H4.
-        edestruct join_associative_exist as (mx & A & B).
-        apply H4. apply MJOIN.
-        eexists. split; constructor; eauto.
-        split. repeat constructor.
-        intros r1 r2 s1' sa1 HA HR HE.
-        destruct sa1. inv HA. cbn in *.
-        inv HE.
-        destruct HR as (rx & A & B). inv A. inv B.
-        eexists tt, _. split. constructor.
-        apply join_commutative in MJOIN0.
-        apply join_commutative in MJOIN1.
-        edestruct join_associative_exist as (mx & A & B).
-        apply MJOIN0. apply MJOIN1.
-        eexists (_, _), mx. split. reflexivity.
-        split. constructor.
         constructor; eauto.
-        constructor. apply join_commutative. eauto.
+      + intros sa1 sb1 [] s1 s2 r1 HS HF.
+        cbn in *. eprod_crush. inv HF. inv HS.
+        eexists. split. econstructor.
+        eexists (_, _). split. reflexivity.
+        split. 2: constructor; eauto.
+        inv MR. constructor; eauto.
+      + intros sa sb1 [ ] s1 s2 q1 HS HE.
+        cbn in *. eprod_crush.
+        inv HE. inv HS. inv MQ.
+        eexists. split. constructor.
+        eexists (_, _, (_, _)), (_, (_, _, (_, _))).
+        split. reflexivity.
+        split. reflexivity.
+        split. 2: split.
+        * apply join_commutative in MJ.
+          edestruct join_associative_exist as (mx & A & B).
+          apply MJ. apply MJOIN.
+          eexists. split; constructor; eauto.
+        * split; easy.
+        * intros r1 r2 s1' sa1 HA HR HE.
+          cbn in *. eprod_crush. inv HE. inv H. inv H3.
+          eexists tt, _. split. constructor.
+          apply join_commutative in MJOIN0.
+          apply join_commutative in MJOIN1.
+          edestruct join_associative_exist as (mx & A & B).
+          apply MJOIN0. apply MJOIN1.
+          eexists (_, _, (_, _)), (_, mx).
+          repeat split. constructor; eauto.
+          constructor; eauto. apply join_commutative. eauto.
       + easy.
   Admitted.
 
@@ -369,33 +433,36 @@ Section CLIGHT_IN.
       econstructor; eauto.
   Qed.
 
-  Inductive clight_ms :
+  Inductive clight_ms se:
     ST.ccstate (unp_in vars) ->
     ST.ccstate (ST.callconv_lift (unp_in vars) unit unit) ->
     state (Clight.semantics1 p) -> state (Clight.semantics1 p) -> Prop :=
   | clight_ms_State:
-    forall f s k e le m1 m2 mx,
-      join mx m1 m2 ->
-      clight_ms mx (mx, (tt, tt)) (Clight.State f s k e le m1) (Clight.State f s k e le m2)
+    forall f s k e le m1 m2 mx
+      (MJ: join mx m1 m2),
+      clight_ms se (se, mx) ((se, mx), (tt, tt))
+        (Clight.State f s k e le m1) (Clight.State f s k e le m2)
   | clight_ms_Callstate:
-    forall vf args k m1 m2 mx,
-      join mx m1 m2 ->
-      clight_ms mx (mx, (tt, tt)) (Clight.Callstate vf args k m1) (Clight.Callstate vf args k m2)
+    forall vf args k m1 m2 mx
+      (MJ: join mx m1 m2),
+      clight_ms se (se, mx) ((se, mx), (tt, tt))
+        (Clight.Callstate vf args k m1) (Clight.Callstate vf args k m2)
   | clight_ms_Returnstate:
-    forall rv k m1 m2 mx,
-      join mx m1 m2 ->
-      clight_ms mx (mx, (tt, tt)) (Clight.Returnstate rv k m1) (Clight.Returnstate rv k m2).
+    forall rv k m1 m2 mx
+      (MJ: join mx m1 m2),
+      clight_ms se (se, mx) ((se, mx), (tt, tt))
+        (Clight.Returnstate rv k m1) (Clight.Returnstate rv k m2).
 
   Inductive clight_inv : ST.ccstate (unp_in vars) -> ST.ccstate (ST.callconv_lift (unp_in vars) unit unit) -> Prop :=
-  | clight_inv_intro m:
-    clight_inv m (m, (tt, tt)).
+  | clight_inv_intro m se:
+    clight_inv (se, m) ((se, m), (tt, tt)).
 
-  Lemma clight_in_step wa wb ge:
+  Lemma clight_in_step se wa wb ge:
     forall s1 t s1',
     Clight.step1 ge s1 t s1' ->
-    forall s2, clight_ms wa wb s1 s2 ->
+    forall s2, clight_ms se wa wb s1 s2 ->
     exists s2', Clight.step1 ge s2 t s2' /\
-    clight_ms wa wb s1' s2'.
+    clight_ms se wa wb s1' s2'.
   Proof.
     induction 1; intros S1 HS; inv HS;
       try solve [ eexists _; split; econstructor; eauto ].
@@ -439,40 +506,40 @@ Section CLIGHT_IN.
   Proof.
     apply st_normalize_fsim. cbn. constructor.
     eapply ST.Forward_simulation with
-      (ltof _ (fun (_: unit) => 0)) (fun _ _ _ sa sb _ => clight_ms sa sb)
+      (ltof _ (fun (_: unit) => 0)) (fun se _ _ sa sb _ => clight_ms se sa sb)
       (fun sa sb => clight_inv sa sb); try easy.
     intros. inv H. cbn in *. eprod_crush. constructor.
     intros sa wb se1 se2 Hse0 Hsk INV. cbn in *. eprod_crush.
     inv INV. constructor; cbn.
     - intros [q1 []] [q2 []] s1 [m1 [[] []]] HW HQ HX Hse.
-      eprod_crush. inv HX. inv H1.
+      eprod_crush. inv HX. inv H3.
       eexists tt, _. split.
       econstructor; eauto.
       apply mjoin_nextblock in MJOIN.
       rewrite MJOIN. unfold Ple in *.
       etransitivity; eauto.
       apply Pos.le_max_r.
-      eexists m1, (m1, (tt, tt)). split. reflexivity.
+      eexists (_, m1), ((_, m1), (tt, tt)). split. reflexivity.
       split. reflexivity.
-      constructor. eauto.
+      constructor; eauto.
     - intros sa [sb [[] []]] [] s1 s2 [r1 []] HS HX.
       destruct HX as (rx & HX & HY). inv HX. inv HY. inv HS.
       eexists (_, tt). split. eexists. split; constructor.
-      eexists (sb, (tt, tt)). split. reflexivity.
+      eexists (_, _, (tt, tt)). split. reflexivity.
       split. constructor; constructor; eauto.
       constructor.
     - intros sa [sb [[] []]] [] s1 s2 q1 HS HX.
       inv HX. unfold id in H1. subst. inv HS.
       eexists. split. econstructor. eauto.
-      eexists _, _. split. reflexivity. split.  reflexivity.
-      split. constructor. eauto. split; eauto.
+      eexists (_, _), (_, _).
+      split. reflexivity. split. reflexivity.
+      split. constructor; eauto. split; eauto.
       intros r1 r2 s1' sa1 [] HR HX.
-      destruct HX as (rx & HX & HY).
-      subst. inv HY. inv HR.
+      eprod_crush. unfold id in *. inv HR. inv H2.
       eexists tt, _. split. eexists. split; constructor.
-      eexists _, (sa1, (tt, tt)). split. reflexivity.
-      split. repeat constructor.
-      constructor. eauto.
+      eexists (_, _), (_, m2, (tt, tt)). split. reflexivity.
+      split. repeat split; eauto.
+      econstructor; eauto.
     - intros s1 t s1' HX wa [wb [[] []]] [] s2 HS.
       exploit clight_in_step; eauto.
       intros (s2' & HY & HZ).
@@ -661,8 +728,8 @@ Section CLICHTP_OUT.
 
   Inductive penv_ms (vars: list (ident * Z)):
     ST.ccworld (@ST.callconv_lift _ _ unp_out ClightP.penv (penv_pset vars) ClightP.penv (penv_pset vars)) ->
-    @state (li_c@ClightP.penv) (li_c@ClightP.penv) (id_semantics skel) ->
-    @state (li_c@ClightP.penv) (li_c@ClightP.penv) (id_semantics skel) -> Prop :=
+    @state (li_c@ClightP.penv) (li_c@ClightP.penv) 1%lts ->
+    @state (li_c@ClightP.penv) (li_c@ClightP.penv) 1%lts -> Prop :=
   | penv_ms_query:
     forall q1 q2 m pe0 pe,
       ST.match_query unp_out m q1 q2 ->
@@ -719,7 +786,9 @@ Section CLICHTP_OUT.
     - apply encap_prim_out.
     - apply encap_fsim_embed.
       apply clightp_out.
-  Admitted.
+    - cbn. apply id_skel_least.
+    - cbn. apply Linking.linkorder_refl.
+  Qed.
 
 End CLICHTP_OUT.
 
@@ -730,7 +799,9 @@ Section COMP.
     (vars1 vars2: list (ident * Z))
     (H1: E.forward_simulation unp_out (unp_in vars1) S1 T1)
     (H2: E.forward_simulation unp_out (unp_in vars2) S2 T2).
-  Variable sk: AST.program unit unit.
+  Context (sk: AST.program unit unit)
+    (Hsk1: Linking.linkorder (skel S1) sk)
+    (Hsk2: Linking.linkorder (skel S2) sk).
 
   Hypothesis P1:
     forall vars, E.forward_simulation (unp_in vars) (unp_in vars) T1 T1.
@@ -748,9 +819,7 @@ Section COMP.
     instantiate (1 := (ST.cc_compose unp_out (unp_in vars2))).
     - eapply encap_fsim_vcomp; eauto.
     - eapply encap_fsim_vcomp; eauto.
-    - admit.
-    - admit.
-  Admitted.
+  Qed.
 
 End COMP.
 

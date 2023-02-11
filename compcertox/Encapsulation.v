@@ -1925,8 +1925,8 @@ Proof.
   rewrite Hsk.  all: cbn; (apply Linking.linkorder_refl || apply CategoricalComp.id_skel_order).
 Qed.
 
-Lemma encap_fsim_embed `(ccA: callconv liA1 liA2) `(ccB: callconv liB1 liB2) L1 L2:
-  forward_simulation ccA ccB L1 L2 ->
+Lemma encap_fsim_embed_cat `(ccA: callconv liA1 liA2) `(ccB: callconv liB1 liB2) L1 L2:
+  CAT.forward_simulation ccA ccB L1 L2 ->
   E.forward_simulation &ccA &ccB
                        (semantics_embed L1) (semantics_embed L2).
 Proof.
@@ -1936,7 +1936,16 @@ Proof.
   rewrite (fsim_embed (map_normalize1 _ (li_iso_inv li_iso_unit) _)).
   rewrite <- (fsim_embed (map_normalize2 _ (li_iso_inv li_iso_unit) _)).
   apply st_map_monotonicity_cc.
-  apply fsim_embed. apply fsim_normalize. assumption.
+  apply fsim_embed. apply H.
+Qed.
+
+Lemma encap_fsim_embed `(ccA: callconv liA1 liA2) `(ccB: callconv liB1 liB2) L1 L2:
+  forward_simulation ccA ccB L1 L2 ->
+  E.forward_simulation &ccA &ccB
+                       (semantics_embed L1) (semantics_embed L2).
+Proof.
+  intros H. apply encap_fsim_embed_cat.
+  apply fsim_normalize. assumption.
 Qed.
 
 Lemma ccref_lift `{PSet K1} `{PSet K2} {li1 li2} (ccA ccB: ST.callconv li1 li2):
@@ -1977,6 +1986,68 @@ Proof.
   rewrite (ccref_lift HB).
   apply H.
 Qed.
+
+(** ------------------------------------------------------------------------- *)
+(** Miscellaneous *)
+
+Section COMP_EMBED.
+
+  Context `(L1: semantics liB liC) `(L2: semantics liA liB)
+    (sk: AST.program unit unit).
+
+  Inductive comp_embed_ms:
+    comp_state (semantics_map L1 lf (li_iso_inv li_iso_unit) @ unit) (semantics_map L2 lf (li_iso_inv li_iso_unit)) -> comp_state L1 L2 -> Prop :=
+  | comp_embed_s1 s1:
+    comp_embed_ms
+      (st1 (semantics_map L1 lf (li_iso_inv li_iso_unit) @ unit) _ (s1, tt))
+      (st1 L1 _ s1)
+  | comp_embed_s2 s1 s2:
+    comp_embed_ms
+      (st2 (semantics_map L1 lf (li_iso_inv li_iso_unit) @ unit) _ (s1, tt) s2)
+      (st2 L1 _ s1 s2).
+
+  Lemma encap_comp_embed:
+    E.forward_simulation
+      (& 1) (& 1)
+      (comp_esem' (semantics_embed L1) (semantics_embed L2) sk)
+      (semantics_embed (comp_semantics' L1 L2 sk)).
+  Proof.
+    apply st_normalize_fsim. constructor. cbn.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0))
+      (fun _ _ _ _ _ _ => comp_embed_ms)
+      (fun _ _ => True);
+      try easy.
+    intros. cbn in *. eprod_crush. constructor.
+    - intros. cbn in *. eprod_crush.
+      inv H3. cbn in *. eprod_crush.
+      eexists tt, _. split. constructor; eauto.
+      exists tt, (tt, (tt, tt, tt)). repeat split.
+      constructor.
+    - intros. cbn in *. eprod_crush.
+      inv H3. inv H2. cbn in *. eprod_crush. inv H.
+      eexists (_, tt). split. eexists. split; constructor; eauto.
+      exists (tt, (tt, tt, tt)). repeat split.
+    - intros. cbn in *. eprod_crush.
+      inv H2. inv H. unfold id in *. cbn in *.
+      eexists. split. constructor; eauto.
+      exists tt, tt. repeat split. eprod_crush.
+      inv H5. cbn in *. eprod_crush. unfold id in *. subst.
+      eexists. split. eexists. split; eauto. constructor; eauto.
+      exists tt, (tt, (tt, tt, tt)). repeat split; eauto.
+      constructor.
+    - intros. cbn in *. eprod_crush. inv H; inv H2;
+        cbn in *; eprod_crush; eexists tt, _;
+        ( split; [ left; apply plus_one
+        |  exists tt, (tt, (tt, tt, tt)); repeat split; eauto; constructor ] ).
+      + apply step1; eauto.
+      + apply step2; eauto.
+      + eapply step_push; eauto.
+      + eapply step_pop; eauto.
+  Qed.
+
+End COMP_EMBED.
+
 
 (** ------------------------------------------------------------------------- *)
 (** Obsolete FBK and REVEAL construction *)
