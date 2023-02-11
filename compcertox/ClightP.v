@@ -2058,7 +2058,6 @@ Inductive penv_mem_match ce: Genv.symtbl -> ClightP.penv -> Mem.mem -> Prop :=
 
 Inductive pin_query R: Memory.mem * Genv.symtbl -> query (li_c @ ClightP.penv) -> query li_c -> Prop :=
 | pin_query_intro se vf sg vargs m msrc mtgt pe
-    (MBOUND: Ple (Genv.genv_next se) (Mem.nextblock mtgt))
     (MJOIN: join m msrc mtgt)
     (MPE: R se pe m):
   pin_query R (m, se) (cq vf sg vargs msrc, pe) (cq vf sg vargs mtgt).
@@ -2146,8 +2145,6 @@ Proof.
   - intros. cbn. monadInv H.
     unfold footprint_of_program.
     apply def_translated with (i:=i) in EQ.
-    (* assert (list_norepet (transl_privvars (ClightP.prog_private prog) ++ x)). *)
-    (* admit. *)
     destruct PTree.get eqn: Hx;
     match goal with
     | [ |- _ <-> match ?y with _ => _ end ] => destruct y eqn: Hy
@@ -2178,6 +2175,10 @@ Proof.
       eexists. split. econstructor; eauto.
       * unfold ClightP.type_of_function in *. rewrite <- H8.
         unfold type_of_function. monadInv EQ. reflexivity.
+      * cbn in *. unfold Ple in *.
+        etransitivity; eauto.
+        apply mjoin_nextblock in MJOIN.
+        rewrite MJOIN. lia.
       * repeat constructor.
         inv MPE. econstructor; eauto.
     + cbn. intros [s1 pe1] s2 [r1 per1] HS HX. inv HX. inv HS. inv MK.
