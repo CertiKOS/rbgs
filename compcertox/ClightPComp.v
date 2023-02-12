@@ -16,8 +16,23 @@ Generalizable All Variables.
 
 (** The simulation conventions, however, that we actually use *)
 
+(* TODO: define initial states and prove the properties*)
 Variable m0 : list (ident * Z) -> Genv.symtbl -> mem.
 Variable p0 : list (ident * Z) -> ClightP.penv.
+
+Hypothesis id_skel_least: forall sk, Linking.linkorder CategoricalComp.id_skel sk.
+Variable vars_of_program : ClightP.program -> list (ident * Z).
+Hypothesis vars_init :
+  forall p se, ClightP.penv_mem_match
+            p.(ClightP.prog_comp_env) se
+                (p0 (vars_of_program p))
+                (m0 (vars_of_program p) se).
+
+Variable exclusive_vars: list (ident * Z) -> list (ident * Z) -> Prop.
+Hypothesis exclusive_init_mem:
+  forall se vars1 vars2,
+    exclusive_vars vars1 vars2 ->
+    join (m0 vars1 se) (m0 vars2 se) (m0 (vars1 ++ vars2) se).
 
 Instance mem_pset (vars: list (ident * Z)) : PSet mem :=
   { pset_init se := m0 vars se }.
@@ -121,15 +136,6 @@ Definition encap_prim (U: Type) `{PSet U} : li_c@U +-> li_c :=
     pstate := U;
     esem := 1%lts;
   |}.
-
-(* TODO: *)
-Hypothesis id_skel_least: forall sk, Linking.linkorder CategoricalComp.id_skel sk.
-Variable vars_of_program : ClightP.program -> list (ident * Z).
-Hypothesis vars_init :
-  forall p se, ClightP.penv_mem_match
-            p.(ClightP.prog_comp_env) se
-                (p0 (vars_of_program p))
-                (m0 (vars_of_program p) se).
 
 Definition eclightp (p: ClightP.program) :=
   comp_esem'
@@ -239,7 +245,7 @@ Admitted.
 
 Section UNP_IN.
 
-  Context (vars1 vars2: list (ident * Z)).
+  Context (vars1 vars2: list (ident * Z)) (Hvs: exclusive_vars vars1 vars2).
   Let vars := vars1 ++ vars2.
   Inductive unp_in_inv:
     ST.ccstate (ST.cc_compose (unp_in vars1) (unp_in vars2)) ->
@@ -268,7 +274,8 @@ Section UNP_IN.
       (ltof _ (fun (_: unit) => 0)) (fun se _ _ wa wb _ => unp_in_ms se wa wb)
       (fun wa wb => unp_in_inv wa wb); try easy.
     - intros. cbn in *. eprod_crush. inv H. constructor; eauto.
-    - cbn. admit.
+    - cbn. intros se. constructor.
+      apply exclusive_init_mem; eauto.
     - intros sa wb se1 se2 Hse0 Hsk I. inv I.
       cbn in *. eprod_crush. subst. constructor.
       + intros q1 q2 s1 sb1 Hb Hq Hx Hse.
@@ -308,7 +315,7 @@ Section UNP_IN.
           repeat split. constructor; eauto.
           constructor; eauto. apply join_commutative. eauto.
       + easy.
-  Admitted.
+  Qed.
 
 End UNP_IN.
 
@@ -797,6 +804,7 @@ Section COMP.
   Context (S1: li_c +-> li_c) (S2: li_c +-> li_c)
     (T1: li_c +-> li_c) (T2: li_c +-> li_c)
     (vars1 vars2: list (ident * Z))
+    (Hvs: exclusive_vars vars1 vars2)
     (H1: E.forward_simulation unp_out (unp_in vars1) S1 T1)
     (H2: E.forward_simulation unp_out (unp_in vars2) S2 T2).
   Context (sk: AST.program unit unit)
@@ -819,6 +827,7 @@ Section COMP.
     instantiate (1 := (ST.cc_compose unp_out (unp_in vars2))).
     - eapply encap_fsim_vcomp; eauto.
     - eapply encap_fsim_vcomp; eauto.
+    - eauto.
   Qed.
 
 End COMP.
