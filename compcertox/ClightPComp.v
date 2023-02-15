@@ -140,7 +140,7 @@ Definition encap_prim (U: Type) `{PSet U} : li_c@U +-> li_c :=
 Definition eclightp (p: ClightP.program) :=
   comp_esem'
     (@encap_prim ClightP.penv (penv_pset (vars_of_program p)))
-    (semantics_embed (ClightP.clightp1 p))
+    (semantics_embed (ClightP.clightp2 p))
     (ClightP.clightp_erase_program p).
 
 
@@ -150,7 +150,7 @@ Section ESIM.
 
   Context prog tprog (HT: transl_program prog = OK tprog).
   Let S := eclightp prog.
-  Let T := semantics_embed (Clight.semantics1 tprog).
+  Let T := semantics_embed (Clight.semantics2 tprog).
   Let vars := vars_of_program prog.
   Let ce := prog.(ClightP.prog_comp_env).
   Let sk := ClightP.clightp_erase_program prog.
@@ -223,7 +223,7 @@ Section ESIM.
       eapply encap_fsim_vcomp; eauto.
       instantiate (1 := semantics_embed _).
       2: { apply encap_fsim_embed_cat; apply CAT.left_unit_2. }
-      assert (skel (Clight.semantics1 tprog) = sk).
+      assert (skel (Clight.semantics2 tprog) = sk).
       {
         apply transl_program_correct in HT as [X].
         symmetry. apply X.
@@ -652,10 +652,10 @@ Section CLICHTP_OUT.
 
   Lemma clightp_out_step mx ge:
     forall s1 t s1',
-      ClightP.step1 ge s1 t s1' ->
+      ClightP.step2 ge s1 t s1' ->
       forall s2, clightp_ms mx s1 s2 ->
-            exists s2', ClightP.step1 ge s2 t s2' /\
-                     clightp_ms mx s1' s2'.
+      exists s2', ClightP.step2 ge s2 t s2' /\
+      clightp_ms mx s1' s2'.
   Proof.
     induction 1; intros S2 MS; inv MS;
       try solve [ eexists (_, _); split; econstructor; eauto ].
@@ -697,7 +697,7 @@ Section CLICHTP_OUT.
   Admitted.
 
   Lemma clightp_out: forward_simulation pout unp_penv'
-                       (ClightP.clightp1 p) (ClightP.clightp1 p).
+                       (ClightP.clightp2 p) (ClightP.clightp2 p).
   Proof.
     constructor. econstructor; eauto.
     { intros i. reflexivity. }

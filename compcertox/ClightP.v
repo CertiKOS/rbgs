@@ -600,6 +600,7 @@ Module ClightP.
     list_disjoint (var_names f.(fn_params)) (var_names f.(fn_temps)) ->
     alloc_variables ge empty_env m f.(fn_vars) e m' ->
     bind_parameter_temps f.(fn_params) vargs (create_undef_temps f.(fn_temps)) = Some le ->
+    Mem.alloc_flag m = true ->
     function_entry2 ge f vargs m e le m'.
 
   Definition step2 (ge: genv) := step ge (function_entry2 ge).
@@ -1607,6 +1608,21 @@ Section PRESERVATION.
     - econstructor; eauto.
   Qed.
 
+  Lemma pmatch_function_entry2 pe m tm f tf vargs m' e le:
+    penv_match ce se (pe, m) tm ->
+    transl_function ce f = OK tf ->
+    ClightP.function_entry2 ge f vargs m e le m' ->
+    exists tm', function_entry2 tge tf vargs tm e le tm' /\
+             penv_match ce se (pe, m') tm'.
+  Proof.
+    intros PM TR FE. inv FE. inv PM.
+    edestruct alloc_variables_join as (? & ? & ?); eauto.
+    eexists. split.
+    - econstructor; eauto; monadInv TR; cbn; eauto.
+      inv MJOIN. inv mjoin_alloc_flag; congruence.
+    - econstructor; eauto.
+  Qed.
+
 (** ------------------------------------------------------------------------- *)
 (** Simulation *)
   Lemma pmatch_call_cont pe k kt:
@@ -1821,10 +1837,10 @@ Section PRESERVATION.
 
   Lemma step_correct:
     forall s1 pe t s1' pe',
-      ClightP.step1 ge (s1, pe) t (s1', pe') ->
+      ClightP.step2 ge (s1, pe) t (s1', pe') ->
       forall s2 : state,
         pmatch_state se (s1, pe) s2 ->
-        exists s2' : state, Clight.step1 tge s2 t s2' /\ pmatch_state se (s1', pe') s2'.
+        exists s2' : state, Clight.step2 tge s2 t s2' /\ pmatch_state se (s1', pe') s2'.
   Proof.
     induction 1; intros S2 MS; inv MS.
     (* assign *)
@@ -2026,7 +2042,7 @@ Section PRESERVATION.
     (* internal function *)
     - exploit functions_translated; eauto. intros (i & tfd & HFD & HTF).
       monadInv HTF.
-      exploit pmatch_function_entry1; eauto. intros (tm' & HFE & HM).
+      exploit pmatch_function_entry2; eauto. intros (tm' & HFE & HM).
       eexists. split.
       constructor; eauto.
       constructor; eauto.
@@ -2126,7 +2142,7 @@ Qed.
 Theorem transl_program_correct prog tprog:
   transl_program prog = OK tprog ->
   forward_simulation pout (pin prog.(ClightP.prog_comp_env))
-    (ClightP.clightp1 prog) (Clight.semantics1 tprog).
+    (ClightP.clightp2 prog) (Clight.semantics2 tprog).
 Proof.
   intros H. constructor. econstructor.
   - cbn. monadInv H.
