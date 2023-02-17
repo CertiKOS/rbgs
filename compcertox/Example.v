@@ -90,7 +90,7 @@ Section CLIGHTP.
    *)
   Definition rb_set_body : statement :=
     Ssequence
-      (Sassign
+      (Supdate
          (Eaccess (Epvar arr_id (tarray tint Nz))
             (Etempvar get_arg_id tint) tint)
          (Etempvar set_arg2_id tint))
@@ -476,7 +476,7 @@ Ltac crush_eval_expr :=
 Ltac crush_eval_lvalue :=
   cbn;
   lazymatch goal with
-  | [ |- eval_lvalue _ _ _ _ (Evar _ _) _ _ ] =>
+  | [ |- eval_lvalue _ _ _ _ _ (Evar _ _) _ _ ] =>
       solve [ apply eval_Evar_local; reflexivity | apply eval_Evar_global; [ reflexivity | eassumption ] ]
   | _ => constructor
   end.
@@ -720,7 +720,48 @@ Proof.
       * subst. constructor; eauto.
         econstructor; eauto.
   (* set *)
-    + admit.
+    + inv HPE. inv HFUN.
+      edestruct RA as (v & HV1 & HV2). apply H1.
+      eexists (_, _). split.
+      * eapply plus_left. crush_step.
+        lts_step. crush_step.
+        lts_step.
+        {
+          econstructor.
+          - econstructor; eauto.
+            + reflexivity.
+            + econstructor; eauto.
+            + crush_expr.
+            + admit.
+          - crush_expr.
+          - econstructor; eauto. 2: reflexivity.
+            cbn. econstructor; eauto.
+            admit.
+            rewrite Int.unsigned_repr by admit.
+            rewrite HV1. econstructor.
+            eauto.
+          - reflexivity.
+          - eauto.
+        }
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * constructor; eauto. econstructor; eauto.
+        -- rewrite PTree.gss. reflexivity.
+        -- rewrite PTree.gso. eauto.
+           unfold cnt1_id, arr_id. lia.
+        -- rewrite PTree.gso. eauto.
+           unfold cnt2_id, arr_id. lia.
+        -- intros ix Hx.
+           destruct (Nat.eq_dec i ix).
+           ++ subst. eexists. split; eauto.
+              rewrite Int.unsigned_repr by admit.
+              rewrite ZMap.gss. reflexivity.
+           ++ subst. eexists. split; eauto.
+              rewrite Int.unsigned_repr by admit.
+              rewrite ZMap.gso; eauto.
+              edestruct RA. apply Hx. destruct H. subst. eauto.
+              intros Hc. apply n. lia.
   - apply well_founded_ltof.
 Admitted.
 
@@ -838,8 +879,19 @@ Definition bq_spec: semantics li_c li_c :=
     footprint := AST.footprint_of_program bq_program;
   |}.
 
-Program Definition bq_cc: callconv li_c (li_c@penv).
-Admitted.
+Definition query_alloc_flag '(cq _ _ _ m) := Mem.alloc_flag m.
+Definition reply_alloc_flag '(cr _ m) := Mem.alloc_flag m.
+
+Program Definition bq_cc: callconv li_c (li_c@penv) :=
+  {|
+    ccworld := unit;
+    match_senv _ := eq;
+    match_query _ q1 '(q2, _) := q1 = q2 /\ query_alloc_flag q1 = true;
+    match_reply _ r1 '(r2, _) := r1 = r2 /\ reply_alloc_flag r1 = true;
+  |}.
+Next Obligation. reflexivity. Qed.
+Next Obligation. reflexivity. Qed.
+Next Obligation. reflexivity. Qed.
 
 Lemma bq_correct1:
   E.forward_simulation (&bq_cc) (&1) (semantics_embed 1)
@@ -847,12 +899,300 @@ Lemma bq_correct1:
 Proof.
 Admitted.
 
+Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
+| bq_ms_enq:
+  forall vf m v pe,
+    Mem.alloc_flag m = true ->
+    Cop.val_casted v tint ->
+    Genv.find_funct (Genv.globalenv se bq_program) vf = Some (Internal bq_enq) ->
+    bq_ms se (bq_init enq [v] m) (Callstate vf [v] Kstop m, pe)
+| bq_ms_deq:
+  forall vf m pe,
+    Mem.alloc_flag m = true ->
+    Genv.find_funct (Genv.globalenv se bq_program) vf = Some (Internal bq_deq) ->
+    bq_ms se (bq_init deq [] m) (Callstate vf [] Kstop m, pe)
+| bq_ms_call_inc1:
+  forall vf k m b pe,
+    Mem.alloc_flag m = true ->
+    vf = Vptr b Integers.Ptrofs.zero ->
+    Genv.find_symbol se inc1_id = Some b ->
+    k = (Kcall (Some bq_deq_tmp1) bq_deq empty_env
+          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some Vundef) PTree.Leaf)
+          (Kseq
+             (Ssequence
+                (Scall (Some bq_deq_tmp2) (Evar get_id (Tfunction (Tcons tint Tnil) tint cc_default))
+                   [Etempvar bq_deq_tmp1 tint]) (Sreturn (Some (Etempvar bq_deq_tmp2 tint)))) Kstop)) ->
+    bq_ms se (bq_call inc1 [] m) (Callstate vf [] k m, pe)
+| bq_ms_call_inc2:
+  forall vf k m v b pe,
+    Mem.alloc_flag m = true ->
+    Cop.val_casted v tint ->
+    vf = Vptr b Integers.Ptrofs.zero ->
+    Genv.find_symbol se inc2_id = Some b ->
+    k = (Kcall (Some bq_enq_tmp) bq_enq empty_env
+          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v) PTree.Leaf)
+          (Kseq
+             (Ssequence
+                (Scall None (Evar set_id (Tfunction (Tcons tint (Tcons tint Tnil)) tvoid cc_default))
+                   [Etempvar bq_enq_tmp tint; Etempvar enq_arg_id tint]) (Sreturn None)) Kstop)) ->
+    bq_ms se (bq_call inc2 [v] m) (Callstate vf [] k m, pe)
+
+| bq_ms_mid_enq:
+  forall m v1 v2 k pe,
+    Mem.alloc_flag m = true ->
+    Cop.val_casted v1 tint ->
+    Cop.val_casted v2 tint ->
+    k = (Kcall (Some bq_enq_tmp) bq_enq empty_env
+          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v2) PTree.Leaf)
+          (Kseq
+             (Ssequence
+                (Scall None (Evar set_id (Tfunction (Tcons tint (Tcons tint Tnil)) tvoid cc_default))
+                   [Etempvar bq_enq_tmp tint; Etempvar enq_arg_id tint]) (Sreturn None)) Kstop)) ->
+    bq_ms se (bq_middle enq [v1; v2] m) (Returnstate v1 k m, pe)
+| bq_ms_mid_deq:
+  forall m v k pe,
+    Mem.alloc_flag m = true ->
+    Cop.val_casted v tint ->
+    k = (Kcall (Some bq_deq_tmp1) bq_deq empty_env
+          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some Vundef) PTree.Leaf)
+          (Kseq
+             (Ssequence
+                (Scall (Some bq_deq_tmp2) (Evar get_id (Tfunction (Tcons tint Tnil) tint cc_default))
+                   [Etempvar bq_deq_tmp1 tint]) (Sreturn (Some (Etempvar bq_deq_tmp2 tint)))) Kstop)) ->
+    bq_ms se (bq_middle deq [v] m) (Returnstate v k m, pe)
+
+| bq_ms_call_get:
+  forall vf k m v b pe,
+    Mem.alloc_flag m = true ->
+    vf = Vptr b Integers.Ptrofs.zero ->
+    Genv.find_symbol se get_id = Some b ->
+    Cop.val_casted v tint ->
+    k = (Kcall (Some bq_deq_tmp2) bq_deq empty_env
+          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v) PTree.Leaf)
+          (Kseq (Sreturn (Some (Etempvar bq_deq_tmp2 tint))) Kstop)) ->
+    bq_ms se (bq_call geti [v] m) (Callstate vf [v] k m, pe)
+| bq_ms_call_set:
+  forall vf k m v1 v2 b pe,
+    Mem.alloc_flag m = true ->
+    vf = Vptr b Integers.Ptrofs.zero ->
+    Genv.find_symbol se set_id = Some b ->
+    Cop.val_casted v1 tint ->
+    Cop.val_casted v2 tint ->
+    k = (Kcall None bq_enq empty_env (PTree.Node (PTree.Node PTree.Leaf (Some v1) PTree.Leaf) (Some v2) PTree.Leaf) (Kseq (Sreturn None) Kstop)) ->
+    bq_ms se (bq_call seti [v1; v2] m) (Callstate vf [v1; v2] k m, pe)
+
+| bq_ms_midx_enq:
+  forall m v k le pe,
+    Mem.alloc_flag m = true ->
+    k = (Kcall None bq_enq empty_env le (Kseq (Sreturn None) Kstop)) ->
+    bq_ms se (bq_middlex enq v m) (Returnstate v k m, pe)
+| bq_ms_midx_deq:
+  forall m v rv k pe,
+    Mem.alloc_flag m = true ->
+    Cop.val_casted rv tint ->
+    Cop.val_casted v tint ->
+    k = (Kcall (Some bq_deq_tmp2) bq_deq empty_env
+          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v) PTree.Leaf)
+          (Kseq (Sreturn (Some (Etempvar bq_deq_tmp2 tint))) Kstop)) ->
+    bq_ms se (bq_middlex deq rv m) (Returnstate rv k m, pe)
+
+| bq_ms_final:
+  forall rv m pe,
+    Mem.alloc_flag m = true ->
+    bq_ms se (bq_final rv m) (Returnstate rv Kstop m, pe).
+
+  Import Ptrofs.
+
+  Lemma clightp_erase_program_defmap (p: program) id g:
+    option_map (@erase_globdef fundef type) (prog_defmap p) ! id = Some g ->
+    (prog_defmap (clightp_erase_program p)) ! id = Some g.
+  Proof.
+    unfold prog_defmap, PTree_Properties.of_list. cbn.
+    pattern (prog_defs p). eapply rev_ind.
+    - rewrite !PTree.gempty. cbn. easy.
+    - intros [i gi] defs IHdefs. rewrite !map_app, !fold_left_app in *.
+      cbn in *.
+      destruct (peq id i).
+      + subst. rewrite !PTree.gss. easy.
+      + rewrite !PTree.gso by auto. eauto.
+  Qed.
+
+  Theorem clightp_find_def_symbol se p id g:
+    Genv.valid_for (clightp_erase_program p) se ->
+    (prog_defmap p)!id = Some g ->
+    exists b, Genv.find_symbol (globalenv se p) id = Some b
+         /\ Genv.find_def (globalenv se p) b = Some g.
+  Proof.
+    intros Hse Hg.
+    edestruct Hse as (b & g' & Hb & Hg' & LO); eauto.
+    apply clightp_erase_program_defmap. rewrite Hg. reflexivity.
+    exists b. split. assumption.
+    cbn. rewrite Genv.find_def_spec.
+    apply Genv.find_invert_symbol in Hb. rewrite Hb. auto.
+  Qed.
+
+  Lemma inc2_block se:
+    Genv.valid_for (clightp_erase_program bq_program) se ->
+    exists b, Genv.find_symbol (globalenv se bq_program) inc2_id = Some b /\
+           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some inc2_ext.
+  Proof.
+    intros Hse.
+    edestruct (@clightp_find_def_symbol se bq_program inc2_id)
+      as (b & Hb1 & Hb2); eauto.
+    reflexivity.
+    exists b. split; eauto. eapply genv_funct_symbol; eauto.
+  Qed.
+
+  Lemma set_block se:
+    Genv.valid_for (clightp_erase_program bq_program) se ->
+    exists b, Genv.find_symbol (globalenv se bq_program) set_id = Some b /\
+           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some set_ext.
+  Proof.
+    intros Hse.
+    edestruct (@clightp_find_def_symbol se bq_program set_id)
+      as (b & Hb1 & Hb2); eauto.
+    reflexivity.
+    exists b. split; eauto. eapply genv_funct_symbol; eauto.
+  Qed.
+
+  Lemma inc1_block se:
+    Genv.valid_for (clightp_erase_program bq_program) se ->
+    exists b, Genv.find_symbol (globalenv se bq_program) inc1_id = Some b /\
+           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some inc1_ext.
+  Proof.
+    intros Hse.
+    edestruct (@clightp_find_def_symbol se bq_program inc1_id)
+      as (b & Hb1 & Hb2); eauto.
+    reflexivity.
+    exists b. split; eauto. eapply genv_funct_symbol; eauto.
+  Qed.
+
+  Lemma get_block se:
+    Genv.valid_for (clightp_erase_program bq_program) se ->
+    exists b, Genv.find_symbol (globalenv se bq_program) get_id = Some b /\
+           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some get_ext.
+  Proof.
+    intros Hse.
+    edestruct (@clightp_find_def_symbol se bq_program get_id)
+      as (b & Hb1 & Hb2); eauto.
+    reflexivity.
+    exists b. split; eauto. eapply genv_funct_symbol; eauto.
+  Qed.
+
 Lemma bq_correct2: forward_simulation 1 bq_cc bq_spec (clightp2 bq_program).
 Proof.
-Admitted.
+  constructor. econstructor. reflexivity. firstorder.
+  intros. instantiate (1 := fun _ _ _ => _). cbn beta.
+  destruct H. subst.
+  eapply forward_simulation_plus with (match_states := bq_ms se1).
+  - intros. cbn in *. eprod_crush. inv H1.
+    + eexists (_, _). split.
+      * econstructor; eauto.
+        eapply genv_funct_symbol; eauto. reflexivity.
+        unfold type_of_function. f_equal; cbn.
+        constructor; eauto. constructor.
+      * constructor; eauto. eapply genv_funct_symbol; eauto.
+    + eexists. split.
+      * econstructor; eauto.
+        eapply genv_funct_symbol; eauto. reflexivity.
+        unfold type_of_function. f_equal; cbn.
+        constructor; eauto.
+      * constructor; eauto. eapply genv_funct_symbol; eauto.
+  - intros. inv H1. inv H.
+    eexists. split. constructor. constructor; eauto.
+  - intros. inv H1; inv H.
+    (* inc1 *)
+    + eexists tt, _.  split. 2: split.
+      * econstructor; eauto.
+        eapply genv_funct_symbol; eauto. reflexivity.
+      * assert (b = b0). cbn in *. congruence.
+        subst. constructor.
+      * split. constructor. intros. inv H. inv H1.
+        eexists. split; constructor; eauto.
+    (* inc2 *)
+    + eexists tt, _.  split. 2: split.
+      * econstructor; eauto.
+        eapply genv_funct_symbol; eauto. reflexivity.
+      * assert (b = b0).  cbn in *. congruence.
+        subst. constructor.
+      * split. constructor. intros. inv H. inv H1.
+        eexists. split; constructor; eauto.
+    (* get *)
+    + eexists tt, _.  split. 2: split.
+      * econstructor; eauto.
+        eapply genv_funct_symbol; eauto. reflexivity.
+      * assert (b = b0). cbn in *. congruence.
+        subst. constructor.
+      * split. constructor. intros. inv H. inv H1.
+        eexists. split. econstructor; eauto.
+        econstructor. 4: reflexivity. all: eauto.
+    (* set *)
+    + eexists tt, _.  split. 2: split.
+      * econstructor; eauto.
+        eapply genv_funct_symbol; eauto. reflexivity.
+      * assert (b = b0). cbn in *. congruence.
+        subst. constructor.
+      * split. constructor. intros. inv H. inv H1.
+        eexists. split. econstructor; eauto.
+        econstructor; eauto.
+  - intros. inv H1; inv H.
+    (* enq: from initial to call inc2 *)
+    + exploit inc2_block; eauto. intros (b1 & A & B).
+      eexists. split.
+      * eapply plus_left. constructor; eauto.
+        {
+          constructor; repeat constructor.
+          intros x. inv x. solve_list_disjoint. eauto.
+        }
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * econstructor; eauto.
+    (* deq: from initial to call inc1 *)
+    + exploit inc1_block; eauto. intros (b1 & A & B).
+      eexists. split.
+      * eapply plus_left. constructor; eauto.
+        { constructor; repeat constructor. solve_list_disjoint. eauto. }
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * econstructor; eauto.
+    (* enq: after inc2, call set *)
+    + exploit set_block; eauto. intros (b1 & A & B).
+      eexists. split.
+      * eapply plus_left. constructor; eauto.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * econstructor; eauto.
+    (* deq: after inc1, call get *)
+    + exploit get_block; eauto. intros (b1 & A & B).
+      eexists. split.
+      * eapply plus_left. constructor; eauto.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * econstructor; eauto.
+    (* enq: to final state *)
+    + eexists. split.
+      * eapply plus_left. constructor.
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * constructor. eauto.
+    (* deq: to final state *)
+    + eexists. split.
+      * eapply plus_left. constructor.
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * constructor. eauto.
+  - apply well_founded_ltof.
+Qed.
 
 Definition bq_espec: li_c +-> li_c := semantics_embed bq_spec.
-
 
 Lemma bq_correct: E.forward_simulation (&1) (&1) bq_espec (eclightp bq_program).
 Proof.
@@ -985,9 +1325,9 @@ Section REFINE.
   Program Definition abs_bq_cc: callconv (li_c@bq_state) (li_c@rb_state) :=
     {|
       ccworld := unit;
-      match_senv _ := eq;
-      match_query _ := (eq * rb_bq)%rel;
-      match_reply _ := (eq * rb_bq)%rel;
+      match_senv _ := Logic.eq;
+      match_query _ := (Logic.eq * rb_bq)%rel;
+      match_reply _ := (Logic.eq * rb_bq)%rel;
     |}.
   Next Obligation. reflexivity. Qed.
   Next Obligation. inv H0. cbn in *. subst. reflexivity. Qed.
@@ -1035,22 +1375,49 @@ Section REFINE.
     forall v vs f c1 c2,
       rb_bq (v :: vs) (f, c1, c2) ->
       v = f c1 /\ rb_bq vs (f, S c1 mod N, c2).
-  Admitted.
+  Proof.
+    intros. inv H. destruct n as [|m]. easy.
+    inv H6. split. easy.
+    eapply bq_rb_intro with (n := m); eauto.
+    - apply Nat.mod_upper_bound. unfold N. omega.
+    - apply le_Sn_le; eauto.
+    - rewrite Nat.add_mod_idemp_l.
+      f_equal. omega. unfold N. omega.
+  Qed.
 
   Lemma slice_length f c1 n :
     List.length (slice f c1 n) = n.
   Proof.
-  Admitted.
+    revert c1. induction n; cbn; auto.
+  Qed.
 
   Lemma mod_minus:
     forall a, N <= a < N * 2 -> a mod N = a - N.
   Proof.
-  Admitted.
+    intros.
+    rewrite Nat.mod_eq.
+    cut (a / N = 1). intros. rewrite H0. lia.
+    assert (exists b, a = b + 1 * N).
+    exists (a - N). lia.
+    destruct H0 as (b & Hb). rewrite Hb.
+    rewrite Nat.div_add. subst.
+    cut (b < N). intros.
+    rewrite Nat.div_small. easy. easy. lia.
+    unfold N. lia. unfold N. lia.
+  Qed.
 
   Lemma mod_add_not_same a b:
     a < N -> b < N -> b <> 0 -> (a + b) mod N <> a.
   Proof.
-  Admitted.
+    intros. intros X.
+    cut (a <> 0).
+    2: { intros ->. cbn in *. apply Nat.mod_small in H0. omega. }
+    intros Y.
+    cut (a + b < N \/ N <= a + b < N * 2). intros [A|A].
+    rewrite Nat.mod_small in X; try easy. omega.
+    rewrite mod_minus in X; try easy. omega.
+    destruct (lt_dec (a+b) N). lia. lia.
+  Qed.
 
   Lemma refine_correct2:
     forall v vs f c1 c2,
@@ -1059,52 +1426,27 @@ Section REFINE.
       rb_bq vs (f, c1, c2) ->
       rb_bq (vs++[v]) (fun j : nat => if Nat.eq_dec c2 j then v else f j, c1, S c2 mod N).
   Proof.
-  Admitted.
-
-  Import Ptrofs.
-  Lemma inc2_block se:
-    Genv.valid_for (clightp_erase_program bq_program) se ->
-    exists b, Genv.find_symbol (globalenv se bq_program) inc2_id = Some b /\
-           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some inc2_ext.
-  Proof.
-  (*   intros Hse. eapply Genv.find_def_symbol with (id := inc2_id) in Hse . *)
-  (*   edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity. *)
-  (*   exists b. split; eauto. eapply genv_funct_symbol; eauto. *)
-  (* Qed. *)
-  Admitted.
-
-  Lemma set_block se:
-    Genv.valid_for (clightp_erase_program bq_program) se ->
-    exists b, Genv.find_symbol (globalenv se bq_program) set_id = Some b /\
-           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some set_ext.
-  Proof.
-  (*   intros Hse. eapply Genv.find_def_symbol with (id := set_id) in Hse . *)
-  (*   edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity. *)
-  (*   exists b. split; eauto. eapply genv_funct_symbol; eauto. *)
-  (* Qed. *)
-  Admitted.
-  Lemma inc1_block se:
-    Genv.valid_for (clightp_erase_program bq_program) se ->
-    exists b, Genv.find_symbol (globalenv se bq_program) inc1_id = Some b /\
-           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some inc1_ext.
-  Proof.
-  Admitted.
-  (*   intros Hse. eapply Genv.find_def_symbol with (id := inc1_id) in Hse . *)
-  (*   edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity. *)
-  (*   exists b. split; eauto. eapply genv_funct_symbol; eauto. *)
-  (* Qed. *)
-
-  Lemma get_block se:
-    Genv.valid_for (clightp_erase_program bq_program) se ->
-    exists b, Genv.find_symbol (globalenv se bq_program) get_id = Some b /\
-           Genv.find_funct (globalenv se bq_program) (Vptr b zero) = Some get_ext.
-  Proof.
-  Admitted.
-  (*   intros Hse. eapply Genv.find_def_symbol with (id := get_id) in Hse . *)
-  (*   edestruct (proj1 Hse) as (b & Hb1 & Hb2). reflexivity. *)
-  (*   exists b. split; eauto. eapply genv_funct_symbol; eauto. *)
-  (* Qed. *)
-  (* Opaque Genv.find_funct semantics2. *)
+    intros. inv H1. apply le_lt_or_eq in H6 as [A|A].
+    - eapply bq_rb_intro with (n := S n); eauto.
+      + clear - H5 A. revert c1 H5. induction n; cbn; intros.
+        * destruct Nat.eq_dec. reflexivity. exfalso. apply n.
+          rewrite Nat.add_0_r. now apply Nat.mod_small.
+        * rewrite IHn.
+          -- cbn. f_equal.
+             ++ destruct Nat.eq_dec; try easy.
+                exfalso. eapply mod_add_not_same. apply H5. apply A. easy. apply e.
+             ++ replace ((S c1 mod N + n) mod N) with ((c1 + S n) mod N). easy.
+                change (S ?x) with (1 + x).
+                rewrite Nat.add_mod_idemp_l. f_equal. omega.
+                unfold N. omega.
+          -- apply Nat.lt_succ_l. auto.
+          -- apply Nat.mod_upper_bound. unfold N. omega.
+      + change (S ?x) with (1 + x).
+        rewrite Nat.add_mod_idemp_r. f_equal. omega.
+        unfold N. omega.
+      + intros. destruct Nat.eq_dec; eauto.
+    - rewrite slice_length in H. omega.
+  Qed.
 
   Opaque clightp2.
   Import CategoricalComp.
