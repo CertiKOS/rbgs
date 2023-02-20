@@ -18,6 +18,11 @@ Generalizable All Variables.
 
 (* TODO: define initial states and prove the properties*)
 Variable m0 : list (ident * Z) -> Genv.symtbl -> mem.
+(* TODO: need type here
+(rb_pset se) ! arr_id = Some (Array Nz ?vf (Tarray tint Nz noattr))
+(rb_pset se) ! cnt1_id = Some (Val ?vc1 tint)
+(rb_pset se) ! cnt2_id = Some (Val ?vc2 tint)
+*)
 Variable p0 : list (ident * Z) -> ClightP.penv.
 
 Hypothesis id_skel_least: forall sk, Linking.linkorder CategoricalComp.id_skel sk.
@@ -230,7 +235,7 @@ Section ESIM.
       }
       unfold left_comp_id.
       rewrite H.
-      apply encap_comp_embed.
+      apply encap_comp_embed1.
   Qed.
 
 End ESIM.

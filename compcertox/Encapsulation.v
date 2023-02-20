@@ -2006,7 +2006,7 @@ Section COMP_EMBED.
       (st2 (semantics_map L1 lf (li_iso_inv li_iso_unit) @ unit) _ (s1, tt) s2)
       (st2 L1 _ s1 s2).
 
-  Lemma encap_comp_embed:
+  Lemma encap_comp_embed1:
     E.forward_simulation
       (& 1) (& 1)
       (comp_esem' (semantics_embed L1) (semantics_embed L2) sk)
@@ -2044,6 +2044,54 @@ Section COMP_EMBED.
       + apply step2; eauto.
       + eapply step_push; eauto.
       + eapply step_pop; eauto.
+  Qed.
+
+  Lemma encap_comp_embed2:
+    E.forward_simulation
+      (& 1) (& 1)
+      (semantics_embed (comp_semantics' L1 L2 sk))
+      (comp_esem' (semantics_embed L1) (semantics_embed L2) sk).
+  Proof.
+    apply st_normalize_fsim. constructor. cbn.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0))
+      (fun _ _ _ _ _ _ => flip comp_embed_ms)
+      (fun _ _ => True);
+      try easy.
+    intros. cbn in *. eprod_crush. constructor.
+    - intros. cbn in *. eprod_crush. inv H3.
+      eexists tt, _. split; eauto. econstructor.
+      instantiate (1 := (_, _)). econstructor; cbn; eauto.
+      exists tt, (tt, (tt, (tt, tt))).
+      repeat split; eauto. constructor.
+    - intros. cbn in *. eprod_crush. inv H3. inv H.
+      eexists (_, (tt, tt)). split.
+      eexists (_, tt, tt). repeat split; eauto.
+      cbn. eexists. repeat split; eauto.
+      exists (tt, (tt, (tt, tt))). repeat split; eauto.
+    - intros. cbn in *. eprod_crush. inv H2. inv H.
+      eexists. split. constructor. unfold id. eauto.
+      eexists tt. repeat split; eauto.
+      eprod_crush. inv H5.
+      eexists. split.
+      eexists. repeat split; eauto. econstructor.
+      split; eauto. reflexivity.
+      exists tt, (tt, (tt, (tt, tt))). repeat split; eauto.
+      constructor.
+    - intros. cbn in *. eprod_crush. inv H; inv H2;
+        cbn in *; eprod_crush; eexists tt, _;
+        ( split; [ left; apply plus_one
+        |  exists tt, (tt, (tt, (tt, tt))); repeat split; eauto; constructor ] ).
+      + apply step1; eauto. split; eauto.
+      + apply step2; eauto.
+      + eapply step_push; eauto.
+        instantiate (1 := (_, _)).
+        split; eauto. reflexivity. eauto.
+      + eapply step_pop; eauto.
+        instantiate (1 := (_, _)).
+        eexists. split; eauto. reflexivity.
+        split; eauto. cbn.
+        eexists. split; eauto. reflexivity.
   Qed.
 
 End COMP_EMBED.
