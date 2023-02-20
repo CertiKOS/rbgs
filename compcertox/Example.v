@@ -11,6 +11,9 @@ From compcertox Require Import
   ClightP ClightPComp.
 Import ListNotations.
 
+Definition query_alloc_flag '(cq _ _ _ m) := Mem.alloc_flag m.
+Definition reply_alloc_flag '(cr _ m) := Mem.alloc_flag m.
+
 (** identifies for the functions *)
 Definition set_id: positive := 101.
 Definition get_id: positive := 102.
@@ -285,6 +288,141 @@ Section CLIGHTP.
 
 End CLIGHTP.
 
+Require Import Lia.
+
+Ltac ptree_tac :=
+  cbn -[PTree.get];
+  lazymatch goal with
+  | [ |- PTree.get ?x (PTree.set ?x _ _) = _ ] =>
+      rewrite PTree.gss; reflexivity
+  | [ |- PTree.get ?x (PTree.set ?y _ _) = _ ] =>
+      rewrite PTree.gso by (unfold x, y; lia); eauto; ptree_tac
+  end.
+
+Ltac solve_ptree := solve [ eauto | ptree_tac ].
+
+Ltac crush_loc:=
+  cbn;
+  lazymatch goal with
+  | [ |- eval_loc _ _ _ _ _ (Epvar _ _) _ _ ] =>
+      eapply eval_Epvar; [ eauto | solve_ptree ]
+  end.
+
+Ltac crush_penv :=
+  cbn; eauto;
+  lazymatch goal with
+  | [ |- pwrite _ _ _ _ _ _ ] =>
+      econstructor; [ solve_ptree | eauto | eauto | try reflexivity ]
+  | [ |- pread _ _ _ _ _ ] =>
+      econstructor; [ solve_ptree | eauto ]
+  end.
+
+Ltac crush_eval_expr :=
+  cbn;
+  lazymatch goal with
+  | [ |- eval_expr _ _ _ _ _ (Etempvar _ _) _ ] => apply eval_Etempvar; reflexivity
+  | [ |- eval_expr _ _ _ _ _ (Econst_int _ _) _ ] => apply eval_Econst_int
+  | [ |- eval_expr _ _ _ _ _ (Ebinop _ _ _ _) _ ] => eapply eval_Ebinop
+  | [ |- eval_expr _ _ _ _ _ (Evar _ _) _ ] => eapply eval_Elvalue
+  | [ |- eval_expr _ _ _ _ _ (Ederef _ _) _ ] => eapply eval_Elvalue
+  | [ |- eval_expr _ _ _ _ _ (Epvar _ _) _ ] =>
+      eapply eval_Eloc; [ try crush_loc | try crush_penv | ]; eauto
+  end.
+Ltac crush_eval_lvalue :=
+  cbn;
+  lazymatch goal with
+  | [ |- eval_lvalue _ _ _ _ _ (Evar _ _) _ _ ] =>
+      solve [ apply eval_Evar_local; reflexivity
+            | apply eval_Evar_global; [ reflexivity | eassumption ] ]
+  | _ => constructor
+  end.
+Ltac crush_deref :=
+  cbn;
+  lazymatch goal with
+  | [ |- deref_loc (Tarray _ _ _) _ _ _ _] => eapply deref_loc_reference; reflexivity
+  | [ |- deref_loc (Tfunction _ _ _) _ _ _ _] => eapply deref_loc_reference; reflexivity
+  | [ |- deref_loc (Tint _ _ _) _ _ _ _] => eapply deref_loc_value; [ reflexivity | ]
+  end.
+
+Ltac crush_expr :=
+  repeat (cbn;
+    match goal with
+    | [ |- eval_expr _ _ _ _ _ _ _ ] => crush_eval_expr
+    | [ |- eval_lvalue _ _ _ _ _ _ _ _ ] => crush_eval_lvalue
+    | [ |- eval_exprlist _ _ _ _ _ _ _ _ ] => econstructor
+    | [ |- deref_loc _ _ _ _ _ ] => crush_deref
+    | [ |- Cop.sem_binary_operation _ _ _ _ _ _ _ = Some _] => try reflexivity
+    | [ |- Cop.sem_cast _ ?ty ?ty _ = Some _ ] =>
+        apply Cop.cast_val_casted; eauto
+    | [ |- assign_loc _ (Tint _ _ _) _ _ _ _ _ ] =>
+        eapply assign_loc_value; [ reflexivity | ]
+    | _ => try solve [ easy | eassumption ]
+    end).
+
+Ltac prove_norepet H :=
+  match type of H with
+  | False => inversion H
+  | (?a = ?b) \/ _ =>
+      destruct H as [H|H]; [inversion H|prove_norepet H]
+  end.
+
+Ltac solve_list_norepet :=
+  simpl;
+  match goal with
+  | |- list_norepet nil =>  apply list_norepet_nil
+  | |- list_norepet (?x :: ?l) =>
+      apply list_norepet_cons;
+      [simpl; let H := fresh "H" in intro H; prove_norepet H |solve_list_norepet]
+  end.
+Ltac destruct_or H :=
+  match type of H with
+  | _ \/ _ => destruct H as [H|H]; [ |destruct_or H]
+  | _ => idtac
+  end.
+
+Ltac solve_list_disjoint :=
+  simpl; unfold list_disjoint; simpl; red;
+  let x := fresh "x" in
+  let y := fresh "y" in
+  let Lx := fresh "Lx" in
+  let Ly := fresh "Ly" in
+  let xyEq := fresh "xyEq" in
+  intros x y Lx Ly xyEq; try rewrite xyEq in *; clear xyEq;
+  destruct_or Lx; destruct_or Ly; subst; try solve [inversion Lx]; try solve [inversion Ly].
+
+Ltac crush_step := cbn;
+  match goal with
+  | [ |- Step _ (Callstate _ _ _ _, _) _ _ ] =>
+      eapply step_internal_function;
+      [ eauto | constructor; cbn;
+        [ solve_list_norepet
+        | solve_list_norepet
+        | solve_list_disjoint
+        | repeat (econstructor; simpl; auto)
+        | reflexivity | eauto ] ]
+  | [ |- Step _ (State _ (Ssequence _ _) _ _ _ _, _) _ _ ] => apply step_seq
+  | [ |- Step _ (State _ (Sset _ _) _ _ _ _, _) _ _ ] => apply step_set
+  | [ |- Step _ (State _ (Scall _ _ _) _ _ _ _, _) _ _ ] => eapply step_call
+  | [ |- Step _ (Returnstate _ _ _, _) _ _ ] => eapply step_returnstate
+  | [ |- Step _ (State _ Sskip (Kseq _ _) _ _ _, _) _ _ ] => apply step_skip_seq
+  | [ |- Step _ (State _ (Sassign _ _) _ _ _ _, _) _ _ ] => eapply step_assign
+  | [ |- Step _ (State _ (Supdate _ _) _ _ _ _, _) _ _ ] =>
+      eapply step_update;
+      [ try crush_loc | try crush_expr | try crush_penv | .. ]; cbn; eauto
+  | [ |- Step _ (State _ (Sreturn None) _ _ _ _, _) _ _ ] => eapply step_return_0
+  | [ |- Step _ (State _ (Sreturn (Some _)) _ _ _ _, _) _ _ ] => eapply step_return_1
+  | [ |- Step _ (State _ ?s _ _ _ _, _) _ _ ] => is_const s; unfold s; crush_step
+  end.
+
+Ltac lts_step := eapply star_left with (t1 := E0) (t2 := E0); [ | | reflexivity ].
+
+Ltac crush_star :=
+  match goal with
+  | [ |- Star _ (Returnstate _ Kstop _) _ _ ] => eapply star_refl
+  | _ => lts_step; [ crush_step; crush_expr | cbn; try crush_star ]
+  end.
+
+
 (** ------------------------------------------------------------------------- *)
 (** Ring Buffer Spec *)
 
@@ -425,12 +563,61 @@ Next Obligation. reflexivity. Qed.
 Next Obligation. inv H0. reflexivity. Qed.
 Next Obligation. inv H. reflexivity. Qed.
 
-Lemma rb_correct1:
-  E.forward_simulation (&rb_cc) (&1)
-    (encap_prim rb_state)
-    (@encap_prim penv (penv_pset (ClightPComp.vars_of_program rb_program))).
-Proof.
-Admitted.
+Program Definition flag_cc: callconv li_c li_c :=
+  {|
+    ccworld := unit;
+    match_senv _ := eq;
+    match_query _ q1 q2 := q1 = q2 /\ query_alloc_flag q1 = true;
+    match_reply _ r1 r2 := r1 = r2 /\ reply_alloc_flag r1 = true;
+  |}.
+Next Obligation. reflexivity. Qed.
+Next Obligation. reflexivity. Qed.
+Next Obligation. reflexivity. Qed.
+
+Section RB.
+
+  Definition rb_pset := penv_pset (ClightPComp.vars_of_program rb_program).
+
+  Inductive rb_penv_ms: Smallstep.state (encap_prim rb_state) ->
+                        Smallstep.state (@encap_prim penv rb_pset) -> Prop :=
+  | rb_penv_ms_q q rbst pe:
+    query_alloc_flag q = true ->
+    rb_penv_rel rbst pe ->
+    rb_penv_ms (@st_q (li_c@rb_state)  (q, rbst)) (@st_q (li_c@penv) (q, pe))
+  | rb_penv_ms_r r rbst pe:
+    reply_alloc_flag r = true ->
+    rb_penv_rel rbst pe ->
+    rb_penv_ms (@st_r (li_c@rb_state) (r, rbst)) (@st_r (li_c@penv) (r, pe)).
+
+  Hint Constructors rb_penv_ms.
+
+  Lemma rb_correct1:
+    E.forward_simulation (&rb_cc) (&flag_cc)
+      (encap_prim rb_state)
+      (@encap_prim penv rb_pset).
+  Proof.
+    apply st_normalize_fsim. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0%nat))
+      (fun _ _ _ _ _ _ s1 s2 => rb_penv_ms s1 s2)
+      (fun _ '(_, (rbst, pe)) => rb_penv_rel rbst pe ); try easy.
+    - intros. cbn in *. eprod_crush; eauto.
+    - cbn. intros se. admit.
+    - intros. cbn in *. eprod_crush. econstructor; intros; cbn in *; eprod_crush.
+      + subst. eexists tt, _. split. constructor.
+        inv H3. eexists tt, (tt, (_, _)). repeat split; eauto.
+      + inv H2. inv H. eexists (_, _). split. constructor.
+        eexists (tt, (_, _)). repeat split; eauto.
+      + inv H2. inv H. eexists (_, _). split. constructor.
+        eexists tt, tt. repeat split; eauto.
+        destruct c. constructor; eauto.
+        eexists. split. constructor. inv H3.
+        eexists tt, (tt, (_, _)). repeat split; eauto.
+        inv H2. econstructor; eauto.
+      + easy.
+  Admitted.
+
+End RB.
 
 Inductive rb_func_rel: rb_sig -> function -> Prop :=
 | rb_inc1_rel: rb_func_rel inc1 rb_inc1
@@ -468,139 +655,6 @@ Qed.
 
 Opaque PTree.set.
 Opaque Nat.modulo.
-Require Import Lia.
-
-Ltac ptree_tac :=
-  cbn -[PTree.get];
-  lazymatch goal with
-  | [ |- PTree.get ?x (PTree.set ?x _ _) = _ ] =>
-      rewrite PTree.gss; reflexivity
-  | [ |- PTree.get ?x (PTree.set ?y _ _) = _ ] =>
-      rewrite PTree.gso by (unfold x, y; lia); eauto; ptree_tac
-  end.
-
-Ltac solve_ptree := solve [ eauto | ptree_tac ].
-
-Ltac crush_loc:=
-  cbn;
-  lazymatch goal with
-  | [ |- eval_loc _ _ _ _ _ (Epvar _ _) _ _ ] =>
-      eapply eval_Epvar; [ eauto | solve_ptree ]
-  end.
-
-Ltac crush_penv :=
-  cbn; eauto;
-  lazymatch goal with
-  | [ |- pwrite _ _ _ _ _ _ ] =>
-      econstructor; [ solve_ptree | eauto | eauto | try reflexivity ]
-  | [ |- pread _ _ _ _ _ ] =>
-      econstructor; [ solve_ptree | eauto ]
-  end.
-
-Ltac crush_eval_expr :=
-  cbn;
-  lazymatch goal with
-  | [ |- eval_expr _ _ _ _ _ (Etempvar _ _) _ ] => apply eval_Etempvar; reflexivity
-  | [ |- eval_expr _ _ _ _ _ (Econst_int _ _) _ ] => apply eval_Econst_int
-  | [ |- eval_expr _ _ _ _ _ (Ebinop _ _ _ _) _ ] => eapply eval_Ebinop
-  | [ |- eval_expr _ _ _ _ _ (Evar _ _) _ ] => eapply eval_Elvalue
-  | [ |- eval_expr _ _ _ _ _ (Ederef _ _) _ ] => eapply eval_Elvalue
-  | [ |- eval_expr _ _ _ _ _ (Epvar _ _) _ ] =>
-      eapply eval_Eloc; [ try crush_loc | try crush_penv | ]; eauto
-  end.
-Ltac crush_eval_lvalue :=
-  cbn;
-  lazymatch goal with
-  | [ |- eval_lvalue _ _ _ _ _ (Evar _ _) _ _ ] =>
-      solve [ apply eval_Evar_local; reflexivity
-            | apply eval_Evar_global; [ reflexivity | eassumption ] ]
-  | _ => constructor
-  end.
-Ltac crush_deref :=
-  cbn;
-  lazymatch goal with
-  | [ |- deref_loc (Tarray _ _ _) _ _ _ _] => eapply deref_loc_reference; reflexivity
-  | [ |- deref_loc (Tfunction _ _ _) _ _ _ _] => eapply deref_loc_reference; reflexivity
-  | [ |- deref_loc (Tint _ _ _) _ _ _ _] => eapply deref_loc_value; [ reflexivity | ]
-  end.
-
-Ltac crush_expr :=
-  repeat (cbn;
-    match goal with
-    | [ |- eval_expr _ _ _ _ _ _ _ ] => crush_eval_expr
-    | [ |- eval_lvalue _ _ _ _ _ _ _ _ ] => crush_eval_lvalue
-    | [ |- eval_exprlist _ _ _ _ _ _ _ _ ] => econstructor
-    | [ |- deref_loc _ _ _ _ _ ] => crush_deref
-    | [ |- Cop.sem_binary_operation _ _ _ _ _ _ _ = Some _] => try reflexivity
-    | [ |- Cop.sem_cast _ ?ty ?ty _ = Some _ ] =>
-        apply Cop.cast_val_casted; eauto
-    | [ |- assign_loc _ (Tint _ _ _) _ _ _ _ _ ] =>
-        eapply assign_loc_value; [ reflexivity | ]
-    | _ => try solve [ easy | eassumption ]
-    end).
-
-Ltac prove_norepet H :=
-  match type of H with
-  | False => inversion H
-  | (?a = ?b) \/ _ =>
-      destruct H as [H|H]; [inversion H|prove_norepet H]
-  end.
-
-Ltac solve_list_norepet :=
-  simpl;
-  match goal with
-  | |- list_norepet nil =>  apply list_norepet_nil
-  | |- list_norepet (?x :: ?l) =>
-      apply list_norepet_cons;
-      [simpl; let H := fresh "H" in intro H; prove_norepet H |solve_list_norepet]
-  end.
-Ltac destruct_or H :=
-  match type of H with
-  | _ \/ _ => destruct H as [H|H]; [ |destruct_or H]
-  | _ => idtac
-  end.
-
-Ltac solve_list_disjoint :=
-  simpl; unfold list_disjoint; simpl; red;
-  let x := fresh "x" in
-  let y := fresh "y" in
-  let Lx := fresh "Lx" in
-  let Ly := fresh "Ly" in
-  let xyEq := fresh "xyEq" in
-  intros x y Lx Ly xyEq; try rewrite xyEq in *; clear xyEq;
-  destruct_or Lx; destruct_or Ly; subst; try solve [inversion Lx]; try solve [inversion Ly].
-
-Ltac crush_step := cbn;
-  match goal with
-  | [ |- Step _ (Callstate _ _ _ _, _) _ _ ] =>
-      eapply step_internal_function;
-      [ eauto | constructor; cbn;
-        [ solve_list_norepet
-        | solve_list_norepet
-        | solve_list_disjoint
-        | repeat (econstructor; simpl; auto)
-        | reflexivity | eauto ] ]
-  | [ |- Step _ (State _ (Ssequence _ _) _ _ _ _, _) _ _ ] => apply step_seq
-  | [ |- Step _ (State _ (Sset _ _) _ _ _ _, _) _ _ ] => apply step_set
-  | [ |- Step _ (State _ (Scall _ _ _) _ _ _ _, _) _ _ ] => eapply step_call
-  | [ |- Step _ (Returnstate _ _ _, _) _ _ ] => eapply step_returnstate
-  | [ |- Step _ (State _ Sskip (Kseq _ _) _ _ _, _) _ _ ] => apply step_skip_seq
-  | [ |- Step _ (State _ (Sassign _ _) _ _ _ _, _) _ _ ] => eapply step_assign
-  | [ |- Step _ (State _ (Supdate _ _) _ _ _ _, _) _ _ ] =>
-      eapply step_update;
-      [ try crush_loc | try crush_expr | try crush_penv | .. ]; cbn; eauto
-  | [ |- Step _ (State _ (Sreturn None) _ _ _ _, _) _ _ ] => eapply step_return_0
-  | [ |- Step _ (State _ (Sreturn (Some _)) _ _ _ _, _) _ _ ] => eapply step_return_1
-  | [ |- Step _ (State _ ?s _ _ _ _, _) _ _ ] => is_const s; unfold s; crush_step
-  end.
-
-Ltac lts_step := eapply star_left with (t1 := E0) (t2 := E0); [ | | reflexivity ].
-
-Ltac crush_star :=
-  match goal with
-  | [ |- Star _ (Returnstate _ Kstop _) _ _ ] => eapply star_refl
-  | _ => lts_step; [ crush_step; crush_expr | cbn; try crush_star ]
-  end.
 
 Lemma cnt_inc_simp c i:
   Z.of_nat c = Int.intval i -> (c < N)%nat ->
@@ -755,7 +809,7 @@ Proof.
 Admitted.
 
 Lemma rb_correct:
-  E.forward_simulation (&1) (&1) rb_espec (eclightp rb_program).
+  E.forward_simulation (&1) (&flag_cc) rb_espec (eclightp rb_program).
 Proof.
   eapply encap_fsim_lcomp_sk; eauto. instantiate (1 := &rb_cc).
   - apply rb_correct1.
@@ -868,9 +922,6 @@ Definition bq_spec: semantics li_c li_c :=
     footprint := AST.footprint_of_program bq_program;
   |}.
 
-Definition query_alloc_flag '(cq _ _ _ m) := Mem.alloc_flag m.
-Definition reply_alloc_flag '(cr _ m) := Mem.alloc_flag m.
-
 Program Definition bq_cc: callconv li_c (li_c@penv) :=
   {|
     ccworld := unit;
@@ -882,11 +933,46 @@ Next Obligation. reflexivity. Qed.
 Next Obligation. reflexivity. Qed.
 Next Obligation. reflexivity. Qed.
 
-Lemma bq_correct1:
-  E.forward_simulation (&bq_cc) (&1) (semantics_embed 1)
-    (@encap_prim penv (penv_pset (ClightPComp.vars_of_program bq_program))).
-Proof.
-Admitted.
+Section BQ.
+
+  Definition bq_pset := penv_pset (ClightPComp.vars_of_program bq_program).
+
+  Inductive bq_penv_ms: @Smallstep.state li_c _ (semantics_embed 1) ->
+                        Smallstep.state (@encap_prim penv bq_pset) -> Prop :=
+  | bq_penv_ms_q q pe:
+    query_alloc_flag q = true ->
+    bq_penv_ms (st_q q) (@st_q (li_c@penv) (q, pe))
+  | bq_penv_ms_r r pe:
+    reply_alloc_flag r = true ->
+    bq_penv_ms (st_r r) (@st_r (li_c@penv) (r, pe)).
+
+  Hint Constructors bq_penv_ms.
+
+  Lemma bq_correct1:
+    E.forward_simulation (&bq_cc) (&flag_cc) (semantics_embed 1)
+      (@encap_prim penv bq_pset).
+  Proof.
+    apply st_normalize_fsim. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0%nat))
+      (fun _ _ _ _ _ _ s1 s2 => bq_penv_ms s1 s2)
+      (fun _ _ => True); try easy.
+    intros. constructor; intros; cbn in *; eprod_crush; subst.
+    - inv H4. eexists tt, _. split. constructor.
+      eexists tt, (tt, (tt, _)). repeat split; eauto.
+    - inv H3. inv H2.
+      eexists (_, _). split. econstructor.
+      eexists (tt, (tt, _)). repeat split; eauto.
+    - inv H3. inv H2. eexists (_, _). split. econstructor.
+      exists tt, tt. repeat split; eauto.
+      eprod_crush. inv H6.
+      eexists. split. constructor.
+      eexists tt, (tt, (tt, _)). repeat split; eauto.
+    - easy.
+      Unshelve. all: eauto.
+  Qed.
+
+End BQ.
 
 Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
 | bq_ms_enq:
@@ -1068,7 +1154,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     exists b. split; eauto. eapply genv_funct_symbol; eauto.
   Qed.
 
-Lemma bq_correct2: forward_simulation 1 bq_cc bq_spec (clightp2 bq_program).
+Lemma bq_correct2: forward_simulation flag_cc bq_cc bq_spec (clightp2 bq_program).
 Proof.
   constructor. econstructor. reflexivity. firstorder.
   intros. instantiate (1 := fun _ _ _ => _). cbn beta.
@@ -1095,7 +1181,7 @@ Proof.
       * econstructor; eauto.
         eapply genv_funct_symbol; eauto. reflexivity.
       * assert (b = b0). cbn in *. congruence.
-        subst. constructor.
+        subst. constructor; eauto.
       * split. constructor. intros. inv H. inv H1.
         eexists. split; constructor; eauto.
     (* inc2 *)
@@ -1103,7 +1189,7 @@ Proof.
       * econstructor; eauto.
         eapply genv_funct_symbol; eauto. reflexivity.
       * assert (b = b0).  cbn in *. congruence.
-        subst. constructor.
+        subst. constructor; eauto.
       * split. constructor. intros. inv H. inv H1.
         eexists. split; constructor; eauto.
     (* get *)
@@ -1111,7 +1197,7 @@ Proof.
       * econstructor; eauto.
         eapply genv_funct_symbol; eauto. reflexivity.
       * assert (b = b0). cbn in *. congruence.
-        subst. constructor.
+        subst. constructor; eauto.
       * split. constructor. intros. inv H. inv H1.
         eexists. split. econstructor; eauto.
         econstructor. 4: reflexivity. all: eauto.
@@ -1120,7 +1206,7 @@ Proof.
       * econstructor; eauto.
         eapply genv_funct_symbol; eauto. reflexivity.
       * assert (b = b0). cbn in *. congruence.
-        subst. constructor.
+        subst. constructor; eauto.
       * split. constructor. intros. inv H. inv H1.
         eexists. split. econstructor; eauto.
         econstructor; eauto.
@@ -1183,7 +1269,7 @@ Qed.
 
 Definition bq_espec: li_c +-> li_c := semantics_embed bq_spec.
 
-Lemma bq_correct: E.forward_simulation (&1) (&1) bq_espec (eclightp bq_program).
+Lemma bq_correct: E.forward_simulation (&flag_cc) (&flag_cc) bq_espec (eclightp bq_program).
 Proof.
   rewrite ccref_left_unit1 at 2.
   rewrite <- ccref_left_unit2 at 1.
@@ -1197,16 +1283,14 @@ Proof.
     + apply encap_fsim_embed_cat.
       apply CAT.left_unit_1.
     + unfold left_comp_id.
-      (* symmetric version of encap_comp_embed *)
-      admit.
+      apply encap_comp_embed2.
   - eapply encap_fsim_lcomp_sk. instantiate (1 := &bq_cc).
     + apply bq_correct1.
     + apply encap_fsim_embed.
       apply bq_correct2.
     + apply ClightPComp.id_skel_least.
     + apply Linking.linkorder_refl.
-Admitted.
-
+Qed.
 
 (** ------------------------------------------------------------------------- *)
 (** Abstract Ring Buffer Spec *)
@@ -1361,11 +1445,49 @@ Section REFINE.
       bq_abs_ms se (bq_abs_final bqst rv m)
         (st1 (bq_spec @ rb_state) _ (bq_final rv m, rbst)).
 
-  Lemma bq_refine1:
-    E.forward_simulation (&abs_bq_cc) (&1)
-      (encap_prim bq_state) (encap_prim rb_state).
-  Proof.
-  Admitted.
+  Section BQ.
+
+    Inductive refine_ms: Smallstep.state (encap_prim bq_state) ->
+                         Smallstep.state (encap_prim rb_state) -> Prop :=
+    | refine_ms_q q rbst bqst:
+      rb_bq bqst rbst ->
+      refine_ms (@st_q (li_c@bq_state) (q, bqst))
+        (@st_q (li_c@rb_state) (q, rbst))
+    | refine_ms_r r rbst bqst:
+      rb_bq bqst rbst ->
+      refine_ms (@st_r (li_c@bq_state) (r, bqst))
+        (@st_r (li_c@rb_state) (r, rbst)).
+
+    Hint Constructors refine_ms.
+
+    Lemma bq_refine1:
+      E.forward_simulation (&abs_bq_cc) (&1)
+        (encap_prim bq_state) (encap_prim rb_state).
+    Proof.
+      apply st_normalize_fsim. constructor.
+      eapply ST.Forward_simulation with
+        (ltof _ (fun (_: unit) => 0%nat))
+        (fun _ _ _ _ _ _ s1 s2 => refine_ms s1 s2)
+        (fun _ '(_, (bqst, rbst)) => rb_bq bqst rbst); try easy.
+      - intros. cbn in *. eprod_crush. eauto.
+      - intros. cbn.
+        eapply bq_rb_intro with (n := 0).
+        all: eauto; unfold N; lia.
+      - intros; constructor; intros; cbn in *; eprod_crush.
+        + inv H4. eexists tt, _. split. constructor.
+          eexists tt, (tt, (_, _)). repeat split; eauto.
+        + inv H3. inv H2. eexists (_, _). split. constructor.
+          eexists (tt, (_, _)). repeat split; eauto.
+        + inv H3. inv H2. eexists (_, _). split. constructor.
+          exists tt, tt. repeat split; eauto.
+          eprod_crush. destruct H2. cbn in *. inv H3.
+          eexists _. split. constructor.
+          eexists tt, (tt, (_, _)). repeat split; eauto.
+        + easy.
+          Unshelve. all: eauto.
+    Qed.
+
+  End BQ.
 
   Lemma rb_bq_c2:
     forall q f c1 c2,
@@ -1610,10 +1732,10 @@ Section REFINE.
 
   Lemma rb_bq_correct:
     E.forward_simulation
-      (&1) (&1) abs_bq_espec
+      (&1) (&flag_cc) abs_bq_espec
       (comp_esem' (eclightp bq_program) (eclightp rb_program) rb_bq_skel).
   Proof.
-    rewrite ccref_left_unit1 at 2.
+    rewrite (ccref_left_unit1 (&flag_cc)).
     rewrite <- ccref_left_unit2 at 1.
     eapply encap_fsim_vcomp.
     - apply bq_refine.
