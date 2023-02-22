@@ -118,16 +118,6 @@ Definition eclightp (p: ClightP.program) :=
 (** ------------------------------------------------------------------------- *)
 (** Properties *)
 
-
-Lemma join_associative m1 m2 m3 m12 m23 m123:
-  join m1 m2 m12 -> join m12 m3 m123 -> join m2 m3 m23 -> join m1 m23 m123.
-Admitted.
-
-Lemma join_associative_exist m1 m2 m3 m12 m123:
-  join m1 m2 m12 -> join m12 m3 m123 ->
-  exists m23, join m2 m3 m23 /\ join m1 m23 m123.
-Admitted.
-
 Section CC_IN.
 (** [cc_in] is supposed to be parametrized over an init memory fragment *)
 
