@@ -5,7 +5,7 @@ From compcert Require Import
      CategoricalComp.
 From compcertox Require Import
      TensorComp Lifting
-     ClightP Encapsulation.
+     ClightP Encapsulation JoinAssoc.
 From compcert Require Import Join.
 Require Import Lia.
 
@@ -242,11 +242,6 @@ End ESIM.
 
 (** ------------------------------------------------------------------------- *)
 (** Properties *)
-
-Lemma join_associative_exist m1 m2 m3 m12 m123:
-  join m1 m2 m12 -> join m12 m3 m123 ->
-  exists m23, join m2 m3 m23 /\ join m1 m23 m123.
-Admitted.
 
 Section UNP_IN.
 

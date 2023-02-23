@@ -16,6 +16,8 @@ compcertox/BQspec.v
 compcertox/BQspecx.v
 compcertox/BQrefine.v
 
+
+compcertox/JoinAssoc.v
 compcertox/Encapsulation.v
 compcertox/ClightP.v
 compcertox/ClightPComp.v
