@@ -136,15 +136,9 @@ Next Obligation. reflexivity. Qed.
 Next Obligation. inv H0. reflexivity. Qed.
 Next Obligation. inv H. reflexivity. Qed.
 
-Definition encap_prim (U: Type) `{PSet U} : li_c@U +-> li_c :=
-  {|
-    pstate := U;
-    esem := 1%lts;
-  |}.
-
 Definition eclightp (p: ClightP.program) :=
   comp_esem'
-    (@encap_prim ClightP.penv (penv_pset (vars_of_program p)))
+    (@encap_prim _ ClightP.penv (penv_pset (vars_of_program p)))
     (semantics_embed (ClightP.clightp2 p))
     (ClightP.clightp_erase_program p).
 
@@ -173,7 +167,7 @@ Section ESIM.
   Lemma penv_encap:
     E.forward_simulation
      (& (pin ce)) (unp_in vars)
-     (@encap_prim ClightP.penv (penv_pset vars))
+     (@encap_prim _ ClightP.penv (penv_pset vars))
      (semantics_embed 1%lts).
   Proof.
     apply st_normalize_fsim. constructor.
@@ -752,8 +746,8 @@ Section CLICHTP_OUT.
 
   Lemma encap_prim_out vars:
     E.forward_simulation unp_penv unp_out
-      (@encap_prim ClightP.penv (penv_pset vars))
-      (@encap_prim ClightP.penv (penv_pset vars)).
+      (@encap_prim _ ClightP.penv (penv_pset vars))
+      (@encap_prim _ ClightP.penv (penv_pset vars)).
   Proof.
     apply st_normalize_fsim. cbn. constructor.
     eapply ST.Forward_simulation with

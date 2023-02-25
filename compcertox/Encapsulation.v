@@ -2096,6 +2096,495 @@ Section COMP_EMBED.
 
 End COMP_EMBED.
 
+(** ------------------------------------------------------------------------- *)
+(** Associativity *)
+
+Section ASSOC.
+
+  Context {liA liB liC liD} (L1: liC +-> liD)
+    (L2: liB +-> liC) (L3: liA +-> liB).
+  Context (sk1 sk2 sk: AST.program unit unit).
+
+  Let L12 := comp_esem' L1 L2 sk1.
+  Let L23 := comp_esem' L2 L3 sk2.
+  Let L := comp_esem' L12 L3 sk.
+  Let L' := comp_esem' L1 L23 sk.
+
+  Inductive assoc_ms: (pstate L1 * pstate L2 * pstate L3) ->
+                      Smallstep.state L' -> Smallstep.state L -> Prop :=
+  | assoc_ms1 s1 k1 k2 k3:
+    assoc_ms
+      (k1, k2, k3)
+      (st1 (L1 @ (pstate L2 * pstate L3)) _ (s1, (k2, k3)))
+      (st1 (L12 @ pstate L3) _ (st1 (L1 @ pstate L2) _ (s1, k2), k3))
+  | assoc_ms2 s1 s2 k1 k2 k3 k3':
+    assoc_ms
+      (k1, k2, k3)
+      (st2 (L1 @ (pstate L2 * pstate L3)) L23 (s1, (k2, k3')) (st1 (L2 @ pstate L3) _ (s2, k3)))
+      (st1 (L12 @ pstate L3) _ (st2 (L1 @ pstate L2) _ (s1, k2) s2, k3))
+  | assoc_ms3 s1 s2 s3 k1 k2 k3 k3':
+    assoc_ms
+      (k1, k2, k3)
+      (st2 (L1 @ (pstate L2 * pstate L3)) L23 (s1, (k2, k3')) (st2 (L2 @ pstate L3) _ (s2, k3) s3))
+      (st2 (L12 @ pstate L3) _ (st2 (L1 @ pstate L2) _ (s1, k2) s2, k3) s3).
+
+  Inductive assoc_rel {A B C: Type}: A * (B * C) -> A * B * C -> Prop :=
+  | assoc_rel_intro a b c: assoc_rel (a, (b, c)) (a, b, c).
+
+  Hint Constructors assoc_rel assoc_ms.
+
+  Lemma encap_assoc1: E.forward_simulation (&1) (&1) L' L.
+  Proof.
+    apply st_normalize_fsim. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0%nat))
+      (fun _ _ _ _ '(_, (_, k2)) _ s1 s2 => assoc_ms k2 s1 s2)
+      (fun _ '(_, (k1, k2)) =>  assoc_rel k1 k2); try easy.
+    - intros. cbn in *. eprod_crush. inv H. eauto.
+    - intros. cbn. now rewrite  Logic.or_assoc.
+    - intros. cbn in *. eprod_crush. inv H1.
+      constructor; intros; cbn in *; eprod_crush.
+      +  inv H2. inv H1. cbn in *; eprod_crush.
+         eexists tt, _. split. repeat constructor.
+         instantiate (1 := (_, _)). all: cbn; eauto.
+         repeat constructor.
+         instantiate (1 := (_, _)). all: cbn; eauto.
+         eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+         repeat split; eauto.
+      + inv H2. inv H1. inv H. cbn in *. inv H3.
+        eexists (_, (_, _, _)). split.
+        * eexists (_, (_, _), _). split. reflexivity.
+          repeat econstructor.
+          instantiate (4 := (_, _)).
+          all: cbn; eauto. reflexivity.
+        * eexists (tt, ((_, (_, _)), (_, _, _))).
+          repeat split; eauto.
+      + inv H1. inv H2. inv H.
+        eexists. split. repeat constructor. unfold id in *. eauto.
+        exists tt, tt. repeat split; eauto.
+        intros. destruct H3 as (? & ? & ?). unfold id in *.
+        inv H4. inv H9. destruct H2. inv H3.
+        eexists tt, _. split.
+        * eexists. split; eauto.
+          repeat constructor. cbn. unfold id. eauto.
+        * eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+          repeat split; eauto.
+      + inv H; cbn in *; eprod_crush.
+        * inv H1. eexists tt, _. split.
+          -- left. apply plus_one. apply step1.
+             instantiate (1 := (_, _)). cbn. split; eauto.
+             constructor.
+             instantiate (1 := (_, _)). cbn. split; eauto.
+          -- eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+             repeat split; eauto.
+        * inv H2; inv H1; cbn in *; eprod_crush; subst.
+          -- eexists tt, _. split.
+             ++ left. apply plus_one. apply step1.
+                instantiate (1 := (_, _)). cbn. split; eauto.
+                apply step2. eauto.
+             ++ eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+                repeat split; eauto.
+          -- eexists tt, _. split.
+             ++ left. apply plus_one. apply step2. eauto.
+             ++ eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+                repeat split; eauto.
+          -- eexists tt, _. split.
+             ++ left. apply plus_one. eapply step_push; eauto.
+                repeat constructor; eauto.
+             ++ eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+                repeat split; eauto.
+          -- eexists tt, _. split.
+             ++ left. apply plus_one. eapply step_pop; eauto.
+                instantiate (1 := (_, _)). cbn. split; eauto.
+                eexists; split; eauto.
+                unfold id. reflexivity.
+                repeat constructor; eauto. reflexivity.
+             ++ eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+                repeat split; eauto.
+        * inv H3. inv H2. cbn in *. eprod_crush. inv H1.
+          eexists tt, _. split.
+          -- left. apply plus_one. eapply step1.
+             instantiate (1 := (_, _)). cbn. split; eauto.
+             eapply step_push; eauto.
+             constructor; eauto.
+          -- eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+             repeat split; eauto.
+        * inv H3. inv H2. cbn in *. eprod_crush. inv H1.
+          eexists tt, _. split.
+          -- left. apply plus_one. eapply step1.
+             instantiate (1 := (_, _)). cbn. split; eauto.
+             eapply step_pop; eauto.
+             instantiate (1 := (_, _)). cbn. split; cbn; eauto.
+          -- eexists tt, (tt, ((_, (_, _)), (_, _, _))).
+             repeat split; eauto.
+             Unshelve. all: eauto.
+  Qed.
+
+  Lemma encap_assoc2: E.forward_simulation (&1) (&1) L L'.
+    apply st_normalize_fsim. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0%nat))
+      (fun _ _ _ _ '(_, (k2, _)) _ s1 s2 => assoc_ms k2 s2 s1)
+      (fun _ '(_, (k1, k2)) =>  assoc_rel k2 k1); try easy.
+    - intros. cbn in *. eprod_crush. inv H. eauto.
+    - intros. cbn. now rewrite  Logic.or_assoc.
+    - intros. cbn in *. eprod_crush. inv H1.
+      Ltac arel2 := eexists tt, (tt, ((_, _, _), (_, (_, _))));
+                    repeat split; eauto.
+      Ltac earel2 := eexists tt, _; split; [ | arel2 ].
+      constructor; intros; cbn in *; eprod_crush.
+      +  inv H2. inv H1. cbn in *; eprod_crush.
+         inv H2. inv H1. cbn in *; eprod_crush.
+         earel2. repeat constructor. eauto.
+      + inv H2. inv H1. cbn in *. eprod_crush.
+        inv H2. inv H1. cbn in *. eprod_crush. inv H.
+        eexists (_, (_, (_, _))). split.
+        * eexists (_, _, (_, _)). split. reflexivity.
+          repeat econstructor.
+          all: cbn; eauto.
+        * eexists (tt, ((_, _, _), (_, (_, _)))).
+          repeat split; eauto.
+      + inv H1. inv H. unfold id in *.
+        eexists. split. repeat constructor. cbn. unfold id. eauto.
+        exists tt, tt. repeat split; eauto.
+        intros. destruct H3 as (? & ? & ?). inv H4.
+        eexists tt, _. split.
+        * eexists. split; eauto.
+          repeat constructor.
+          eexists; split; cbn; eauto. reflexivity. constructor; eauto.
+        * arel2.
+      + inv H; cbn in *; eprod_crush.
+        * inv H; inv H1; cbn in *; eprod_crush; subst.
+          -- earel2. left. apply plus_one. apply step1.
+             constructor; eauto.
+          -- eexists tt, _. split.
+             ++ left. apply plus_one. apply step2. econstructor.
+                instantiate (1 := (_, _)). constructor; eauto.
+             ++ arel2.
+          -- eexists tt, _. split.
+             ++ left. apply plus_one. eapply step_push; constructor.
+                instantiate (1 := (_, _)). all: cbn; eauto.
+                repeat split.
+                instantiate (1 := (_, _)). all: cbn; eauto.
+             ++ arel2.
+          -- earel2. left. apply plus_one. eapply step_pop; econstructor.
+             instantiate (1 := (_, _)). all: repeat constructor; eauto.
+        * inv H1. eexists tt, _. split.
+          -- left. apply plus_one. apply step2.
+             apply step2. eauto.
+          -- arel2.
+        * inv H. inv H1. eexists tt, _. split.
+          -- left. apply plus_one. apply step2. eapply step_push; eauto.
+             constructor; eauto.
+          -- arel2.
+        * unfold id in *. subst. inv H3. inv H1. eexists tt, _. split.
+          -- left. apply plus_one. apply step2. eapply step_pop; eauto.
+             instantiate (1 := (_, _)). constructor; eauto. reflexivity.
+          -- arel2.
+             Unshelve. all: eauto.
+  Qed.
+
+End ASSOC.
+
+Section REFL.
+
+  Lemma encap_refl {li1 li2} L:
+    E.forward_simulation &(@cc_id li1) &(@cc_id li2) L L.
+  Proof.
+    apply st_normalize_fsim. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0%nat))
+      (fun _ _ _ _ _ _ s1 s2 => s1 = s2)
+      (fun _ '(_, (k1, k2)) =>  k1 = k2); try easy.
+    - intros. cbn in *. eprod_crush. reflexivity.
+    - intros; cbn in *; eprod_crush.
+      constructor; intros; cbn in *; eprod_crush; subst.
+      + eexists tt, _. repeat split; eauto.
+        eexists (tt, (_, _)). repeat split; eauto.
+      + eexists (_, _). repeat split; eauto.
+        eexists (tt, (_, _)). repeat split; eauto.
+      + eexists. split; eauto.
+        eexists tt, tt. repeat split; eauto. subst.
+        eexists _. repeat split; eauto.
+        eexists (tt, (_, _)). repeat split; eauto.
+      + eexists tt, _. split. left. apply plus_one; eauto.
+        eexists tt, (tt, (_, _)). repeat split; eauto.
+        Unshelve. all: eauto.
+  Qed.
+
+End REFL.
+
+Instance encap_preo {li1 li2}:
+  PreOrder (E.forward_simulation &(@cc_id li1) &(@cc_id li2)).
+Proof.
+  split.
+  - intros L. apply encap_refl.
+  - intros L1 L2 L3 HA HB.
+    setoid_rewrite ccref_left_unit1 at 2.
+    rewrite <- ccref_left_unit2 at 1.
+    eapply encap_fsim_vcomp; eauto.
+Qed.
+
+(** ------------------------------------------------------------------------- *)
+(** Property about encapsulation primitive *)
+
+Definition encap_prim {li} `{PSet U} : li@U +-> li :=
+  {|
+    pstate := U;
+    esem := 1%lts;
+  |}.
+
+Arguments encap_prim {li} U {_}.
+
+Require Import Lia.
+
+Section COMP_PRIM.
+
+  Context {li} `{PSet U} (L: semantics li li) (sk: AST.program unit unit).
+
+  Let L1 := comp_esem' (encap_prim U) (semantics_embed (L @ U)) sk.
+  Let L2 := comp_esem' (semantics_embed L) (encap_prim U) sk.
+
+  Definition q1 (q: query li) (u: U): Smallstep.state (normalize_sem L1).
+    refine (st1 _ _ _).
+    refine (st_q _).
+    refine (q, (u, tt)).
+  Defined.
+
+  Definition q2 (q: query li) (u: U): Smallstep.state (normalize_sem L2).
+    refine (st1 _ _ _).
+    refine (st_q _).
+    refine (q, (tt, u)).
+  Defined.
+
+  Definition r1 (r: reply li) (u: U): Smallstep.state (normalize_sem L1).
+    refine (st1 _ _ _).
+    refine (st_r _).
+    refine (r, (u, tt)).
+  Defined.
+
+  Definition r2 (r: reply li) (u: U): Smallstep.state (normalize_sem L2).
+    refine (st1 _ _ _).
+    refine (st_r _).
+    refine (r, (tt, u)).
+  Defined.
+
+  Definition qq1 (q: query li) (u: U): Smallstep.state (normalize_sem L1).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (u, tt)).
+    - refine (st1 _ _ _). refine (st1 _ _ _).
+      refine (st_q _, tt). refine (q, u).
+  Defined.
+
+  Definition qqs1  (q: query li) (u u': U) (s: Smallstep.state L):
+    Smallstep.state (normalize_sem L1).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (u, tt)).
+    - refine (st1 _ _ _). refine (st2 _ _ _ _).
+      + refine (st_q _, tt). refine (q, u).
+      + refine (s, u').
+  Defined.
+
+  Definition qs2 (q: query li) (u u': U) (s: Smallstep.state L):
+    Smallstep.state (normalize_sem L2).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (tt, u)).
+    - refine (st1 _ _ _). refine (st1 _ _ _).
+      refine (s, u').
+  Defined.
+
+  Definition qqsq1  (q q': query li) (u u': U) (s: Smallstep.state L)
+    : Smallstep.state (normalize_sem L1).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (u, tt)).
+    - refine (st2 _ _ _ _).
+      + refine (st2 _ _ _ _).
+        * refine (st_q _, tt). refine (q, u).
+        * refine (s, u').
+      + refine (st_q _). refine (q', u').
+  Defined.
+
+  Definition qsqq2 (q q': query li) (u u': U) (s: Smallstep.state L)
+    : Smallstep.state (normalize_sem L2).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (tt, u)).
+    - refine (st2 _ _ _ _).
+      + refine (st2 _ _ _ _).
+        * refine (s, u').
+        * refine (st_q _). refine (q', u').
+      + refine (st_q _). refine (q', u').
+  Defined.
+
+  Definition qqsr1  (q: query li) (u u' u'': U) (s: Smallstep.state L)
+    (r: reply li): Smallstep.state (normalize_sem L1).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (u, tt)).
+    - refine (st2 _ _ _ _).
+      + refine (st2 _ _ _ _).
+        * refine (st_q _, tt). refine (q, u).
+        * refine (s, u').
+      + refine (st_r _). refine (r, u'').
+  Defined.
+
+  Definition qsqr2 (q q': query li) (u u' u'': U) (s: Smallstep.state L)
+    (r: reply li): Smallstep.state (normalize_sem L2).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (tt, u)).
+    - refine (st2 _ _ _ _).
+      + refine (st2 _ _ _ _).
+        * refine (s, u').
+        * refine (st_q _). refine (q', u').
+      + refine (st_r _). refine (r, u'').
+  Defined.
+
+  Definition qr1 (q: query li) (u u': U) (r: reply li)
+    : Smallstep.state (normalize_sem L1).
+    refine (st2 _ _ _ _).
+    - refine (st_q _). refine (q, (u, tt)).
+    - refine (st1 _ _ _). refine (st1 _ _ _).
+      refine (st_r _, tt). refine (r, u').
+  Defined.
+
+  Inductive prim_ms:
+    Smallstep.state (normalize_sem L1) ->
+    Smallstep.state (normalize_sem L2) -> Prop :=
+  | prim_ms1 q u: prim_ms (q1 q u) (q2 q u)
+  | prim_ms1' q u: prim_ms (qq1 q u) (q2 q u)
+  | prim_ms2 q u u' s: prim_ms (qqs1 q u u' s) (qs2 q u u' s)
+  | prim_ms3 q u u' s q': prim_ms (qqsq1 q q' u u' s)
+                            (qsqq2 q q' u u' s)
+  | prim_ms4 q u s q' r u' u'': prim_ms (qqsr1 q u u' u'' s r)
+                                  (qsqr2 q q' u u' u'' s r)
+  | prim_ms5' q r u u': prim_ms (qr1 q u u' r) (r2 r u')
+  | prim_ms5 r u: prim_ms (r1 r u) (r2 r u).
+
+  Definition prim_measure (s: Smallstep.state (normalize_sem L1)) :=
+    match s with
+    | st1 (st_q _) => 1%nat
+    | st2 (st_q _) (st1 (st1 (st_q _, _))) => 0%nat
+    | st2 (st_q _) (st1 (st1 (st_r _, _))) => 1%nat
+    | st1 (st_r _) => 0%nat
+    | _ => 0%nat
+    end.
+
+  Lemma encap_comp_prim :
+    E.forward_simulation (&1) (&1) L1 L2.
+  Proof.
+    unfold E.forward_simulation, STCAT.forward_simulation. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ prim_measure)
+      (fun _ _ _ _ _ i s1 s2 => i = s1 /\ prim_ms s1 s2)
+      (fun _ '(_, ((u1, _), (_, u2))) =>  u1 = u2).
+    - intros. cbn in *. now eprod_crush.
+    - easy.
+    - easy.
+    - intros. cbn. firstorder.
+    - intros. cbn in *. eprod_crush. constructor;
+        intros; cbn in *; eprod_crush.
+      + inv H3. inv H2.
+        eexists _, _. split. repeat constructor.
+        eexists tt, (tt, (_, tt, (tt, _))).
+        repeat split. constructor.
+      + inv H2. inv H4. inv H3.
+        eexists (_, (tt, _)). split. repeat constructor.
+        eexists (tt, (_, tt, (tt, _))). repeat split; eauto.
+      + inv H2. inv H4. inv H0. inv H3.
+        eexists (_, _). split. repeat constructor.
+        eexists tt, tt. repeat split; eauto.
+        intros. inv H3. inv H8. inv H6. eprod_crush.
+        eexists _, _. split. repeat constructor.
+        eexists tt, (tt, (_, tt, (tt, _))).
+        repeat constructor.
+      + Ltac prim_rel rel :=
+          eexists _, _; split; [ |
+            eexists tt, (tt, (_, tt, (tt, _))); split;
+            [ constructor | split ];
+                            [ repeat split | split ];
+                                             [ reflexivity | apply rel ] ].
+        inv H3.
+        (* prim_ms1 -> prim_ms2 *)
+        * inv H0. inv H3. inv H3. inv H4. inv H0.
+          cbn in *. eprod_crush. inv H0.
+          prim_rel prim_ms1'.
+          right. split. apply star_refl. unfold ltof. cbn. lia.
+        (* prim_ms1' -> prim_ms2 *)
+        * inv H0.
+          2: { inv H4.  inv H2. destruct H0. inv H2.
+               cbn in *. eprod_crush. inv H0. }
+          inv H6. 2: inv H2. inv H2.
+          { cbn in *. eprod_crush. inv H0. }
+          cbn in *. eprod_crush. inv H2. cbn in *.
+          prim_rel prim_ms2.
+          left. apply plus_one. eapply step_push; repeat constructor.
+          cbn. eauto.
+        (* prim_ms2 -> prim_ms2/prim_ms3/prim_ms5' *)
+        * inv H0.
+          2: { inv H4. inv H2. cbn in *. eprod_crush. inv H2. }
+          inv H6.
+          {
+            inv H2.
+            - cbn in *. eprod_crush. subst.
+              (* prim_ms2 *)
+              prim_rel prim_ms2.
+              left. apply plus_one.
+              apply step2. apply step1. apply step1.
+              split; eauto.
+            - inv H4. cbn in *. eprod_crush. inv H2.
+              (* prim_ms5' *)
+              prim_rel  prim_ms5'.
+              left. apply plus_one. eapply step_pop; repeat constructor.
+              econstructor. instantiate (1 := (_, _)).
+              split; repeat constructor; cbn.
+              instantiate (1 := (_, _)). cbn. reflexivity.
+              eexists. split; eauto.
+          }
+          {
+            inv H3. inv H2. cbn in *. eprod_crush.
+            unfold id in *. cbn in *.
+            (* prim_ms3 *)
+            prim_rel prim_ms3.
+            left. eapply plus_two.
+            - eapply step2. eapply step1. eapply step_push.
+              instantiate (1 := (_, _)). cbn.
+              split; cbn; eauto. constructor.
+            - eapply step2. eapply step_push.
+              instantiate (1 := (_, _)). cbn.
+              constructor. unfold id. all: constructor.
+            - reflexivity.
+          }
+        * (* prim_ms3 -> at_external *)
+          inv H0. inv H6. inv H5. inv H3.
+          cbn in *. eprod_crush. inv H4.
+        * inv H0. inv H6. inv H5. 2: inv H4.
+          (* prim_ms4 -> prim_ms5' *)
+          inv H3. inv H7. cbn in *. eprod_crush.
+          unfold id in *. inv H2. inv H0. inv H7.
+          cbn in *. eprod_crush. unfold id in *. inv H0.
+          prim_rel prim_ms2.
+          left. eapply plus_two.
+          -- eapply step2. eapply step_pop; econstructor.
+             split; cbn; eauto. instantiate (1 := (_, _)). reflexivity.
+             constructor. constructor.
+          -- eapply step2. eapply step1.
+             eapply step_pop; constructor; cbn; eauto.
+             eexists; split; eauto. reflexivity.
+          -- reflexivity.
+        * inv H0. inv H6. inv H2. all: cbn in *; eprod_crush.
+          (* prim_ms5' -> prim_ms5 *)
+          { cbn in *. eprod_crush. inv H0. }
+          { inv H2. } { inv H2. }
+          inv H7. inv H4. inv H2. cbn in *. eprod_crush.
+          inv H2. inv H3. cbn in *. inv H0.
+          prim_rel prim_ms5.
+          right. split. apply star_refl.
+          unfold ltof. cbn. lia.
+        * (* prim_ms5 -> final_state *)
+          inv H0. inv H3. inv H3.
+    - apply well_founded_ltof.
+      Unshelve. all: eauto.
+  Qed.
+
+End COMP_PRIM.
 
 (** ------------------------------------------------------------------------- *)
 (** Obsolete FBK and REVEAL construction *)
@@ -2118,13 +2607,13 @@ Program Definition callconv_fbk `{PSet K1} `{PSet K2}
 Next Obligation. eauto. Qed.
 Next Obligation. eauto. Qed.
 Next Obligation.
-  replace (entry q1) with (@entry (li1 @ K1) (q1, k)) by reflexivity.
-  replace (entry q2) with (@entry (li2 @ K2) (q2, k0)) by reflexivity.
+  replace (entry q3) with (@entry (li1 @ K1) (q3, k)) by reflexivity.
+  replace (entry q4) with (@entry (li2 @ K2) (q4, k0)) by reflexivity.
   eauto.
 Qed.
 Next Obligation.
-  replace (entry q1) with (@entry (li1 @ K1) (q1, k)) by reflexivity.
-  replace (entry q2) with (@entry (li2 @ K2) (q2, k0)) by reflexivity.
+  replace (entry q3) with (@entry (li1 @ K1) (q3, k)) by reflexivity.
+  replace (entry q4) with (@entry (li2 @ K2) (q4, k0)) by reflexivity.
   eauto.
 Qed.
 

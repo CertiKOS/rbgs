@@ -579,7 +579,7 @@ Section RB.
   Definition rb_pset := penv_pset (ClightPComp.vars_of_program rb_program).
 
   Inductive rb_penv_ms: Smallstep.state (encap_prim rb_state) ->
-                        Smallstep.state (@encap_prim penv rb_pset) -> Prop :=
+                        Smallstep.state (@encap_prim _ penv rb_pset) -> Prop :=
   | rb_penv_ms_q q rbst pe:
     query_alloc_flag q = true ->
     rb_penv_rel rbst pe ->
@@ -594,7 +594,7 @@ Section RB.
   Lemma rb_correct1:
     E.forward_simulation (&rb_cc) (&flag_cc)
       (encap_prim rb_state)
-      (@encap_prim penv rb_pset).
+      (@encap_prim _ penv rb_pset).
   Proof.
     apply st_normalize_fsim. constructor.
     eapply ST.Forward_simulation with
@@ -938,7 +938,7 @@ Section BQ.
   Definition bq_pset := penv_pset (ClightPComp.vars_of_program bq_program).
 
   Inductive bq_penv_ms: @Smallstep.state li_c _ (semantics_embed 1) ->
-                        Smallstep.state (@encap_prim penv bq_pset) -> Prop :=
+                        Smallstep.state (@encap_prim _ penv bq_pset) -> Prop :=
   | bq_penv_ms_q q pe:
     query_alloc_flag q = true ->
     bq_penv_ms (st_q q) (@st_q (li_c@penv) (q, pe))
@@ -950,7 +950,7 @@ Section BQ.
 
   Lemma bq_correct1:
     E.forward_simulation (&bq_cc) (&flag_cc) (semantics_embed 1)
-      (@encap_prim penv bq_pset).
+      (@encap_prim _ penv bq_pset).
   Proof.
     apply st_normalize_fsim. constructor.
     eapply ST.Forward_simulation with
@@ -1346,15 +1346,17 @@ Section BQ_LTS.
 
 End BQ_LTS.
 
-Section REFINE.
+Import Linking.
 
-  Instance clightp_linker: Linking.Linker program.
-  Admitted.
+Instance clightp_linker: Linker program.
+Admitted.
+
+Section REFINE.
 
   (* I messed up the notations. I guess it's because my improper use of & *)
   Hypothesis rb_bq_linking:
+    (* { cprog  & Linking.link bq_program rb_program = Some cprog }. *)
     sigT (fun cprog => Linking.link bq_program rb_program = Some cprog).
-  (* { cprog  & Linking.link bq_program rb_program = Some cprog }. *)
 
   Definition rb_bq_prog := projT1 rb_bq_linking.
   Definition rb_bq_skel := clightp_erase_program rb_bq_prog.
@@ -1711,13 +1713,38 @@ Section REFINE.
     - apply well_founded_ltof.
   Qed.
 
+
+  Lemma spec_assoc {U: Type} `{PSet U} (L1: semantics li_c (li_c@U))
+    (L2: semantics li_c li_c) sk1 sk2 sk:
+    linkorder sk1 sk ->
+    linkorder (skel L1) sk ->
+    E.forward_simulation (&1) (&1)
+      (comp_esem' (encap_prim U)
+         (semantics_embed (comp_semantics' (L2 @ U) L1 sk1)) sk)
+      (comp_esem' (semantics_embed L2)
+         (comp_esem' (encap_prim U) (semantics_embed L1) sk2) sk).
+  Proof.
+    intros SK1 SK2.
+    etransitivity. 2: apply encap_assoc2.
+    etransitivity.
+    { eapply encap_fsim_lcomp_sk.
+      - reflexivity.
+      - apply encap_comp_embed2.
+      - apply ClightPComp.id_skel_least.
+      - eauto. }
+    etransitivity. apply encap_assoc1.
+    eapply encap_fsim_lcomp_sk.
+    - apply encap_comp_prim.
+    - reflexivity.
+    - apply ClightPComp.id_skel_least.
+    - eauto.
+  Qed.
+
   Lemma bq_refine:
     E.forward_simulation
       (&1) (&1) abs_bq_espec (comp_esem' bq_espec rb_espec rb_bq_skel).
   Proof.
-    rewrite ccref_left_unit1 at 2.
-    rewrite <- ccref_left_unit2 at 1.
-    eapply encap_fsim_vcomp.
+    etransitivity.
     instantiate (1 := bq_rb_espec).
     - eapply encap_fsim_lcomp_sk.
       instantiate (1 := &abs_bq_cc).
@@ -1726,9 +1753,9 @@ Section REFINE.
         apply bq_refine2.
       + apply ClightPComp.id_skel_least.
       + apply Linking.linkorder_refl.
-    - unfold bq_rb_espec.
-      (* some kind of trivial associativity *)
-  Admitted.
+    - apply spec_assoc. apply linkorder_refl.
+      apply linkorder_erase. apply rb_linkorder.
+  Qed.
 
   Lemma rb_bq_correct:
     E.forward_simulation
