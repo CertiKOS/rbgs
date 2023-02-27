@@ -1,4 +1,5 @@
 From compcert Require Import Coqlib Maps Memory Join.
+Require Import Lia.
 
 (** * Associativity properties for [join] *)
 
@@ -19,45 +20,59 @@ Proof.
   }
   split.
   - (* contents *)
-    clear - Hanyperm H12c H123c H23c.
+    clear - Hanyperm H12c H123c H23c H12n H123n H23n.
     intros b ofs.
     specialize (H12c b ofs); specialize (H123c b ofs); specialize (H23c b ofs).
     inv H12c; inv H123c; inv H23c.
     + left; auto; try congruence.
-      intros k p; specialize (H0 k p); specialize (H4 k p); specialize (H8 k p). firstorder.
+      intros k p; specialize (H0 k p); specialize (H5 k p); specialize (H10 k p). firstorder.
+      unfold Mem.valid_block, Plt in *. rewrite H23n. lia.
     + left; auto; try congruence.
       intros k p.
       split.
-      * intro. elim H3. eapply Hanyperm. apply H0, H8, H11. 
-      * intro. elim H7. eapply Hanyperm. apply H4, H11.
+      * intro. elim H4. eapply Hanyperm. apply H0, H10, H14.
+      * intro. elim H9. eapply Hanyperm. apply H5, H14.
+      * unfold Mem.valid_block, Plt in *. rewrite H23n. lia.
     + left; auto; try congruence.
       intros k p.
       split.
-      * intro. elim H3. eapply Hanyperm. apply H8, H11. 
-      * intro. elim H7. eapply Hanyperm. apply H0, H4, H11.
+      * intro. elim H4. eapply Hanyperm. apply H10, H14.
+      * intro. elim H9. eapply Hanyperm. apply H0, H5, H14.
+      * unfold Mem.valid_block, Plt in *. rewrite H23n. lia.
     + left; auto; try congruence.
-      intros k p. rewrite <- H4, <- H0, <- H8. reflexivity.
+      intros k p. rewrite <- H5, <- H0, <- H10. reflexivity.
+      unfold Mem.valid_block, Plt in *. rewrite H23n. lia.
     + left; auto; try congruence.
       * rewrite H0. auto.
-      * intros k p. rewrite <- H8, H4. reflexivity.
+      * intros k p. rewrite <- H10, H5. reflexivity.
+      * unfold Mem.valid_block, Plt in *. rewrite H23n. lia.
     + left; auto; try congruence.
       * rewrite H0. auto.
       * intros k p. split.
-        -- intro. elim H. apply H8. eauto.
-        -- intro. elim H7. apply H4. eauto.
+        -- intro. elim H. apply H10. eauto.
+        -- intro. elim H9. apply H5. eauto.
+      * unfold Mem.valid_block, Plt in *. rewrite H23n. lia.
     + right; auto; try congruence.
-      * rewrite <- H8. auto.
-      * intros. rewrite H0, H4. reflexivity.
+      * rewrite <- H10. auto.
+      * intros. rewrite H0, H5. reflexivity.
     + right; auto; try congruence.
-      * rewrite <- H8; auto.
-      * intros. rewrite H0, H4. reflexivity.
+      * rewrite <- H10; auto.
+      * intros. rewrite H0, H5. reflexivity.
   - (* nextblock *)
     clear - H12n H123n H23n.
     rewrite H123n, H12n, H23n, Pos.max_assoc.
     reflexivity.
   - (* alloc flag *)
-    clear - H12f H123f H23f.
-    inv H12f; inv H123f; inv H23f; try congruence; constructor.
+    clear - H12f H123f H23f H12n H123n H23n.
+    inv H12f; inv H123f; inv H23f; try congruence; eauto.
+    + apply alloc_flag_join_l; eauto. rewrite H23n. lia.
+    + apply alloc_flag_join_r; eauto. rewrite H23n.
+      assert (X: Mem.nextblock m1 = Mem.nextblock m12).
+      rewrite H12n. symmetry. apply Pos.max_l. lia.
+      apply Pos.max_lub. lia. rewrite X. lia.
+    + apply alloc_flag_join_l; eauto. rewrite H23n.
+      apply Pos.max_le_iff. right. etransitivity.
+      2: apply H5. rewrite H12n. lia.
 Qed.
 
 (** Then, we prove the stronger property that if three shares join one
@@ -125,7 +140,7 @@ Qed.
 
 Program Definition mem_combine (m1 m2: mem): mem :=
   {|
-    Mem.mem_contents := 
+    Mem.mem_contents :=
       PMap_combine
         (ZMap_combine memval_combine)
         (Mem.mem_contents m1)
@@ -224,7 +239,6 @@ Proof.
   exists (mem_combine m2 m3).
   constructor.
   - (* Contents *)
-    clear - H12c H123c.
     intros b ofs. specialize (H12c b ofs). specialize (H123c b ofs).
     inv H123c.
     + (* Location is empty in m12 hence m2 *)
@@ -240,12 +254,13 @@ Proof.
       * intros. rewrite mem_combine_perm_iff_l by auto. reflexivity.
       * rewrite mem_gcombine, H1.
         clear. destruct ZMap.get; reflexivity.
+      * unfold Mem.valid_block, Plt in *.
+        admit.                  (* <-------- cannot proceed here *)
   - (* Nextblock *)
     reflexivity.
   - (* Alloc flag *)
     cbn. inv H12a; inv H123a; try constructor.
-    congruence.
-Qed.
+Admitted.
 
 (** Once we bring in the first associativity property, we can show
   that the memory state we have constructed joins with [m1] into [m123]. *)
