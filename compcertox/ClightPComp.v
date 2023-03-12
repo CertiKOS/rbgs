@@ -8,6 +8,7 @@ From compcertox Require Import
      ClightP Encapsulation.
 From compcert Require Import Join.
 Require Import Lia.
+Require Import LogicalRelations.
 
 Generalizable All Variables.
 
@@ -50,41 +51,17 @@ Instance mem_world (vars: list (ident * Z)): World mem :=
     w_state := mem;
     w_pset := mem_pset vars;
     (* maybe we need unchanged_on *)
-    w_int_step := {| rel := fun m1 m2 => True |};
-    w_ext_step := {| rel := eq |};
+    w_int_step := {| Encapsulation.rel := fun m1 m2 => True |};
+    w_ext_step := {| Encapsulation.rel := eq |};
   |}.
 
 Instance se_world : World Genv.symtbl :=
   {|
     w_state := Genv.symtbl;
     w_pset := symtbl_pset;
-    w_int_step := {| rel := eq |};
-    w_ext_step := {| rel := eq |};
+    w_int_step := {| Encapsulation.rel := eq |};
+    w_ext_step := {| Encapsulation.rel := eq |};
   |}.
-
-(*
-Inductive unp_out_query: Memory.mem -> query li_c -> query li_c -> Prop :=
-| unp_out_query_intro vf sg vargs m msrc mtgt
-    (MJOIN: join m msrc mtgt):
-  unp_out_query m (cq vf sg vargs msrc) (cq vf sg vargs mtgt).
-
-Inductive unp_out_reply: Memory.mem -> reply li_c -> reply li_c -> Prop :=
-| unp_out_reply_intro rv m msrc mtgt
-    (MJOIN: join m msrc mtgt):
-  unp_out_reply m (cr rv msrc) (cr rv mtgt).
-
-Program Definition unp_out (vars: list (ident * Z)): ST.callconv li_c li_c :=
-  {|
-    ST.ccworld := Memory.mem;
-    ST.ccworld_world := mem_world vars;
-    ST.match_senv _ se1 se2 := se1 = se2;
-    ST.match_query := pout_query;
-    ST.match_reply := pout_reply;
-  |}.
-Next Obligation. reflexivity. Qed.
-Next Obligation. inv H0. reflexivity. Qed.
-Next Obligation. inv H. reflexivity. Qed.
-*)
 
 Definition unp_out: ST.callconv li_c li_c := &pout.
 
@@ -433,6 +410,19 @@ Section CLIGHT_IN.
       econstructor; eauto.
   Qed.
 
+  Lemma clight_function_entry_join mx ge:
+    forall f vargs m1 m2 m1' e le,
+      join mx m1 m2 ->
+      Clight.function_entry1 ge f vargs m1 e le m1' ->
+      exists m2', Clight.function_entry1 ge f vargs m2 e le m2' /\ join mx m1' m2'.
+  Proof.
+    intros * HM HX. inv HX.
+    exploit alloc_variables_join; eauto. intros (? & A & B).
+    exploit bind_parameters_join; eauto. intros (? & C & D).
+    eexists. split; eauto. econstructor; eauto.
+    destruct HM. inv mjoin_alloc_flag; congruence.
+  Qed.
+
   Inductive clight_ms se:
     ST.ccstate (unp_in vars) ->
     ST.ccstate (ST.callconv_lift (unp_in vars) unit unit) ->
@@ -463,42 +453,35 @@ Section CLIGHT_IN.
     forall s2, clight_ms se wa wb s1 s2 ->
     exists s2', Clight.step1 ge s2 t s2' /\
     clight_ms se wa wb s1' s2'.
-  Proof.
+  Proof with (eexists _; split; econstructor; eauto).
     induction 1; intros S1 HS; inv HS;
       try solve [ eexists _; split; econstructor; eauto ].
     - exploit clight_lvalue_join; eauto. intros A.
       exploit clight_expr_join; eauto. intros B.
       exploit sem_cast_join; eauto.
       rewrite H1. intros C. inv C.
-      exploit assign_loc_join; eauto. intros (? & D & E).
-      eexists _. split; econstructor; eauto.
+      exploit assign_loc_join; eauto. intros (? & D & E)...
+    - exploit clight_expr_join; eauto. intros A...
     - exploit clight_expr_join; eauto. intros A.
-      eexists _. split; econstructor; eauto.
-    - exploit clight_expr_join; eauto. intros A.
-      exploit clight_exprlist_join; eauto; intros B.
-      eexists _. split; econstructor; eauto.
-    - admit.
+      exploit clight_exprlist_join; eauto; intros B...
+    - exploit clight_exprlist_join; eauto. intros A.
+      exploit ClightP.external_call_join; eauto. intros (? & B & C)...
     - exploit clight_expr_join; eauto. intros A.
       exploit bool_val_join; eauto.
-      rewrite H0. intros B. inv B.
-      eexists _. split; econstructor; eauto.
+      rewrite H0. intros B. inv B...
     - exploit free_list_join; eauto.
-      rewrite H. intros A. inv A.
-      eexists _. split; econstructor; eauto.
+      rewrite H. intros A. inv A...
     - exploit clight_expr_join; eauto. intros A.
       exploit sem_cast_join; eauto.
       rewrite H0. intros B. inv B.
       exploit free_list_join; eauto.
-      rewrite H1. intros C. inv C.
-      eexists _. split; econstructor; eauto.
+      rewrite H1. intros C. inv C...
     - exploit free_list_join; eauto.
-      rewrite H0. intros A. inv A.
-      eexists _. split; econstructor; eauto.
-    - exploit clight_expr_join; eauto. intros A.
-      eexists _. split; econstructor; eauto.
-    - admit.
-    - admit.
-  Admitted.
+      rewrite H0. intros A. inv A...
+    - exploit clight_expr_join; eauto. intros A...
+    - exploit clight_function_entry_join; eauto. intros (? & A & B)...
+    - exploit ClightP.external_call_join; eauto. intros (? & A & B)...
+  Qed.
 
   Lemma clight_in: E.forward_simulation (unp_in vars) (unp_in vars)
                      (semantics_embed (Clight.semantics1 p))
@@ -643,51 +626,72 @@ Section CLICHTP_OUT.
       econstructor; eauto.
   Qed.
 
+  Lemma clightp_alloc_variables_join m:
+    Monotonic
+      (@ClightP.alloc_variables)
+      (- ==> - ==> join m ++> - ==> - ==> set_le (join m)).
+  Proof.
+    repeat rstep. intros ? ?. revert y H.
+    induction H0.
+    - intros. eexists. split. econstructor. eauto.
+    - intros.
+      Existing Instance alloc_join. transport H.
+      eprod_crush.
+      exploit IHalloc_variables. eauto.
+      intros (? & ? & ?).
+      eexists. split; eauto. econstructor; eauto.
+  Qed.
+
+  Lemma clightp_function_entry_join mx ge:
+    forall f vargs m1 m2 m1' e le,
+      join mx m1 m2 ->
+      ClightP.function_entry2 ge f vargs m1 e le m1' ->
+      exists m2', ClightP.function_entry2 ge f vargs m2 e le m2'
+             /\ join mx m1' m2'.
+  Proof.
+    intros * HM HX. inv HX.
+    exploit clightp_alloc_variables_join; eauto. intros (? & A & B).
+    eexists. split; eauto. econstructor; eauto.
+    destruct HM. inv mjoin_alloc_flag; congruence.
+  Qed.
+
   Lemma clightp_out_step mx ge:
     forall s1 t s1',
       ClightP.step2 ge s1 t s1' ->
       forall s2, clightp_ms mx s1 s2 ->
       exists s2', ClightP.step2 ge s2 t s2' /\
       clightp_ms mx s1' s2'.
-  Proof.
+  Proof with (eexists (_, _); split; econstructor; eauto).
     induction 1; intros S2 MS; inv MS;
       try solve [ eexists (_, _); split; econstructor; eauto ].
     - exploit clightp_lvalue_join; eauto. intros A.
       exploit clightp_expr_join; eauto. intros B.
       exploit sem_cast_join; eauto.
       rewrite H1. intros C. inv C.
-      exploit assign_loc_join; eauto. intros (? & D & E).
-      eexists (_, _). split; econstructor; eauto.
-    - exploit clightp_expr_join; eauto. intros A.
-      eexists (_, _). split; econstructor; eauto.
+      exploit assign_loc_join; eauto. intros (? & D & E)...
+    - exploit clightp_expr_join; eauto. intros A...
     - exploit clightp_loc_join; eauto. intros A.
-      exploit clightp_expr_join; eauto. intros B.
-      eexists (_, _). split; econstructor; eauto.
+      exploit clightp_expr_join; eauto. intros B...
     - exploit clightp_expr_join; eauto. intros A.
-      exploit clightp_exprlist_join; eauto; intros B.
-      eexists _. split; econstructor; eauto.
-    - admit.
+      exploit clightp_exprlist_join; eauto; intros B...
+    - exploit clightp_exprlist_join; eauto. intros A.
+      exploit ClightP.external_call_join; eauto. intros (? & B & C)...
     - exploit clightp_expr_join; eauto. intros A.
       exploit bool_val_join; eauto.
-      rewrite H0. intros B. inv B.
-      eexists (_, _). split; econstructor; eauto.
+      rewrite H0. intros B. inv B...
     - exploit free_list_join; eauto.
-      rewrite H. intros A. inv A.
-      eexists (_, _). split; econstructor; eauto.
+      rewrite H. intros A. inv A...
     - exploit clightp_expr_join; eauto. intros A.
       exploit sem_cast_join; eauto.
       rewrite H0. intros B. inv B.
       exploit free_list_join; eauto.
-      rewrite H1. intros C. inv C.
-      eexists (_, _). split; econstructor; eauto.
+      rewrite H1. intros C. inv C...
     - exploit free_list_join; eauto.
-      rewrite H0. intros A. inv A.
-      eexists (_, _). split; econstructor; eauto.
-    - exploit clightp_expr_join; eauto. intros A.
-      eexists (_, _). split; econstructor; eauto.
-    - admit.
-    - admit.
-  Admitted.
+      rewrite H0. intros A. inv A...
+    - exploit clightp_expr_join; eauto. intros A...
+    - exploit clightp_function_entry_join; eauto. intros (? & A & B)...
+    - exploit ClightP.external_call_join; eauto. intros (? & A & B)...
+  Qed.
 
   Lemma clightp_out: forward_simulation pout unp_penv'
                        (ClightP.clightp2 p) (ClightP.clightp2 p).
