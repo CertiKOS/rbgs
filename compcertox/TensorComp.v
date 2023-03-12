@@ -104,65 +104,80 @@ Proof.
 Qed.
 
 Notation "$ L" := (semantics_map L lf lf) (at level 1).
-Instance li_iso_id {liA} : LiIso liA liA | 5 :=
+Program Instance li_iso_id {liA} : LiIso liA liA | 5 :=
   {| fq := id; fr := id; |}.
-- exists id. split; reflexivity.
-- exists id. split; reflexivity.
-- easy.
-Defined.
+Next Obligation. exists id. split; reflexivity. Defined.
+Next Obligation. exists id. split; reflexivity. Defined.
 
-Instance li_iso_comp `(F: LiIso liA liB) `(G: LiIso liB liC): LiIso liA liC | 9 :=
+Program Instance li_iso_comp `(F: LiIso liA liB) `(G: LiIso liB liC): LiIso liA liC | 9 :=
   {|
     fq := compose (fq F) (fq G);
     fr := compose (fr G) (fr F);
   |}.
-- edestruct (query_iso F) as (f & A & B).
+Next Obligation.
+  edestruct (query_iso F) as (f & A & B).
   edestruct (query_iso G) as (g & C & D).
   exists (compose g f).
   split; intros; unfold compose; cbn.
   rewrite C. rewrite A. reflexivity.
   rewrite B. rewrite D. reflexivity.
-- edestruct (reply_iso F) as (f & A & B).
+Defined.
+Next Obligation.
+  edestruct (reply_iso F) as (f & A & B).
   edestruct (reply_iso G) as (g & C & D).
   exists (compose f g).
   split; intros; unfold compose; cbn.
   rewrite A. rewrite C. reflexivity.
   rewrite D. rewrite B. reflexivity.
-- intros q. erewrite (entry_same G). erewrite (entry_same F). reflexivity.
+Defined.
+Next Obligation.
+  erewrite (entry_same G). erewrite (entry_same F). reflexivity.
 Defined.
 
-Instance li_iso_inv `(F: LiIso liA liB) : LiIso liB liA | 10 :=
+Program Instance li_iso_inv `(F: LiIso liA liB) : LiIso liB liA | 10 :=
   {|
     fq := proj1_sig (query_iso F);
     fr := proj1_sig (reply_iso F);
   |}.
-- exists (fq F).
+Next Obligation.
+  exists (fq F).
   split; intros; edestruct (query_iso F) as (f & A & B); cbn in *; eauto.
-- exists (fr F).
+Defined.
+Next Obligation.
+  exists (fr F).
   split; intros; edestruct (reply_iso F) as (f & A & B); cbn in *; eauto.
-- intros. edestruct (query_iso F) as (f & A & B). cbn.
+Defined.
+Next Obligation.
+  intros. edestruct (query_iso F) as (f & A & B). cbn.
   rewrite (entry_same F). rewrite A. reflexivity.
 Defined.
 
-Instance li_iso_unit {liA}: LiIso (liA@unit) liA | 2 :=
+Program Instance li_iso_unit {liA}: LiIso (liA@unit) liA | 2 :=
   {|
     fq q := (q, tt): query (liA@unit); fr '((r, tt): reply (liA@unit)) := r;
   |}.
-- exists (fun '(q, tt) => q). split; intros; cbn in *; eprod_crush; reflexivity.
-- exists (fun r => (r, tt)). split; intros; cbn in *; eprod_crush; reflexivity.
-- intros; cbn in *; eprod_crush; reflexivity.
+Next Obligation.
+  exists (fun '(q, tt) => q). split; intros; cbn in *; eprod_crush; reflexivity.
+Defined.
+Next Obligation.
+  exists (fun r => (r, tt)). split; intros; cbn in *; eprod_crush; reflexivity.
 Defined.
 
-Instance li_iso_null {K}: LiIso (li_null @ K) li_null | 2 :=
+Program Instance li_iso_null {K}: LiIso (li_null @ K) li_null | 2 :=
   {|
     fq (q: query li_null) := match q with end;
     fr (r: reply (li_null@K)) := match r with (a, _) => match a with end end;
   |}.
-- exists (fun '((x, _):Empty_set * K) => match x with end).
+Next Obligation.
+  exists (fun '((x, _):Empty_set * K) => match x with end).
   split; intros; cbn in *; eprod_crush; easy.
-- exists (fun x: Empty_set => match x with end).
+Defined.
+Next Obligation.
+  exists (fun x: Empty_set => match x with end).
   split; intros; cbn in *; eprod_crush; easy.
-- cbn in *. easy.
+Defined.
+Next Obligation.
+  cbn in *. easy.
 Defined.
 
 Program Instance li_iso_assoc {li K1 K2}: LiIso ((li@K1)@K2) (li@(K1*K2)) | 3 :=
@@ -459,7 +474,9 @@ Section TENSOR.
     - intros i [ss ks2] [sf kf2] [ ].
     - intros [ss ks2] t [ss' ks2'] H idx [sf kf2] Hs. destruct H as [H <-].
       inv Hs.
-      edestruct @fsim_simulation as (idx' & sf' & H' & Hs'); eauto.
+      edestruct @fsim_simulation as (idx' & sf' & H' & Hs').
+      (* cheap fix after using coq 8.12 *)
+      2-3: eauto. rewrite <- H0. eauto.
       exists idx', (sf', kf2). split.
       + destruct H'; [left | right].
         apply lifting_step_plus; eauto.
@@ -532,11 +549,11 @@ Lemma li_iso_right_unit `(F: LiIso liA liB):
 Proof.
   destruct F. unfold li_iso_comp. cbn. f_equal.
   - destruct query_iso0. destruct a.
-    f_equal. f_equal.
+    cbn. f_equal. f_equal.
     apply Axioms.proof_irr.
     apply Axioms.proof_irr.
   - destruct reply_iso0. destruct a.
-    f_equal. f_equal.
+    cbn. f_equal. f_equal.
     apply Axioms.proof_irr.
     apply Axioms.proof_irr.
   - apply Axioms.proof_irr.

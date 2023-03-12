@@ -54,6 +54,7 @@ Definition lifted_semantics {liA liB} (K: Type) (L: semantics liA liB) :=
   |}.
 
 (** Notations *)
+Declare Scope li_scope.
 Delimit Scope li_scope with li.
 Bind Scope li_scope with language_interface.
 (* Note since we are overloading the @ operator, the right associativity and
@@ -74,7 +75,7 @@ Section CAT_COMP_LIFT.
   Context {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB).
   Variable (sk: AST.program unit unit).
 
-  Local Inductive state_match: (comp_state L1 L2 * K) -> comp_state (L1 @ K) (L2 @ K) -> Prop :=
+  Inductive state_match: (comp_state L1 L2 * K) -> comp_state (L1 @ K) (L2 @ K) -> Prop :=
   | state_match1 s1 k:
       state_match (st1 _ _ s1, k) (st1 (L1@K) (L2@K) (s1, k))
   | state_match2 s1 s2 k k':

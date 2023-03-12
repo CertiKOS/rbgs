@@ -10,6 +10,7 @@ From compcertox Require Import
      TensorComp Lifting.
 From coqrel Require Import RelClasses.
 
+Set Asymmetric Patterns.
 Set Implicit Arguments.
 Generalizable All Variables.
 
@@ -48,55 +49,48 @@ Class Lens (T A: Type) :=
     set_set : forall t a1 a2, set (set t a1) a2 = set t a2;
   }.
 
-Instance lens_id {T: Type} : Lens T T :=
+Program Instance lens_id {T: Type} : Lens T T :=
   {
     get t := t;
     set _ t := t;
   }.
-all: easy. Defined.
 
-Instance lens_fst {U V} : Lens (U * V) U :=
+Program Instance lens_fst {U V} : Lens (U * V) U :=
   {
     get '(u, v) := u;
     set '(_, v) u := (u, v);
   }.
-all: intros; eprod_crush; easy. Defined.
 
-Instance lens_snd {U V} : Lens (U * V) V :=
+Program Instance lens_snd {U V} : Lens (U * V) V :=
   {
     get '(u, v) := v;
     set '(u, _) v := (u, v);
   }.
-all: intros; eprod_crush; easy. Defined.
 
-Instance lens_unit {T} : Lens T unit :=
+Program Instance lens_unit {T} : Lens T unit :=
   {
     get _ := tt;
     set t tt := t;
   }.
-all: intros; try easy. now destruct a. Defined.
+Next Obligation. intros; try easy. now destruct a. Defined.
 
-Instance lens_prod {T S A B: Type} `(Lens T A) `(Lens S B) : Lens (T * S) (A * B) :=
+Program Instance lens_prod {T S A B: Type} `(Lens T A) `(Lens S B) : Lens (T * S) (A * B) :=
   {
     get '(t, s) := (get t, get s);
     set '(t, s) '(a, b) := (set t a, set s b);
   }.
-all: intros; eprod_crush.
-- now rewrite !get_set.
-- now rewrite !set_get.
-- now rewrite !set_set.
-Defined.
+Next Obligation. now rewrite !get_set. Defined.
+Next Obligation. now rewrite !set_get. Defined.
+Next Obligation. now rewrite !set_set. Defined.
 
-Instance lens_comp {U V W: Type} `(Lens U V) `(Lens V W) : Lens U W :=
+Program Instance lens_comp {U V W: Type} `(Lens U V) `(Lens V W) : Lens U W :=
   {
     get u := get (get u);
     set u w := set u (set (get u) w);
   }.
-all: intros.
-- now rewrite !get_set.
-- now rewrite !set_get.
-- rewrite !get_set. rewrite !set_set. reflexivity.
-Defined.
+Next Obligation. now rewrite !get_set. Defined.
+Next Obligation. now rewrite !set_get. Defined.
+Next Obligation. rewrite !get_set. rewrite !set_set. reflexivity. Defined.
 
 (* A generalized version of Kripke world *)
 Class World (T: Type) :=
@@ -248,7 +242,7 @@ Module ST.
   Existing Instance ccworld_world | 3.
 
   Hint Resolve match_senv_public_preserved match_senv_valid_for
-               match_senv_symbol_address match_query_defined.
+               match_senv_symbol_address match_query_defined: scc.
 
   Definition ccstate `(cc: callconv li1 li2) := w_state (ccworld_world cc).
   Definition ccstate_init `(cc: callconv li1 li2) := pset_init (ccstate cc).
@@ -264,10 +258,10 @@ Module ST.
       match_reply '(w, (u, v)) '(q1, uq) '(q2, vq) :=
         match_reply cc w q1 q2 /\ u = uq /\ v = vq;
     |}.
-  Next Obligation. eauto. Qed.
-  Next Obligation. eauto. Qed.
-  Next Obligation. eauto. Qed.
-  Next Obligation. eauto. Qed.
+  Next Obligation. eauto with scc. Qed.
+  Next Obligation. eauto with scc. Qed.
+  Next Obligation. eauto with scc. Qed.
+  Next Obligation. eauto with scc. Qed.
 
   Program Definition cc_compose {li1 li2 li3}
           (cc12: callconv li1 li2) (cc23: callconv li2 li3) :=
@@ -281,7 +275,7 @@ Module ST.
       match_reply '(se2, (w12, w23)) r1 r3 :=
       exists r2, match_reply cc12 w12 r1 r2 /\ match_reply cc23 w23 r2 r3;
     |}.
-  Next Obligation. eauto. Qed.
+  Next Obligation. eauto with scc. Qed.
   Next Obligation.
     etransitivity; eapply match_senv_valid_for; eauto.
   Qed.
@@ -1557,13 +1551,13 @@ Section LI_FUNC.
                      ST.match_reply cc w r1' r2';
       ST.match_senv := ST.match_senv cc
     |}.
-  Next Obligation. eauto. Qed.
-  Next Obligation. eauto. Qed.
+  Next Obligation. eauto with scc. Qed.
+  Next Obligation. eauto with scc. Qed.
   Next Obligation.
-    erewrite (entry_same _ q1). erewrite (entry_same _ q2). eauto.
+    erewrite (entry_same _ q1). erewrite (entry_same _ q2). eauto with scc.
   Qed.
   Next Obligation.
-    erewrite (entry_same _ q1). erewrite (entry_same _ q2). eauto.
+    erewrite (entry_same _ q1). erewrite (entry_same _ q2). eauto with scc.
   Qed.
 
   Context `(F1: LiIso liA1 liX1) `(G1: LiIso liB1 liY1)
@@ -2604,17 +2598,17 @@ Program Definition callconv_fbk `{PSet K1} `{PSet K2}
     ST.match_reply '(w, (k1, k2)) r1 r2 := ST.match_reply cc w (r1, k1) (r2, k2);
     ST.match_senv '(w, (k1, k2)) se1 se2 := ST.match_senv cc w se1 se2;
   |}.
-Next Obligation. eauto. Qed.
-Next Obligation. eauto. Qed.
+Next Obligation. eauto with scc. Qed.
+Next Obligation. eauto with scc. Qed.
 Next Obligation.
   replace (entry q3) with (@entry (li1 @ K1) (q3, k)) by reflexivity.
   replace (entry q4) with (@entry (li2 @ K2) (q4, k0)) by reflexivity.
-  eauto.
+  eauto with scc.
 Qed.
 Next Obligation.
   replace (entry q3) with (@entry (li1 @ K1) (q3, k)) by reflexivity.
   replace (entry q4) with (@entry (li2 @ K2) (q4, k0)) by reflexivity.
-  eauto.
+  eauto with scc.
 Qed.
 
 (** ** FBK vs LIFT *)

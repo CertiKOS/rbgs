@@ -5,7 +5,7 @@ From compcert Require Import
      CategoricalComp.
 From compcertox Require Import
      TensorComp Lifting
-     ClightP Encapsulation JoinAssoc.
+     ClightP Encapsulation.
 From compcert Require Import Join.
 Require Import Lia.
 
@@ -25,7 +25,6 @@ Variable m0 : list (ident * Z) -> Genv.symtbl -> mem.
 *)
 Variable p0 : list (ident * Z) -> ClightP.penv.
 
-Hypothesis id_skel_least: forall sk, Linking.linkorder CategoricalComp.id_skel sk.
 Variable vars_of_program : ClightP.program -> list (ident * Z).
 Hypothesis vars_init :
   forall p se, ClightP.penv_mem_match
@@ -215,7 +214,7 @@ Section ESIM.
       + apply penv_encap.
       + apply encap_fsim_embed.
         apply transl_program_correct. eauto.
-      + apply id_skel_least.
+      + apply CategoricalComp.id_skel_order.
       + apply Linking.linkorder_refl.
     - rewrite ccref_left_unit1 at 2.
       rewrite <- ccref_left_unit2 at 1.
@@ -380,9 +379,9 @@ Section CLIGHT_IN.
           Clight.eval_expr ge e le m1 expr v ->
           Clight.eval_expr ge e le m2 expr v)
       /\
-      (forall expr b ofs,
-         Clight.eval_lvalue ge e le m1 expr b ofs ->
-         Clight.eval_lvalue ge e le m2 expr b ofs).
+      (forall expr b ofs bf,
+         Clight.eval_lvalue ge e le m1 expr b ofs bf ->
+         Clight.eval_lvalue ge e le m2 expr b ofs bf).
   Proof.
     intros * HM.
     apply Clight.eval_expr_lvalue_ind;
@@ -411,10 +410,10 @@ Section CLIGHT_IN.
   Qed.
 
   Lemma clight_lvalue_join mx ge:
-    forall e le m1 m2 expr b ofs,
+    forall e le m1 m2 expr b ofs bf,
       join mx m1 m2 ->
-      Clight.eval_lvalue ge e le m1 expr b ofs ->
-      Clight.eval_lvalue ge e le m2 expr b ofs.
+      Clight.eval_lvalue ge e le m1 expr b ofs bf ->
+      Clight.eval_lvalue ge e le m2 expr b ofs bf.
   Proof.
     intros. eapply clight_expr_lvalue_join in H.
     destruct H. apply H1; eauto.
@@ -576,9 +575,9 @@ Section CLICHTP_OUT.
           ClightP.eval_expr ge e le pe m1 expr v ->
           ClightP.eval_expr ge e le pe m2 expr v)
       /\
-      (forall expr b ofs,
-         ClightP.eval_lvalue ge e le pe m1 expr b ofs ->
-         ClightP.eval_lvalue ge e le pe m2 expr b ofs)
+      (forall expr b ofs bf,
+         ClightP.eval_lvalue ge e le pe m1 expr b ofs bf ->
+         ClightP.eval_lvalue ge e le pe m2 expr b ofs bf)
       /\
       (forall expr id l,
         ClightP.eval_loc ge e le pe m1 expr id l ->
@@ -611,10 +610,10 @@ Section CLICHTP_OUT.
   Qed.
 
   Lemma clightp_lvalue_join mx ge:
-    forall e le m1 m2 pe expr b ofs,
+    forall e le m1 m2 pe expr b ofs bf,
       join mx m1 m2 ->
-      ClightP.eval_lvalue ge e le pe m1 expr b ofs ->
-      ClightP.eval_lvalue ge e le pe m2 expr b ofs.
+      ClightP.eval_lvalue ge e le pe m1 expr b ofs bf ->
+      ClightP.eval_lvalue ge e le pe m2 expr b ofs bf.
   Proof.
     intros. eapply clightp_expr_lvalue_loc_join in H.
     destruct H as (A & B & C). apply B; eauto.
@@ -787,7 +786,7 @@ Section CLICHTP_OUT.
     - apply encap_prim_out.
     - apply encap_fsim_embed.
       apply clightp_out.
-    - cbn. apply id_skel_least.
+    - cbn. apply CategoricalComp.id_skel_order.
     - cbn. apply Linking.linkorder_refl.
   Qed.
 

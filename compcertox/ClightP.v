@@ -4,8 +4,15 @@ From compcert Require Import
 Require Import Ctypes Cop Clight.
 Require Import Lifting.
 Require Import Lia.
+Require Import AbRel.
+Require Import Join.
 
 (** ------------------------------------------------------------------------- *)
+Hypothesis external_call_join:
+  forall ge m ef vargs m1 m2 t vres m1',
+    join m m1 m2 ->
+    external_call ef ge vargs m1 t vres m1' ->
+    exists m2', external_call ef ge vargs m2 t vres m2' /\ join m m1' m2'.
 
 (** ** ClightP semantics *)
 Module ClightP.
@@ -229,7 +236,7 @@ Module ClightP.
     | bind_parameters_cons:
       forall m id ty params v1 vl b m1 m2,
         PTree.get id e = Some(b, ty) ->
-        assign_loc ge ty m b Ptrofs.zero v1 m1 ->
+        assign_loc ge ty m b Ptrofs.zero Full v1 m1 ->
         bind_parameters e m1 params vl m2 ->
         bind_parameters e m ((id, ty) :: params) (v1 :: vl) m2.
 
@@ -253,7 +260,7 @@ Module ClightP.
           le!id = Some v ->
           eval_expr (Etempvar id ty) v
       | eval_Eaddrof: forall a ty loc ofs,
-          eval_lvalue a loc ofs ->
+          eval_lvalue a loc ofs Full ->
           eval_expr (Eaddrof a ty) (Vptr loc ofs)
       | eval_Eunop:  forall op a ty v1 v,
           eval_expr a v1 ->
@@ -272,9 +279,9 @@ Module ClightP.
           eval_expr (Esizeof ty1 ty) (Vptrofs (Ptrofs.repr (sizeof ge ty1)))
       | eval_Ealignof: forall ty1 ty,
           eval_expr (Ealignof ty1 ty) (Vptrofs (Ptrofs.repr (alignof ge ty1)))
-      | eval_Elvalue: forall a loc ofs v,
-          eval_lvalue a loc ofs ->
-          deref_loc (typeof a) m loc ofs v ->
+      | eval_Elvalue: forall a loc ofs v bf,
+          eval_lvalue a loc ofs bf ->
+          deref_loc (typeof a) m loc ofs bf  v ->
           eval_expr a v
       (* the new case *)
       | eval_Eloc: forall e id l v ty,
@@ -283,28 +290,29 @@ Module ClightP.
           ty = typeof e ->
           eval_expr e v
 
-      with eval_lvalue: expr -> block -> ptrofs -> Prop :=
+      with eval_lvalue: expr -> block -> ptrofs -> bitfield -> Prop :=
       | eval_Evar_local:   forall id l ty,
           e!id = Some(l, ty) ->
-          eval_lvalue (Evar id ty) l Ptrofs.zero
+          eval_lvalue (Evar id ty) l Ptrofs.zero Full
       | eval_Evar_global: forall id l ty,
           e!id = None ->
           Genv.find_symbol ge id = Some l ->
-          eval_lvalue (Evar id ty) l Ptrofs.zero
+          eval_lvalue (Evar id ty) l Ptrofs.zero Full
       | eval_Ederef: forall a ty l ofs,
           eval_expr a (Vptr l ofs)  ->
-          eval_lvalue (Ederef a ty) l ofs
-      | eval_Efield_struct:   forall a i ty l ofs id co att delta,
+          eval_lvalue (Ederef a ty) l ofs Full
+      | eval_Efield_struct:   forall a i ty l ofs id co att delta bf,
           eval_expr a (Vptr l ofs)  ->
           typeof a = Tstruct id att ->
           ge.(genv_cenv)!id = Some co ->
-          field_offset ge i (co_members co) = OK delta ->
-          eval_lvalue (Efield a i ty) l (Ptrofs.add ofs (Ptrofs.repr delta))
-      | eval_Efield_union:   forall a i ty l ofs id co att,
+          field_offset ge i (co_members co) = OK (delta, bf) ->
+          eval_lvalue (Efield a i ty) l (Ptrofs.add ofs (Ptrofs.repr delta)) bf
+      | eval_Efield_union:   forall a i ty l ofs id co att delta bf,
           eval_expr a (Vptr l ofs)  ->
           typeof a = Tunion id att ->
           ge.(genv_cenv)!id = Some co ->
-          eval_lvalue (Efield a i ty) l ofs
+          union_field_offset ge i (co_members co) = OK (delta, bf) ->
+          eval_lvalue (Efield a i ty) l (Ptrofs.add ofs (Ptrofs.repr delta)) bf
 
       with eval_loc: expr -> ident -> loc -> Prop :=
       | eval_Epvar: forall id ty v,
@@ -418,11 +426,11 @@ Module ClightP.
 
     Inductive step: state * penv -> trace -> state * penv -> Prop :=
 
-    | step_assign:   forall f a1 a2 k e le pe m loc ofs v2 v m',
-        eval_lvalue e le pe m a1 loc ofs ->
+    | step_assign:   forall f a1 a2 k e le pe m loc ofs bf v2 v m',
+        eval_lvalue e le pe m a1 loc ofs bf ->
         eval_expr e le pe m a2 v2 ->
         sem_cast v2 (typeof a2) (typeof a1) m = Some v ->
-        assign_loc ge (typeof a1) m loc ofs v m' ->
+        assign_loc ge (typeof a1) m loc ofs bf v m' ->
         step (State f (Sassign a1 a2) k e le m, pe)
              E0 (State f Sskip k e le m', pe)
 
@@ -832,14 +840,6 @@ End TRANSF.
 (** ------------------------------------------------------------------------- *)
 (** The relation between persistent environment and memory *)
 
-Require Import AbRel.
-Require Import Join.
-
-Lemma join_commutative m1 m2 m:
-  join m1 m2 m -> join m2 m1 m.
-Proof.
-Admitted.
-
 Definition type_of_pv (pv: ClightP.val) :=
   match pv with
   | ClightP.Val _ ty | ClightP.Array _ _ ty => ty
@@ -953,9 +953,12 @@ Section WITH_CE.
     unfold Ptrofs.wordsize, Int.wordsize, Wordsize_32.wordsize, Wordsize_Ptrofs.wordsize.
     destruct Archi.ptr64; lia.
     assert (two_power_nat Int.wordsize <= two_power_nat Ptrofs.wordsize).
-    admit.
+    {
+      rewrite !two_power_nat_two_p.
+      apply two_p_monotone. extlia.
+    }
     lia.
-  Admitted.
+  Qed.
 
   Lemma match_loc_app:
     forall l ofs_start i ty ofs_elem ty_prev n attr,
@@ -1001,7 +1004,7 @@ Section WITH_CE.
       pvalue_match b base pv tm ->
       base + ofs <= Ptrofs.max_unsigned ->
       base >= 0 ->
-      deref_loc ty tm b (Ptrofs.repr (ofs + base)) v.
+      deref_loc ty tm b (Ptrofs.repr (ofs + base)) Full v.
   Proof.
     intros until b. intros H.
     revert base ofs.
@@ -1027,7 +1030,7 @@ Section WITH_CE.
       match_loc l ofs ->
       pvalue_match b 0 pv tm ->
       ofs <= Ptrofs.max_unsigned ->
-      deref_loc ty tm b (Ptrofs.repr ofs) v.
+      deref_loc ty tm b (Ptrofs.repr ofs) Full v.
   Proof.
     intros. exploit pread_val_correct'; eauto.
     lia. rewrite Z.add_0_r. easy.
@@ -1130,7 +1133,7 @@ Section WITH_CE.
 End WITH_CE.
 
 (** PTree properties *)
-Lemma ptree_of_list_skip {A} k l m:
+Lemma ptree_of_list1 {A} k l m:
   In k (map fst l) ->
   (fold_left (fun m k_v => PTree.set (fst k_v) (snd k_v) m) l m) ! k =
     (fold_left (fun m k_v => PTree.set (fst k_v) (snd k_v) m) l (PTree.empty A)) ! k.
@@ -1144,6 +1147,15 @@ Proof.
   + rewrite (IHl (PTree.set k1 v1 (PTree.empty A))); eauto.
 Qed.
 
+Lemma ptree_of_list2 {A} k l (m: PTree.tree A):
+  ~In k (map fst l) ->
+  (fold_left (fun m k_v => PTree.set (fst k_v) (snd k_v) m) l m) ! k = m ! k.
+Proof.
+  revert k l m. induction l as [ | [k1 v1] l]; simpl; intros. reflexivity.
+  apply Classical_Prop.not_or_and in H as [H1 H2].
+  rewrite IHl; eauto. rewrite PTree.gso; eauto.
+Qed.
+
 Lemma ptree_of_list_app {A} xs ys i (v: A):
   (PTree_Properties.of_list ys) ! i = Some v ->
   (PTree_Properties.of_list (xs ++ ys)) ! i = Some v.
@@ -1153,7 +1165,7 @@ Proof.
   rewrite <- H.
   unfold PTree_Properties.of_list.
   rewrite fold_left_app.
-  rewrite ptree_of_list_skip. reflexivity.
+  rewrite ptree_of_list1. reflexivity.
   apply in_map_iff. exists (i, v). split; eauto.
 Qed.
 
@@ -1161,7 +1173,16 @@ Lemma ptree_of_list_app_none {A} (xs: list (PTree.elt * A)) ys i:
   (PTree_Properties.of_list ys) ! i = None ->
   (PTree_Properties.of_list (xs ++ ys)) ! i = (PTree_Properties.of_list xs) ! i.
 Proof.
-Admitted.
+  intros H.
+  assert (~ In i (map fst ys)).
+  {
+    intros contra. apply PTree_Properties.of_list_dom in contra.
+    destruct contra as (v & Hv). congruence.
+  }
+  unfold PTree_Properties.of_list.
+  rewrite fold_left_app.
+  rewrite ptree_of_list2; eauto.
+Qed.
 
 (** ------------------------------------------------------------------------- *)
 (** Preservation *)
@@ -1233,15 +1254,15 @@ Section PRESERVATION.
           forall texpr (TR: transl_expr ce expr = OK texpr),
             Clight.eval_expr tge e le tm texpr v)
       /\
-      (forall expr b ofs,
-         ClightP.eval_lvalue ge e le pe m expr b ofs ->
+      (forall expr b ofs bf,
+         ClightP.eval_lvalue ge e le pe m expr b ofs bf ->
          forall texpr (TR: transl_expr ce expr = OK texpr),
-           Clight.eval_lvalue tge e le tm texpr b ofs)
+           Clight.eval_lvalue tge e le tm texpr b ofs bf)
       /\
       (forall expr id l,
         ClightP.eval_loc ge e le pe m expr id l ->
         forall texpr (TR: transl_expr ce expr = OK texpr),
-        exists b ofs, Clight.eval_lvalue tge e le tm texpr b (Ptrofs.repr ofs)
+        exists b ofs, Clight.eval_lvalue tge e le tm texpr b (Ptrofs.repr ofs) Full
                  /\ Genv.find_symbol se id = Some b
                  /\ match_loc ce l ofs
                  /\ ofs + sizeof ce (ClightP.typeof expr) < Ptrofs.max_unsigned).
@@ -1337,7 +1358,7 @@ Section PRESERVATION.
         assert (0 <= Int.intval i <= Ptrofs.max_unsigned) as Z.
         {
           pose proof (Int.intrange i). split; try lia.
-          pose proof (int_max_le_ptrofs_max ce). lia.
+          pose proof int_max_le_ptrofs_max. lia.
         }
         replace (Ptrofs.unsigned (Ptrofs.repr ofs) +
                    Ptrofs.unsigned (Ptrofs.mul (Ptrofs.repr (sizeof tge ty_elem))
@@ -1385,10 +1406,10 @@ Section PRESERVATION.
   Lemma eval_lvalue_correct:
     forall e le m tm pe,
       penv_match ce se (pe, m) tm ->
-      forall expr b ofs,
-        ClightP.eval_lvalue ge e le pe m expr b ofs ->
+      forall expr b ofs bf,
+        ClightP.eval_lvalue ge e le pe m expr b ofs bf ->
         forall texpr (TR: transl_expr ce expr = OK texpr),
-          Clight.eval_lvalue tge e le tm texpr b ofs.
+          Clight.eval_lvalue tge e le tm texpr b ofs bf.
   Proof. apply eval_expr_lvalue_correct. Qed.
 
   Lemma eval_loc_correct:
@@ -1397,7 +1418,7 @@ Section PRESERVATION.
       forall expr id l,
         ClightP.eval_loc ge e le pe m expr id l ->
         forall texpr (TR: transl_expr ce expr = OK texpr),
-        exists b ofs, Clight.eval_lvalue tge e le tm texpr b (Ptrofs.repr ofs)
+        exists b ofs, Clight.eval_lvalue tge e le tm texpr b (Ptrofs.repr ofs) Full
                  /\ Genv.find_symbol se id = Some b
                  /\ match_loc ce l ofs
                  /\ ofs + sizeof ce (ClightP.typeof expr) < Ptrofs.max_unsigned.
@@ -1509,12 +1530,16 @@ Section PRESERVATION.
 
 (** ------------------------------------------------------------------------- *)
 (** Monotonicity *)
+
   Lemma external_call_match ef vargs pe m tm t vres m':
     penv_match ce se (pe, m) tm ->
     external_call ef (ClightP.genv_genv ge) vargs m t vres m' ->
     exists tm', external_call ef tge vargs tm t vres tm' /\ penv_match ce se (pe, m') tm'.
   Proof.
-  Admitted.
+    intros. inv H. exploit external_call_join; eauto.
+    intros (? & ? & ?). eexists; split; eauto.
+    econstructor; eauto.
+  Qed.
 
   Lemma free_list_load:
     forall chunk b l m m',

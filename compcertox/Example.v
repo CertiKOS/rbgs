@@ -331,7 +331,7 @@ Ltac crush_eval_expr :=
 Ltac crush_eval_lvalue :=
   cbn;
   lazymatch goal with
-  | [ |- eval_lvalue _ _ _ _ _ (Evar _ _) _ _ ] =>
+  | [ |- eval_lvalue _ _ _ _ _ (Evar _ _) _ _ _ ] =>
       solve [ apply eval_Evar_local; reflexivity
             | apply eval_Evar_global; [ reflexivity | eassumption ] ]
   | _ => constructor
@@ -339,22 +339,22 @@ Ltac crush_eval_lvalue :=
 Ltac crush_deref :=
   cbn;
   lazymatch goal with
-  | [ |- deref_loc (Tarray _ _ _) _ _ _ _] => eapply deref_loc_reference; reflexivity
-  | [ |- deref_loc (Tfunction _ _ _) _ _ _ _] => eapply deref_loc_reference; reflexivity
-  | [ |- deref_loc (Tint _ _ _) _ _ _ _] => eapply deref_loc_value; [ reflexivity | ]
+  | [ |- deref_loc (Tarray _ _ _) _ _ _ _ _] => eapply deref_loc_reference; reflexivity
+  | [ |- deref_loc (Tfunction _ _ _) _ _ _ _ _] => eapply deref_loc_reference; reflexivity
+  | [ |- deref_loc (Tint _ _ _) _ _ _ _ _] => eapply deref_loc_value; [ reflexivity | ]
   end.
 
 Ltac crush_expr :=
   repeat (cbn;
     match goal with
     | [ |- eval_expr _ _ _ _ _ _ _ ] => crush_eval_expr
-    | [ |- eval_lvalue _ _ _ _ _ _ _ _ ] => crush_eval_lvalue
+    | [ |- eval_lvalue _ _ _ _ _ _ _ _ _ ] => crush_eval_lvalue
     | [ |- eval_exprlist _ _ _ _ _ _ _ _ ] => econstructor
-    | [ |- deref_loc _ _ _ _ _ ] => crush_deref
+    | [ |- deref_loc _ _ _ _ _ _ ] => crush_deref
     | [ |- Cop.sem_binary_operation _ _ _ _ _ _ _ = Some _] => try reflexivity
     | [ |- Cop.sem_cast _ ?ty ?ty _ = Some _ ] =>
         apply Cop.cast_val_casted; eauto
-    | [ |- assign_loc _ (Tint _ _ _) _ _ _ _ _ ] =>
+    | [ |- assign_loc _ (Tint _ _ _) _ _ _ _ _ _ ] =>
         eapply assign_loc_value; [ reflexivity | ]
     | _ => try solve [ easy | eassumption ]
     end).
@@ -681,7 +681,9 @@ Proof.
   unfold Cop.sem_cast. cbn.
   destruct Archi.ptr64. cbn.
   rewrite Int.eq_false; eauto.
+  destruct intsize_eq.
   rewrite Int.eq_false; eauto.
+  congruence.
 Qed.
 
 Hint Constructors rb_func_rel.
@@ -814,7 +816,7 @@ Proof.
   eapply encap_fsim_lcomp_sk; eauto. instantiate (1 := &rb_cc).
   - apply rb_correct1.
   - apply encap_fsim_embed. apply rb_correct2.
-  - cbn. apply ClightPComp.id_skel_least.
+  - cbn. apply CategoricalComp.id_skel_order.
   - cbn. apply Linking.linkorder_refl.
 Qed.
 
@@ -992,7 +994,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se inc1_id = Some b ->
     k = (Kcall (Some bq_deq_tmp1) bq_deq empty_env
-          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some Vundef) PTree.Leaf)
+          (PTree.Node (PTree.Node PTree.Empty (Some Vundef) PTree.Empty) (Some Vundef) PTree.Empty)
           (Kseq
              (Ssequence
                 (Scall (Some bq_deq_tmp2) (Evar get_id (Tfunction (Tcons tint Tnil) tint cc_default))
@@ -1005,7 +1007,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     vf = Vptr b Integers.Ptrofs.zero ->
     Genv.find_symbol se inc2_id = Some b ->
     k = (Kcall (Some bq_enq_tmp) bq_enq empty_env
-          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v) PTree.Leaf)
+          (PTree.Node (PTree.Node PTree.Empty (Some Vundef) PTree.Empty) (Some v) PTree.Empty)
           (Kseq
              (Ssequence
                 (Scall None (Evar set_id (Tfunction (Tcons tint (Tcons tint Tnil)) tvoid cc_default))
@@ -1018,7 +1020,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     Cop.val_casted v1 tint ->
     Cop.val_casted v2 tint ->
     k = (Kcall (Some bq_enq_tmp) bq_enq empty_env
-          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v2) PTree.Leaf)
+          (PTree.Node (PTree.Node PTree.Empty (Some Vundef) PTree.Empty) (Some v2) PTree.Empty)
           (Kseq
              (Ssequence
                 (Scall None (Evar set_id (Tfunction (Tcons tint (Tcons tint Tnil)) tvoid cc_default))
@@ -1029,7 +1031,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     Mem.alloc_flag m = true ->
     Cop.val_casted v tint ->
     k = (Kcall (Some bq_deq_tmp1) bq_deq empty_env
-          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some Vundef) PTree.Leaf)
+          (PTree.Node (PTree.Node PTree.Empty (Some Vundef) PTree.Empty) (Some Vundef) PTree.Empty)
           (Kseq
              (Ssequence
                 (Scall (Some bq_deq_tmp2) (Evar get_id (Tfunction (Tcons tint Tnil) tint cc_default))
@@ -1043,7 +1045,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     Genv.find_symbol se get_id = Some b ->
     Cop.val_casted v tint ->
     k = (Kcall (Some bq_deq_tmp2) bq_deq empty_env
-          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v) PTree.Leaf)
+          (PTree.Node (PTree.Node PTree.Empty (Some Vundef) PTree.Empty) (Some v) PTree.Empty)
           (Kseq (Sreturn (Some (Etempvar bq_deq_tmp2 tint))) Kstop)) ->
     bq_ms se (bq_call geti [v] m) (Callstate vf [v] k m, pe)
 | bq_ms_call_set:
@@ -1053,7 +1055,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     Genv.find_symbol se set_id = Some b ->
     Cop.val_casted v1 tint ->
     Cop.val_casted v2 tint ->
-    k = (Kcall None bq_enq empty_env (PTree.Node (PTree.Node PTree.Leaf (Some v1) PTree.Leaf) (Some v2) PTree.Leaf) (Kseq (Sreturn None) Kstop)) ->
+    k = (Kcall None bq_enq empty_env (PTree.Node (PTree.Node PTree.Empty (Some v1) PTree.Empty) (Some v2) PTree.Empty) (Kseq (Sreturn None) Kstop)) ->
     bq_ms se (bq_call seti [v1; v2] m) (Callstate vf [v1; v2] k m, pe)
 
 | bq_ms_midx_enq:
@@ -1067,7 +1069,7 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     Cop.val_casted rv tint ->
     Cop.val_casted v tint ->
     k = (Kcall (Some bq_deq_tmp2) bq_deq empty_env
-          (PTree.Node (PTree.Node PTree.Leaf (Some Vundef) PTree.Leaf) (Some v) PTree.Leaf)
+          (PTree.Node (PTree.Node PTree.Empty (Some Vundef) PTree.Empty) (Some v) PTree.Empty)
           (Kseq (Sreturn (Some (Etempvar bq_deq_tmp2 tint))) Kstop)) ->
     bq_ms se (bq_middlex deq rv m) (Returnstate rv k m, pe)
 
@@ -1288,7 +1290,7 @@ Proof.
     + apply bq_correct1.
     + apply encap_fsim_embed.
       apply bq_correct2.
-    + apply ClightPComp.id_skel_least.
+    + apply CategoricalComp.id_skel_order.
     + apply Linking.linkorder_refl.
 Qed.
 
@@ -1482,7 +1484,7 @@ Section REFINE.
           eexists (tt, (_, _)). repeat split; eauto.
         + inv H3. inv H2. eexists (_, _). split. constructor.
           exists tt, tt. repeat split; eauto.
-          eprod_crush. destruct H2. cbn in *. inv H3.
+          eprod_crush. cbn in *. inv H3.
           eexists _. split. constructor.
           eexists tt, (tt, (_, _)). repeat split; eauto.
         + easy.
@@ -1495,7 +1497,7 @@ Section REFINE.
     forall q f c1 c2,
       rb_bq q (f, c1, c2) -> c2 < N.
   Proof.
-    intros. inv H. apply Nat.mod_upper_bound. unfold N. omega.
+    intros. inv H. apply Nat.mod_upper_bound. unfold N. lia.
   Qed.
 
   Lemma refine_correct1:
@@ -1506,10 +1508,10 @@ Section REFINE.
     intros. inv H. destruct n as [|m]. easy.
     inv H6. split. easy.
     eapply bq_rb_intro with (n := m); eauto.
-    - apply Nat.mod_upper_bound. unfold N. omega.
+    - apply Nat.mod_upper_bound. unfold N. lia.
     - apply le_Sn_le; eauto.
     - rewrite Nat.add_mod_idemp_l.
-      f_equal. omega. unfold N. omega.
+      f_equal. lia. unfold N. lia.
   Qed.
 
   Lemma slice_length f c1 n :
@@ -1538,11 +1540,11 @@ Section REFINE.
   Proof.
     intros. intros X.
     cut (a <> 0).
-    2: { intros ->. cbn in *. apply Nat.mod_small in H0. omega. }
+    2: { intros ->. cbn in *. apply Nat.mod_small in H0. lia. }
     intros Y.
     cut (a + b < N \/ N <= a + b < N * 2). intros [A|A].
-    rewrite Nat.mod_small in X; try easy. omega.
-    rewrite mod_minus in X; try easy. omega.
+    rewrite Nat.mod_small in X; try easy. lia.
+    rewrite mod_minus in X; try easy. lia.
     destruct (lt_dec (a+b) N). lia. lia.
   Qed.
 
@@ -1564,15 +1566,15 @@ Section REFINE.
                 exfalso. eapply mod_add_not_same. apply H5. apply A. easy. apply e.
              ++ replace ((S c1 mod N + n) mod N) with ((c1 + S n) mod N). easy.
                 change (S ?x) with (1 + x).
-                rewrite Nat.add_mod_idemp_l. f_equal. omega.
-                unfold N. omega.
+                rewrite Nat.add_mod_idemp_l. f_equal. lia.
+                unfold N. lia.
           -- apply Nat.lt_succ_l. auto.
-          -- apply Nat.mod_upper_bound. unfold N. omega.
+          -- apply Nat.mod_upper_bound. unfold N. lia.
       + change (S ?x) with (1 + x).
-        rewrite Nat.add_mod_idemp_r. f_equal. omega.
-        unfold N. omega.
+        rewrite Nat.add_mod_idemp_r. f_equal. lia.
+        unfold N. lia.
       + intros. destruct Nat.eq_dec; eauto.
-    - rewrite slice_length in H. omega.
+    - rewrite slice_length in H. lia.
   Qed.
 
   Opaque clightp2.
@@ -1592,7 +1594,7 @@ Section REFINE.
     intros. instantiate (1 := fun _ _ _ => _). cbn beta.
     destruct H. destruct wB.
     eapply forward_simulation_plus with (match_states := bq_abs_ms se1).
-    - intros. cbn in *. eprod_crush. inv H. cbn in *. inv H1.
+    - intros. cbn in *. eprod_crush. cbn in *. inv H1.
       + eexists. split.
         * econstructor.  instantiate (1 := (_, _)).
           constructor; cbn. econstructor; eauto. reflexivity.
@@ -1730,13 +1732,13 @@ Section REFINE.
     { eapply encap_fsim_lcomp_sk.
       - reflexivity.
       - apply encap_comp_embed2.
-      - apply ClightPComp.id_skel_least.
+      - apply CategoricalComp.id_skel_order.
       - eauto. }
     etransitivity. apply encap_assoc1.
     eapply encap_fsim_lcomp_sk.
     - apply encap_comp_prim.
     - reflexivity.
-    - apply ClightPComp.id_skel_least.
+    - apply CategoricalComp.id_skel_order.
     - eauto.
   Qed.
 
@@ -1751,7 +1753,7 @@ Section REFINE.
       + apply bq_refine1.
       + apply encap_fsim_embed.
         apply bq_refine2.
-      + apply ClightPComp.id_skel_least.
+      + apply CategoricalComp.id_skel_order.
       + apply Linking.linkorder_refl.
     - apply spec_assoc. apply linkorder_refl.
       apply linkorder_erase. apply rb_linkorder.

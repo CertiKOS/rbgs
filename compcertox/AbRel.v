@@ -57,7 +57,7 @@ Proof.
   intros. rewrite <- H. unfold Mem.perm, Mem.unchecked_free; simpl.
   unfold NMap.get. rewrite PMap.gss. unfold proj_sumbool.
   rewrite zle_true. rewrite zlt_true.
-  simpl. tauto. omega. omega.
+  simpl. tauto. lia. lia.
 Qed.
 
 Lemma perm_unchecked_free_list_2:
@@ -72,7 +72,7 @@ Proof.
     + intros X. inv X.
       cbn. intros X. exploit perm_unchecked_free_list_3.
       2: exact X. reflexivity.
-      eapply perm_unchecked_free_2. reflexivity. omega.
+      eapply perm_unchecked_free_2. reflexivity. lia.
     + intros X. eapply IHl; eauto.
 Qed.
 
@@ -166,7 +166,7 @@ Proof.
       destruct (eq_block b2 b); auto. subst b. right.
       assert (~ (lo <= ofs < hi)).
       red; intros; eapply H1; eauto.
-      omega.
+      lia.
     + eapply mi_align; eauto.
     + intros. simpl. eauto.
   - intros. eauto using perm_unchecked_free_3.
@@ -217,7 +217,7 @@ Proof.
   - split; intros.
     eapply perm_unchecked_free_1; eauto.
     destruct (eq_block b0 b); auto. destruct (zlt ofs lo); auto. destruct (zle hi ofs); auto.
-    subst b0. elim (H0 ofs). omega. auto.
+    subst b0. elim (H0 ofs). lia. auto.
     eapply perm_unchecked_free_3; eauto.
   - subst. simpl. auto.
   - inv H. easy.
@@ -234,7 +234,7 @@ Proof.
     eapply Mem.unchanged_on_trans.
     + eapply unchecked_free_unchanged_on.
       instantiate (1 := Mem.unchecked_free m b lo hi). reflexivity.
-      intros. eapply HP. apply in_eq. omega. omega.
+      intros. eapply HP. apply in_eq. lia. lia.
     + apply IHl; eauto. intros.
       eapply HP. apply in_cons. all: eauto.
 Qed.
@@ -478,7 +478,7 @@ Proof.
   - intros * HP A. specialize (MDEF _ _ HP).
     exploit Mem.mext_inj. exact MEXT. intros HI.
     exploit Mem.mi_memval. exact HI. reflexivity. exact A.
-    replace (ofs+0) with ofs by omega.
+    replace (ofs+0) with ofs by lia.
     intros HM. inv HM; eauto.
     + rewrite <- H in MDEF. specialize (MDEF A). inv MDEF.
       inv H1; eauto.
@@ -511,7 +511,7 @@ Proof.
   - intros * HP A. specialize (MDEF _ _ HP).
     exploit Mem.mext_inj. exact MEXT. intros HI.
     exploit Mem.mi_memval. exact HI. reflexivity. eauto.
-    replace (ofs+0) with ofs by omega.
+    replace (ofs+0) with ofs by lia.
     intros HM. inv HM; eauto.
     + rewrite <- H in MDEF. exploit MDEF. eauto.
       intros X; inv X; inv H1; eauto.
@@ -714,7 +714,7 @@ Proof.
       * intros * XS X.
         eapply locs_iff in XS.
         destruct XS as ([[bi lo] hi] & A & B & C). subst.
-        eapply perm_unchecked_free_list_2; eauto. all: omega.
+        eapply perm_unchecked_free_list_2; eauto. all: lia.
       * eapply defined_on_implies; eauto.
         intros * (A & B). split; eauto.
         intros X. apply B. eapply Mem.perm_extends; eauto.
@@ -906,6 +906,7 @@ Section CKLR.
       eapply Mem.alloc_result in Hms. subst.
       eapply abrel_valid in ABS; eauto.
       erewrite Mem.mext_next; eauto.
+      unfold Mem.valid_block, Plt in ABS. lia.
     - eapply defined_on_implies.
       instantiate (1 := fun b ofs => Mem.perm mf b ofs Max Nonempty
                                   /\ loc_out_of_bounds ms b ofs).
@@ -1095,7 +1096,7 @@ Section CKLR.
   Qed.
   (* cklr_representable *)
   Next Obligation.
-    intros. inv H1. omega.
+    intros. inv H1. lia.
   Qed.
   (* cklr_aligned_area_inject *)
   Next Obligation.
@@ -1103,12 +1104,12 @@ Section CKLR.
   Qed.
   (* cklr_disjoint_or_equal_inject *)
   Next Obligation.
-    intros. inv H0. inv H1. intuition omega.
+    intros. inv H0. inv H1. intuition lia.
   Qed.
   (* cklr_perm_inv *)
   Next Obligation.
     intros * Hm Hp. inv Hp. inv H0.
-    replace (ofs1 + 0) with ofs1 in *; try omega.
+    replace (ofs1 + 0) with ofs1 in *; try lia.
     inv Hm. eapply Mem.perm_extends_inv; eauto.
   Qed.
   (* cklr_nextblock_incr *)
@@ -1296,6 +1297,7 @@ Section SIMULATION.
 
 End SIMULATION.
 
+Declare Scope abrel_scope.
 Delimit Scope abrel_scope with abrel.
 Bind Scope abrel_scope with abrel.
 Infix "@" := abrel_comp : abrel_scope.

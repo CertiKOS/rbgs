@@ -123,7 +123,7 @@ Proof.
            ++ constructor. easy. cbn.
               rewrite Z.add_0_r. symmetry. apply Z.max_l.
               pose proof (AST.init_data_list_size_pos c).
-              pose proof (AST.init_data_size_pos i). omega.
+              pose proof (AST.init_data_size_pos i). lia.
       * inv Hx; now constructor.
       * cbn in Hc. destruct c.
         -- inv Hc.
@@ -133,7 +133,7 @@ Proof.
            ++ constructor. easy. cbn.
               rewrite Z.add_0_r. symmetry. apply Z.max_l.
               pose proof (AST.init_data_list_size_pos c).
-              pose proof (AST.init_data_size_pos i). omega.
+              pose proof (AST.init_data_size_pos i). lia.
     + exploit link_varinit_inv_r. exact Hz. intros X.
       exploit link_varinit_inv_l. exact Hc. intros Y.
       destruct X, Y; subst.
@@ -146,7 +146,7 @@ Proof.
            ++ constructor. easy. cbn.
               rewrite Z.add_0_r. symmetry. apply Z.max_l.
               pose proof (AST.init_data_list_size_pos c).
-              pose proof (AST.init_data_size_pos i). omega.
+              pose proof (AST.init_data_size_pos i). lia.
       * inv Hy; now constructor.
       * destruct c.
         -- inv Hx. easy.
@@ -156,7 +156,7 @@ Proof.
            ++ constructor. easy. cbn.
               rewrite Z.add_0_r. symmetry. apply Z.max_l.
               pose proof (AST.init_data_list_size_pos c).
-              pose proof (AST.init_data_size_pos i). omega.
+              pose proof (AST.init_data_size_pos i). lia.
 Qed.
 
 Instance vardef_linker_prop {V} {LV: Linker V}:

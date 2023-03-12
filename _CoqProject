@@ -1,5 +1,13 @@
--R coqrel coqrel
--R compcert compcert
+-R compcert/lib compcert.lib
+-R compcert/common compcert.common
+-R compcert/x86_64 compcert.x86_64
+-R compcert/x86 compcert.x86
+-R compcert/cklr compcert.cklr
+-R compcert/cfrontend compcert.cfrontend
+-R compcert/driver compcert.driver
+-R compcert/backend compcert.backend
+-R compcert/flocq Flocq
+-R compcert/coqrel coqrel
 -R compcertox compcertox
 
 # CompCertOX formalization
@@ -16,8 +24,6 @@ compcertox/BQspec.v
 compcertox/BQspecx.v
 compcertox/BQrefine.v
 
-
-compcertox/JoinAssoc.v
 compcertox/Encapsulation.v
 compcertox/ClightP.v
 compcertox/ClightPComp.v
