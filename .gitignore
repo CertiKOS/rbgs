@@ -6,3 +6,5 @@ Makefile.conf
 .*.aux
 *.d
 *.vio
+*.vos
+*.vok

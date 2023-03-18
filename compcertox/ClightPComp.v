@@ -5,8 +5,8 @@ From compcert Require Import
      CategoricalComp.
 From compcertox Require Import
      TensorComp Lifting
-     ClightP Encapsulation.
-From compcert Require Import Join.
+     PEnv ClightP Encapsulation.
+From compcert Require Import Join Ctypes.
 Require Import Lia.
 Require Import LogicalRelations.
 
@@ -15,38 +15,14 @@ Generalizable All Variables.
 (** ------------------------------------------------------------------------- *)
 (** simulation conventions *)
 
-(** The simulation conventions, however, that we actually use *)
-
-(* TODO: define initial states and prove the properties*)
-Variable m0 : list (ident * Z) -> Genv.symtbl -> mem.
-(* TODO: need type here
-(rb_pset se) ! arr_id = Some (Array Nz ?vf (Tarray tint Nz noattr))
-(rb_pset se) ! cnt1_id = Some (Val ?vc1 tint)
-(rb_pset se) ! cnt2_id = Some (Val ?vc2 tint)
-*)
-Variable p0 : list (ident * Z) -> ClightP.penv.
-
-Variable vars_of_program : ClightP.program -> list (ident * Z).
-Hypothesis vars_init :
-  forall p se, ClightP.penv_mem_match
-            p.(ClightP.prog_comp_env) se
-                (p0 (vars_of_program p))
-                (m0 (vars_of_program p) se).
-
-Variable exclusive_vars: list (ident * Z) -> list (ident * Z) -> Prop.
-Hypothesis exclusive_init_mem:
-  forall se vars1 vars2,
-    exclusive_vars vars1 vars2 ->
-    join (m0 vars1 se) (m0 vars2 se) (m0 (vars1 ++ vars2) se).
-
-Instance mem_pset (vars: list (ident * Z)) : PSet mem :=
+Instance mem_pset (vars: list (ident * val)) : PSet mem :=
   { pset_init se := m0 vars se }.
-Instance penv_pset (vars: list (ident * Z)) : PSet ClightP.penv :=
+Instance penv_pset (vars: list (ident * val)) : PSet penv :=
   { pset_init _ := p0 vars }.
 Instance symtbl_pset : PSet Genv.symtbl :=
   { pset_init se := se }.
 
-Instance mem_world (vars: list (ident * Z)): World mem :=
+Instance mem_world (vars: list (ident * val)): World mem :=
   {|
     w_state := mem;
     w_pset := mem_pset vars;
@@ -66,17 +42,17 @@ Instance se_world : World Genv.symtbl :=
 Definition unp_out: ST.callconv li_c li_c := &pout.
 
 (* TODO: define [join_query] and [join_reply] *)
-Inductive unp_penv_query: Memory.mem -> query (li_c@ClightP.penv) -> query (li_c@ClightP.penv) -> Prop :=
+Inductive unp_penv_query: Memory.mem -> query (li_c@penv) -> query (li_c@penv) -> Prop :=
 | unp_penv_query_intro vf sg vargs m msrc mtgt pe
     (MJOIN: join m msrc mtgt):
   unp_penv_query m (cq vf sg vargs msrc, pe) (cq vf sg vargs mtgt, pe).
 
-Inductive unp_penv_reply: Memory.mem -> reply (li_c@ClightP.penv) -> reply (li_c@ClightP.penv) -> Prop :=
+Inductive unp_penv_reply: Memory.mem -> reply (li_c@penv) -> reply (li_c@penv) -> Prop :=
 | unp_penv_reply_intro rv m msrc mtgt pe
     (MJOIN: join m msrc mtgt):
   unp_penv_reply m (cr rv msrc, pe) (cr rv mtgt, pe).
 
-Program Definition unp_penv' : callconv (li_c@ClightP.penv) (li_c@ClightP.penv) :=
+Program Definition unp_penv' : callconv (li_c@penv) (li_c@penv) :=
   {|
     ccworld := Memory.mem;
     match_senv _ se1 se2 := se1 = se2;
@@ -87,8 +63,7 @@ Next Obligation. reflexivity. Qed.
 Next Obligation. inv H0. reflexivity. Qed.
 Next Obligation. inv H. reflexivity. Qed.
 
-Definition unp_penv: ST.callconv (li_c@ClightP.penv) (li_c@ClightP.penv)
-  := &unp_penv'.
+Definition unp_penv: ST.callconv (li_c@penv) (li_c@penv) := &unp_penv'.
 
 Inductive unp_in_query: Memory.mem -> query li_c -> query li_c -> Prop :=
 | unp_in_query_intro vf sg vargs m msrc mtgt
@@ -112,15 +87,19 @@ Next Obligation. reflexivity. Qed.
 Next Obligation. inv H0. reflexivity. Qed.
 Next Obligation. inv H. reflexivity. Qed.
 
+Definition vars_of_program (p: ClightP.program) :=
+  init_of_pvars p.(ClightP.prog_private).
+
 Definition eclightp (p: ClightP.program) :=
   comp_esem'
-    (@encap_prim _ ClightP.penv (penv_pset (vars_of_program p)))
+    (@encap_prim _ penv (penv_pset (vars_of_program p)))
     (semantics_embed (ClightP.clightp2 p))
     (ClightP.clightp_erase_program p).
 
-
 (** ------------------------------------------------------------------------- *)
 (** promote the result from [ClightP.v] to encapsulation version *)
+
+Open Scope nat_scope.
 Section ESIM.
 
   Context prog tprog (HT: transl_program prog = OK tprog).
@@ -130,20 +109,20 @@ Section ESIM.
   Let ce := prog.(ClightP.prog_comp_env).
   Let sk := ClightP.clightp_erase_program prog.
 
-  Inductive encap_ms se : mem -> ClightP.penv -> @state (li_c@ClightP.penv) (li_c@ClightP.penv) 1 -> @state li_c li_c 1 -> Prop :=
+  Inductive encap_ms se : mem -> penv -> @state (li_c@penv) (li_c@penv) 1 -> @state li_c li_c 1 -> Prop :=
   | encap_ms_q m pe vf sg vargs msrc mtgt
       (MJOIN: join m msrc mtgt)
-      (HPE: ClightP.penv_mem_match ce se pe m):
-    encap_ms se m pe (@st_q (li_c@ClightP.penv) ((cq vf sg vargs msrc), pe)) (st_q (cq vf sg vargs mtgt))
+      (HPE: penv_mem_match ce se pe m):
+    encap_ms se m pe (@st_q (li_c@penv) ((cq vf sg vargs msrc), pe)) (st_q (cq vf sg vargs mtgt))
   | encap_ms_r m pe rv msrc mtgt
       (MJOIN: join m msrc mtgt)
-      (HPE: ClightP.penv_mem_match ce se pe m):
-    encap_ms se m pe (@st_r (li_c@ClightP.penv) ((cr rv msrc), pe)) (st_r (cr rv mtgt)).
+      (HPE: penv_mem_match ce se pe m):
+    encap_ms se m pe (@st_r (li_c@penv) ((cr rv msrc), pe)) (st_r (cr rv mtgt)).
 
   Lemma penv_encap:
     E.forward_simulation
      (& (pin ce)) (unp_in vars)
-     (@encap_prim _ ClightP.penv (penv_pset vars))
+     (@encap_prim _ penv (penv_pset vars))
      (semantics_embed 1%lts).
   Proof.
     apply st_normalize_fsim. constructor.
@@ -151,7 +130,7 @@ Section ESIM.
       (ltof _ (fun (_: unit) => 0))
       (fun se0 _ _ _ '((se, m), (pe, _)) _ s1 s2 =>
          encap_ms se m pe s1 s2 /\ se0 = se)
-      (fun _ '((se, m), (pe, _)) => ClightP.penv_mem_match ce se pe m);
+      (fun _ '((se, m), (pe, _)) => penv_mem_match ce se pe m);
       try easy.
     - intros. cbn in *. eprod_crush. eauto.
     - intros. cbn in *. apply vars_init.
@@ -215,7 +194,7 @@ End ESIM.
 
 Section UNP_IN.
 
-  Context (vars1 vars2: list (ident * Z)) (Hvs: exclusive_vars vars1 vars2).
+  Context (vars1 vars2: list (ident * val)) (Hvs: PEnv.vars_disjoint vars1 vars2).
   Let vars := vars1 ++ vars2.
   Inductive unp_in_inv:
     ST.ccstate (ST.cc_compose (unp_in vars1) (unp_in vars2)) ->
@@ -245,7 +224,7 @@ Section UNP_IN.
       (fun wa wb => unp_in_inv wa wb); try easy.
     - intros. cbn in *. eprod_crush. inv H. constructor; eauto.
     - cbn. intros se. constructor.
-      apply exclusive_init_mem; eauto.
+      apply disjoint_init_mem; eauto.
     - intros sa wb se1 se2 Hse0 Hsk I. inv I.
       cbn in *. eprod_crush. subst. constructor.
       + intros q1 q2 s1 sb1 Hb Hq Hx Hse.
@@ -347,7 +326,7 @@ End UNP_OUT.
 
 Section CLIGHT_IN.
 
-  Context (p: Clight.program) (vars: list (ident * Z)).
+  Context (p: Clight.program) (vars: list (ident * val)).
 
   Lemma clight_expr_lvalue_join mx ge:
     forall e le m1 m2,
@@ -502,7 +481,7 @@ Section CLIGHT_IN.
       rewrite MJOIN. unfold Ple in *.
       etransitivity; eauto.
       apply Pos.le_max_r.
-      eexists (_, m1), ((_, m1), (tt, tt)). split. reflexivity.
+      eexists (_, m0), ((_, m0), (tt, tt)). split. reflexivity.
       split. reflexivity.
       constructor; eauto.
     - intros sa [sb [[] []]] [] s1 s2 [r1 []] HS HX.
@@ -520,7 +499,7 @@ Section CLIGHT_IN.
       intros r1 r2 s1' sa1 [] HR HX.
       eprod_crush. unfold id in *. inv HR. inv H2.
       eexists tt, _. split. eexists. split; constructor.
-      eexists (_, _), (_, m2, (tt, tt)). split. reflexivity.
+      eexists (_, _), (_, m1, (tt, tt)). split. reflexivity.
       split. repeat split; eauto.
       econstructor; eauto.
     - intros s1 t s1' HX wa [wb [[] []]] [] s2 HS.
@@ -730,27 +709,27 @@ Section CLICHTP_OUT.
     - apply well_founded_ltof.
   Qed.
 
-  Inductive penv_ms (vars: list (ident * Z)):
-    ST.ccworld (@ST.callconv_lift _ _ unp_out ClightP.penv (penv_pset vars) ClightP.penv (penv_pset vars)) ->
-    @state (li_c@ClightP.penv) (li_c@ClightP.penv) 1%lts ->
-    @state (li_c@ClightP.penv) (li_c@ClightP.penv) 1%lts -> Prop :=
+  Inductive penv_ms (vars: list (ident * val)):
+    ST.ccworld (@ST.callconv_lift _ _ unp_out penv (penv_pset vars) penv (penv_pset vars)) ->
+    @state (li_c@penv) (li_c@penv) 1%lts ->
+    @state (li_c@penv) (li_c@penv) 1%lts -> Prop :=
   | penv_ms_query:
     forall q1 q2 m pe0 pe,
       ST.match_query unp_out m q1 q2 ->
       penv_ms vars (m, (pe0, pe0))
-        (@st_q (li_c@ClightP.penv) (q1, pe))
-        (@st_q (li_c@ClightP.penv) (q2, pe))
+        (@st_q (li_c@penv) (q1, pe))
+        (@st_q (li_c@penv) (q2, pe))
   | penv_ms_reply:
     forall r1 r2 m pe0 pe,
       ST.match_reply unp_out m r1 r2 ->
       penv_ms vars (m, (pe0, pe0))
-        (@st_r (li_c@ClightP.penv) (r1, pe))
-        (@st_r (li_c@ClightP.penv) (r2, pe)).
+        (@st_r (li_c@penv) (r1, pe))
+        (@st_r (li_c@penv) (r2, pe)).
 
   Lemma encap_prim_out vars:
     E.forward_simulation unp_penv unp_out
-      (@encap_prim _ ClightP.penv (penv_pset vars))
-      (@encap_prim _ ClightP.penv (penv_pset vars)).
+      (@encap_prim _ penv (penv_pset vars))
+      (@encap_prim _ penv (penv_pset vars)).
   Proof.
     apply st_normalize_fsim. cbn. constructor.
     eapply ST.Forward_simulation with
@@ -800,8 +779,8 @@ Section COMP.
 
   Context (S1: li_c +-> li_c) (S2: li_c +-> li_c)
     (T1: li_c +-> li_c) (T2: li_c +-> li_c)
-    (vars1 vars2: list (ident * Z))
-    (Hvs: exclusive_vars vars1 vars2)
+    (vars1 vars2: list (ident * val))
+    (Hvs: PEnv.vars_disjoint vars1 vars2)
     (H1: E.forward_simulation unp_out (unp_in vars1) S1 T1)
     (H2: E.forward_simulation unp_out (unp_in vars2) S2 T2).
   Context (sk: AST.program unit unit)
