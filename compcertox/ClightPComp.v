@@ -99,6 +99,23 @@ Definition eclightp (p: ClightP.program) :=
 (** ------------------------------------------------------------------------- *)
 (** promote the result from [ClightP.v] to encapsulation version *)
 
+Lemma valid_for_pvars (p: ClightP.program) se:
+  Genv.valid_for (ClightP.clightp_erase_program p) se ->
+  valid_pvars (ClightP.prog_private p) se.
+Proof.
+  intros H id pv HV.
+  assert (exists g, (prog_defmap (ClightP.clightp_erase_program p)) ! id = Some g)
+    as (g & Hg).
+  {
+    apply prog_defmap_dom. cbn.
+    apply in_map_iff. eexists (id, _). split; eauto.
+    apply in_app_iff. left.
+    apply in_map_iff. eexists (id, _). split; eauto.
+  }
+  specialize (H _ _ Hg).
+  destruct H as (? & ? & ?). eexists. apply H.
+Qed.
+
 Open Scope nat_scope.
 Section ESIM.
 
@@ -134,6 +151,7 @@ Section ESIM.
       try easy.
     - intros. cbn in *. eprod_crush. eauto.
     - intros. cbn in *. apply vars_init.
+      apply valid_for_pvars. admit.
     - intros. cbn in *. constructor; cbn.
       + intros. eprod_crush. subst. inv H3. inv H4.
         eexists tt, _. split. constructor.

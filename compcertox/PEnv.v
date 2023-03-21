@@ -26,13 +26,15 @@ Fixpoint size_of_type (t: type): Z :=
   | _ => 0
   end.
 
+Definition type_size_eq ty := forall ce, size_of_type ty = sizeof ce ty.
+
 Inductive init_pv: val -> Prop :=
 | init_pv_int attr:
   init_pv (Val (Vint Int.zero) (Tint I32 Unsigned attr))
 | init_pv_array n ty_elem attr arr
   (HV: forall i, 0 <= i < n -> init_pv (ZMap.get i arr))
   (HT: forall i, 0 <= i < n -> type_of_pv (ZMap.get i arr) = ty_elem)
-  (HS: forall ce, size_of_type ty_elem = sizeof ce ty_elem):
+  (HS: type_size_eq ty_elem):
   init_pv (Array n arr (Tarray ty_elem n attr)).
 
 Record privvar : Type :=
@@ -413,11 +415,10 @@ Proof.
   unfold Genv.read_as_zero. intros. apply H1; eauto; lia.
 Qed.
 
-Lemma init_pv_size ce pv ty:
-  init_pv pv -> ty = type_of_pv pv ->
-  size_of_type ty = sizeof ce ty.
+Lemma init_pv_size_eq pv:
+  init_pv pv -> type_size_eq (type_of_pv pv).
 Proof.
-  intros. destruct H.
+  intros H ce. destruct H.
   - subst. reflexivity.
   - subst. cbn. erewrite HS. reflexivity.
 Qed.
@@ -534,15 +535,195 @@ Fixpoint init_of_pvars (vs: list (ident * privvar)) : list (ident * val) :=
   | (id, v) :: rest => (id, pvar_init v) :: (init_of_pvars rest)
   end.
 
+Lemma pvalue_match_invariant ce b ofs v m m':
+  type_size_eq (type_of_pv v) ->
+  pvalue_match ce b ofs v m ->
+  (forall i, ofs <= i < ofs + size_of_type (type_of_pv v) ->
+        ZMap.get i (Mem.mem_contents m) !! b =
+          ZMap.get i (Mem.mem_contents m') !! b) ->
+  (forall i k p, ofs <= i < ofs + size_of_type (type_of_pv v) ->
+            Mem.perm m b i k p -> Mem.perm m' b i k p) ->
+  pvalue_match ce b ofs v m'.
+Proof.
+  intros HV H HM HP. induction H.
+  - cbn in *.
+    exploit size_type_chunk. eauto. intros Hc.
+    erewrite <- HV in Hc; eauto.
+    eapply pval_match; eauto.
+    + edestruct Mem.valid_access_load with (m := m') as (v' & Hv').
+      destruct WRITABLE. split; eauto.
+      intros i Hi. specialize (r i Hi). instantiate (1 := b).
+      apply HP. lia. eauto with mem.
+      exploit Mem.load_rep; [ | apply LOAD | apply Hv' | congruence ].
+      intros. apply HM. lia.
+    + destruct WRITABLE as [A B].
+      split; eauto.
+      intros x Hx. specialize (A _ Hx).
+      apply HP. lia. eauto with mem.
+  - econstructor; eauto.
+    intros i Hi.
+    assert (HT: type_size_eq ty_elem).
+    { intros ce'. subst. specialize (HV ce'). cbn in HV.
+      apply Z.mul_cancel_r in HV. eauto. lia. }
+    apply H; eauto.
+    + erewrite TYPE in HT; eauto.
+    + erewrite <- TYPE; eauto. rewrite <- HT.
+      intros o Ho. apply HM. cbn.
+      pose proof (size_of_type_pos ty_elem).
+      remember (size_of_type ty_elem) as a.
+      split. lia.
+      eapply Z.lt_le_trans. apply Ho.
+      rewrite <- Z.add_assoc.
+      apply Z.add_le_mono_l.
+      transitivity (a * (i + 1)). lia.
+      subst. cbn. apply Z.mul_le_mono_nonneg_l; lia.
+    + erewrite <- TYPE; eauto. rewrite <- HT.
+      intros o k p Ho. apply HP. cbn.
+      pose proof (size_of_type_pos ty_elem).
+      remember (size_of_type ty_elem) as a.
+      split. lia.
+      eapply Z.lt_le_trans. apply Ho.
+      rewrite <- Z.add_assoc.
+      apply Z.add_le_mono_l.
+      transitivity (a * (i + 1)). lia.
+      subst. cbn. apply Z.mul_le_mono_nonneg_l; lia.
+      Unshelve. eauto.
+Qed.
+
+Lemma pvalue_match_content ce b ofs v m:
+  init_pv v -> pvalue_match ce b ofs v m ->
+  (forall i, ofs <= i < ofs + size_of_type (type_of_pv v) ->
+        ZMap.get i (Mem.mem_contents m) !! b <> Undef).
+Proof.
+  intros HPV H. induction H.
+  - intros i Hi Hv. inv HPV.
+    eapply Mem.load_result in LOAD.
+    cbn in *. inv ACCESS. cbn in LOAD.
+    replace (Pos.to_nat 4) with (4%nat) in LOAD by reflexivity.
+    unfold decode_val in LOAD.
+    destruct proj_bytes eqn: BYTES.
+    + apply inj_proj_bytes in BYTES.
+      exploit Mem.getN_in.
+      replace 4 with (Z.of_nat 4) in Hi by reflexivity.
+      apply Hi. rewrite Hv. intros Hx.
+      unfold inj_bytes in BYTES.
+      rewrite BYTES in Hx. apply list_in_map_inv in Hx.
+      destruct Hx as (? & ?). easy.
+    + destruct Archi.ptr64; try congruence.
+      cbn [Val.load_result] in *.
+      destruct proj_value eqn: Hj; try congruence.
+      2: { destruct Archi.ptr64; congruence. }
+      inv LOAD.
+      assert (HU: In Undef (Mem.getN 4 ofs (Mem.mem_contents m) !! b)).
+      { rewrite <- Hv. apply Mem.getN_in. lia. }
+      eapply proj_value_undef with (q := Q32) in HU. congruence.
+  - inv HPV. intros i Hi. cbn in Hi.
+    assert (Z.max 0 n = n). lia. rewrite H0 in Hi. inv H3.
+    remember (size_of_type ty_elem) as a.
+    pose proof (size_of_type_pos ty_elem).
+    assert (0 <= (i - ofs) / a < n).
+    { split.
+      - apply Z.div_pos; lia.
+      - apply Z.div_lt_upper_bound; lia. }
+    eapply H with (i := (i - ofs) / a); eauto.
+    rewrite <- HS.
+    rewrite <- TYPE; eauto. rewrite <- Heqa. split.
+    + assert ((i - ofs) - (i - ofs) / a * a >= 0). 2: lia.
+      rewrite <- Zmod_eq_full. 2: lia.
+      assert (0 <= (i - ofs) mod a). 2: lia.
+      apply Z.mod_pos_bound. lia.
+    + assert ((i - ofs) - (i - ofs) / a * a < a). 2: lia.
+      rewrite <- Zmod_eq_full. 2: lia.
+      apply Z.mod_pos_bound. lia.
+Qed.
+
+Lemma pvalue_match_perm ce b ofs v m:
+  init_pv v -> pvalue_match ce b ofs v m ->
+  (forall i, ofs <= i < ofs + size_of_type (type_of_pv v) ->
+        Mem.perm m b i Cur Writable).
+Proof.
+  intros HPV H. induction H.
+  - intros i Hi. destruct WRITABLE as [A B]. apply A.
+    erewrite size_type_chunk; eauto.
+    pose proof (init_pv_size_eq (Val v ty)) as C.
+    cbn in *. erewrite C in Hi; eauto.
+  (* TODO: clean up the copy-paste *)
+  - inv HPV. intros i Hi. cbn in Hi.
+    assert (Z.max 0 n = n). lia. rewrite H0 in Hi. inv H3.
+    remember (size_of_type ty_elem) as a.
+    pose proof (size_of_type_pos ty_elem).
+    assert (0 <= (i - ofs) / a < n).
+    { split.
+      - apply Z.div_pos; lia.
+      - apply Z.div_lt_upper_bound; lia. }
+    eapply H with (i := (i - ofs) / a); eauto.
+    rewrite <- HS.
+    rewrite <- TYPE; eauto. rewrite <- Heqa. split.
+    + assert ((i - ofs) - (i - ofs) / a * a >= 0). 2: lia.
+      rewrite <- Zmod_eq_full. 2: lia.
+      assert (0 <= (i - ofs) mod a). 2: lia.
+      apply Z.mod_pos_bound. lia.
+    + assert ((i - ofs) - (i - ofs) / a * a < a). 2: lia.
+      rewrite <- Zmod_eq_full. 2: lia.
+      apply Z.mod_pos_bound. lia.
+      Unshelve. eauto.
+Qed.
+
 Lemma pvalue_match_combine_l ce b ofs v m m':
+  init_pv v ->
   pvalue_match ce b ofs v m ->
   pvalue_match ce b ofs v (mem_combine m m').
-Admitted.
+Proof.
+  intros H HM. eapply pvalue_match_invariant; eauto.
+  - eauto using init_pv_size_eq.
+  - intros i Hi. rewrite mem_gcombine.
+    unfold memval_combine. destruct ZMap.get eqn: Hz; try congruence.
+    symmetry. eapply pvalue_match_content in Hz; eauto. easy.
+  - intros i k p Hi Hp.
+    apply mem_combine_perm_l. eauto.
+Qed.
 
 Lemma pvalue_match_combine_r ce b ofs v m m':
+  init_pv v ->
+  (forall i, ZMap.get i (Mem.mem_contents m') !! b = Undef) ->
+  (forall i k p, ~Mem.perm m' b i k p) ->
   pvalue_match ce b ofs v m ->
   pvalue_match ce b ofs v (mem_combine m' m).
-Admitted.
+Proof.
+  intros HV HM HP H. eapply pvalue_match_invariant; eauto.
+  - eauto using init_pv_size_eq.
+  - intros i Hi. rewrite mem_gcombine.
+    rewrite HM. reflexivity.
+  - intros. rewrite mem_combine_perm_iff_r; eauto.
+Qed.
+
+Require Import Recdef.
+
+Lemma store_zeros_contents :
+  forall m b p n m', store_zeros m b p n = Some m' ->
+  forall b', b' <> b -> (Mem.mem_contents m) !! b' = (Mem.mem_contents m') !! b'.
+Proof.
+  intros until n. functional induction (store_zeros m b p n); intros.
+  - inv H; reflexivity.
+  - transitivity ((Mem.mem_contents m') !! b').
+    + eapply Mem.store_mem_contents in e0. rewrite e0.
+      rewrite PMap.gso; eauto.
+    + apply IHo; eauto.
+  - inv H.
+Qed.
+
+Lemma p0_init_pv:
+  forall pvars id v,
+    (p0 (init_of_pvars pvars)) ! id = Some v ->
+    init_pv v.
+Proof.
+  intros. induction pvars as [| [id' v'] pvars].
+  - inv H.
+  - destruct (PMap.elt_eq id id'); cbn in *.
+    + subst. rewrite PTree.gss in H. inv H. apply v'.
+    + apply IHpvars.
+      rewrite PTree.gso in H; eauto.
+Qed.
 
 Lemma vars_init ce pvars se:
   valid_pvars pvars se ->
@@ -552,26 +733,43 @@ Lemma vars_init ce pvars se:
 Proof.
   induction pvars as [| [id v] pvars]; cbn; constructor; intros.
   - rewrite PTree.gempty in H0. congruence.
-  - destruct (PMap.elt_eq id0 id).
+  - edestruct H as (b & Hb). left. reflexivity.
+    destruct (PMap.elt_eq id0 id).
     + subst. rewrite PTree.gss in H0. inv H0.
-      specialize (H id v).
-      edestruct H as (b & Hb). left. reflexivity.
       exists b. split; eauto.
-      apply pvalue_match_combine_l.
+      apply pvalue_match_combine_l. apply v.
       unfold init_fragment. rewrite Hb.
-      apply init_pvalue_match. apply v.
-      apply v.
+      apply init_pvalue_match; apply v.
     + rewrite PTree.gso in H0; eauto.
       assert (Hvp: valid_pvars pvars se).
       { unfold valid_pvars in *. intros. eapply H. right. eauto. }
       specialize (IHpvars Hvp).
       inv IHpvars. specialize (MPE _ _ H0).
-      destruct MPE as (b & A & B).
-      exists b. split; eauto.
-      apply pvalue_match_combine_r. eauto.
+      destruct MPE as (b' & A & B).
+      exists b'. split; eauto.
+      assert (b <> b').
+      { intros <-. exploit Genv.find_symbol_injective.
+        apply A. apply Hb. easy. }
+      apply pvalue_match_combine_r; eauto.
+      * eapply p0_init_pv; eauto.
+      * intros i. unfold init_fragment. rewrite Hb.
+        unfold init_fragment'. destruct store_zeros eqn: Hx.
+        -- eapply store_zeros_contents in Hx.
+           rewrite <- Hx. cbn.
+           rewrite PMap.gi. rewrite ZMap.gi. reflexivity.
+           congruence.
+        -- cbn. rewrite PMap.gi. rewrite ZMap.gi. reflexivity.
+      * intros. unfold init_fragment. rewrite Hb.
+        unfold init_fragment'. destruct store_zeros eqn: Hx.
+        -- eapply Genv.store_zeros_perm in Hx.
+           rewrite <- Hx.
+           unfold Mem.perm. cbn. rewrite PMap.gso; eauto.
+        -- apply Mem.perm_empty.
 Qed.
 
-Variable vars_disjoint: list (ident * val) -> list (ident * val) -> Prop.
+Definition vars_disjoint (vs1 vs2: list (ident * val)) : Prop :=
+  list_disjoint (map fst vs1) (map fst vs2).
+
 Lemma disjoint_init_mem:
   forall se vars1 vars2,
     vars_disjoint vars1 vars2 ->
