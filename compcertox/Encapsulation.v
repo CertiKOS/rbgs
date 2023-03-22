@@ -423,7 +423,8 @@ Module ST.
           forall sa sb, fsim_invariant sa sb -> forall sb', sb :-> sb' -> fsim_invariant sa sb';
         fsim_skel: skel L1 = skel L2;
         fsim_initial_world:
-          forall se, fsim_invariant (ccstate_init ccA se) (ccstate_init ccB se);
+          forall se, Genv.valid_for (skel L1) se ->
+                fsim_invariant (ccstate_init ccA se) (ccstate_init ccB se);
         fsim_footprint: forall i, footprint L1 i <-> footprint L2 i;
         fsim_lts
           sa wb se1 se2:
@@ -545,7 +546,7 @@ Section LIFT.
       inv W. cbn in *. inv H2. cbn in *. subst.
       split. eapply ST.fsim_invariant_env_step; eauto. easy.
     - apply X.
-    - cbn. repeat split; eauto. apply X.
+    - cbn. repeat split; eauto. apply X. eauto.
     - intros i. cbn. apply X.
     - intros [wa [k1a k2a]] [wb [k1b k2b]] se1 se2 Hse0 Hse (I & HK1 & HK2).
       subst. econstructor; cbn in *.
@@ -776,7 +777,11 @@ Section COMP.
       eapply ST.fsim_invariant_env_step; eauto.
     - destruct Ha. destruct Hb. cbn. congruence.
     - intros se. unfold inv.
-      exists (ST.ccstate_init ccB se). split. apply Ha. apply Hb.
+      exists (ST.ccstate_init ccB se). split.
+      + apply Ha. eapply Genv.valid_for_linkorder; eauto.
+        eapply Linking.link_linkorder in Hsk1; apply Hsk1.
+      + apply Hb. eapply Genv.valid_for_linkorder; eauto.
+        eapply Linking.link_linkorder in Hsk1; apply Hsk1.
     - cbn. intros i. destruct Ha, Hb.
       rewrite fsim_footprint, fsim_footprint0. reflexivity.
     - intros wa wc se1 se2 Hse0 Hse INV.
@@ -809,7 +814,9 @@ Section COMP.
       eapply ST.fsim_invariant_env_step; eauto.
     - destruct Ha. destruct Hb. cbn. congruence.
     - intros se. unfold inv.
-      exists (ST.ccstate_init ccB se). split. apply Ha. apply Hb.
+      exists (ST.ccstate_init ccB se). split.
+      + apply Ha. eapply Genv.valid_for_linkorder; eauto.
+      + apply Hb. eapply Genv.valid_for_linkorder; eauto.
     - cbn. intros i. destruct Ha, Hb.
       rewrite fsim_footprint, fsim_footprint0. reflexivity.
     - intros wa wc se1 se2 Hse0 Hse INV.
@@ -896,7 +903,8 @@ Section COMP_FSIM.
       split; eapply ST.fsim_invariant_env_step; eauto.
     - rewrite (ST.fsim_skel H1); apply (ST.fsim_skel H2).
     - cbn in *. econstructor.
-      apply ST.fsim_initial_world. apply ST.fsim_initial_world.
+      + apply ST.fsim_initial_world. eauto.
+      + apply ST.fsim_initial_world. rewrite <- (ST.fsim_skel H1). eauto.
     - intros i. rewrite (ST.fsim_footprint H1). apply (ST.fsim_footprint H2).
     - intros [wa1 wa2] [se2 [wb1 wb2]] se1 se3 [Hse01 Hse02] Hse1 I.
       cbn in I. inv I.
@@ -2322,13 +2330,13 @@ Qed.
 (** ------------------------------------------------------------------------- *)
 (** Property about encapsulation primitive *)
 
-Definition encap_prim {li} `{PSet U} : li@U +-> li :=
+Definition encap_prim {li} `{PSet U} sk : li@U +-> li :=
   {|
     pstate := U;
-    esem := 1%lts;
+    esem := id_semantics sk;
   |}.
 
-Arguments encap_prim {li} U {_}.
+Arguments encap_prim {li} U {_} sk.
 
 Require Import Lia.
 
@@ -2336,8 +2344,8 @@ Section COMP_PRIM.
 
   Context {li} `{PSet U} (L: semantics li li) (sk: AST.program unit unit).
 
-  Let L1 := comp_esem' (encap_prim U) (semantics_embed (L @ U)) sk.
-  Let L2 := comp_esem' (semantics_embed L) (encap_prim U) sk.
+  Let L1 := comp_esem' (encap_prim U sk) (semantics_embed (L @ U)) sk.
+  Let L2 := comp_esem' (semantics_embed L) (encap_prim U sk) sk.
 
   Definition q1 (q: query li) (u: U): Smallstep.state (normalize_sem L1).
     refine (st1 _ _ _).
