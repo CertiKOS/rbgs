@@ -392,19 +392,28 @@ Program Definition empty_fragment (b: block) (lo hi: Z) :=
     Mem.nextblock := Pos.succ b;
     Mem.alloc_flag := false;
   |}.
-Next Obligation. Admitted.
-Next Obligation. Admitted.
+Next Obligation.
+  destruct (PMap.elt_eq b b0).
+  - subst. rewrite PMap.gss.
+    destruct (zle lo ofs && zlt ofs hi); cbn; auto with mem.
+  - rewrite PMap.gso; eauto.
+    simpl. easy.
+Qed.
+Next Obligation.
+  assert (b0 <> b). intros <-. unfold Plt in H. lia.
+  rewrite PMap.gso; eauto.
+Qed.
 
 Definition init_fragment' (b: block) (sz: Z) :=
   match store_zeros (empty_fragment b 0 sz) b 0 sz with
   | Some m => m
-  | None => Mem.empty
+  | None => Mem.empty_fragment
   end.
 
 Definition init_fragment (id: ident) (pv: val) (se: Genv.symtbl) :=
   match Genv.find_symbol se id with
   | Some b => init_fragment' b (size_of_type (type_of_pv pv))
-  | None => Mem.empty
+  | None => Mem.empty_fragment
   end.
 
 Lemma read_as_zero_weaken m b ofs ofs' len len':
@@ -514,7 +523,7 @@ Fixpoint p0  (xs: list (ident * val)) : penv :=
 
 Fixpoint m0 (xs: list (ident * val)) (se: Genv.symtbl) : mem :=
   match xs with
-  | nil => Mem.empty
+  | nil => Mem.empty_fragment
   | ((id, ty) :: rest) => mem_combine (init_fragment id ty se) (m0 rest se)
   end.
 
@@ -725,6 +734,12 @@ Proof.
       rewrite PTree.gso in H; eauto.
 Qed.
 
+Theorem perm_empty_fragment:
+  forall b ofs k p, ~Mem.perm Mem.empty_fragment b ofs k p.
+Proof.
+  intros. unfold Mem.perm, Mem.empty_fragment; simpl. tauto.
+Qed.
+
 Lemma vars_init ce pvars se:
   valid_pvars pvars se ->
   penv_mem_match ce se
@@ -764,14 +779,370 @@ Proof.
         -- eapply Genv.store_zeros_perm in Hx.
            rewrite <- Hx.
            unfold Mem.perm. cbn. rewrite PMap.gso; eauto.
-        -- apply Mem.perm_empty.
+        -- apply perm_empty_fragment.
 Qed.
 
-Definition vars_disjoint (vs1 vs2: list (ident * val)) : Prop :=
-  list_disjoint (map fst vs1) (map fst vs2).
+Section DISJOINT.
 
-Lemma disjoint_init_mem:
-  forall se vars1 vars2,
-    vars_disjoint vars1 vars2 ->
-    join (m0 vars1 se) (m0 vars2 se) (m0 (vars1 ++ vars2) se).
-Admitted.
+  Lemma init_fragment_perm:
+    forall b b' sz ofs k p,
+      b <> b' -> ~Mem.perm (init_fragment' b sz) b' ofs k p.
+  Proof.
+    intros * Hb. unfold init_fragment'.
+    destruct store_zeros eqn: Hs.
+    - eapply Genv.store_zeros_perm in Hs.
+      rewrite <- Hs.
+      unfold Mem.perm. cbn. rewrite PMap.gso; eauto.
+    - eauto with mem.
+  Qed.
+
+  Lemma init_fragment_content:
+    forall b b' sz ofs,
+      b <> b' -> ZMap.get ofs (PMap.get b' (init_fragment' b sz).(Mem.mem_contents)) = Undef.
+  Proof.
+    intros * Hb. unfold init_fragment'.
+    destruct store_zeros eqn: Hs.
+    - eapply store_zeros_contents with (b' := b') in Hs; eauto.
+      rewrite <- Hs. cbn.
+      rewrite PMap.gi. rewrite ZMap.gi. reflexivity.
+    - cbn. rewrite PMap.gi. rewrite ZMap.gi. reflexivity.
+  Qed.
+
+  Lemma init_fragment_nextblock b sz:
+    Mem.nextblock (init_fragment' b sz) = Pos.succ b.
+  Proof.
+    unfold init_fragment'. destruct store_zeros eqn: Hs.
+    - erewrite Genv.store_zeros_nextblock; eauto.
+      reflexivity.
+    - edestruct Genv.store_zeros_exists as (m & Hm).
+      2: { rewrite Hm in Hs. congruence. }
+      intros o Ho.
+      unfold Mem.perm. cbn.
+      rewrite PMap.gss.
+      destruct zle; try lia. cbn.
+      destruct zlt; try lia. cbn. constructor.
+  Qed.
+
+  Lemma init_fragment_alloc_flag b sz:
+    Mem.alloc_flag (init_fragment' b sz) = false.
+  Proof.
+    unfold init_fragment'. destruct store_zeros eqn: Hs.
+    - erewrite Genv.store_zeros_alloc_flag; eauto.
+      reflexivity.
+    - edestruct Genv.store_zeros_exists as (m & Hm).
+      2: { rewrite Hm in Hs. congruence. }
+      intros o Ho.
+      unfold Mem.perm. cbn.
+      rewrite PMap.gss.
+      destruct zle; try lia. cbn.
+      destruct zlt; try lia. cbn. constructor.
+  Qed.
+
+  Lemma perm_mem_access m1 m2 b ofs k:
+    (forall p, Mem.perm m1 b ofs k p <-> Mem.perm m2 b ofs k p) ->
+    (Mem.mem_access m1) !! b ofs k = (Mem.mem_access m2) !! b ofs k.
+  Proof.
+    intros H. unfold Mem.perm, Mem.perm_order' in H.
+    destruct ((Mem.mem_access m1) !! b ofs k) eqn: Hp1;
+      destruct ((Mem.mem_access m2) !! b ofs k) eqn: Hp2;
+      try congruence.
+    - destruct p; destruct p1; try congruence.
+      + specialize (H Freeable). destruct H.
+        exploit H. constructor. easy.
+      + specialize (H Freeable). destruct H.
+        exploit H. constructor. easy.
+      + specialize (H Freeable). destruct H.
+        exploit H. constructor. easy.
+      + specialize (H Freeable). destruct H.
+        exploit H0. constructor. easy.
+      + specialize (H Writable). destruct H.
+        exploit H. constructor. easy.
+      + specialize (H Writable). destruct H.
+        exploit H. constructor. easy.
+      + specialize (H Freeable). destruct H.
+        exploit H0. constructor. easy.
+      + specialize (H Writable). destruct H.
+        exploit H0. constructor. easy.
+      + specialize (H Readable). destruct H.
+        exploit H. constructor. easy.
+      + specialize (H Freeable). destruct H.
+        exploit H0. constructor. easy.
+      + specialize (H Writable). destruct H.
+        exploit H0. constructor. easy.
+      + specialize (H Readable). destruct H.
+        exploit H0. constructor. easy.
+    - specialize (H Nonempty). destruct H.
+      exploit H. constructor. easy.
+    - specialize (H Nonempty). destruct H.
+      exploit H0. constructor. easy.
+  Qed.
+
+  Lemma join_combine_left m1 m2 m b sz:
+    (forall ofs, ~Mem.perm m2 b ofs Max Nonempty) ->
+    (forall ofs, ZMap.get ofs (PMap.get b m2.(Mem.mem_contents)) = Undef) ->
+    Mem.alloc_flag m1 = false ->
+    Mem.alloc_flag m2 = false ->
+    join m1 m2 m ->
+    join (mem_combine (init_fragment' b sz) m1) m2
+      (mem_combine (init_fragment' b sz) m).
+  Proof.
+    intros Hp Hm Hf1 Hf2 H. destruct H. split.
+    - intros bx ofs Hv. destruct (valid_block_dec m bx).
+      + specialize (mjoin_contents _ ofs v).
+        inv mjoin_contents.
+        * destruct (PMap.elt_eq b bx).
+          -- subst. apply contents_join_r; eauto.
+             ++ intros k p.
+                rewrite !mem_combine_perm_iff_l; eauto.
+                reflexivity. rewrite <- H0. eauto.
+             ++ cbn. rewrite !PMap_gcombine.
+                rewrite !ZMap_gcombine. congruence.
+             ++ unfold Mem.valid_block, Plt in *.
+                cbn. rewrite init_fragment_nextblock. lia.
+          -- apply contents_join_l; eauto.
+             ++ rewrite mem_combine_perm_iff_r; eauto.
+                apply init_fragment_perm. eauto.
+             ++ intros k p. rewrite H0.
+                rewrite mem_combine_perm_iff_r; eauto.
+                reflexivity.
+                apply init_fragment_perm. eauto.
+             ++ cbn. rewrite PMap_gcombine.
+                rewrite ZMap_gcombine.
+                rewrite init_fragment_content; eauto.
+             ++ rewrite H2. cbn. rewrite PMap_gcombine.
+                rewrite ZMap_gcombine.
+                rewrite init_fragment_content; eauto.
+        * destruct (PMap.elt_eq b bx).
+          -- subst. apply contents_join_r; eauto.
+             ++ intros k p.
+                exploit perm_mem_access. apply H0.
+                intros Hac.
+                unfold Mem.perm. cbn. rewrite !PMap_gcombine.
+                rewrite Hac. reflexivity.
+             ++ cbn. rewrite !PMap_gcombine.
+                rewrite !ZMap_gcombine. congruence.
+             ++ unfold Mem.valid_block, Plt in *.
+                cbn. rewrite init_fragment_nextblock. lia.
+          -- apply contents_join_r; eauto.
+             ++ intros k p. rewrite !mem_combine_perm_iff_r.
+                2-3: apply init_fragment_perm; eauto. eauto.
+             ++ cbn. rewrite !PMap_gcombine.
+                rewrite !ZMap_gcombine.
+                rewrite init_fragment_content; eauto.
+             ++ unfold Mem.valid_block, Plt in *.
+                cbn. lia.
+      + specialize (mjoin_empty_contents _ ofs n).
+        inv mjoin_empty_contents. destruct (PMap.elt_eq b bx).
+        * subst. apply contents_join_r; eauto.
+          ++ intros k p. rewrite !mem_combine_perm_iff_l; eauto.
+             reflexivity.
+          ++ cbn. rewrite !PMap_gcombine.
+             rewrite !ZMap_gcombine. congruence.
+          ++ unfold Mem.valid_block, Plt. cbn.
+             rewrite init_fragment_nextblock. lia.
+        * apply contents_join_r; eauto.
+          ++ intros k p. rewrite !mem_combine_perm_iff_l; eauto.
+             reflexivity.
+          ++ cbn. rewrite !PMap_gcombine.
+             rewrite !ZMap_gcombine. congruence.
+          ++ unfold Mem.valid_block, Plt in *.
+             cbn in *. lia.
+    - cbn. rewrite init_fragment_nextblock. lia.
+    - inv mjoin_alloc_flag; try congruence.
+      apply alloc_flag_join_x; eauto.
+      cbn. rewrite init_fragment_alloc_flag. eauto.
+      cbn. rewrite init_fragment_alloc_flag. eauto.
+    - intros bx ofs Hv.
+      assert (~ Mem.valid_block m bx /\ b <> bx) as (Hv' & Hb).
+      {
+        unfold Mem.valid_block, Plt in *. cbn in *.
+        rewrite init_fragment_nextblock in Hv.
+        split; lia.
+      }
+      specialize (mjoin_empty_contents _ ofs Hv').
+      inv mjoin_empty_contents. constructor; eauto.
+      1-2: rewrite mem_combine_perm_iff_l; eauto.
+      1-2: apply init_fragment_perm; eauto.
+      1-2: cbn; rewrite PMap_gcombine; rewrite ZMap_gcombine.
+      1-2: rewrite init_fragment_content; eauto.
+      unfold Mem.valid_block, Plt in *. cbn in *.
+      rewrite init_fragment_nextblock in *. lia.
+  Qed.
+
+  (* the tricky thing is that [mem_combine empty_fragment m <> m]  *)
+  Lemma join_combine_empty_fragment m1 m2 m:
+    join m1 m2 m ->
+    join (mem_combine Mem.empty_fragment m1) m2
+      (mem_combine (Mem.empty_fragment) m).
+  Proof.
+    intros H. destruct H. constructor.
+    - intros b ofs Hb.
+      assert (Hvb: Mem.valid_block m b).
+      { unfold Mem.valid_block, Plt in *.
+        cbn in *. lia. }
+      specialize (mjoin_contents _ ofs Hvb).
+      inv mjoin_contents.
+      + apply contents_join_l; eauto.
+        * rewrite mem_combine_perm_iff_r; eauto.
+        * intros. rewrite mem_combine_perm_iff_r; eauto.
+        * cbn. rewrite PMap_gcombine.
+          rewrite ZMap_gcombine. simpl. eauto.
+        * cbn. rewrite PMap_gcombine.
+          rewrite ZMap_gcombine. simpl. eauto.
+      + apply contents_join_r; eauto.
+        * intros. rewrite !mem_combine_perm_iff_r; eauto.
+        * cbn. rewrite !PMap_gcombine.
+          rewrite !ZMap_gcombine. simpl. eauto.
+        * unfold Mem.valid_block, Plt in *.
+          cbn in *. lia.
+    - cbn. lia.
+    - inv mjoin_alloc_flag.
+      + apply alloc_flag_join_l; eauto.
+        cbn. lia.
+      + apply alloc_flag_join_r; eauto.
+        cbn. lia.
+      + apply alloc_flag_join_x; eauto.
+    - intros.
+      assert (Hvb: ~Mem.valid_block m b).
+      { unfold Mem.valid_block, Plt in *.
+        cbn in *. lia. }
+      specialize (mjoin_empty_contents _ ofs Hvb).
+      inv mjoin_empty_contents.
+      constructor; eauto.
+      1-2: rewrite mem_combine_perm_iff_l; eauto.
+      1-2: cbn; rewrite PMap_gcombine;
+      rewrite ZMap_gcombine; simpl; eauto.
+      unfold Mem.valid_block, Plt in *.
+      cbn in *. lia.
+  Qed.
+
+  Definition vars_disjoint (vs1 vs2: list (ident * val)) : Prop :=
+    list_disjoint (map fst vs1) (map fst vs2).
+
+  Lemma m0_invalid_block vars se b ofs:
+    ~ Mem.valid_block (m0 vars se) b ->
+    ZMap.get ofs (Mem.mem_contents (m0 vars se)) !! b = Undef.
+  Proof.
+    induction vars as [| [id a]].
+    - intros. simpl. reflexivity.
+    - simpl. intros H.
+      assert (Hb: ~Mem.valid_block (m0 vars se) b).
+      { unfold Mem.valid_block, Plt in *. cbn in *. lia. }
+      specialize (IHvars Hb).
+      rewrite PMap_gcombine. rewrite ZMap_gcombine.
+      assert (Hm: ZMap.get ofs (Mem.mem_contents (init_fragment id a se)) !! b = Undef).
+      {
+        unfold init_fragment in *.
+        destruct Genv.find_symbol eqn: Hs.
+        - destruct (PMap.elt_eq b b0).
+          + subst.
+            unfold Mem.valid_block, Plt in *. cbn in *.
+            rewrite init_fragment_nextblock in H. lia.
+          + apply init_fragment_content. eauto.
+        - reflexivity.
+      }
+      rewrite Hm. simpl. eauto.
+  Qed.
+
+  Lemma m0_alloc_flag vars se:
+    Mem.alloc_flag (m0 vars se) = false.
+  Proof.
+    induction vars as [| [id a]]; eauto.
+    cbn. rewrite IHvars.
+    unfold init_fragment.
+    destruct Genv.find_symbol.
+    - rewrite init_fragment_alloc_flag. easy.
+    - reflexivity.
+  Qed.
+
+  Lemma join_empty_left vars se:
+    join Mem.empty_fragment (m0 vars se) (m0 vars se).
+  Proof.
+    constructor.
+    - intros b ofs Hb.
+      apply contents_join_l; eauto.
+      intros. reflexivity.
+    - cbn. lia.
+    - apply alloc_flag_join_x; eauto using m0_alloc_flag.
+    - intros.
+      constructor; eauto using m0_invalid_block with mem.
+      unfold Mem.valid_block, Plt in *.
+      cbn. lia.
+  Qed.
+
+  Lemma m0_other_block_content vars se id ofs b:
+    Genv.find_symbol se id = Some b ->
+    ~In id (map fst vars) ->
+    ZMap.get ofs (Mem.mem_contents (m0 vars se)) !! b = Undef.
+  Proof.
+    intros Hb. induction vars as [| [id' a]].
+    - intros. reflexivity.
+    - intros H.
+      assert (id <> id') as Hid.
+      { intros <-. apply H. now left. }
+      assert (~ In id (map fst vars)) as Ha.
+      { intros x. apply H. now right. }
+      specialize (IHvars Ha).
+      cbn. unfold init_fragment.
+      destruct (Genv.find_symbol se id') eqn: Hs.
+      + assert (b <> b0).
+        { intros <-. exploit Genv.find_symbol_injective.
+          apply Hb. apply Hs. easy. }
+        rewrite PMap_gcombine. rewrite ZMap_gcombine.
+        rewrite init_fragment_content; eauto.
+      + rewrite PMap_gcombine. rewrite ZMap_gcombine.
+        simpl. eauto.
+  Qed.
+
+  Lemma m0_other_block_perm vars se id ofs b:
+    Genv.find_symbol se id = Some b ->
+    ~In id (map fst vars) ->
+    ~Mem.perm (m0 vars se) b ofs Max Nonempty.
+  Proof.
+    intros Hb. induction vars as [| [id' a]].
+    - intros. apply perm_empty_fragment.
+    - intros H.
+      assert (id <> id') as Hid.
+      { intros <-. apply H. now left. }
+      assert (~ In id (map fst vars)) as Ha.
+      { intros x. apply H. now right. }
+      specialize (IHvars Ha).
+      cbn. unfold init_fragment.
+      destruct (Genv.find_symbol se id') eqn: Hs.
+      + assert (b <> b0).
+        { intros <-. exploit Genv.find_symbol_injective.
+          apply Hb. apply Hs. easy. }
+        rewrite mem_combine_perm_iff_l; eauto.
+        apply init_fragment_perm; eauto.
+      + rewrite mem_combine_perm_iff_l; eauto.
+  Qed.
+
+  Lemma disjoint_init_mem:
+    forall se vars1 vars2,
+      vars_disjoint vars1 vars2 ->
+      join (m0 vars1 se) (m0 vars2 se) (m0 (vars1 ++ vars2) se).
+  Proof.
+    intros *. revert vars2.
+    induction vars1 as [| [id pv] ]; intros; cbn.
+    - apply join_empty_left.
+    - assert (Hvs: vars_disjoint vars1 vars2).
+      { unfold vars_disjoint, list_disjoint in *.
+        intros x y Hx Hy. apply H; eauto.
+        right. eauto. }
+      unfold init_fragment.
+      destruct Genv.find_symbol eqn: Hs.
+      + assert (~ In id (map fst vars2)).
+        { intros x.
+          unfold vars_disjoint in H. cbn in *.
+          unfold list_disjoint in H.
+          exploit H; eauto. now left. }
+        eapply join_combine_left.
+        * intros ofs. eapply m0_other_block_perm; eauto.
+        * intros ofs. eapply m0_other_block_content; eauto.
+        * apply m0_alloc_flag.
+        * apply m0_alloc_flag.
+        * apply IHvars1; eauto.
+      + apply join_combine_empty_fragment; eauto.
+  Qed.
+
+End DISJOINT.
