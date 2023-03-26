@@ -12,7 +12,6 @@ Require Import LogicalRelations.
 
 Generalizable All Variables.
 
-
 (** ------------------------------------------------------------------------- *)
 (** patch to the identity semantics *)
 Section LEFT_UNIT.
@@ -29,7 +28,7 @@ Section LEFT_UNIT.
     lc_ms (st1 (id_semantics (skel L)) _ (st_r r)) (st1 1%lts _ (st_r r)).
   Hint Constructors lc_ms.
 
-  Lemma left_unit_sk_irrelevent:
+  Lemma left_unit_sk_irrelevent_1:
     forward_simulation 1 1 left_comp_id' (1 o L).
   Proof.
     constructor. econstructor. reflexivity. firstorder.
@@ -52,6 +51,47 @@ Section LEFT_UNIT.
     - apply well_founded_ltof.
   Qed.
 
+  Lemma left_unit_sk_irrelevent_2:
+    forward_simulation 1 1 (1 o L) left_comp_id'.
+  Proof.
+    constructor. econstructor. reflexivity. firstorder.
+    intros. inv H.
+    apply forward_simulation_step with (match_states := flip lc_ms);
+      unfold flip.
+    - intros * Hq Hs. inv Hq. inv Hs. inv H.
+      eexists. split. repeat constructor. eauto.
+    - intros * Hs Hf. inv Hf. inv H. inv Hs.
+      eexists. split. repeat constructor. constructor.
+    - intros * Hs Hq. inv Hq. inv Hs.
+      eexists tt, _. repeat split; eauto.
+      intros * Hr Hs. inv Hr. inv Hs.
+      eexists. split. repeat constructor; eauto. eauto.
+    - intros * HS * Hs. inv HS; inv Hs; try inv H.
+      + eexists. split. 2: econstructor. apply step2. eauto.
+      + eexists. split. 2: econstructor.
+        eapply step_push; eauto. constructor.
+      + inv H1. eexists. split. 2: econstructor.
+        eapply step_pop; eauto. constructor.
+    - apply well_founded_ltof.
+  Qed.
+
+  Lemma left_unit_1':
+    CAT.forward_simulation 1 1 L left_comp_id'.
+  Proof.
+    unfold CAT.forward_simulation, normalize_sem.
+    etransitivity. instantiate (1 := 1 o left_comp_id L o 1).
+    apply CAT.left_unit_1.
+    eapply categorical_compose_simulation'.
+    - reflexivity.
+    - eapply categorical_compose_simulation'.
+      + apply left_unit_sk_irrelevent_2.
+      + reflexivity.
+      + apply Linking.linkorder_refl.
+      + apply CategoricalComp.id_skel_order.
+    - apply CategoricalComp.id_skel_order.
+    - apply Linking.linkorder_refl.
+  Qed.
+
   Lemma left_unit_2':
     CAT.forward_simulation 1 1 left_comp_id' L.
   Proof.
@@ -61,7 +101,7 @@ Section LEFT_UNIT.
     eapply categorical_compose_simulation'.
     - reflexivity.
     - eapply categorical_compose_simulation'.
-      + apply left_unit_sk_irrelevent.
+      + apply left_unit_sk_irrelevent_1.
       + reflexivity.
       + apply Linking.linkorder_refl.
       + apply CategoricalComp.id_skel_order.

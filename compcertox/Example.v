@@ -8,7 +8,7 @@ From compcert Require Import
      Smallstep CategoricalComp.
 From compcertox Require Import
   Lifting Encapsulation
-  ClightP ClightPComp.
+  ClightP PEnv ClightPComp.
 Import ListNotations.
 
 Definition query_alloc_flag '(cq _ _ _ m) := Mem.alloc_flag m.
@@ -184,18 +184,22 @@ Section CLIGHTP.
       fn_body := rb_inc2_body;
     |}.
 
-
-  Definition arr_pvar : privvar type :=
+  Program Definition arr_pvar : privvar :=
     let tarr := tarray tint Nz in
     {|
-      pvar_info := tarr;
       pvar_init := Array Nz (ZMap.init (Val (Vint Int.zero) tint)) tarr;
     |}.
-  Definition cnt_pvar : privvar type :=
+  Next Obligation.
+    constructor; eauto.
+    - intros. rewrite ZMap.gi. constructor.
+    - unfold type_size_eq. intros. reflexivity.
+  Qed.
+
+  Program Definition cnt_pvar : privvar :=
     {|
-      pvar_info := tint;
       pvar_init := Val (Vint Int.zero) tint;
     |}.
+  Next Obligation. constructor. Qed.
 
   Program Definition rb_program: ClightP.program :=
     {|
@@ -521,7 +525,7 @@ Instance rb_state_pset : PSet rb_state :=
   }.
 
 Program Definition rb_espec : li_c +-> li_c :=
-  comp_esem' (encap_prim rb_state) (semantics_embed rb_spec) (skel rb_spec).
+  comp_esem' (encap_prim rb_state (skel rb_spec)) (semantics_embed rb_spec) (skel rb_spec).
 
 Inductive nat_rel: nat -> Values.val -> Prop :=
 | nat_rel_intro n i
@@ -578,8 +582,9 @@ Section RB.
 
   Definition rb_pset := penv_pset (ClightPComp.vars_of_program rb_program).
 
-  Inductive rb_penv_ms: Smallstep.state (encap_prim rb_state) ->
-                        Smallstep.state (@encap_prim _ penv rb_pset) -> Prop :=
+  Inductive rb_penv_ms:
+    Smallstep.state (encap_prim rb_state (skel rb_spec)) ->
+    Smallstep.state (@encap_prim _ penv rb_pset (skel rb_spec)) -> Prop :=
   | rb_penv_ms_q q rbst pe:
     query_alloc_flag q = true ->
     rb_penv_rel rbst pe ->
@@ -593,16 +598,22 @@ Section RB.
 
   Lemma rb_correct1:
     E.forward_simulation (&rb_cc) (&flag_cc)
-      (encap_prim rb_state)
-      (@encap_prim _ penv rb_pset).
+      (encap_prim rb_state (skel rb_spec))
+      (@encap_prim _ penv rb_pset (skel rb_spec)).
   Proof.
     apply st_normalize_fsim. constructor.
     eapply ST.Forward_simulation with
       (ltof _ (fun (_: unit) => 0%nat))
       (fun _ _ _ _ _ _ s1 s2 => rb_penv_ms s1 s2)
-      (fun _ '(_, (rbst, pe)) => rb_penv_rel rbst pe ); try easy.
+      (fun _ '(_, (rbst, pe)) => rb_penv_rel rbst pe); try easy.
     - intros. cbn in *. eprod_crush; eauto.
-    - cbn. intros se. admit.
+    - cbn. intros se Hse. econstructor; try ptree_tac.
+      + intros. exists (Vint Int.zero). repeat split.
+        constructor. reflexivity.
+      + constructor. reflexivity.
+      + unfold N. lia.
+      + constructor. reflexivity.
+      + unfold N. lia.
     - intros. cbn in *. eprod_crush. econstructor; intros; cbn in *; eprod_crush.
       + subst. eexists tt, _. split. constructor.
         inv H3. eexists tt, (tt, (_, _)). repeat split; eauto.
@@ -615,7 +626,8 @@ Section RB.
         eexists tt, (tt, (_, _)). repeat split; eauto.
         inv H2. econstructor; eauto.
       + easy.
-  Admitted.
+        Unshelve. all: eauto.
+  Qed.
 
 End RB.
 
@@ -686,6 +698,8 @@ Proof.
   congruence.
 Qed.
 
+Open Scope Z_scope.
+
 Hint Constructors rb_func_rel.
 Opaque clightp2.
 Hint Constructors eval_loc pread pread_val pwrite pwrite_val.
@@ -749,7 +763,26 @@ Proof.
         -- constructor. apply cnt_inc_simp; eauto.
         -- apply Nat.mod_upper_bound. lia.
     (* inc2 *)
-    + admit.
+    + inv HPE. inv RC2. inv HFUN. eexists (_, _). split.
+      * eapply plus_left. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step. crush_expr.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step.
+        lts_step. crush_step; crush_expr.
+        apply star_refl. reflexivity.
+      * cbn. rewrite HI.
+        replace (Int.repr (Int.intval i)) with i
+          by now rewrite Int.repr_unsigned.
+        econstructor; eauto.
+        econstructor; eauto; try ptree_tac.
+        -- constructor. apply cnt_inc_simp; eauto.
+        -- apply Nat.mod_upper_bound. lia.
     (* get *)
     + inv HPE. inv HFUN.
       edestruct RA as (v & HV1 & HV2 & HV3). apply H1.
@@ -808,7 +841,7 @@ Proof.
            rewrite ZMap.gso; eauto.
            intros Hc. apply n. lia.
   - apply well_founded_ltof.
-Admitted.
+Qed.
 
 Lemma rb_correct:
   E.forward_simulation (&1) (&flag_cc) rb_espec (eclightp rb_program).
@@ -816,8 +849,8 @@ Proof.
   eapply encap_fsim_lcomp_sk; eauto. instantiate (1 := &rb_cc).
   - apply rb_correct1.
   - apply encap_fsim_embed. apply rb_correct2.
-  - cbn. apply CategoricalComp.id_skel_order.
-  - cbn. apply Linking.linkorder_refl.
+  - apply Linking.linkorder_refl.
+  - apply Linking.linkorder_refl.
 Qed.
 
 (** ------------------------------------------------------------------------- *)
@@ -939,8 +972,9 @@ Section BQ.
 
   Definition bq_pset := penv_pset (ClightPComp.vars_of_program bq_program).
 
-  Inductive bq_penv_ms: @Smallstep.state li_c _ (semantics_embed 1) ->
-                        Smallstep.state (@encap_prim _ penv bq_pset) -> Prop :=
+  Inductive bq_penv_ms:
+    @Smallstep.state li_c _ (semantics_embed (id_semantics (skel bq_spec))) ->
+    Smallstep.state (@encap_prim _ penv bq_pset (skel bq_spec)) -> Prop :=
   | bq_penv_ms_q q pe:
     query_alloc_flag q = true ->
     bq_penv_ms (st_q q) (@st_q (li_c@penv) (q, pe))
@@ -951,8 +985,9 @@ Section BQ.
   Hint Constructors bq_penv_ms.
 
   Lemma bq_correct1:
-    E.forward_simulation (&bq_cc) (&flag_cc) (semantics_embed 1)
-      (@encap_prim _ penv bq_pset).
+    E.forward_simulation (&bq_cc) (&flag_cc)
+      (semantics_embed (id_semantics (skel bq_spec)))
+      (@encap_prim _ penv bq_pset (skel bq_spec)).
   Proof.
     apply st_normalize_fsim. constructor.
     eapply ST.Forward_simulation with
@@ -1276,21 +1311,23 @@ Proof.
   rewrite ccref_left_unit1 at 2.
   rewrite <- ccref_left_unit2 at 1.
   eapply encap_fsim_vcomp.
-  instantiate (1 := comp_esem' (semantics_embed 1%lts) bq_espec (skel bq_spec)).
+  instantiate (1 := comp_esem'
+                      (semantics_embed (id_semantics (skel bq_spec)))
+                      bq_espec (skel bq_spec)).
   (* TODO: we need a lemma here *)
   - rewrite ccref_left_unit1 at 2.
     rewrite <- ccref_left_unit2 at 1.
     eapply encap_fsim_vcomp; eauto.
     instantiate (1 := semantics_embed _).
     + apply encap_fsim_embed_cat.
-      apply CAT.left_unit_1.
-    + unfold left_comp_id.
+      apply left_unit_1'.
+    + unfold left_comp_id'.
       apply encap_comp_embed2.
   - eapply encap_fsim_lcomp_sk. instantiate (1 := &bq_cc).
     + apply bq_correct1.
     + apply encap_fsim_embed.
       apply bq_correct2.
-    + apply CategoricalComp.id_skel_order.
+    + apply Linking.linkorder_refl.
     + apply Linking.linkorder_refl.
 Qed.
 
@@ -1358,23 +1395,23 @@ Section REFINE.
   (* I messed up the notations. I guess it's because my improper use of & *)
   Hypothesis rb_bq_linking:
     (* { cprog  & Linking.link bq_program rb_program = Some cprog }. *)
-    sigT (fun cprog => Linking.link bq_program rb_program = Some cprog).
+    sigT (fun cprog => link bq_program rb_program = Some cprog).
 
   Definition rb_bq_prog := projT1 rb_bq_linking.
   Definition rb_bq_skel := clightp_erase_program rb_bq_prog.
 
-  Lemma bq_linkorder: Linking.linkorder bq_program rb_bq_prog.
+  Lemma bq_linkorder: linkorder bq_program rb_bq_prog.
   Proof.
     unfold rb_bq_prog.
     pose proof (projT2 rb_bq_linking). cbn in *.
-    apply Linking.link_linkorder in H. apply H.
+    apply link_linkorder in H. apply H.
   Qed.
 
-  Lemma rb_linkorder: Linking.linkorder rb_program rb_bq_prog.
+  Lemma rb_linkorder: linkorder rb_program rb_bq_prog.
   Proof.
     unfold rb_bq_prog.
     pose proof (projT2 rb_bq_linking). cbn in *.
-    apply Linking.link_linkorder in H. apply H.
+    apply link_linkorder in H. apply H.
   Qed.
 
   Definition abs_bq_spec: semantics li_c (li_c@bq_state) :=
@@ -1390,7 +1427,7 @@ Section REFINE.
 
   Definition abs_bq_espec : li_c +-> li_c :=
     comp_esem'
-      (encap_prim bq_state)
+      (encap_prim bq_state (skel abs_bq_spec))
       (semantics_embed abs_bq_spec)
       rb_bq_skel.
 
@@ -1427,7 +1464,7 @@ Section REFINE.
   Definition bq_rb_spec :=
     CategoricalComp.comp_semantics' (bq_spec @ rb_state) rb_spec rb_bq_skel.
   Definition bq_rb_espec :=
-    comp_esem' (encap_prim rb_state) (semantics_embed bq_rb_spec) rb_bq_skel.
+    comp_esem' (encap_prim rb_state rb_bq_skel) (semantics_embed bq_rb_spec) rb_bq_skel.
 
   Inductive bq_abs_ms se: bq_abs_state -> comp_state (bq_spec @ rb_state) rb_spec -> Prop :=
   | bq_abs_ms_enq:
@@ -1451,8 +1488,9 @@ Section REFINE.
 
   Section BQ.
 
-    Inductive refine_ms: Smallstep.state (encap_prim bq_state) ->
-                         Smallstep.state (encap_prim rb_state) -> Prop :=
+    Inductive refine_ms:
+      Smallstep.state (encap_prim bq_state rb_bq_skel) ->
+      Smallstep.state (encap_prim rb_state rb_bq_skel) -> Prop :=
     | refine_ms_q q rbst bqst:
       rb_bq bqst rbst ->
       refine_ms (@st_q (li_c@bq_state) (q, bqst))
@@ -1466,7 +1504,7 @@ Section REFINE.
 
     Lemma bq_refine1:
       E.forward_simulation (&abs_bq_cc) (&1)
-        (encap_prim bq_state) (encap_prim rb_state).
+        (encap_prim bq_state rb_bq_skel) (encap_prim rb_state rb_bq_skel).
     Proof.
       apply st_normalize_fsim. constructor.
       eapply ST.Forward_simulation with
@@ -1494,11 +1532,8 @@ Section REFINE.
   End BQ.
 
   Lemma rb_bq_c2:
-    forall q f c1 c2,
-      rb_bq q (f, c1, c2) -> c2 < N.
-  Proof.
-    intros. inv H. apply Nat.mod_upper_bound. unfold N. lia.
-  Qed.
+    forall q f c1 c2, rb_bq q (f, c1, c2) -> c2 < N.
+  Proof. intros. inv H. apply Nat.mod_upper_bound. unfold N. lia. Qed.
 
   Lemma refine_correct1:
     forall v vs f c1 c2,
@@ -1516,9 +1551,7 @@ Section REFINE.
 
   Lemma slice_length f c1 n :
     List.length (slice f c1 n) = n.
-  Proof.
-    revert c1. induction n; cbn; auto.
-  Qed.
+  Proof. revert c1. induction n; cbn; auto. Qed.
 
   Lemma mod_minus:
     forall a, N <= a < N * 2 -> a mod N = a - N.
@@ -1582,8 +1615,8 @@ Section REFINE.
 
   Lemma linkorder_erase:
     forall (p q: program),
-      Linking.linkorder p q ->
-      Linking.linkorder (clightp_erase_program p)
+      linkorder p q ->
+      linkorder (clightp_erase_program p)
         (clightp_erase_program q).
   Admitted.
 
@@ -1715,30 +1748,29 @@ Section REFINE.
     - apply well_founded_ltof.
   Qed.
 
-
   Lemma spec_assoc {U: Type} `{PSet U} (L1: semantics li_c (li_c@U))
-    (L2: semantics li_c li_c) sk1 sk2 sk:
+    (L2: semantics li_c li_c) sk1 sk2 sk sk_prim1 sk_prim2:
     linkorder sk1 sk ->
     linkorder (skel L1) sk ->
+    linkorder sk_prim1 sk ->
+    linkorder sk_prim2 sk ->
     E.forward_simulation (&1) (&1)
-      (comp_esem' (encap_prim U)
+      (comp_esem' (encap_prim U sk_prim1)
          (semantics_embed (comp_semantics' (L2 @ U) L1 sk1)) sk)
       (comp_esem' (semantics_embed L2)
-         (comp_esem' (encap_prim U) (semantics_embed L1) sk2) sk).
+         (comp_esem' (encap_prim U sk_prim2) (semantics_embed L1) sk2) sk).
   Proof.
     intros SK1 SK2.
     etransitivity. 2: apply encap_assoc2.
     etransitivity.
-    { eapply encap_fsim_lcomp_sk.
+    { eapply encap_fsim_lcomp_sk; eauto.
       - reflexivity.
-      - apply encap_comp_embed2.
-      - apply CategoricalComp.id_skel_order.
-      - eauto. }
+      - apply encap_comp_embed2. }
     etransitivity. apply encap_assoc1.
     eapply encap_fsim_lcomp_sk.
     - apply encap_comp_prim.
     - reflexivity.
-    - apply CategoricalComp.id_skel_order.
+    - apply H1.
     - eauto.
   Qed.
 
@@ -1753,9 +1785,11 @@ Section REFINE.
       + apply bq_refine1.
       + apply encap_fsim_embed.
         apply bq_refine2.
-      + apply CategoricalComp.id_skel_order.
-      + apply Linking.linkorder_refl.
+      + apply linkorder_refl.
+      + apply linkorder_refl.
     - apply spec_assoc. apply linkorder_refl.
+      apply linkorder_erase. apply rb_linkorder.
+      apply linkorder_refl.
       apply linkorder_erase. apply rb_linkorder.
   Qed.
 

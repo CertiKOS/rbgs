@@ -2342,10 +2342,11 @@ Require Import Lia.
 
 Section COMP_PRIM.
 
-  Context {li} `{PSet U} (L: semantics li li) (sk: AST.program unit unit).
+  Context {li} `{PSet U} (L: semantics li li)
+    (sk sk1 sk2: AST.program unit unit).
 
-  Let L1 := comp_esem' (encap_prim U sk) (semantics_embed (L @ U)) sk.
-  Let L2 := comp_esem' (semantics_embed L) (encap_prim U sk) sk.
+  Let L1 := comp_esem' (encap_prim U sk1) (semantics_embed (L @ U)) sk.
+  Let L2 := comp_esem' (semantics_embed L) (encap_prim U sk2) sk.
 
   Definition q1 (q: query li) (u: U): Smallstep.state (normalize_sem L1).
     refine (st1 _ _ _).
@@ -2501,8 +2502,8 @@ Section COMP_PRIM.
           eexists _, _; split; [ |
             eexists tt, (tt, (_, tt, (tt, _))); split;
             [ constructor | split ];
-                            [ repeat split | split ];
-                                             [ reflexivity | apply rel ] ].
+            [ repeat split | split ];
+            [ reflexivity | apply rel ] ].
         inv H3.
         (* prim_ms1 -> prim_ms2 *)
         * inv H0. inv H3. inv H3. inv H4. inv H0.
