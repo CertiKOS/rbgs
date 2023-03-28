@@ -188,7 +188,10 @@ Module ClightP.
       prog_main: ident;
       prog_types: list composite_definition;
       prog_comp_env: composite_env;
-      prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env
+      prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env;
+      (* for the purpose of proving linking properties *)
+      prog_disjoint:
+        list_disjoint (map fst prog_private) (map fst prog_defs)
     }.
 
   Definition program_of_program (p: program) : AST.program fundef type :=

@@ -8,7 +8,7 @@ From compcert Require Import
      Smallstep CategoricalComp.
 From compcertox Require Import
   Lifting Encapsulation
-  ClightP PEnv ClightPComp.
+  ClightP PEnv ClightPLink ClightPComp.
 Import ListNotations.
 
 Definition query_alloc_flag '(cq _ _ _ m) := Mem.alloc_flag m.
@@ -214,7 +214,13 @@ Section CLIGHTP.
       prog_main := 999%positive;
       prog_types := [];
       prog_comp_env := (PTree.empty _);
+      prog_disjoint := _;
     |}.
+  Next Obligation.
+    intros x y Hx Hy c. subst.
+    unfold arr_id, cnt1_id, cnt2_id, get_id, set_id, inc1_id, inc2_id in *.
+    firstorder; congruence.
+  Defined.
 
   (**
 <<
@@ -284,11 +290,16 @@ Section CLIGHTP.
                     (get_id, Gfun get_ext);
                     (set_id, Gfun set_ext)];
       prog_private := [];
-      prog_public := [enq_id; deq_id];
+      (* for linking purpose, external functions have to be public *)
+      prog_public := [enq_id; deq_id; inc1_id; inc2_id; get_id; set_id];
       prog_main := 999%positive;
       prog_types := [];
       prog_comp_env := (PTree.empty _);
+      prog_disjoint := _;
     |}.
+  Next Obligation.
+    intros x y Hx Hy. inv Hx.
+  Defined.
 
 End CLIGHTP.
 
@@ -1385,17 +1396,39 @@ Section BQ_LTS.
 
 End BQ_LTS.
 
+Existing Instance clightp_linker.
 Import Linking.
-
-Instance clightp_linker: Linker program.
-Admitted.
 
 Section REFINE.
 
+  Transparent Linker_prog.
+
   (* I messed up the notations. I guess it's because my improper use of & *)
-  Hypothesis rb_bq_linking:
+  Lemma rb_bq_linking:
     (* { cprog  & Linking.link bq_program rb_program = Some cprog }. *)
     sigT (fun cprog => link bq_program rb_program = Some cprog).
+  Proof.
+    cbn. unfold link_program.
+    cbn. unfold link_prog.
+    assert (ident_eq (AST.prog_main bq_program) (AST.prog_main rb_program)
+            && PTree_Properties.for_all
+                 (prog_defmap bq_program)
+                 (link_prog_check bq_program rb_program) = true).
+    {
+      apply andb_true_intro. split.
+      - reflexivity.
+      - rewrite PTree_Properties.for_all_correct.
+        intros x a H.
+        unfold link_prog_check, prog_defmap in *.
+        apply PTree_Properties.in_of_list in H. cbn in H.
+        destruct H as [|[|[|[|[|[|]]]]]]; inv H.
+        all: reflexivity.
+    }
+    rewrite H. simpl.
+    destruct link_build_composite_env.  destruct a. eexists. reflexivity.
+  Qed.
+
+  Opaque link_program linkorder_program clightp_linker.
 
   Definition rb_bq_prog := projT1 rb_bq_linking.
   Definition rb_bq_skel := clightp_erase_program rb_bq_prog.
@@ -1612,13 +1645,6 @@ Section REFINE.
 
   Opaque clightp2.
   Import CategoricalComp.
-
-  Lemma linkorder_erase:
-    forall (p q: program),
-      linkorder p q ->
-      linkorder (clightp_erase_program p)
-        (clightp_erase_program q).
-  Admitted.
 
   Lemma bq_refine2:
     forward_simulation 1 abs_bq_cc abs_bq_spec bq_rb_spec.

@@ -27,5 +27,6 @@ compcertox/BQrefine.v
 compcertox/PEnv.v
 compcertox/Encapsulation.v
 compcertox/ClightP.v
+compcertox/ClightPLink.v
 compcertox/ClightPComp.v
 compcertox/Example.v
