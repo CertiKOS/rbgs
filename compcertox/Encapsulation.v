@@ -1792,89 +1792,91 @@ End COMP.
 
 (** ------------------------------------------------------------------------- *)
 
-(*
-(** A simplified condition for ccB ⊑ ccA, where the wB is a substructure of
-    wA. Additional invariant is required on wA to constrain the redundant
-    information *)
-Section CCREF.
+Section LIFT_COMP.
 
-  Context {li1 li2} (ccA ccB: ST.callconv li1 li2).
+  Context `{PSet S1} `{PSet S2} `{PSet S3}
+    `(cc1: ST.callconv liA liB) `(cc2: ST.callconv liB liC).
 
-  Variable F: ST.ccworld ccA -> ST.ccworld ccB.
-  Variable I: ST.ccworld ccA -> Prop.
-  Hypothesis F_init: F (@pset_init (ST.ccworld ccA) _) = @pset_init (ST.ccworld ccB) _.
-  Hypothesis I_init: I (@pset_init (ST.ccworld ccA) _).
-  Hypothesis I_ext_step: forall wa wa1, I wa -> wa :-> wa1 -> I wa1.
-  Hypothesis F_int_step: forall wa1 wa2, wa1 *-> wa2 -> F wa1 *-> F wa2.
-  Hypothesis F_ext_step:
-    forall wa wb1, F wa :-> wb1 -> exists wa1, wa :-> wa1 /\ F wa1 = wb1.
-  Hypothesis F_mq:
-    forall wa q1 q2, I wa -> ST.match_query ccB (F wa) q1 q2 -> ST.match_query ccA wa q1 q2.
-  Hypothesis F_mr:
-    forall wa r1 r2, ST.match_reply ccA wa r1 r2 -> ST.match_reply ccB (F wa) r1 r2 /\ I wa.
+  Inductive lift_comp_ms:
+    Genv.symtbl -> Genv.symtbl ->
+    ST.ccworld (ST.callconv_lift (ST.cc_compose cc1 cc2) S1 S3) ->
+    ST.ccstate (ST.cc_compose (ST.callconv_lift cc1 S1 S2) (ST.callconv_lift cc2 S2 S3)) ->
+    ST.ccstate (ST.callconv_lift (ST.cc_compose cc1 cc2) S1 S3) ->
+    @state (liA @ S1) _ 1 ->
+    @state (liC @ S3) _ 1 -> Prop :=
+  | lift_comp_ms_q se1 se2 se3 q1 q2 q3 w1 w2 s10 s30 t1 t2 s1 s2 s3:
+    ST.match_senv cc1 (set w1 t1) se1 se2 ->
+    ST.match_senv cc2 (set w2 t2) se2 se3 ->
+    ST.match_query cc1 (set w1 t1) q1 q2 ->
+    ST.match_query cc2 (set w2 t2) q2 q3 ->
+    lift_comp_ms se1 se3 (se2, (w1, w2), (s10, s30))
+      (t1, (s1, s2), (t2, (s2, s3)))
+      (t1, t2, (s1, s3))
+      (@st_q (liA @ S1) (q1, s1)) (@st_q (liC @ S3) (q3, s3))
+  | lift_comp_ms_r se1 se2 se3 r1 r2 r3 w1 w2 s10 s30 t1 t2 s1 s2 s3:
+    ST.match_reply cc1 (set w1 t1) r1 r2 ->
+    ST.match_reply cc2 (set w2 t2) r2 r3 ->
+    lift_comp_ms se1 se3 (se2, (w1, w2), (s10, s30))
+      (t1, (s1, s2), (t2, (s2, s3)))
+      (t1, t2, (s1, s3))
+      (@st_r (liA @ S1) (r1, s1)) (@st_r (liC @ S3) (r3, s3)).
 
-  Inductive sub_inv: ST.ccworld ccA -> ST.ccworld ccB -> Prop :=
-  | sub_inv_intro wa wb: I wa -> F wa :-> wb -> sub_inv wa wb.
-  Inductive sub_ms: ST.ccworld ccA -> ST.ccworld ccB -> @state li1 li1 1 -> @state li2 li2 1 -> Prop :=
-  | sub_ms_q q1 q2 wa wb:
-    I wa -> F wa = wb -> ST.match_query ccB wb q1 q2 ->
-    sub_ms wa wb (st_q q1) (st_q q2)
-  | sub_ms_r r1 r2 wa wb:
-    I wa -> F wa = wb -> ST.match_reply ccB wb r1 r2 ->
-    sub_ms wa wb (st_r r1) (st_r r2).
+  Inductive lift_comp_inv:
+    ST.ccstate (ST.cc_compose (ST.callconv_lift cc1 S1 S2) (ST.callconv_lift cc2 S2 S3)) ->
+    ST.ccstate (ST.callconv_lift (ST.cc_compose cc1 cc2) S1 S3) -> Prop :=
+  | lift_comp_inv_intro t1 t1' t2 t2' s1 s2 s3:
+    t1 :-> t1' -> t2 :-> t2' ->
+    lift_comp_inv (t1, (s1, s2), (t2, (s2, s3)))
+      (t1', t2', (s1, s3)).
 
-  Lemma st_ccref_sub: st_ccref ccB ccA.
+  Hint Constructors lift_comp_ms lift_comp_inv.
+
+  Lemma lift_comp_ccref:
+    st_ccref (ST.callconv_lift (ST.cc_compose cc1 cc2) S1 S3)
+      (ST.cc_compose (ST.callconv_lift cc1 S1 S2) (ST.callconv_lift cc2 S2 S3)).
   Proof.
     apply st_normalize_fsim. constructor.
     eapply ST.Forward_simulation with
-      (ltof _ (fun (_: unit) => 0)) (fun _ wa wb _ => sub_ms wa wb)
-      (fun wa wb => sub_inv wa wb); try easy.
-    - intros. inv H. constructor; eauto. etransitivity; eauto.
-    - constructor; eauto. rewrite F_init. reflexivity.
-    - intros wa wb se HI. inv HI.
-      constructor.
-      + intros q1 q2 s1 wb1 Hb Hq Hx. exists tt. inv Hx. exists (st_q q2).
-        split. constructor.
-        edestruct F_ext_step as (wa1 & Ha1 & Ha2).
-        etransitivity; eauto. subst.
-        exists wa1, (F wa1). repeat split; try easy.
-        constructor; eauto.
-      + intros wa1 wb1 [] s1 s2 r1 Hs Hx. inv Hx.
-        inv Hs. exists r2. split. constructor.
-        exists (F wa1). repeat split; easy.
-      + intros wa1 wb1 [] s1 s2 q1 Hs Hx. inv Hx. inv Hs.
-        exists q2. split. constructor.
-        exists wa1. split. reflexivity. split. apply F_mq; auto.
-        intros r1 r2 s1' wa2 Ha2 Hr Hy.
-        inv Hy. eexists tt, _. split. constructor.
-        eexists wa2, (F wa2). repeat split; eauto. easy.
-        constructor; eapply F_mr in Hr; easy.
-      + intros. easy.
+      (ltof _ (fun (_: unit) => 0))
+      (fun se1 se2 w0 wa wb _ => lift_comp_ms se1 se2 w0 wa wb)
+      (fun sa sb => lift_comp_inv sa sb); try easy.
+    - intros. inv H3. cbn in *. eprod_crush.
+      inv H2. constructor; etransitivity; eauto.
+    - intros * Hse Hsk HI.
+      constructor; intros; cbn in *; eprod_crush.
+      + inv HI. inv H4. eexists tt, _. split. econstructor.
+        eexists (_, (_, _), (_, (_, _))).
+        eexists (_, _, (_, _)).
+        split. 2: split. 3: econstructor; eauto.
+        * repeat split; eauto; cbn; etransitivity; eauto.
+        * repeat split; eauto; cbn; reflexivity.
+      + inv H3. inv H2.
+        eexists (_, _). split. constructor.
+        eexists (_, _, (_, _)). split. repeat split; cbn; reflexivity.
+        split. 2: constructor; reflexivity.
+        split; eauto.
+      + inv H3. inv H2.
+        eexists (_, _). split. constructor.
+        eexists (_, (_, _), (_, (_, _))).
+        eexists (_, (_, (_, _), (_, (_, _)))).
+        split. 2: split. 3: split. 4: split.
+        3: eexists (_, _); repeat split; eauto.
+        * repeat split; cbn; eauto; reflexivity.
+        * repeat f_equal; now rewrite get_set.
+        * split; eauto.
+        * intros. cbn in *. eprod_crush. inv H6.
+          eexists  tt, _. split. constructor.
+          eexists (_, (_, _), (_, (_, _))).
+          eexists (_, _, (_, _)).
+          rewrite set_set in H3.
+          rewrite set_set in H12.
+          split. 2: split. 3: econstructor; eauto.
+          -- repeat split; eauto; reflexivity.
+          -- repeat split; cbn; eauto.
+      + inv H2.
   Qed.
 
-End CCREF.
-*)
-
-Lemma lift_comp_ccref `{PSet S1} `{PSet S2} `{PSet S3}
-      `(cc1: ST.callconv liA liB) `(cc2: ST.callconv liB liC):
-  st_ccref (ST.callconv_lift (ST.cc_compose cc1 cc2) S1 S3)
-           (ST.cc_compose (ST.callconv_lift cc1 S1 S2) (ST.callconv_lift cc2 S2 S3)).
-Proof.
-(*   match goal with *)
-(*   | |- st_ccref ?x ?y => set (w1 := ST.ccworld x); set (w2 := ST.ccworld y) *)
-(*   end. *)
-(*   cbn in *. *)
-(*   set (F := fun '((w1, s1, _, (w2, _, s3)):w2) => (w1, w2, s1, s3)). *)
-(*   set (I := fun '((_, _, s2, (_, s2', _)):w2) => s2 = s2'). *)
-(*   eapply st_ccref_sub with F I; intros; cbn in *; eprod_crush; subst; try easy. *)
-(*   - cbn in *. eprod_crush. subst. eexists (_, _, _, (_, _, _)). cbn. *)
-(*     repeat split; eauto. *)
-(*   - cbn in *. eprod_crush. subst. *)
-(*     eexists (_, _). repeat split; eauto. *)
-(*   - cbn in *. eprod_crush. subst. *)
-(*     repeat split; eauto. *)
-(* Qed. *)
-Admitted.
+End LIFT_COMP.
 
 Section ENCAP_COMP_FSIM.
 
@@ -1897,20 +1899,74 @@ End ENCAP_COMP_FSIM.
 
 (** ------------------------------------------------------------------------- *)
 
-Lemma cc_lift_unit `(cc: ST.callconv liA liB):
-  st_ccref (ST.callconv_lift cc unit unit)
-           (st_callconv_map (li_iso_inv _) (li_iso_inv _) cc).
-Proof.
-Admitted.
-(*   match goal with *)
-(*   | |- st_ccref ?x ?y => set (w1 := ST.ccworld x); set (w2 := ST.ccworld y) *)
-(*   end. *)
-(*   cbn in *. *)
-(*   set (F := fun '((w, _, _):w1) => w). *)
-(*   set (G := fun (w:w2) => (w, tt, tt)). *)
-(*   eapply st_ccref_intro with G F; *)
-(*     intros; cbn in *; eprod_crush; cbn; try easy. *)
-(* Qed. *)
+Section LIFT_UNIT.
+  Context `(cc: ST.callconv liA liB).
+
+(* ST.ccworld cc * (unit * unit) *)
+(* ST.ccstate (st_callconv_map (li_iso_inv li_iso_unit) (li_iso_inv li_iso_unit) cc) *)
+(* w_state (ST.ccworld_world cc) * (unit * unit) *)
+
+  Inductive lift_unit_ms:
+    Genv.symtbl -> Genv.symtbl ->
+    ST.ccworld (ST.callconv_lift cc unit unit) ->
+    ST.ccstate (st_callconv_map (li_iso_inv _) (li_iso_inv _) cc) ->
+    ST.ccstate (ST.callconv_lift cc unit unit) ->
+    @state (liA @ unit) _ 1 ->
+    @state (liB @ unit) _ 1 -> Prop :=
+  | lift_unit_ms_q se1 se2 w0 s q1 q2:
+    ST.match_senv cc (set w0 s) se1 se2 ->
+    ST.match_query cc (set w0 s) q1 q2 ->
+    lift_unit_ms se1 se2 (w0, (tt, tt)) s (s, (tt, tt))
+                 (@st_q (liA @ unit) (q1, tt))
+                 (@st_q (liB @ unit) (q2, tt))
+  | lift_unit_ms_r se1 se2 w0 s r1 r2:
+    ST.match_reply cc (set w0 s) r1 r2 ->
+    lift_unit_ms se1 se2 (w0, (tt, tt)) s (s, (tt, tt))
+                 (@st_r (liA @ unit) (r1, tt))
+                 (@st_r (liB @ unit) (r2, tt)).
+
+  Inductive lift_unit_inv:
+    ST.ccstate (st_callconv_map (li_iso_inv _) (li_iso_inv _) cc) ->
+    ST.ccstate (ST.callconv_lift cc unit unit) -> Prop :=
+  | lift_unit_inv_intro s1 s2:
+    s1 :-> s2 -> lift_unit_inv s1 (s2, (tt, tt)).
+
+  Hint Constructors lift_unit_ms lift_unit_inv.
+
+  Lemma cc_lift_unit :
+    st_ccref (ST.callconv_lift cc unit unit)
+      (st_callconv_map (li_iso_inv _) (li_iso_inv _) cc).
+  Proof.
+    apply st_normalize_fsim. constructor.
+    eapply ST.Forward_simulation with
+      (ltof _ (fun (_: unit) => 0))
+      (fun se1 se2 w0 wa wb _ => lift_unit_ms se1 se2 w0 wa wb)
+      (fun sa sb => lift_unit_inv sa sb); try easy.
+    - intros. cbn in *. eprod_crush. inv H.
+      econstructor; etransitivity; eauto.
+    - intros * Hse Hsk HI.
+      constructor; intros; cbn in *; eprod_crush.
+      + inv HI. inv H1. eexists tt, _. split. constructor.
+        eexists _, (_, (tt, tt)).
+        split. 2: split. 3: constructor; eauto.
+        etransitivity; eauto. repeat split; cbn. reflexivity.
+      + inv H0. inv H. eexists (_, tt). split. constructor.
+        eexists (_, (tt, tt)).
+        repeat split; cbn; eauto; reflexivity.
+      + inv H0. inv H.
+        eexists (_, tt). split. econstructor.
+        eexists _, _. repeat split; eauto.
+        rewrite get_set. reflexivity.
+        inv H1. eprod_crush.
+        rewrite get_set in H.
+        eexists _. split. constructor.
+        eexists _, (_, (tt, tt)).
+        rewrite set_set in H1.
+        repeat split; eauto. reflexivity.
+      + inv H.
+  Qed.
+
+End LIFT_UNIT.
 
 Lemma fsim_normalize `(ccA: callconv liA1 liA2) `(ccB: callconv liB1 liB2) L1 L2:
   forward_simulation ccA ccB L1 L2 ->
@@ -2588,306 +2644,3 @@ Section COMP_PRIM.
   Qed.
 
 End COMP_PRIM.
-
-(** ------------------------------------------------------------------------- *)
-(** Obsolete FBK and REVEAL construction *)
-
-Definition semantics_fbk `{PSet K} {liA liB} (L: liA +-> liB@K) : liA +-> liB :=
-  {|
-    pstate := K * pstate L; esem := $L
-  |}.
-
-(** ** Simulation Convention FBK *)
-Program Definition callconv_fbk `{PSet K1} `{PSet K2}
-        `(cc: ST.callconv (li1@K1) (li2@K2)): ST.callconv li1 li2 :=
-  {|
-    ST.ccworld := ST.ccworld cc * (K1 * K2);
-    ST.ccworld_world := world_prod _ (world_prod _ _);
-    ST.match_query '(w, (k1, k2)) q1 q2 := ST.match_query cc w (q1, k1) (q2, k2);
-    ST.match_reply '(w, (k1, k2)) r1 r2 := ST.match_reply cc w (r1, k1) (r2, k2);
-    ST.match_senv '(w, (k1, k2)) se1 se2 := ST.match_senv cc w se1 se2;
-  |}.
-Next Obligation. eauto with scc. Qed.
-Next Obligation. eauto with scc. Qed.
-Next Obligation.
-  replace (entry q3) with (@entry (li1 @ K1) (q3, k)) by reflexivity.
-  replace (entry q4) with (@entry (li2 @ K2) (q4, k0)) by reflexivity.
-  eauto with scc.
-Qed.
-Next Obligation.
-  replace (entry q3) with (@entry (li1 @ K1) (q3, k)) by reflexivity.
-  replace (entry q4) with (@entry (li2 @ K2) (q4, k0)) by reflexivity.
-  eauto with scc.
-Qed.
-
-(** ** FBK vs LIFT *)
-
-(** A simplified condition for ccB ⊑ ccA, where wA is a substructure of wB *)
-(* Section CCREF. *)
-
-(*   Context {li1 li2} (ccA ccB: ST.callconv li1 li2). *)
-
-(*   Variable F: ST.ccworld ccB -> ST.ccworld ccA. *)
-(*   Variable I: ST.ccworld ccB -> Prop. *)
-(*   Hypothesis F_init: F (@pset_init (ST.ccworld ccB) _) = @pset_init (ST.ccworld ccA) _. *)
-(*   Hypothesis F_ext_step: forall x y, x :-> y -> F x :-> F y. *)
-(*   Hypothesis F_int_step: *)
-(*     forall wb1 wa2, F wb1 *-> wa2 -> exists wb2, wa2 = F wb2 /\ wb1 *-> wb2 /\ (I wb1 -> I wb2). *)
-(*   Hypothesis F_mq: *)
-(*     forall wb q1 q2, ST.match_query ccB wb q1 q2 -> ST.match_query ccA (F wb) q1 q2 /\ I wb. *)
-(*   Hypothesis F_mr: *)
-(*     forall wb r1 r2, I wb -> ST.match_reply ccA (F wb) r1 r2 -> ST.match_reply ccB wb r1 r2. *)
-
-(*   Inductive super_inv: ST.ccworld ccA -> ST.ccworld ccB -> Prop := *)
-(*   | super_inv_intro wa wb: wa :-> F wb -> super_inv wa wb. *)
-(*   Inductive super_ms: ST.ccworld ccA -> ST.ccworld ccB -> @state li1 li1 1 -> @state li2 li2 1 -> Prop := *)
-(*   | super_ms_q q1 q2 wa wb: *)
-(*     I wb -> wa = F wb -> ST.match_query ccB wb q1 q2 -> *)
-(*     super_ms wa wb (st_q q1) (st_q q2) *)
-(*   | super_ms_r r1 r2 wa wb: *)
-(*     I wb -> wa = F wb -> ST.match_reply ccB wb r1 r2 -> *)
-(*     super_ms wa wb (st_r r1) (st_r r2). *)
-
-(*   Lemma st_ccref_super: st_ccref ccB ccA. *)
-(*   Proof. *)
-(*     apply st_normalize_fsim. constructor. *)
-(*     eapply ST.Forward_simulation with *)
-(*       (ltof _ (fun (_: unit) => 0)) (fun _ wa wb _ => super_ms wa wb) *)
-(*       (fun wa wb => super_inv wa wb); try easy. *)
-(*     - intros. inv H. constructor. etransitivity; eauto. *)
-(*     - constructor. rewrite F_init. reflexivity. *)
-(*     - intros wa wb se Hi. inv Hi. *)
-(*       constructor. *)
-(*       + intros q1 q2 s1 wb1 Hb Hq Hx. exists tt. inv Hx. exists (st_q q2). *)
-(*         split. constructor. *)
-(*         exists (F wb1), wb1. repeat split; try easy. *)
-(*         * etransitivity; eauto. *)
-(*         * constructor; eauto. apply F_mq in Hq. apply Hq. *)
-(*       + intros wa1 wb1 [] s1 s2 r1 Hs Hx. inv Hx. *)
-(*         inv Hs. exists r2. split. constructor. *)
-(*         exists wb1. repeat split; easy. *)
-(*       + intros wa1 wb1 [] s1 s2 q1 Hs Hx. inv Hx. inv Hs. *)
-(*         exists q2. split. constructor. *)
-(*         exists (F wb1). split. reflexivity. split. apply F_mq; auto. *)
-(*         intros r1 r2 s1' wa2 Ha2 Hr Hy. *)
-(*         inv Hy. eexists tt, _. split. constructor. *)
-(*         destruct (F_int_step _ _ Ha2) as (wb2 & Hb1 & Hb2 & Hb3). *)
-(*         eexists wa2, wb2. repeat split; try easy. *)
-(*         constructor; eauto. *)
-(*         apply F_mr; subst; eauto. *)
-(*       + intros. easy. *)
-(*   Qed. *)
-
-(* End CCREF. *)
-
-Lemma cc_fbk_lift1 `{PSet K1} `{PSet K2} `(cc: ST.callconv li1 li2):
-  st_ccref (callconv_fbk (ST.callconv_lift cc K1 K2)) cc.
-Proof.
-(*   match goal with *)
-(*   | |- st_ccref ?x ?y => set (w1 := ST.ccworld x); set (w2 := ST.ccworld y) *)
-(*   end. *)
-(*   cbn in *. *)
-(*   set (F := fun '((w, _, _, _, _):w1) => w). *)
-(*   set (I := fun '((_, k1, k2, k1', k2'):w1) => k1 = k1' /\ k2 = k2'). *)
-(*   eapply st_ccref_super with F I; *)
-(*     intros; cbn in *; eprod_crush; subst; try easy. *)
-(*   eexists (_, _, _, _, _). repeat split. eauto. *)
-(*   Unshelve. all: eauto. *)
-(* Qed. *)
-Admitted.
-
-Lemma cc_fbk_lift2 `{PSet K1} `{PSet K2} `(cc: ST.callconv li1 li2):
-  st_ccref cc (callconv_fbk (ST.callconv_lift cc K1 K2)).
-Proof.
-(*   match goal with *)
-(*   | |- st_ccref ?x ?y => set (w1 := ST.ccworld x); set (w2 := ST.ccworld y) *)
-(*   end. *)
-(*   cbn in *. *)
-(*   set (F := fun '((w, _, _, _, _):w2) => w). *)
-(*   set (I := fun '((_, k1, k2, k1', k2'):w2) => k1 = k1' /\ k2 = k2'). *)
-(*   eapply st_ccref_sub with F I; *)
-(*     intros; cbn in *; eprod_crush; subst; try easy. *)
-(*   eexists (_, _, _, _, _). repeat split. easy. *)
-(* Qed. *)
-Admitted.
-
-(** A simplified condition for ccB ⊑ ccA, where wA is a substructure of wB *)
-(* Section CCREF. *)
-
-(*   Context {li1 li2} (ccA ccB: ST.callconv li1 li2). *)
-
-(*   Variable F: ST.ccworld ccB -> ST.ccworld ccA. *)
-(*   Variable I: ST.ccworld ccB -> Prop. *)
-(*   Hypothesis F_init: @pset_init (ST.ccworld ccA) _ :-> F (@pset_init (ST.ccworld ccB) _). *)
-(*   (* F (pset_init (ST.ccworld ccB)) = pset_init (ST.ccworld ccA). *) *)
-(*   Hypothesis I_init: I (@pset_init (ST.ccworld ccB) _). *)
-(*   Hypothesis I_ext_step: forall wb wb1, I wb -> wb :-> wb1 -> I wb1. *)
-(*   Hypothesis F_ext_step: forall x y, x :-> y -> F x :-> F y. *)
-(*   Hypothesis F_int_step: *)
-(*     forall wb1 wa2, F wb1 *-> wa2 -> *)
-(*                forall r1 r2, exists wb2, wa2 = F wb2 /\ wb1 *-> wb2 *)
-(*                                /\ (I wb1 -> I wb2) *)
-(*                                /\ (ST.match_reply ccA wa2 r1 r2 -> *)
-(*                                   ST.match_reply ccB wb2 r1 r2). *)
-(*   Hypothesis F_mq: *)
-(*     forall wb q1 q2, I wb -> ST.match_query ccB wb q1 q2 -> ST.match_query ccA (F wb) q1 q2. *)
-
-(*   Inductive fbk1_inv: ST.ccworld ccA -> ST.ccworld ccB -> Prop := *)
-(*   | fbk1_inv_intro wa wb: I wb -> wa :-> F wb -> fbk1_inv wa wb. *)
-(*   Inductive fbk1_ms: ST.ccworld ccA -> ST.ccworld ccB -> @state li1 li1 1 -> @state li2 li2 1 -> Prop := *)
-(*   | fbk1_ms_q q1 q2 wa wb: *)
-(*     I wb -> wa = F wb -> ST.match_query ccB wb q1 q2 -> *)
-(*     fbk1_ms wa wb (st_q q1) (st_q q2) *)
-(*   | fbk1_ms_r r1 r2 wa wb: *)
-(*     I wb -> wa = F wb -> ST.match_reply ccB wb r1 r2 -> *)
-(*     fbk1_ms wa wb (st_r r1) (st_r r2). *)
-
-(*   Lemma st_ccref_fbk1: st_ccref ccB ccA. *)
-(*   Proof. *)
-(*     apply st_normalize_fsim. constructor. *)
-(*     eapply ST.Forward_simulation with *)
-(*       (ltof _ (fun (_: unit) => 0)) (fun _ wa wb _ => fbk1_ms wa wb) *)
-(*       (fun wa wb => fbk1_inv wa wb); try easy. *)
-(*     - intros. inv H. constructor; eauto. etransitivity; eauto. *)
-(*     - intros wa wb se Hi. inv Hi. *)
-(*       constructor. *)
-(*       + intros q1 q2 s1 wb1 Hb Hq Hx. exists tt. inv Hx. exists (st_q q2). *)
-(*         split. constructor. *)
-(*         exists (F wb1), wb1. repeat split; try easy. *)
-(*         * etransitivity; eauto. *)
-(*         * constructor; eauto. *)
-(*       + intros wa1 wb1 [] s1 s2 r1 Hs Hx. inv Hx. *)
-(*         inv Hs. exists r2. split. constructor. *)
-(*         exists wb1. repeat split; easy. *)
-(*       + intros wa1 wb1 [] s1 s2 q1 Hs Hx. inv Hx. inv Hs. *)
-(*         exists q2. split. constructor. *)
-(*         exists (F wb1). split. reflexivity. split. apply F_mq; auto. *)
-(*         intros r1 r2 s1' wa2 Ha2 Hr Hy. *)
-(*         inv Hy. eexists tt, _. split. constructor. *)
-(*         destruct (F_int_step _ _ Ha2 r1 r2) as (wb2 & Hb1 & Hb2 & Hb3 & HR). *)
-(*         eexists wa2, wb2. repeat split; try easy. *)
-(*         constructor; eauto. *)
-(*       + intros. easy. *)
-(*   Qed. *)
-
-(* End CCREF. *)
-
-Lemma cc_lift_fbk1 `{PSet K1} `{PSet K2} `(cc: ST.callconv (li1@K1) (li2@K2)):
-  st_ccref (ST.callconv_lift (callconv_fbk cc) K1 K2) cc.
-Proof.
-(*   match goal with *)
-(*   | |- st_ccref ?x ?y => set (w1 := ST.ccworld x); set (w2 := ST.ccworld y) *)
-(*   end. *)
-(*   cbn in *. *)
-(*   set (F := fun '((w, _, _, _, _):w1) => w). *)
-(*   set (I := fun '((_, k1, k2, k1', k2'):w1) => k1 = k1' /\ k2 = k2'). *)
-(*   eapply st_ccref_fbk1 with F I; *)
-(*     intros; cbn in *; eprod_crush; subst; try easy. *)
-(*   eexists (_, _, _, _, _). repeat split. eauto. *)
-(*   intros; cbn in *. eprod_crush. repeat split; eauto. *)
-(*   cbn in *. eprod_crush. subst; eauto. *)
-(* Qed. *)
-Admitted.
-
-Lemma cc_lift_fbk2 `{PSet K1} `{PSet K2} `(cc: ST.callconv (li1@K1) (li2@K2)):
-  st_ccref cc (ST.callconv_lift (callconv_fbk cc) K1 K2).
-Proof.
-  (* match goal with *)
-  (* | |- st_ccref ?x ?y => set (w1 := ST.ccworld x); set (w2 := ST.ccworld y) *)
-  (* end. *)
-  (* cbn in *. *)
-  (* set (F := fun '((w, _, _, _, _):w2) => w). *)
-  (* set (I := fun '((_, k1, k2, k1', k2'):w2) => k1 = k1' /\ k2 = k2'). *)
-  (* eapply st_ccref_sub with F I; *)
-  (*   intros; cbn in *; eprod_crush; subst; try easy. *)
-  (* eexists (_, _, _, _, _). repeat split. easy. *)
-  (* cbn in *. admit. *)
-  (* cbn in *. *)
-Abort.
-
-Lemma encap_fsim_fbk `{PSet K1} `{PSet K2}
-      `(ccA: ST.callconv liA1 liA2) `(ccB: ST.callconv (liB1@K1) (liB2@K2)) L1 L2:
-  E.forward_simulation ccA ccB L1 L2 ->
-  E.forward_simulation ccA (callconv_fbk ccB) (semantics_fbk L1) (semantics_fbk L2).
-Proof.
-  unfold E.forward_simulation. cbn. intros HL.
-  rewrite cc_lift_twice.
-  unfold STCAT.forward_simulation.
-  rewrite (fsim_embed (map_normalize1 _ _ _)).
-  rewrite <- (fsim_embed (map_normalize2 _ _ _)).
-  rewrite <- (st_cc_map_id ccA).
-  eapply st_map_monotonicity_cc.
-  pose proof (@ccref_lift (pstate L1) _ (pstate L2) _  _ _ _ _ (cc_lift_fbk1 ccB)) as Hcc.
-  assert (X: STCAT.forward_simulation ccA (ST.callconv_lift (ST.callconv_lift (callconv_fbk ccB) K1 K2) (pstate L1) (pstate L2)) L1 L2).
-  {
-    rewrite Hcc. apply HL.
-  }
-  apply X.
-Qed.
-
-(* TODO: replace with primitive *)
-(** ** REVEAL Simulation Convention *)
-
-Program Definition cc_reveal `{PSet K} {li} : ST.callconv li (li@K) :=
-  {|
-    ST.ccworld := K;
-    ST.match_query k q1 '(q2, kq) := q1 = q2 /\ k = kq;
-    ST.match_reply k r1 '(r2, kr) := r1 = r2 /\ k = kr;
-    ST.match_senv k se1 se2 := se1 = se2;
-  |}.
-Next Obligation. reflexivity. Qed.
-Next Obligation. reflexivity. Qed.
-Next Obligation. reflexivity. Qed.
-
-Lemma cc_lift_reveal {li} `{PSet K1} `{PSet K2}:
-  st_ccref
-    (ST.callconv_lift (cc_reveal (li:=li)) (K2 * K1) K1)
-    (st_callconv_map li_iso_assoc li_iso_id &1).
-Proof.
-(*   match goal with *)
-(*   | |- st_ccref ?x ?y => set (w1 := ST.ccworld x); set (w2 := ST.ccworld y) *)
-(*   end. *)
-(*   cbn in *. *)
-(*   set (F := fun _:w1 => tt). *)
-(*   set (I := fun '((k2, (kk2, k1), kk1):w1) => k1 = kk1 /\ k2 = kk2). *)
-(*   eapply st_ccref_fbk1 with F I. *)
-(*   all: intros; cbn in *; eprod_crush; subst; try easy. *)
-(*   - eexists (_, (_, _), _). cbn in *. repeat split. *)
-(*     eprod_crush. inv H2. easy. *)
-(*     eprod_crush. inv H2. easy. *)
-(*   - inv H1. reflexivity. *)
-(* Qed. *)
-Admitted.
-
-Section REVEAL.
-
-  Lemma sem_map_id `(L: semantics liA liB):
-    L = semantics_map L lf lf.
-  Proof.
-    unfold semantics_map. destruct L. cbn. f_equal.
-    extensionality se.
-    unfold lts_map. destruct (activate se).
-    cbn. f_equal.
-    - extensionality x. extensionality y. extensionality z.
-      apply propositional_extensionality. split.
-      + intros. eexists; split; eauto. reflexivity.
-      + intros. eprod_crush. subst. apply H0.
-    - extensionality x. extensionality y.
-      apply propositional_extensionality. split.
-      + intros. eexists; split; eauto. reflexivity.
-      + intros. eprod_crush. subst. apply H0.
-  Qed.
-
-  Lemma fsim_reveal `{PSet K} {liA liB} (L: liA +-> liB@K):
-    E.forward_simulation &1 cc_reveal (semantics_fbk L) L.
-  Proof.
-    unfold E.forward_simulation. cbn. rewrite cc_lift_reveal.
-    unfold STCAT.forward_simulation.
-    rewrite (fsim_embed (map_normalize1 _ _ _)).
-    rewrite <- (st_cc_map_id &1).
-    rewrite (sem_map_id (normalize_sem L)) at 2.
-    eapply st_map_monotonicity_cc.
-    reflexivity.
-  Qed.
-
-End REVEAL.
