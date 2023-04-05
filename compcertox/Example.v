@@ -211,15 +211,14 @@ Section CLIGHTP.
         (cnt1_id, cnt_pvar);
         (cnt2_id, cnt_pvar)];
       prog_public := [get_id; set_id; inc1_id; inc2_id];
-      prog_main := 999%positive;
+      prog_main := Some 999%positive;
       prog_types := [];
       prog_comp_env := (PTree.empty _);
-      prog_disjoint := _;
+      prog_norepet := _;
     |}.
   Next Obligation.
-    intros x y Hx Hy c. subst.
     unfold arr_id, cnt1_id, cnt2_id, get_id, set_id, inc1_id, inc2_id in *.
-    firstorder; congruence.
+    repeat (constructor; [ simpl; lia | ]). constructor.
   Defined.
 
   (**
@@ -292,13 +291,14 @@ Section CLIGHTP.
       prog_private := [];
       (* for linking purpose, external functions have to be public *)
       prog_public := [enq_id; deq_id; inc1_id; inc2_id; get_id; set_id];
-      prog_main := 999%positive;
+      prog_main := Some 999%positive;
       prog_types := [];
       prog_comp_env := (PTree.empty _);
-      prog_disjoint := _;
+      prog_norepet := _;
     |}.
   Next Obligation.
-    intros x y Hx Hy. inv Hx.
+    unfold enq_id, deq_id, inc1_id, inc2_id, get_id, set_id.
+    repeat (constructor; [ simpl; lia | ]). constructor.
   Defined.
 
 End CLIGHTP.
@@ -1130,14 +1130,24 @@ Inductive bq_ms se: bq_internal_state -> state * penv -> Prop :=
     option_map (@erase_globdef fundef type) (prog_defmap p) ! id = Some g ->
     (prog_defmap (clightp_erase_program p)) ! id = Some g.
   Proof.
-    unfold prog_defmap, PTree_Properties.of_list. cbn.
-    pattern (prog_defs p). eapply rev_ind.
-    - rewrite !PTree.gempty. cbn. easy.
-    - intros [i gi] defs IHdefs. rewrite !map_app, !fold_left_app in *.
-      cbn in *.
-      destruct (peq id i).
-      + subst. rewrite !PTree.gss. easy.
-      + rewrite !PTree.gso by auto. eauto.
+    unfold prog_defmap. cbn - [PTree_Properties.of_list].
+    rewrite PTree_Properties.of_list_elements.
+    rewrite PTree.gcombine by reflexivity.
+    unfold prog_defmap.
+    destruct ((PTree_Properties.of_list (AST.prog_defs p)) ! id)
+      eqn: Hd.
+    - setoid_rewrite Hd. cbn. intros. inv H.
+      destruct ((PTree_Properties.of_list (prog_private p)) ! id)
+        eqn: Hp.
+      + exfalso.
+        pose proof (prog_norepet p).
+        apply list_norepet_app in H as (A & B & C).
+        eapply C; eauto.
+        * apply in_map_iff. eexists (_, _). split; eauto.
+        * apply in_map_iff. eexists (_, _).
+          split. reflexivity. eauto.
+      + reflexivity.
+    - setoid_rewrite Hd. inversion 1.
   Qed.
 
   Theorem clightp_find_def_symbol se p id g:
@@ -1403,20 +1413,21 @@ Section REFINE.
 
   Transparent Linker_prog.
 
+  (* TODO: fix the manual proof *)
   (* I messed up the notations. I guess it's because my improper use of & *)
   Lemma rb_bq_linking:
     (* { cprog  & Linking.link bq_program rb_program = Some cprog }. *)
     sigT (fun cprog => link bq_program rb_program = Some cprog).
   Proof.
     cbn. unfold link_program.
-    cbn. unfold link_prog.
-    assert (ident_eq (AST.prog_main bq_program) (AST.prog_main rb_program)
+    cbn -[list_norepet_dec]. unfold link_prog.
+    assert (link_main_check (AST.prog_main bq_program) (AST.prog_main rb_program)
             && PTree_Properties.for_all
                  (prog_defmap bq_program)
                  (link_prog_check bq_program rb_program) = true).
     {
       apply andb_true_intro. split.
-      - reflexivity.
+      - apply link_main_reflect. constructor. reflexivity.
       - rewrite PTree_Properties.for_all_correct.
         intros x a H.
         unfold link_prog_check, prog_defmap in *.
@@ -1424,8 +1435,50 @@ Section REFINE.
         destruct H as [|[|[|[|[|[|]]]]]]; inv H.
         all: reflexivity.
     }
-    rewrite H. simpl.
-    destruct link_build_composite_env.  destruct a. eexists. reflexivity.
+    rewrite H.
+    destruct link_build_composite_env. destruct a.
+    destruct list_norepet_dec eqn: Hx.
+    - eexists. reflexivity.
+    - clear - n. exfalso. apply n. clear n. cbn.
+      Ltac rewrite_gso :=
+        lazymatch goal with
+        | [ H: context[PTree.get ?x (PTree.set ?y _ _)] |- _ ] =>
+            rewrite PTree.gso in H by (unfold x, y; lia); eauto
+        end.
+      constructor.
+      {
+        intros H.
+        destruct H. unfold cnt1_id, arr_id in H. lia.
+        destruct H. unfold cnt2_id, arr_id in H. lia.
+        apply in_map_iff in H as ((id & p) & Hp & Hq).
+        cbn in *. subst.
+        apply PTree.elements_complete in Hq.
+        rewrite PTree.gcombine in Hq by reflexivity.
+        repeat rewrite_gso.
+        rewrite !PTree.gempty in Hq. inv Hq.
+      }
+      constructor.
+      {
+        intros H.
+        destruct H. unfold cnt1_id, cnt2_id in H. lia.
+        apply in_map_iff in H as ((id & p) & Hp & Hq).
+        cbn in *. subst.
+        apply PTree.elements_complete in Hq.
+        rewrite PTree.gcombine in Hq by reflexivity.
+        repeat rewrite_gso.
+        rewrite !PTree.gempty in Hq. inv Hq.
+      }
+      constructor.
+      {
+        intros H.
+        apply in_map_iff in H as ((id & p) & Hp & Hq).
+        cbn in *. subst.
+        apply PTree.elements_complete in Hq.
+        rewrite PTree.gcombine in Hq by reflexivity.
+        repeat rewrite_gso.
+        rewrite !PTree.gempty in Hq. inv Hq.
+      }
+      apply PTree.elements_keys_norepet.
   Qed.
 
   Opaque link_program linkorder_program clightp_linker.
@@ -1833,6 +1886,26 @@ Section REFINE.
       + apply rb_correct.
       + apply linkorder_erase. apply bq_linkorder.
       + apply linkorder_erase. apply rb_linkorder.
+  Qed.
+
+  Context tbq trb (HT1: transl_program bq_program = Errors.OK tbq)
+              (HT2: transl_program rb_program = Errors.OK trb).
+  Let vars := vars_of_program bq_program ++ vars_of_program rb_program.
+
+  Lemma rb_bq_correct_clight:
+    E.forward_simulation
+      (ST.cc_compose (&1) unp_out)
+      (ST.cc_compose (&flag_cc) (unp_in vars))
+      abs_bq_espec
+      (comp_esem' (semantics_embed (semantics2 tbq))
+         (semantics_embed (semantics2 trb)) rb_bq_skel).
+  Proof.
+    eapply encap_fsim_vcomp. apply rb_bq_correct.
+    apply clightp_comp; eauto.
+    cbn. intros x y [].
+    apply link_clightp_erase.
+    unfold rb_bq_prog. destruct rb_bq_linking.
+    apply e.
   Qed.
 
 End REFINE.

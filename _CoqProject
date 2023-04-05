@@ -18,12 +18,14 @@ compcertox/TensorComp.v
 compcertox/SkelLinking.v
 compcertox/Composition.v
 
+# Ring buffer example in CompCertOX style
 compcertox/BQcode.v
 compcertox/RBspec.v
 compcertox/BQspec.v
 compcertox/BQspecx.v
 compcertox/BQrefine.v
 
+# ClightP and state encapsulation formalization
 compcertox/PEnv.v
 compcertox/Encapsulation.v
 compcertox/ClightP.v

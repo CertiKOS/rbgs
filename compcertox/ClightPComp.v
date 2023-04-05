@@ -206,10 +206,22 @@ Proof.
   assert (exists g, (prog_defmap (ClightP.clightp_erase_program p)) ! id = Some g)
     as (g & Hg).
   {
-    apply prog_defmap_dom. cbn.
+    apply prog_defmap_dom. cbn -[PTree_Properties.of_list].
     apply in_map_iff. eexists (id, _). split; eauto.
-    apply in_app_iff. left.
-    apply in_map_iff. eexists (id, _). split; eauto.
+    apply PTree_Properties.in_of_list.
+    rewrite PTree_Properties.of_list_elements.
+    rewrite PTree.gcombine by reflexivity.
+    pose proof (ClightP.prog_norepet p) as HP.
+    apply list_norepet_app in HP as (HP1 & HP2 & HP).
+    erewrite PTree_Properties.of_list_norepet; eauto.
+    destruct ((prog_defmap (ClightP.program_of_program p)) ! id)
+      eqn: Hd.
+    - exfalso. eapply HP; eauto.
+      + apply in_map_iff. eexists (id, _). split; eauto.
+      + apply in_map_iff. eexists (id, _). split; eauto.
+        apply PTree_Properties.in_of_list.
+        apply Hd.
+    - reflexivity.
   }
   specialize (H _ _ Hg).
   destruct H as (? & ? & ?). eexists. apply H.
