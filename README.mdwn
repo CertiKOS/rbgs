@@ -42,16 +42,25 @@ Our constructions are mainly in the compcertox/ directory
   compcert/common/FlatComp.v
 ```
 
-* The development for state encapsulation
+* The development for state encapsulation and ClightP semantics
 ```
   compcertox/Encapsulation.v
+  compcertox/PEnv.v
+  compcertox/ClightP.v
+  compcertox/ClightPComp.v
+  compcertox/ClightPLink.v
 ```
 
-* The ring buffer and bounded example
+* The ring buffer and bounded queue example using CAL and CompCertOX (might be broken)
 ```
   compcertox/BQcode.v
   compcertox/RBspec.v
   compcertox/BQspec.v
   compcertox/BQspecx.v
   compcertox/BQrefine.v
+```
+
+* The ring buffer and bounded queue example using ClightP and encapsulation
+```
+  compcertox/Example.v
 ```
