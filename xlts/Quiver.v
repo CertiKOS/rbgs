@@ -8,12 +8,16 @@ Require Import Program.
 
 (** * Basic definitions *)
 
+(** ** Quivers *)
+
 (** In dependent type theory, quivers can be represented in unbundled
   form by giving itset of vertices as a type [V : Type] and its edges
   as a family [E : V -> V -> Type], where an edge from [u : V]
   to [v : V] is an element of the type [E u v]. *)
 
 Definition quiver (V : Type) := V -> V -> Type.
+
+(** ** Quiver homomorphisms *)
 
 (** Then a quiver homomorphism provides both a vertex map [f] as well
   as an edge map [F]. The expected structure preservation properties
@@ -22,18 +26,13 @@ Definition quiver (V : Type) := V -> V -> Type.
 Definition qmor {U V} (f : U -> V) (E : quiver U) (F : quiver V) :=
   forall u v, E u v -> F (f u) (f v).
 
+Definition qid {U} (E : quiver U) : qmor _ E E :=
+  fun u v x => x.
+
 Definition qcomp {U V W g f E F G} : @qmor V W g F G -> @qmor U V f E F -> qmor _ E G :=
   fun γ φ u v e => γ (f u) (f v) (φ u v e).
 
 Infix "@" := qcomp (at level 45, right associativity).
-
-(** The following special case takes [f] to be the identity on vertices. *)
-
-Definition qmap {U} (E F : quiver U) :=
-  forall u v, E u v -> F u v.
-
-Coercion qmap_qmor {U E F} (φ : qmap E F) : qmor (fun u:U => u) E F :=
-  φ.
 
 
 (** * Free category *)
@@ -139,7 +138,7 @@ Qed.
 (** The unit of the free category adjunction and of the associated
   monad is a natural transformation [η : 1 -> UF : Quiv -> Quiv]. *)
 
-Definition pret {U} {E : quiver U} : qmap E (path E) :=
+Definition pret {U} {E : quiver U} : qmor _ E (path E) :=
   fun u v e => [e]%path.
 
 Lemma pmap_pret {U V} (f : U -> V) {E F} (φ : qmor f E F) {u v} (e : E u v) :
@@ -153,7 +152,7 @@ Qed.
 (** The multiplication is a natural transformation
   [μ : UFUF -> UF : Quiv -> Quiv] which flattens a path of paths. *)
 
-Definition pjoin {U} {E : quiver U} : qmap (path (path E)) (path E) :=
+Definition pjoin {U} {E : quiver U} : qmor _ (path (path E)) (path E) :=
   fix K {u v} x :=
     match x with
       | pnil => pnil
