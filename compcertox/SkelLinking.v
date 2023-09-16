@@ -225,7 +225,10 @@ Proof.
   - intros * Hx Hy Hz.
   eapply link_prog_inv in Hz as (H1 & H2 & H3).
   repeat apply conj.
-    + subst. cbn. apply Hx.
+    + subst z. cbn.
+      destruct Hx. inv H3.
+      * cbn. apply Hy.
+      * cbn. reflexivity.
     + subst. cbn.
       apply incl_app. apply Hx. apply Hy.
     + intros * X.
@@ -255,7 +258,9 @@ Proof.
     destruct Hx as (X1 & X2 & X3).
     destruct Hy as (Y1 & Y2 & Y3).
     repeat apply conj.
-    + cbn. congruence.
+    (* + cbn. congruence. *)
+    + cbn. clear - X1 Y1 Z1 C1.
+      inv X1; inv Y1; inv Z1; inv C1; cbn; try constructor; try congruence.
     + intros X HX. apply in_app.
       apply in_app in HX as [|]; [ left | right ]; eauto.
     + intros *. setoid_rewrite prog_defmap_elements. cbn. intros X.

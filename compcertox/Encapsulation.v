@@ -8,7 +8,7 @@ From compcert Require Import
      CategoricalComp.
 From compcertox Require Import
      TensorComp Lifting.
-From coqrel Require Import RelClasses.
+Require Import RelClasses.
 
 Set Asymmetric Patterns.
 Set Implicit Arguments.

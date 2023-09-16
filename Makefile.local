@@ -1,6 +1,5 @@
 pre-all::
 	+make -C coqrel
-	+make -C compcert depend
 	+make -C compcert driver/Compiler.vo
 
 clean::

@@ -7,7 +7,7 @@
 -R compcert/driver compcert.driver
 -R compcert/backend compcert.backend
 -R compcert/flocq Flocq
--R compcert/coqrel coqrel
+-R coqrel coqrel
 -R compcertox compcertox
 
 # CompCertOX formalization
@@ -17,13 +17,6 @@ compcertox/CModule.v
 compcertox/TensorComp.v
 compcertox/SkelLinking.v
 compcertox/Composition.v
-
-# Ring buffer example in CompCertOX style
-compcertox/BQcode.v
-compcertox/RBspec.v
-compcertox/BQspec.v
-compcertox/BQspecx.v
-compcertox/BQrefine.v
 
 # ClightP and state encapsulation formalization
 compcertox/PEnv.v
