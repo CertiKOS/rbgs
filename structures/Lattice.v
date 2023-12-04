@@ -1,4 +1,4 @@
-Require Export structures.Poset.
+From structures Require Export Poset.
 Require Import Coq.Logic.Classical.
 Require Import Coq.Logic.ChoiceFacts.
 

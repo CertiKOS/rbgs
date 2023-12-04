@@ -2,9 +2,8 @@ Require Import Classical.
 Require Import ClassicalChoice.
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
-Require Import coqrel.LogicalRelations.
-Require Import structures.Lattice.
-Require Import structures.Completion.
+From coqrel Require Import LogicalRelations.
+From structures Require Import Lattice Completion.
 Require Import Coq.Logic.Classical.
 Require Import Coq.Logic.ChoiceFacts.
 
@@ -203,7 +202,8 @@ Module Downset : SupCompletion.
       emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
       cbn. firstorder.
-      etransitivity; eauto.
+      - apply H. reflexivity.
+      - etransitivity; eauto.
     Qed.
 
     Lemma emb_join_dense :

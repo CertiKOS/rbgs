@@ -1,5 +1,5 @@
-Require Import coqrel.LogicalRelations.
-Require Import structures.Lattice.
+From coqrel Require Import LogicalRelations.
+From structures Require Import Lattice.
 Require Import Coq.Program.Basics.
 
 (** We construct various kinds of strategy models by defining the
@@ -126,9 +126,9 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
     apply LC.mor_ref. apply CS.ext_mor.
   Qed.
 
-  Global Instance emb_params : Params (@CS.emb) 1.
-  Global Instance ext_params : Params (@CS.ext) 1.
-  Global Instance map_params : Params (@map) 1.
+  Global Instance emb_params : Params (@CS.emb) 1. Defined.
+  Global Instance ext_params : Params (@CS.ext) 1. Defined.
+  Global Instance map_params : Params (@map) 1. Defined.
 
 End LatticeCompletionDefs.
 

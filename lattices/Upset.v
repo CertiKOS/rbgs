@@ -1,8 +1,7 @@
 Require Import FunctionalExtensionality.
-Require Import coqrel.LogicalRelations.
-Require Import structures.Lattice.
-Require Import structures.Completion.
-Require Import lattices.Downset.
+From coqrel Require Import LogicalRelations.
+From structures Require Import Lattice Completion.
+From lattices Require Import Downset.
 
 
 (** * Interface *)

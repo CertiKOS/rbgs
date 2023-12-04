@@ -1,5 +1,5 @@
-Require Import coqrel.LogicalRelations.
-Require Import structures.Lattice.
+From coqrel Require Import LogicalRelations.
+From structures Require Import Lattice.
 
 Class CDMonad (M : Type -> cdlattice) :=
   {

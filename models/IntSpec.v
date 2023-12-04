@@ -1,16 +1,16 @@
 Require Import FunctionalExtensionality.
 Require Import Classical.
-Require Import coqrel.LogicalRelations.
-Require Import coqrel.OptionRel.
-Require Import structures.Poset.
-Require Import structures.Lattice.
-Require Import structures.Effects.
-Require Import structures.Monad.
-Require Import lattices.Downset.
-Require Import lattices.Upset.
-Require Import lattices.FCD.
-Require Import lattices.LatticeProduct.
-
+From coqrel Require Import LogicalRelations OptionRel.
+From structures Require Import
+  Poset
+  Lattice
+  Effects
+  Monad.
+From lattices Require Import
+  Downset
+  Upset
+  FCD
+  LatticeProduct.
 Require Import Coq.Logic.ChoiceFacts.
 Require Import Coq.Logic.ClassicalChoice.
 
@@ -251,6 +251,7 @@ Module ISpec.
 
   Instance bind_mor_params :
     Params (@bind) 1.
+  Defined.
 
   Instance pcons_mor {E A B} (m: E A) (n: A):
     PosetMorphism (fun s : play E B => FCD.emb (pcons m n s)).
@@ -421,6 +422,7 @@ Module ISpec.
 
   Instance apply_mor_params :
     Params (@apply) 1.
+  Defined.
 
   Definition compose {E F G} (g : subst F G) (f : subst E F) : subst E G :=
     fun ar m => apply f (g ar m).
