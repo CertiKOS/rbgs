@@ -90,7 +90,7 @@ Infix "*" := qprod : quiv_scope.
   between them can be represented as Kleisli morphisms for the quiver
   monad [UF : Quiv -> Quiv] defined below.
 
-  This is invaluable because it allows us to do away entirely with the
+  This is invaluable because it allows us to largely do away with the
   abstract notions of categories and functors. Instead we can work at
   the level of quiver and quiver homomorphisms, using the simple and
   type-friendly representations above, and only need to define the
@@ -145,7 +145,7 @@ Qed.
 
 Infix "++" := papp : path_scope.
 
-(** ** Monadic structure *)
+(** ** Adjunction properties *)
 
 (** *** Functoriality *)
 
@@ -187,109 +187,184 @@ Proof.
   reflexivity.
 Qed.
 
-(** *** Multiplication *)
+(** *** General categories *)
 
-(** The multiplication is a natural transformation
-  [μ : UFUF -> UF : Quiv -> Quiv] which flattens a path of paths. *)
+(** As discussed above, the target categories we consider when using
+  the properties of the left adjoint [path] will largely be concrete
+  freely generated categories of the form [path E] themselves, so in
+  most cases we will only care about the way the adjunction flattens
+  into a monad in Quiv. However in some cases we will also need to
+  consider more general products of the form [path E1 * ... * path En].
 
-Definition pjoin {U} {E : quiver U} : qmor _ (path (path E)) (path E) :=
+  To make it possible to define the counit and the properties of the
+  adjunction so that they can be used for these more general targets,
+  we will use to following typeclasses. *)
+
+Class Category {U} (E : quiver U) :=
+  {
+    id (u : U) : E u u;
+    compose {u v w} : E u v -> E v w -> E u w;
+    compose_id_l {u v} (f : E u v) : compose (id u) f = f;
+    compose_id_r {u v} (f : E u v) : compose f (id v) = f;
+    compose_assoc {u v w z} f g h :
+      @compose u w z (@compose u v w f g) h =
+      @compose u v z f (@compose v w z g h);
+  }.
+
+Global Instance path_cat {V} (E : quiver V) : Category (path E) :=
+  {|
+    id := @pnil V E;
+    compose := @papp V E;
+    compose_id_l := @papp_pnil_l V E;
+    compose_id_r := @papp_pnil_r V E;
+    compose_assoc := @papp_assoc V E;
+  |}.
+
+Section QPROD_CAT.
+  Context {U V E F} `{CE : @Category U E} `{CF : @Category V F}.
+  Obligation Tactic := cbn; intros.
+
+  Program Instance qprod_cat : Category (qprod E F) :=
+    {|
+      id x := (id (fst x), id (snd x));
+      compose x y z f g := (compose (fst f) (fst g), compose (snd f) (snd g));
+    |}.
+  Next Obligation.
+    rewrite !compose_id_l, <- surjective_pairing.
+    reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite !compose_id_r, <- surjective_pairing.
+    reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite !compose_assoc.
+    reflexivity.
+  Qed.
+End QPROD_CAT.
+
+(** The general notion of a functor will be used
+  to express the naturality of the counit. *)
+
+Class Functor {U V E F} `{CE : Category U E} `{CF : Category V F} {f} (φ : qmor f E F) :=
+  {
+    fmap_id u :
+      φ u u (id u) = id (f u);
+    fmap_compose {u v w} (x : E u v) (y : E v w) :
+      φ u w (compose x y) = compose (φ u v x) (φ v w y);
+  }.
+
+Global Instance pmap_functor {U V E F f φ} :
+  Functor (@pmap U V E F f φ).
+Proof.
+  split; cbn.
+  - reflexivity.
+  - auto using pmap_papp.
+Qed.
+
+(** *** Counit *)
+
+(** The counit is a natural transformation [ϵ : FU -> 1 : Cat -> Cat]
+  which evaluates path in terms of an underlying category. *)
+
+Definition peval `{CE : Category} : qmor _ (path E) E :=
   fix K u v x :=
     match x with
-      | pnil => pnil
-      | pcons e y => papp e (K _ _ y)
+      | pnil => id _
+      | pcons e y => compose e (K _ _ y)
     end.
 
-Lemma pmap_pjoin {U V} (f : U -> V) {E F} (φ : qmor f E F) {u v} (x : path (path E) u v) :
-  pmap φ u v (pjoin u v x) = pjoin (f u) (f v) (pmap (pmap φ) u v x).
+(** The quiver homomorphism defined above is the underlying map of [ϵ].
+  The functoriality properties are as follows. *)
+
+Lemma peval_pnil `{CE : Category} (u : U) :
+  peval u u pnil = id u.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma peval_papp `{CE : Category} (u v w : U) (x : path E u v) (y : path E v w) :
+  peval u w (papp x y) = compose (peval u v x) (peval v w y).
+Proof.
+  induction x; cbn.
+  - rewrite compose_id_l.
+    reflexivity.
+  - rewrite IHx.
+    rewrite compose_assoc.
+    reflexivity.
+Qed.
+
+Instance peval_functor `{CE : Category} :
+  Functor peval.
+Proof.
+  split; cbn.
+  - apply peval_pnil.
+  - apply peval_papp.
+Qed.
+
+(** In addition, the naturality of [ϵ] can be stated as below. *)
+
+Lemma peval_pmap `{Functor} {u v} (x : path E u v) :
+  peval (f u) (f v) (pmap φ u v x) = φ u v (peval u v x).
 Proof.
   induction x; cbn; auto.
-  rewrite pmap_papp, IHx.
-  reflexivity.
+  - rewrite fmap_id. reflexivity.
+  - rewrite fmap_compose, IHx. reflexivity.
 Qed.
 
-(** Note that [μ] is obtained as [μ := UϵF] from the counit
-  [ϵ : FU -> 1 : Cat -> Cat] of the free category adjunction. This
-  means in particular that the component [μE : UFUF E -> UF E ∈ Quiv]
-  defined above is the residual quiver homomorphism of a functor
-  [ϵFE : FUF E -> F E ∈ Cat], which therefore satisfies the following
-  properties. *)
+(** The zig-zag laws below which relate the unit and counit
+  establish the adjunction. *)
 
-Lemma pjoin_pnil {U E u} :
-  @pjoin U E u u pnil = pnil.
+Lemma peval_pret_l `{Category} {u v} (x : E u v) :
+  peval u v (pret u v x) = x.
 Proof.
-  reflexivity.
+  cbn. apply compose_id_r.
 Qed.
 
-Lemma pjoin_papp {U E u v w} x y :
-  @pjoin U E u w (x ++ y)%path = (pjoin u v x ++ pjoin v w y)%path.
-Proof.
-  induction x; cbn; auto.
-  rewrite papp_assoc, IHx.
-  reflexivity.
-Qed.
-
-(** *** Coherence conditions *)
-
-Lemma pjoin_pret_l {V E u v} (x : @path V E u v) :
-  pjoin u v (pret u v x) = x.
-Proof.
-  induction x; cbn; auto.
-  rewrite papp_pnil_r.
-  reflexivity.
-Qed.
-
-Lemma pjoin_pret_r {V E u v} (x : @path V E u v) :
-  pjoin u v (pmap pret u v x) = x.
+Lemma peval_pret_r {V E u v} (x : @path V E u v) :
+  peval u v (pmap pret u v x) = x.
 Proof.
   induction x; cbn; congruence.
 Qed.
 
-Lemma pjoin_assoc {V E u v} (x : path (path (@path V E)) u v) :
-  pjoin u v (pmap pjoin u v x) = pjoin u v (pjoin u v x).
-Proof.
-  induction x; cbn; auto.
-  rewrite pjoin_papp, IHx.
-  reflexivity.
-Qed.
+(** *** Universal property of the unit *)
 
-(** *** Kleisli extension *)
-
-Definition pbind {U V E F} {f : U -> V} (φ : qmor f E (path F)) : qmor f (path E) (path F) :=
-  fun u v x => pjoin (f u) (f v) (pmap φ u v x).
+Definition pext {U V E F} `{CF: Category V F} {f: U -> V}: qmor f E F -> qmor f (path E) F :=
+  fun φ u v x => peval (f u) (f v) (pmap φ u v x).
 
 (** Once again the quiver morphism above is actually of the form [Uφ†],
   where [φ† : FX -> FY ∈ Cat] is a functor between path categories. *)
 
-Lemma pbind_pnil {U V E F f φ u} :
-  @pbind U V E F f φ u u pnil = pnil.
+Lemma pext_pnil {U V E F CF f φ u} :
+  @pext U V E F CF f φ u u pnil = id (f u).
 Proof.
   reflexivity.
 Qed.
 
-Lemma pbind_papp {U V E F f φ u v w} x y :
-  @pbind U V E F f φ u w (x ++ y)%path = (pbind φ u v x ++ pbind φ v w y)%path.
+Lemma pext_papp {U V E F CF f φ u v w} x y :
+  @pext U V E F CF f φ u w (x ++ y)%path = compose (pext φ u v x) (pext φ v w y).
 Proof.
-  unfold pbind.
-  rewrite pmap_papp, pjoin_papp.
+  unfold pext.
+  rewrite pmap_papp, peval_papp.
   reflexivity.
 Qed.
 
 (** In fact, [φ†] is the morphism associated to [φ] by the universal
   property of the adjunction's unit [ηX : X -> UFX ∈ Quiv]. *)
 
-Lemma pbind_pret_r {U V E F f φ u v e} :
-  @pbind U V E F f φ u v (pret u v e) = φ u v e.
+Lemma pext_pret_r {U V E F CF f φ u v e} :
+  @pext U V E F CF f φ u v (pret u v e) = φ u v e.
 Proof.
-  unfold pbind.
-  rewrite pmap_pret, pjoin_pret_l.
+  unfold pext.
+  rewrite pmap_pret, peval_pret_l.
   reflexivity.
 Qed.
 
-Lemma pbind_uniq {U V E F} {f : U -> V} (φ : qmor f E (path F)) (γ : qmor f (path E) (path F)) :
-  (forall u, γ u u pnil = pnil) ->
-  (forall u v w x y, γ u w (x ++ y) = γ u v x ++ γ v w y)%path ->
+Lemma pext_uniq {U V E F} `{CF: Category V F} {f: U -> V} (φ: qmor f E F) (γ: qmor f (path E) F):
+  (forall u, γ u u pnil = id (f u)) ->
+  (forall u v w x y, γ u w (x ++ y)%path = compose (γ u v x) (γ v w y)) ->
   (forall u v e, γ u v (pret u v e) = φ u v e) ->
-  (forall u v x, γ u v x = pbind φ u v x).
+  (forall u v x, γ u v x = pext φ u v x).
 Proof.
   intros γ_pnil γ_papp H u v x.
   induction x; cbn; auto.
@@ -300,21 +375,104 @@ Qed.
 
 (** From there we can derive the remaining Haskell-style properties. *)
 
+Lemma pext_pret_l {U} {E : quiver U} {u v} (x : path E u v) :
+  pext pret u v x = x.
+Proof.
+  symmetry.
+  apply (pext_uniq pret (fun u v e => e)); auto.
+Qed.
+
+Lemma pext_pext {U V W E F G CG} {f φ g γ} u v x :
+  @pext V W F G CG g γ (f u) (f v) (@pext U V E (path F) _ f φ u v x) =
+  pext (fun u v x => pext γ (f u) (f v) (φ u v x)) u v x.
+Proof.
+  apply (pext_uniq _ (fun u v x => pext γ (f u) (f v) (pext φ u v x))); intros.
+  - rewrite !pext_pnil; auto.
+  - rewrite !pext_papp. cbn [compose path_cat].
+    rewrite !pext_papp. auto.
+  - rewrite !pext_pret_r; auto.
+Qed.
+
+(** *** Monad *)
+
+(** Note that the monad multiplication [μ : UFUF -> UF : Quiv -> Quiv]
+  can be obtained as [μ := UϵF] from the counit [ϵ : FU -> 1 : Cat -> Cat].
+  In this case we will use the following notations and specialized properties. *)
+
+Notation pjoin := (peval (CE := path_cat _)).
+Notation pbind := (pext (CF := path_cat _)).
+
+Lemma pmap_pjoin {U V} (f : U -> V) {E F} (φ : qmor f E F) {u v} (x : path (path E) u v) :
+  pmap φ u v (pjoin u v x) = pjoin (f u) (f v) (pmap (pmap φ) u v x).
+Proof.
+  rewrite peval_pmap.
+  reflexivity.
+Qed.
+
+Lemma pjoin_pnil {U E u} :
+  pjoin u u pnil = @pnil U E u.
+Proof.
+  rewrite peval_pnil.
+  reflexivity.
+Qed.
+
+Lemma pjoin_papp {U E u v w} (x y : path (@path U E) _ _) :
+  pjoin u w (x ++ y)%path = (pjoin u v x ++ pjoin v w y)%path.
+Proof.
+  rewrite peval_papp.
+  reflexivity.
+Qed.
+
+Lemma pjoin_pret_l {V E u v} (x : @path V E u v) :
+  pjoin u v (pret u v x) = x.
+Proof.
+  apply peval_pret_l.
+Qed.
+
+Lemma pjoin_pret_r {V E u v} (x : @path V E u v) :
+  pjoin u v (pmap pret u v x) = x.
+Proof.
+  apply peval_pret_r.
+Qed.
+
+Lemma pjoin_assoc {V E u v} (x : path (path (@path V E)) u v) :
+  pjoin u v (pmap pjoin u v x) = pjoin u v (pjoin u v x).
+Proof.
+  rewrite (peval_pmap (f := fun x => x)).
+  reflexivity.
+Qed.
+
+Lemma pbind_pnil {U V E F f φ u} :
+  pbind φ u u (@pnil U E u) = (@pnil V F (f u)).
+Proof.
+  rewrite pext_pnil.
+  reflexivity.
+Qed.
+
+Lemma pbind_papp {U V E F} {f : U -> V} {φ : qmor f E (path F)} {u v w} x y :
+  pbind φ u w (x ++ y)%path = (pbind φ u v x ++ pbind φ v w y)%path.
+Proof.
+  rewrite pext_papp.
+  reflexivity.
+Qed.
+
+Lemma pbind_pret_r {U V E F} {f : U -> V} {φ : qmor f E (path F)} {u v e} :
+  pbind φ u v (pret u v e) = φ u v e.
+Proof.
+  apply pext_pret_r.
+Qed.
+
 Lemma pbind_pret_l {U} {E : quiver U} {u v} (x : path E u v) :
   pbind pret u v x = x.
 Proof.
-  symmetry.
-  apply (pbind_uniq pret (fun u v e => e)); auto.
+  apply pext_pret_l.
 Qed.
 
-Lemma pbind_pbind {U V W E F G f φ g γ} u v x :
-  @pbind V W F G g γ (f u) (f v) (@pbind U V E F f φ u v x) =
+Lemma pbind_pbind {U V W E F G} {f: U -> V} {φ: qmor f E (path F)} {g: V -> W} {γ: qmor g F (path G)} u v x:
+  pbind γ (f u) (f v) (pbind φ u v x) =
   pbind (fun u v x => pbind γ (f u) (f v) (φ u v x)) u v x.
 Proof.
-  apply (pbind_uniq _ (fun u v x => pbind γ (f u) (f v) (pbind φ u v x))); intros.
-  - rewrite !pbind_pnil; auto.
-  - rewrite !pbind_papp; auto.
-  - rewrite !pbind_pret_r; auto.
+  apply pext_pext.
 Qed.
 
 
@@ -343,7 +501,7 @@ Definition qqmor {U V} (f : U -> V) {E F} (φ : qmor f E F) :=
 (** The identities and composite morphisms can be defined as follows,
   and satisfy the expected categorical properties. *)
 
-Definition qqid {V E P} {M : @qquiv V E P} : qqmor id qid (fun _ => id) M M :=
+Definition qqid {V E P} {M : @qquiv V E P} : qqmor _ qid _ M M :=
   fun u v e p q m => m.
 
 Definition qqcomp {U V W g f E F G γ φ P Q R ρ π L M N} :
@@ -422,7 +580,7 @@ Section QP.
 
   Context {Q X} {π : forall u, Q u -> P (f u)} (ξ : qqmor f φ π X M).
 
-  Definition qpu : qqmor id qid π X qp :=
+  Definition qpu : qqmor _ qid π X qp :=
     fun u v e p q m => ξ u v e p q m.
 
   Lemma qpu_spec :
@@ -448,7 +606,7 @@ Section QF.
   Definition qfup : forall v, qfp v -> Q v :=
     fun _ '(qfpm u p) => π u p.
 
-  Definition qfu : qqmor id qid qfup qf X :=
+  Definition qfu : qqmor _ qid qfup qf X :=
     fun _ _ _ _ _ '(qfm u v e p q m) => ξ u v e p q m.
 
   Lemma qfu_spec :
