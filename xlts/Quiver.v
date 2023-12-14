@@ -26,13 +26,52 @@ Definition quiver (V : Type) := V -> V -> Type.
 Definition qmor {U V} (f : U -> V) (E : quiver U) (F : quiver V) :=
   forall u v, E u v -> F (f u) (f v).
 
-Definition qid {U} (E : quiver U) : qmor _ E E :=
+(** ** Compositional structure *)
+
+Definition qid {U} {E : quiver U} : qmor _ E E :=
   fun u v x => x.
 
 Definition qcomp {U V W g f E F G} : @qmor V W g F G -> @qmor U V f E F -> qmor _ E G :=
   fun γ φ u v e => γ (f u) (f v) (φ u v e).
 
 Infix "@" := qcomp (at level 45, right associativity).
+
+(** Proving that quivers and quiver homomorphisms for a category is
+  completely straightforward as everything is basically convertible. *)
+
+Lemma qcomp_qid_l {U V f E F} (φ : @qmor U V f E F) :
+  qid @ φ = φ.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma qcomp_qid_r {U V f E F} (φ : @qmor U V f E F) :
+  φ @ qid = φ.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma qcomp_assoc {U V W X f g h E F G H} :
+  forall (ψ : @qmor W X h G H) (γ : @qmor V W g F G) (φ : @qmor U V f E F),
+    (ψ @ γ) @ φ = ψ @ γ @ φ.
+Proof.
+  reflexivity.
+Qed.
+
+(** ** Products *)
+
+Definition qprod {U V} (E : quiver U) (F : quiver V) : quiver (U * V) :=
+  fun u v => (E (fst u) (fst v) * F (snd u) (snd v))%type.
+
+Definition qfst {U V E F} : qmor fst (@qprod U V E F) E :=
+  fun u v x => fst x.
+
+Definition qsnd {U V E F} : qmor snd (@qprod U V E F) F :=
+  fun u v x => snd x.
+
+Delimit Scope quiv_scope with quiv.
+Bind Scope quiv_scope with quiver.
+Infix "*" := qprod : quiv_scope.
 
 
 (** * Free category *)
@@ -71,7 +110,8 @@ Arguments pcons {V T u v w} e x.
 Delimit Scope path_scope with path.
 Bind Scope path_scope with path.
 Notation "[ ]" := pnil : path_scope.
-Notation "[ x , .. , y ]" := (pcons x .. (pcons y pnil) .. ) : path_scope.
+Infix "::" := pcons : path_scope.
+Notation "[ x , .. , y ]" := (x :: .. (y :: []) .. )%path : path_scope.
 
 (** ** Compositional structure *)
 
@@ -113,10 +153,10 @@ Infix "++" := papp : path_scope.
   [UF : Quiv -> Quiv]. The morphism part is as follows. *)
 
 Definition pmap {U V E F} {f : U -> V} (φ : qmor f E F) : qmor f (path E) (path F) :=
-  fix K {u v} x :=
+  fix K u v x :=
     match x with
       | pnil => pnil
-      | pcons e y => pcons (φ _ _ e) (K y)
+      | pcons e y => pcons (φ _ _ e) (K _ _ y)
     end.
 
 Lemma pmap_pnil {U V E F} {f : U -> V} (φ : qmor f E F) {u} :
@@ -153,10 +193,10 @@ Qed.
   [μ : UFUF -> UF : Quiv -> Quiv] which flattens a path of paths. *)
 
 Definition pjoin {U} {E : quiver U} : qmor _ (path (path E)) (path E) :=
-  fix K {u v} x :=
+  fix K u v x :=
     match x with
       | pnil => pnil
-      | pcons e y => papp e (K y)
+      | pcons e y => papp e (K _ _ y)
     end.
 
 Lemma pmap_pjoin {U V} (f : U -> V) {E F} (φ : qmor f E F) {u v} (x : path (path E) u v) :
@@ -276,3 +316,144 @@ Proof.
   - rewrite !pbind_papp; auto.
   - rewrite !pbind_pret_r; auto.
 Qed.
+
+
+(** * Indexed quivers *)
+
+(** ** Definitions *)
+
+(** Sometimes we will consider a fibration-like quiver (P, M) whose
+  vertices and edges are indexed by the vertices and edges of some
+  base quiver (V, E). Using dependent types, we can represent a quiver
+  of this kind very natually in the following, unbundled form. *)
+
+Definition qquiv {V} (E : quiver V) (P : V -> Type) :=
+  forall u v, E u v -> P u -> P v -> Type.
+
+(** In the most general form, homomorphisms between indexed quivers
+  sit above a homomorphism between the base quivers. *)
+
+Definition qqmor {U V} (f : U -> V) {E F} (φ : qmor f E F) :=
+  fun {P Q} (π : forall u, P u -> Q (f u)) (M : qquiv E P) (N : qquiv F Q) =>
+    forall (u v : U) (e : E u v) (p : P u) (q : P v),
+      M u v e p q -> N (f u) (f v) (φ u v e) (π u p) (π v q).
+
+(** ** Compositional structure *)
+
+(** The identities and composite morphisms can be defined as follows,
+  and satisfy the expected categorical properties. *)
+
+Definition qqid {V E P} {M : @qquiv V E P} : qqmor id qid (fun _ => id) M M :=
+  fun u v e p q m => m.
+
+Definition qqcomp {U V W g f E F G γ φ P Q R ρ π L M N} :
+    @qqmor V W g F G γ Q R ρ M N ->
+    @qqmor U V f E F φ P Q π L M ->
+    qqmor (fun u => g (f u)) (qcomp γ φ) (fun u p => ρ (f u) (π u p)) L N
+  :=
+    fun η μ u v e p q m =>
+      η (f u) (f v) (φ u v e) (π u p) (π v q) (μ u v e p q m).
+
+Infix "@@" := qqcomp (at level 45, right associativity).
+
+Lemma qqcomp_qqid_l {U V f E F φ P Q π M N} (μ : @qqmor U V f E F φ P Q π M N) :
+  qqid @@ μ = μ.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma qqcomp_qqid_r {U V f E F φ P Q π M N} (μ : @qqmor U V f E F φ P Q π M N) :
+  μ @@ qqid = μ.
+Proof.
+  reflexivity.
+Qed.
+
+(* qqcomp_assoc *)
+
+(** ** Total space *)
+
+(** Flattened quivers and projection functor *)
+
+Section TS.
+  Context {V E P} (M : @qquiv V E P).
+
+  Inductive qts : quiver (sigT P) :=
+    | qti {u v e p q} : M u v e p q -> qts (existT P u p) (existT P v q).
+
+  Definition qtp : qmor (@projT1 V P) qts E :=
+    fun _ _ '(@qti u v e p q m) => e.
+End TS.
+
+(** Morphisms between flattened quivers *)
+
+Section TSM.
+  Context {U V f E F φ P Q π M N} (μ : @qqmor U V f E F φ P Q π M N).
+
+  Definition qtf : sigT P -> sigT Q :=
+    fun '(existT _ u p) => existT _ (f u) (π u p).
+
+  Definition qtm : qmor qtf (qts M) (qts N) :=
+    fun _ _ '(@qti _ _ _ _ u v e p q m) => qti N (μ u v e p q m).
+End TSM.
+
+(** ** Given by a functor *)
+
+Section QQF.
+  Context {U I f E B} (p : @qmor U I f E B).
+
+  Inductive qqp : I -> Type :=
+    | qqpi u : qqp (f u).
+
+  Inductive qq : qquiv B qqp :=
+    | qqi {u v} (e : E u v) : qq (f u) (f v) (p u v e) (qqpi u) (qqpi v).
+
+End QQF.
+
+(** ** Pullback *)
+
+Section QP.
+  Context {U V f E F P} (φ : @qmor U V f E F) (M : qquiv F P).
+
+  Definition qp : qquiv E (P ∘ f) :=
+    fun u v e p q => M (f u) (f v) (φ u v e) p q.
+
+  Definition qpm : qqmor f φ (fun u (p : (P∘f) u) => p) qp M :=
+    qqid.
+
+  Context {Q X} {π : forall u, Q u -> P (f u)} (ξ : qqmor f φ π X M).
+
+  Definition qpu : qqmor id qid π X qp :=
+    fun u v e p q m => ξ u v e p q m.
+
+  Lemma qpu_spec :
+    qpm @@ ξ = qpu.
+  Proof.
+    reflexivity.
+  Qed.
+End QP.
+
+(** ** Lifting *)
+
+Section QF.
+  Context {U V f E F P} (φ : @qmor U V f E F) (M : qquiv E P).
+
+  Variant qfp : V -> Type :=
+    | qfpm : forall u, P u -> qfp (f u).
+
+  Variant qf : qquiv F qfp :=
+    | qfm : qqmor f φ qfpm M qf.
+
+  Context {Q X} {π : forall u, P u -> Q (f u)} (ξ : qqmor f φ π M X).
+
+  Definition qfup : forall v, qfp v -> Q v :=
+    fun _ '(qfpm u p) => π u p.
+
+  Definition qfu : qqmor id qid qfup qf X :=
+    fun _ _ _ _ _ '(qfm u v e p q m) => ξ u v e p q m.
+
+  Lemma qfu_spec :
+    qfu @@ qfm = ξ.
+  Proof.
+    reflexivity.
+  Qed.
+End QF.
