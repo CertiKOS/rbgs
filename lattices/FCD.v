@@ -177,6 +177,45 @@ Module FCD : FCDSpec.
 
 End FCD.
 
+Lemma theorem_5_2_1 {C: poset} (t: FCD.F C):
+  t = sup I, sup { c | inf (i: I), FCD.emb (c i) [= t }, inf i, FCD.emb (c i).
+Proof.
+  edestruct (FCD.join_meet_dense t) as (I' & J & x & Ht).
+  rewrite Ht. apply antisymmetry.
+  - apply sup_iff. intros i'.
+    apply (sup_at {i: unit & J i'}).
+    eapply (fsup_at (fun '(existT _ i j) => x i' j)).
+    + apply (sup_at i').
+      apply inf_iff. intros j.
+      apply (inf_at (existT _ tt j)).
+      reflexivity.
+    + apply inf_iff. intros (? & j).
+      apply (inf_at j). reflexivity.
+  - apply sup_iff. intros I.
+    apply sup_iff. intros (c & Hc). apply Hc.
+Qed.
+
+Lemma theorem_5_2_2 {C: poset} (t: FCD.F C):
+  t = inf I, inf { c | t [= sup (i: I), FCD.emb (c i) }, sup i, FCD.emb (c i).
+Admitted.
+
+Lemma theorem_5_3_1 {C: poset} {t u: FCD.F C}:
+  t [= u <-> forall { I } (c: I -> C), inf i , FCD.emb (c i) [= t -> inf i, FCD.emb (c i) [= u.
+Proof.
+  split; intros.
+  - etransitivity; eauto.
+  - rewrite (theorem_5_2_1 t).
+    rewrite (theorem_5_2_1 u).
+    apply sup_iff. intros I. apply (sup_at I).
+    apply sup_iff. intros (c & Hc). cbn.
+    eapply (fsup_at c); eauto. reflexivity.
+Qed.
+
+Lemma theorem_5_3_2 {C: poset} {t u: FCD.F C}:
+  t [= u <-> forall { I } (c: I -> C), u [= sup i, FCD.emb (c i) -> t [= sup i, FCD.emb (c i).
+Proof.
+Admitted.
+
 Lemma ext_join {C: poset} {L: cdlattice} (f : C -> L) p a `(!PosetMorphism f):
   a || FCD.ext (fun x => a || (f x)) p = a || FCD.ext f p.
 Proof.
