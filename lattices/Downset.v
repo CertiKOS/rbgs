@@ -235,7 +235,7 @@ Module Downset : SupCompletion.
     Definition ext (f : C -> L) (x : F) : L :=
       sup {c : C | emb c [= x}, f c.
 
-    Context {f : C -> L} `{Hf : !PosetMorphism f}.
+    Context {f : C -> L}.
 
     Instance ext_mor :
       Sup.Morphism (ext f).
@@ -252,6 +252,8 @@ Module Downset : SupCompletion.
         apply fsup_lub. intros c Hc.
         apply (fsup_ub c). eauto using @sup_at.
     Qed.
+
+    Context `{Hf : !PosetMorphism f}.
 
     Lemma ext_ana :
       (forall x, ext f (emb x) = f x).
