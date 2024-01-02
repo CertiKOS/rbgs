@@ -24,10 +24,6 @@ Lemma finf_mor {L M: cdlattice} {f: L -> M} `{Inf.Morphism _ _ f}:
   forall {I} (P : I -> Prop) (M: I -> L), f (inf {x | P x}, M x) = inf {x | P x}, f (M x).
 Proof. intros. unfold finf. eapply Inf.mor. Qed.
 
-Lemma sup_fsup {L: cdlattice} {I J: Type} (P: J -> Prop) (c: I -> J -> L):
-  sup i, sup {j | P j}, c i j = sup {j | P j}, sup i, c i j.
-Proof. unfold fsup. apply sup_sup. Qed.
-
 Ltac sup_mor :=
   rewrite !Sup.mor || rewrite !fsup_mor || rewrite !Sup.mor_join || rewrite Sup.mor_bot ||
   setoid_rewrite Sup.mor || setoid_rewrite fsup_mor || setoid_rewrite Sup.mor_join.

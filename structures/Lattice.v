@@ -460,6 +460,24 @@ Proof with reflexivity.
     apply (sup_at i). apply (sup_at j)...
 Qed.
 
+Lemma sup_fsup {L: cdlattice} {I J: Type} (P: J -> Prop) (c: I -> J -> L):
+  sup i, sup {j | P j}, c i j = sup {j | P j}, sup i, c i j.
+Proof. unfold fsup. apply sup_sup. Qed.
+
+Lemma inf_inf {L: cdlattice} {I J: Type} (c: I -> J -> L):
+  inf i, inf j, c i j = inf j, inf i, c i j.
+Proof with reflexivity.
+  apply antisymmetry.
+  - apply inf_iff. intros i. apply inf_iff. intros j.
+    apply (inf_at j). apply (inf_at i)...
+  - apply inf_iff. intros j. apply inf_iff. intros i.
+    apply (inf_at i). apply (inf_at j)...
+Qed.
+
+Lemma inf_finf {L: cdlattice} {I J: Type} (P: J -> Prop) (c: I -> J -> L):
+  inf i, inf {j | P j}, c i j = inf {j | P j}, inf i, c i j.
+Proof. unfold finf. apply inf_inf. Qed.
+
 Require Import FunctionalExtensionality.
 
 Definition c {L: cdlattice} {I: Type} (x: L) (y: I -> L): forall (b: bool), (if b return Type then unit else I) -> L.
