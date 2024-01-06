@@ -140,7 +140,6 @@ Module M.
   Lemma compose_int_l {E F} (s: subst E F):
     eq_ (compose (@Int F) s) s.
   Proof. unfold compose. intros A m; reflexivity. Qed.
-
   Lemma compose_int_r {E F} (s: subst E F):
     eq_ (compose s (@Int E)) s.
   Proof.
@@ -149,6 +148,28 @@ Module M.
     - setoid_rewrite H. reflexivity.
     - setoid_rewrite H. reflexivity.
     - rewrite IHx. setoid_rewrite H. reflexivity.
+  Qed.
+  Lemma apply_assoc {E F G} (s: subst G F) (t: subst F E) {A} (x: @M.t _ A):
+    eq (apply s (apply t x)) (apply (compose t s) x).
+  Proof.
+    induction x; cbn; try reflexivity; unfold eq; cbn.
+    - f_equal. extensionality i. apply H.
+    - f_equal. extensionality i. apply H.
+    - rewrite IHx. f_equal. extensionality i. apply H.
+  Qed.
+
+  Lemma compose_unit_l {E F} (s: subst E F):
+    eq_ (compose identity s) s.
+  Proof. apply compose_int_l. Qed.
+  Lemma compose_unit_r {E F} (s: subst E F):
+    eq_ (compose s identity) s.
+  Proof. apply compose_int_r. Qed.
+  Lemma compose_assoc {E F G H} (s: subst G H) (t: subst F G) (u: subst E F):
+    eq_ (compose (compose s t) u) (compose s (compose t u)).
+  Proof.
+    cbn. intros A m. unfold compose.
+    generalize (s A m) as x. clear m. intros x.
+    apply apply_assoc.
   Qed.
 
   Definition fsup {E A} {I} (P : I -> Prop) (f : I -> t E A) :=
