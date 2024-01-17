@@ -41,10 +41,10 @@ Lemma fsup_iff {L: cdlattice} {I} (P: I -> Prop) (M: I -> L) x:
 Proof. unfold fsup. apply sup_iff. Qed.
 
 Tactic Notation "inf_intro" simple_intropattern(p) :=
-  inf_mor; (apply finf_iff || apply inf_iff) ; intros p; cbn.
+  repeat inf_mor; (apply finf_iff || apply inf_iff) ; intros p; cbn.
 
 Tactic Notation "sup_intro" simple_intropattern(p) :=
-  sup_mor; (apply fsup_iff || apply sup_iff) ; intros p; cbn.
+  repeat sup_mor; (apply fsup_iff || apply sup_iff) ; intros p; cbn.
 
 Ltac clear_hyp :=
   repeat match goal with
@@ -53,15 +53,13 @@ Ltac clear_hyp :=
 
 Module M.
 
-  Inductive t (E: esig) : Type -> Type :=
-    | Sup {I A}: (I -> t E A) -> t E A
-    | Inf {I A}: (I -> t E A) -> t E A
-    | Int {A}: E A -> t E A
-    | Ret {A}: A -> t E A
-    | Bind {A B}: t E A -> (A -> t E B) -> t E B.
-  Arguments Sup {E I A} _.
-  Arguments Inf {E I A} _.
-  Arguments Int {E A} _.
+  Inductive t (E: esig) (A: Type) : Type :=
+    | Sup {I}: (I -> t E A) -> t E A
+    | Inf {I}: (I -> t E A) -> t E A
+    | Ret: A -> t E A
+    | Bind {B}: E B -> (B -> t E A) -> t E A.
+  Arguments Sup {E A I} _.
+  Arguments Inf {E A I} _.
   Arguments Ret {E A} _.
   Arguments Bind {E A B} _ _.
 
@@ -69,27 +67,51 @@ Module M.
     match m with
     | Sup f => sup i, exec (f i)
     | Inf f => inf i, exec (f i)
-    | Int m => ISpec.int m
     | Ret x => ret x
-    | Bind x k => ISpec.bind (fun v => exec (k v)) (exec x)
+    | Bind m k => ISpec.bind (fun v => exec (k v)) (ISpec.int m)
     end.
   Coercion exec0 {E A} := @exec E A.
 
   Definition subst (E F: esig) := forall A, F A -> @t E A.
   Coercion subst0 {E F} (s: subst E F): ISpec.subst E F := fun _ m => s _ m.
 
+  Inductive sim {E A}: t E A -> t E A -> Prop :=
+    | sim_sup_l {I} (f: I -> t E A) (g: t E A):
+        (forall i, sim (f i) g) -> sim (Sup f) g
+    | sim_sup_r {I} (f: I -> t E A) (g: t E A):
+        (exists i, sim g (f i)) -> sim g (Sup f)
+    | sim_inf_l {I} (f: I -> t E A) (g: t E A):
+        (exists i, sim (f i) g) -> sim (Inf f) g
+    | sim_inf_r {I} (f: I -> t E A) (g: t E A):
+        (forall i, sim g (f i)) -> sim g (Inf f)
+    | sim_ret (x: A):
+        sim (Ret x) (Ret x)
+    | sim_bind {B} (m1 m2: E B) (k1 k2: B -> t E A):
+        (forall v, sim (k1 v) (k2 v)) ->
+        sim (Bind m1 k1) (Bind m2 k2).
+  Definition sim_ {E F}: subst E F -> subst E F -> Prop :=
+    fun s1 s2 => forall A m, sim (s1 A m) (s2 A m).
+
   Definition ref {E A} (x y: t E A) := x [= y.
   Definition ref_ {E F} (x y: subst E F) := forall A m, (x A m) [= (y A m).
   Definition eq {E A} (x y: t E A) := exec x = exec y.
   Definition eq_ {E F} (x y: subst E F) := forall A m, exec (x A m) = exec (y A m).
 
-  Fixpoint apply {E F} (s: subst E F) {A} (x: @t F A): @t E A :=
+  (* smart constructor *)
+  Fixpoint bind {E A B} (x: t E A) (k: A -> t E B): t E B :=
+    match x with
+    | Sup f => Sup (fun i => bind (f i) k)
+    | Inf f => Inf (fun i => bind (f i) k)
+    | Ret v => k v
+    | Bind m k' => Bind m (fun v => bind (k' v) k)
+    end.
+
+  Fixpoint apply {E F A} (s: subst E F) (x: t F A): t E A :=
     match x with
     | Sup f => Sup (fun i => apply s (f i))
     | Inf f => Inf (fun i => apply s (f i))
-    | Int m => s _ m
     | Ret x => Ret x
-    | Bind x k => Bind (apply s x) (fun v => apply s (k v))
+    | Bind m k => bind (s _ m) (fun v => apply s (k v))
     end.
 
   Instance ref_preo {E A} : PreOrder (@ref E A).
@@ -125,52 +147,60 @@ Module M.
   Instance ref_po_ {E A} : Antisymmetric _ (@eq_ E A) (@ref_ E A).
   Proof. intros x y ? ? ? ?. apply antisymmetry; eauto. Qed.
 
-  Instance bind_proper_eq {E A B}:
-    Proper (eq ==> (pointwise_relation _ eq) ==> eq) (@Bind E A B).
-  Proof.
-    intros x1 x2 Hx k1 k2 Hk. unfold eq. cbn.
-    rewrite Hx. unfold pointwise_relation in Hk.
-    f_equal. extensionality v. apply Hk.
-  Qed.
+  (* Instance bind_proper_eq {E A B}: *)
+  (*   Proper (eq ==> (pointwise_relation _ eq) ==> eq) (@Bind E A B). *)
+  (* Proof. *)
+  (*   intros x1 x2 Hx k1 k2 Hk. unfold eq. cbn. *)
+  (*   rewrite Hx. unfold pointwise_relation in Hk. *)
+  (*   f_equal. extensionality v. apply Hk. *)
+  (* Qed. *)
+
+  (* Instance apply_proper {E F A}: *)
+  (*   Proper (ref_ ==> ref ==> ref) (@apply E F A). *)
+  (* Proof. *)
+  (*   intros s1 s2 Hs x1 x2 Hx. unfold ref in Hx. *)
+
+  (* Abort. *)
 
   Definition compose {E F G} (s: subst F G) (t: subst E F): subst E G :=
     fun A m => apply t (s A m).
-  Definition identity {E: esig}: subst E E := fun A m => Int m.
+  Definition identity {E: esig}: subst E E :=
+    fun A m => Bind m (fun v => Ret v).
 
-  Lemma compose_int_l {E F} (s: subst E F):
-    eq_ (compose (@Int F) s) s.
-  Proof. unfold compose. intros A m; reflexivity. Qed.
-  Lemma compose_int_r {E F} (s: subst E F):
-    eq_ (compose s (@Int E)) s.
-  Proof.
-    intros A m. unfold compose. generalize (s A m) as x. clear m.
-    induction x; cbn; try reflexivity.
-    - setoid_rewrite H. reflexivity.
-    - setoid_rewrite H. reflexivity.
-    - rewrite IHx. setoid_rewrite H. reflexivity.
-  Qed.
-  Lemma apply_assoc {E F G} (s: subst G F) (t: subst F E) {A} (x: @M.t _ A):
-    eq (apply s (apply t x)) (apply (compose t s) x).
-  Proof.
-    induction x; cbn; try reflexivity; unfold eq; cbn.
-    - f_equal. extensionality i. apply H.
-    - f_equal. extensionality i. apply H.
-    - rewrite IHx. f_equal. extensionality i. apply H.
-  Qed.
+  (* Lemma compose_int_l {E F} (s: subst E F): *)
+  (*   eq_ (compose (@Int F) s) s. *)
+  (* Proof. unfold compose. intros A m; reflexivity. Qed. *)
+  (* Lemma compose_int_r {E F} (s: subst E F): *)
+  (*   eq_ (compose s (@Int E)) s. *)
+  (* Proof. *)
+  (*   intros A m. unfold compose. generalize (s A m) as x. clear m. *)
+  (*   induction x; cbn; try reflexivity. *)
+  (*   - setoid_rewrite H. reflexivity. *)
+  (*   - setoid_rewrite H. reflexivity. *)
+  (*   - rewrite IHx. setoid_rewrite H. reflexivity. *)
+  (* Qed. *)
+  (* Lemma apply_assoc {E F G} (s: subst G F) (t: subst F E) {A} (x: @M.t _ A): *)
+  (*   eq (apply s (apply t x)) (apply (compose t s) x). *)
+  (* Proof. *)
+  (*   induction x; cbn; try reflexivity; unfold eq; cbn. *)
+  (*   - f_equal. extensionality i. apply H. *)
+  (*   - f_equal. extensionality i. apply H. *)
+  (*   - rewrite IHx. f_equal. extensionality i. apply H. *)
+  (* Qed. *)
 
-  Lemma compose_unit_l {E F} (s: subst E F):
-    eq_ (compose identity s) s.
-  Proof. apply compose_int_l. Qed.
-  Lemma compose_unit_r {E F} (s: subst E F):
-    eq_ (compose s identity) s.
-  Proof. apply compose_int_r. Qed.
-  Lemma compose_assoc {E F G H} (s: subst G H) (t: subst F G) (u: subst E F):
-    eq_ (compose (compose s t) u) (compose s (compose t u)).
-  Proof.
-    cbn. intros A m. unfold compose.
-    generalize (s A m) as x. clear m. intros x.
-    apply apply_assoc.
-  Qed.
+  (* Lemma compose_unit_l {E F} (s: subst E F): *)
+  (*   eq_ (compose identity s) s. *)
+  (* Proof. apply compose_int_l. Qed. *)
+  (* Lemma compose_unit_r {E F} (s: subst E F): *)
+  (*   eq_ (compose s identity) s. *)
+  (* Proof. apply compose_int_r. Qed. *)
+  (* Lemma compose_assoc {E F G H} (s: subst G H) (t: subst F G) (u: subst E F): *)
+  (*   eq_ (compose (compose s t) u) (compose s (compose t u)). *)
+  (* Proof. *)
+  (*   cbn. intros A m. unfold compose. *)
+  (*   generalize (s A m) as x. clear m. intros x. *)
+  (*   apply apply_assoc. *)
+  (* Qed. *)
 
   Definition fsup {E A} {I} (P : I -> Prop) (f : I -> t E A) :=
     Sup (I := sig P) (fun x => f (proj1_sig x)).
@@ -200,12 +230,12 @@ Notation "⊓ { x : A | P } , M" := (M.finf (fun x : A => P) (fun x : A => M))
 
 Notation "x ⊑ y" := (M.ref x%mspec y%mspec) (at level 70, no associativity, only printing).
 Notation "x ⊑ y" := (M.ref_ x%mspec y%mspec) (at level 70, no associativity).
-Notation "x ≡ y" := (M.eq x%mspec y%mspec) (at level 70, only printing) : mspec_scope.
-Notation "x ≡ y" := (M.eq_ x%mspec y%mspec) (at level 70) : mspec_scope.
+Notation "x ≡ y" := (M.eq x%mspec y%mspec) (at level 70, only printing).
+Notation "x ≡ y" := (M.eq_ x%mspec y%mspec) (at level 70).
 
 Infix "⤳" := M.subst (at level 99).
 Notation "x ≫= k" := (M.Bind x k) (at level 40, left associativity).
-Notation "v ← x ; M" := (M.Bind (fun v => M) x) (at level 65, right associativity).
+Notation "v ← x ; M" := (M.Bind x (fun v => M)) (at level 65, right associativity).
 Notation "x // f" := (M.apply f x) (at level 70).
 Infix "∘" := M.compose.
 
@@ -230,16 +260,24 @@ Infix "<~>" := poset_adjunction (at level 50).
 
 (** ** Composition and identity of adjunctions *)
 
-(* TODO:
+(* NOTE: composition does not hold *)
+
+Instance compose_proper {A B C}:
+  Proper (M.ref_ ==> M.ref_ ==> M.ref_) (@M.compose A B C).
+Proof.
+  intros s1 s2 Hs t1 t2 Ht X m. unfold M.compose.
+  specialize (Hs X m).
+Abort.
+(*
 Program Definition adj_compose {A B C} (phi: A <~> B) (psi: B <~> C) :=
   {|
-    left_arrow := left_arrow psi @ left_arrow phi;
-    right_arrow := right_arrow phi @ right_arrow psi;
+    left_arrow := left_arrow psi ∘ left_arrow phi;
+    right_arrow := right_arrow phi ∘ right_arrow psi;
   |}.
 Next Obligation.
   intros *. etransitivity.
-  instantiate (1 := (left_arrow psi @ (left_arrow phi @ right_arrow phi) @ right_arrow psi)).
-  rewrite !compose_assoc. reflexivity.
+  instantiate (1 := (left_arrow psi ∘ (left_arrow phi ∘ right_arrow phi) ∘ right_arrow psi)).
+  rewrite !M.compose_assoc. reflexivity.
   rewrite epsilon. rewrite compose_unit_l. apply epsilon.
 Qed.
 Next Obligation.
@@ -248,19 +286,19 @@ Next Obligation.
   rewrite <- eta. rewrite compose_unit_l. apply eta.
   rewrite !compose_assoc. reflexivity.
 Qed.
-
-Program Definition adj_id {A: esig} :=
-  {|
-    left_arrow := @identity A;
-    right_arrow := @identity A;
-  |}.
-Next Obligation.
-  intros *. rewrite compose_unit_l. reflexivity.
-Qed.
-Next Obligation.
-  intros *. rewrite compose_unit_l. reflexivity.
-Qed.
 *)
+
+(* Program Definition adj_id {A: esig} := *)
+(*   {| *)
+(*     left_arrow := @M.identity A; *)
+(*     right_arrow := @M.identity A; *)
+(*   |}. *)
+(* Next Obligation. *)
+(*   intros *. intros X m. rewrite M.compose_unit_l. reflexivity. *)
+(* Qed. *)
+(* Next Obligation. *)
+(*   intros *. intros X m. rewrite M.compose_unit_l. reflexivity. *)
+(* Qed. *)
 
 (** * Refinement Conventions *)
 
@@ -496,6 +534,11 @@ Qed.
 
 (** ** Definition *)
 
+Instance sim_transitive {E A}:
+  Transitive (@M.sim E A).
+Proof.
+Admitted.
+
 Section RC_ADJ.
   (* E is the source level signature *)
   Context {E F} (rc: E <=> F).
@@ -504,63 +547,78 @@ Section RC_ADJ.
      of worlds in the case of calling convention *)
   Definition rc_adj_left : E ⤳ F :=
     fun ar m =>
-      ⊔ ar' m', ⊔ { R | rc ar' m' ar m R }, M.Int m' ≫=
+      ⊔ ar' m', ⊔ { R | rc ar' m' ar m R }, m' ≫=
         (fun n' => ⊓ { n | R n' n }, M.Ret n).
 
   Definition rc_adj_right : F ⤳ E :=
     fun ar m =>
-      ⊓ ar' m', ⊓ { R | rc ar m ar' m' R }, M.Int m' ≫=
+      ⊓ ar' m', ⊓ { R | rc ar m ar' m' R }, m' ≫=
         (fun n' => ⊔ { n | R n n' }, M.Ret n).
 
-  Lemma rc_adj_epsilon : rc_adj_left ∘ rc_adj_right ⊑ M.identity.
+  (* Lemma rc_adj_epsilon : rc_adj_left ∘ rc_adj_right ⊑ M.identity. *)
+  (* Proof. *)
+  (*   intros ar m. cbn. *)
+  (*   apply sup_iff. intros ar'. apply sup_iff. intros m'. *)
+  (*   apply sup_iff. intros [R Hrc]. cbn. *)
+  (*   rewrite Inf.mor. apply (inf_at ar). *)
+  (*   rewrite Inf.mor. apply (inf_at m). *)
+  (*   rewrite Inf.mor. apply (inf_at (exist _ R Hrc)). *)
+  (*   unfold int. rewrite !Sup.mor. *)
+  (*   apply sup_iff. intros [n|]. *)
+  (*   - apply (sup_at (Some n)). fcd_simpl. *)
+  (*     rewrite Sup.mor_join. apply join_lub. *)
+  (*     + setoid_rewrite FCD.ext_ana. cbn. *)
+  (*       rstep. constructor. *)
+  (*     + rewrite !Sup.mor. apply sup_iff. intros [n' Hr]. cbn. *)
+  (*       setoid_rewrite FCD.ext_ana. *)
+  (*       setoid_rewrite FCD.ext_ana. cbn. *)
+  (*       apply join_lub. *)
+  (*       * rstep. constructor. *)
+  (*       * rewrite !Inf.mor. apply (inf_at (exist _ n Hr)). cbn. *)
+  (*         setoid_rewrite FCD.ext_ana. reflexivity. *)
+  (*   - apply (sup_at None). fcd_simpl. reflexivity. *)
+  (* Qed. *)
+
+  (* Lemma rc_adj_eta : M.identity ⊑ rc_adj_right ∘ rc_adj_left. *)
+  (*   intros ar m. cbn. *)
+  (*   apply inf_iff. intros ar'. apply inf_iff. intros m'. *)
+  (*   apply inf_iff. intros [R Hrc]. cbn. *)
+  (*   sup_mor. apply (sup_at ar). *)
+  (*   sup_mor. apply (sup_at m). *)
+  (*   sup_mor. apply (sup_at (exist _ R Hrc)). cbn. *)
+  (*   unfold int. rewrite !Sup.mor. *)
+  (*   apply sup_iff. intros [n|]. *)
+  (*   - apply (sup_at (Some n)). fcd_simpl. *)
+  (*     rewrite Sup.mor_join. apply join_r. *)
+  (*     rewrite !Inf.mor. apply inf_iff. intros [n' Hr]. cbn. *)
+  (*     fcd_simpl. apply join_r. *)
+  (*     rewrite Sup.mor. apply (sup_at (exist _ n Hr)). cbn. *)
+  (*     fcd_simpl. reflexivity. *)
+  (*   - apply (sup_at None). fcd_simpl. reflexivity. *)
+  (* Qed. *)
+
+  (* Definition rc_adj : E <~> F := *)
+  (*   {| *)
+  (*     left_arrow := rc_adj_left; *)
+  (*     right_arrow := rc_adj_right; *)
+  (*     epsilon := rc_adj_epsilon; *)
+  (*     eta := rc_adj_eta; *)
+  (*   |}. *)
+
+  Lemma rc_adj_eta_sim: M.sim_ M.identity (rc_adj_right ∘ rc_adj_left).
   Proof.
-    intros ar m. cbn.
-    apply sup_iff. intros ar'. apply sup_iff. intros m'.
-    apply sup_iff. intros [R Hrc]. cbn.
-    rewrite Inf.mor. apply (inf_at ar).
-    rewrite Inf.mor. apply (inf_at m).
-    rewrite Inf.mor. apply (inf_at (exist _ R Hrc)).
-    unfold int. rewrite !Sup.mor.
-    apply sup_iff. intros [n|].
-    - apply (sup_at (Some n)). fcd_simpl.
-      rewrite Sup.mor_join. apply join_lub.
-      + setoid_rewrite FCD.ext_ana. cbn.
-        rstep. constructor.
-      + rewrite !Sup.mor. apply sup_iff. intros [n' Hr]. cbn.
-        setoid_rewrite FCD.ext_ana.
-        setoid_rewrite FCD.ext_ana. cbn.
-        apply join_lub.
-        * rstep. constructor.
-        * rewrite !Inf.mor. apply (inf_at (exist _ n Hr)). cbn.
-          setoid_rewrite FCD.ext_ana. reflexivity.
-    - apply (sup_at None). fcd_simpl. reflexivity.
+    intros A m. unfold M.identity. cbn.
+    constructor. intros ar.
+    constructor. intros m'.
+    constructor. intros [R Hrc]. cbn.
+    econstructor. exists A.
+    econstructor. exists m.
+    econstructor. exists (exist _ R Hrc).
+    constructor. intros v.
+    constructor. intros [n Hr]. cbn in *.
+    constructor. exists (exist _ v Hr). cbn.
+    constructor.
   Qed.
-
-  Lemma rc_adj_eta : M.identity ⊑ rc_adj_right ∘ rc_adj_left.
-    intros ar m. cbn.
-    apply inf_iff. intros ar'. apply inf_iff. intros m'.
-    apply inf_iff. intros [R Hrc]. cbn.
-    sup_mor. apply (sup_at ar).
-    sup_mor. apply (sup_at m).
-    sup_mor. apply (sup_at (exist _ R Hrc)). cbn.
-    unfold int. rewrite !Sup.mor.
-    apply sup_iff. intros [n|].
-    - apply (sup_at (Some n)). fcd_simpl.
-      rewrite Sup.mor_join. apply join_r.
-      rewrite !Inf.mor. apply inf_iff. intros [n' Hr]. cbn.
-      fcd_simpl. apply join_r.
-      rewrite Sup.mor. apply (sup_at (exist _ n Hr)). cbn.
-      fcd_simpl. reflexivity.
-    - apply (sup_at None). fcd_simpl. reflexivity.
-  Qed.
-
-  Definition rc_adj : E <~> F :=
-    {|
-      left_arrow := rc_adj_left;
-      right_arrow := rc_adj_right;
-      epsilon := rc_adj_epsilon;
-      eta := rc_adj_eta;
-    |}.
 
 End RC_ADJ.
 
@@ -570,157 +628,132 @@ Section FUNCTOR.
   Context {E F G} (rc1: E <=> F) (rc2: F <=> G).
 
   Lemma left_arrow_compose:
-    left_arrow (rc_adj rc2) @ left_arrow (rc_adj rc1) =
+    left_arrow (rc_adj rc2) ∘ left_arrow (rc_adj rc1) ≡
       left_arrow (rc_adj (rc_compose rc1 rc2)).
   Proof.
     apply antisymmetry; intros ar1 m1; cbn; unfold compose.
-    - unfold rc_adj_left at 2 3.
-      rewrite !Sup.mor. apply sup_iff. intros ar2.
-      rewrite !Sup.mor. apply sup_iff. intros m2.
-      unfold fsup at 1. rewrite !Sup.mor.
+    - apply sup_iff. intros ar2. apply sup_iff. intros m2.
       apply sup_iff. intros [ R Hr ]. cbn.
-      (* rewrite apply_bind. *)
-      rewrite apply_bind_inf_left. intm.
-      unfold rc_adj_left.
       rewrite !Sup.mor. apply sup_iff. intros ar3.
       rewrite !Sup.mor. apply sup_iff. intros m3.
-      unfold fsup at 2. rewrite !Sup.mor.
-      apply sup_iff. intros [ R' Hr' ].
+      rewrite !Sup.mor. apply sup_iff. intros [ R' Hr' ].
       apply (sup_at ar3). apply (sup_at m3).
       eapply (sup_at (exist _ (fun x z => exists y, R' x y /\ R y z) _)).
       cbn. Unshelve. 2: { cbn. rc_econstructor; eauto. }
-      unfold int at 2. rewrite !Sup.mor.
+      unfold int. rewrite !Sup.mor.
       apply sup_iff. intros [ n3 | ].
       + setoid_rewrite FCD.ext_ana. cbn.
         rewrite Sup.mor_join. apply join_lub.
         * setoid_rewrite FCD.ext_ana. cbn.
-          unfold int. setoid_rewrite Sup.mor.
           apply (sup_at None).
           setoid_rewrite FCD.ext_ana. cbn.
           reflexivity.
-        * unfold int at 2. rewrite Sup.mor.
-          apply (sup_at (Some n3)).
+        * apply (sup_at (Some n3)).
           setoid_rewrite FCD.ext_ana. cbn.
           apply join_r.
-          unfold finf. rewrite !Inf.mor.
+          rewrite !Inf.mor.
           apply inf_iff. intros [ n1 [ n2 [ H2 H1 ] ] ]. cbn.
           eapply (inf_at (exist _ n2 H2)). cbn.
           repeat setoid_rewrite FCD.ext_ana. cbn.
           apply join_lub.
           -- rstep. constructor.
           -- rewrite !Inf.mor. eapply (inf_at (exist _ n1 H1)). cbn.
-             intm. setoid_rewrite FCD.ext_ana. reflexivity.
+             setoid_rewrite FCD.ext_ana. reflexivity.
       + setoid_rewrite FCD.ext_ana. cbn.
         setoid_rewrite FCD.ext_ana. cbn.
-        unfold int. rewrite !Sup.mor. apply (sup_at None).
+        apply (sup_at None).
         setoid_rewrite FCD.ext_ana. cbn. reflexivity.
-    - unfold rc_adj_left at 1 3.
-      apply sup_iff. intros ar3.
+    - apply sup_iff. intros ar3.
       apply sup_iff. intros m3.
       apply sup_iff. intros [ R Hr ].
       rc_destruct Hr.
-      rewrite !Sup.mor. apply (sup_at ar2).
-      rewrite !Sup.mor. apply (sup_at m2).
-      unfold fsup at 1. rewrite !Sup.mor.
-      eapply (sup_at (exist _ R' _)). Unshelve.
-      2: { cbn. assumption. } cbn.
-      rewrite apply_bind_inf_left.
-      (* rewrite apply_bind. *)
-      intm. unfold rc_adj_left.
+      apply (sup_at ar2). apply (sup_at m2).
+      eapply (sup_at (exist _ R' _)). Unshelve. 2: { cbn. assumption. } cbn.
       rewrite !Sup.mor. apply (sup_at ar1).
       rewrite !Sup.mor. apply (sup_at m1).
-      unfold fsup at 2. rewrite !Sup.mor.
-      eapply (sup_at (exist _ R0 _)). Unshelve.
-      2: { cbn. assumption. } cbn.
-      unfold int at 1. rewrite Sup.mor. apply sup_iff. intros [ n1 | ].
+      rewrite !Sup.mor. eapply (sup_at (exist _ R0 _)).
+      Unshelve. 2: { cbn. assumption. } cbn.
+      unfold int. rewrite Sup.mor. apply sup_iff. intros [ n1 | ].
       + setoid_rewrite FCD.ext_ana. cbn.
         apply join_lub.
-        * unfold int at 2. rewrite !Sup.mor.
-          apply (sup_at None).
+        * rewrite !Sup.mor. apply (sup_at None).
           setoid_rewrite FCD.ext_ana. cbn.
           setoid_rewrite FCD.ext_ana. cbn. reflexivity.
-        * unfold int at 2. rewrite !Sup.mor.
-          apply (sup_at (Some n1)).
+        * rewrite !Sup.mor. apply (sup_at (Some n1)).
           setoid_rewrite FCD.ext_ana. cbn.
           rewrite Sup.mor_join. apply join_r.
-          unfold finf. rewrite !Inf.mor.
-          apply inf_iff. intros [ n2 H2 ]. cbn.
+          rewrite !Inf.mor. apply inf_iff. intros [ n2 H2 ]. cbn.
           repeat setoid_rewrite FCD.ext_ana. cbn.
           apply join_r.
           rewrite !Inf.mor. apply inf_iff. intros [ n3 H3 ]. cbn.
-          intm. setoid_rewrite FCD.ext_ana.
-          eapply (inf_at (exist _ n3 _)). Unshelve.
-          2: { cbn. apply Hsub. eexists; split; eauto. } cbn.
+          setoid_rewrite FCD.ext_ana.
+          eapply (inf_at (exist _ n3 _)).
+          Unshelve. 2: { cbn. apply Hsub. eexists; split; eauto. } cbn.
           reflexivity.
       + setoid_rewrite FCD.ext_ana. cbn.
-        unfold int. rewrite !Sup.mor. apply (sup_at None).
+        rewrite !Sup.mor. apply (sup_at None).
         setoid_rewrite FCD.ext_ana. cbn.
         setoid_rewrite FCD.ext_ana. cbn.
         reflexivity.
   Qed.
 
   Lemma right_arrow_compose:
-    right_arrow (rc_adj rc1) @ right_arrow (rc_adj rc2) =
+    right_arrow (rc_adj rc1) ∘ right_arrow (rc_adj rc2) ≡
       right_arrow (rc_adj (rc_compose rc1 rc2)).
   Proof.
     apply antisymmetry; intros ar1 m1; cbn; unfold compose.
     - inf_intro ?. inf_intro m2. apply inf_iff. intros [R Hr].
       rc_destruct Hr.
-      eapply inf_at. eapply (inf_at m2). inf_mor. eapply (finf_at R0).
-      apply r. cbn.
-      (* rewrite apply_bind. *)
-      rewrite apply_bind_sup_right.
-      intm. unfold rc_adj_right.
-      inf_mor. eapply inf_at. inf_mor. eapply (inf_at m3).
-      inf_mor. eapply (finf_at R'). apply r0. intm.
+      eapply inf_at. eapply (inf_at m2). eapply (inf_at (exist _ R0 r)).
+      eapply inf_at. eapply (inf_at m3). eapply (inf_at (exist _ R' r0)).
       sup_intro [n3|].
-      + fcd_simpl. apply join_lub.
+      + fcd_simpl. sup_mor. sup_mor. apply join_lub.
         * apply (sup_at None). fcd_simpl. reflexivity.
-        * apply (sup_at (Some n3)). fcd_simpl. apply join_r.
-          rstep.
-          sup_intro (n2 & Hn2). fcd_simpl.
-          sup_intro (n1 & Hn1). fcd_simpl.
-          eapply (fsup_at n1). apply Hsub.
-          eexists; split; eauto.
-          reflexivity.
+        * sup_intro (n2 & Hn2). fcd_simpl. apply join_lub.
+          -- apply (sup_at None). fcd_simpl. reflexivity.
+          -- apply (sup_at (Some n3)). fcd_simpl. apply join_r.
+             sup_intro (n1 & Hn1). fcd_simpl.
+             eapply (sup_at (exist _ n1 _)).
+             Unshelve. 2: { apply Hsub. eexists; split; eauto. }
+             reflexivity.
       + apply (sup_at None). fcd_simpl. reflexivity.
     - inf_intro ?. inf_intro m2. inf_intro (R1 & HR1).
-      rewrite apply_bind_sup_right.
-      (* rewrite apply_bind. *)
-      intm.
       inf_intro ?. inf_intro m3. inf_intro (R2 & HR2).
-      intm.
-      eapply inf_at. eapply (inf_at m3). eapply finf_at.
-      rc_econstructor; eauto.
+      eapply inf_at. eapply (inf_at m3).
+      eapply (inf_at (exist _ (fun x z => exists y, R1 x y /\ R2 y z) _)).
+      Unshelve. 2: { cbn. rc_econstructor; eauto. }
       sup_intro [n3|].
       + fcd_simpl. apply join_lub.
         * apply (sup_at None). fcd_simpl. reflexivity.
-        * apply (sup_at (Some n3)). fcd_simpl. apply join_r.
-          rstep.
+        * apply (sup_at (Some n3)). fcd_simpl.
+          sup_mor. sup_mor. apply join_r.
           sup_intro (n1 & Hn1). destruct Hn1 as (n2 & Hn1 & Hn2).
-          apply (fsup_at n2). apply Hn2. fcd_simpl.
-          sup_mor. apply (fsup_at n1). apply Hn1. fcd_simpl.
+          apply (sup_at (exist _ n2 Hn2)). fcd_simpl. apply join_r.
+          sup_mor. apply (sup_at (exist _ n1 Hn1)). fcd_simpl.
           reflexivity.
       + apply (sup_at None). fcd_simpl. reflexivity.
   Qed.
 
   Lemma left_arrow_id:
-    left_arrow (rc_adj (@rc_id E)) = identity.
+    left_arrow (rc_adj (@rc_id E)) ≡ M.identity.
   Proof.
-    apply antisymmetry; intros ar m; cbn; unfold rc_adj_left.
+    apply antisymmetry; intros ar m; cbn.
     - apply sup_iff. intros ar'.
       apply sup_iff. intros m'.
       apply sup_iff. intros [ R Hr ]. rc_destruct Hr. cbn.
-      unfold identity, int. sup_intro [ n | ].
+      unfold int. sup_intro [ n | ].
       + fcd_simpl. apply join_lub.
         * apply (sup_at None). reflexivity.
         * apply (sup_at (Some n)).
-          inf_mor. eapply (finf_at n). now apply Hsub.
+          inf_mor. eapply (inf_at (exist _ n _)).
+          Unshelve. 2: { now apply Hsub. }
           now fcd_simpl.
       + apply (sup_at None). now fcd_simpl.
     - apply (sup_at ar). apply (sup_at m).
-      apply (fsup_at (@eq ar)). rc_econstructor.
-      unfold identity, int. apply sup_iff. intros [ n | ].
+      eapply (sup_at (exist _ (@eq ar) _)). cbn.
+      (* rc_econstructor. *)
+      Unshelve. 2: { cbn. exists (@eq ar). split; eauto. constructor. reflexivity. }.
+      unfold int. apply sup_iff. intros [ n | ].
       + rewrite Sup.mor. apply (sup_at (Some n)).
         fcd_simpl. apply join_r.
         inf_intro [ n' <- ]. now fcd_simpl.
@@ -728,16 +761,18 @@ Section FUNCTOR.
   Qed.
 
   Lemma right_arrow_id:
-    right_arrow (rc_adj (@rc_id E)) = identity.
+    right_arrow (rc_adj (@rc_id E)) ≡ M.identity.
   Proof.
-    unfold rc_adj_right. apply antisymmetry; intros ar m; cbn.
+    apply antisymmetry; intros ar m; cbn.
     - apply (inf_at ar). apply (inf_at m).
-      apply (finf_at (@eq ar)). rc_econstructor.
-      unfold identity, int. sup_intro [ n | ].
+      eapply (inf_at (exist _ (@eq ar) _)). cbn.
+      (* rc_econstructor. *)
+      Unshelve. 2: { cbn. exists (@eq ar). split; eauto. constructor. reflexivity. }.
+      unfold int. sup_intro [ n | ].
       + fcd_simpl. apply join_lub.
-        ** apply (sup_at None). reflexivity.
-        ** apply (sup_at (Some n)).
-           sup_intro [ n' <- ]. now fcd_simpl.
+        * apply (sup_at None). reflexivity.
+        * apply (sup_at (Some n)).
+          sup_intro [ n' <- ]. now fcd_simpl.
       + apply (sup_at None). now fcd_simpl.
     - apply inf_iff. intros ar'.
       apply inf_iff. intros m'.
@@ -745,8 +780,9 @@ Section FUNCTOR.
       unfold identity, int. sup_intro [ n | ].
       + apply (sup_at (Some n)). fcd_simpl.
         apply join_r. sup_mor.
-        eapply (fsup_at n). now apply Hsub.
-          now fcd_simpl.
+        eapply (sup_at (exist _ n _)).
+        Unshelve. 2: { now apply Hsub. }
+        now fcd_simpl.
       + apply (sup_at None). now fcd_simpl.
   Qed.
 
@@ -771,31 +807,35 @@ Section ORDER.
   Context {E F} (rc1 rc2: E <=> F) (H: rc_ref rc1 rc2).
 
   Lemma left_arrow_monotonic:
-    left_arrow (rc_adj rc1) [= left_arrow (rc_adj rc2).
+    left_arrow (rc_adj rc1) ⊑ left_arrow (rc_adj rc2).
   Proof.
-    intros ? e. cbn. unfold rc_adj_left.
+    intros ? e. cbn.
     apply sup_iff. intros ?. apply sup_iff. intros f.
     apply sup_iff. intros [R1 H1].
     unfold rc_ref in H. edestruct H as [R2 [HR2 HX]]. exact H1.
     apply (sup_at i). apply (sup_at f).
-    eapply (fsup_at R2). exact HR2. cbn.
+    apply (sup_at (exist _ R2 HR2)). cbn.
     apply int_ref. intros a.
     apply inf_iff. intros [z Hz].
-    eapply (finf_at z). apply HX. exact Hz. reflexivity.
+    eapply (inf_at (exist _ z _)).
+    Unshelve. 2: { apply HX. exact Hz. }
+    reflexivity.
   Qed.
 
   Lemma right_arrow_monotonic:
-    right_arrow (rc_adj rc2) [= right_arrow (rc_adj rc1).
+    right_arrow (rc_adj rc2) ⊑ right_arrow (rc_adj rc1).
   Proof.
-    intros ? e. cbn. unfold rc_adj_right.
+    intros ? e. cbn.
     apply inf_iff. intros ?. apply inf_iff. intros f.
     apply inf_iff. intros [R1 H1].
     unfold rc_ref in H. edestruct H as [R2 [HR2 HX]]. exact H1.
     apply (inf_at i). apply (inf_at f).
-    eapply (finf_at R2). exact HR2. cbn.
+    apply (inf_at (exist _ R2 HR2)).
     apply int_ref. intros a.
     apply sup_iff. intros [z Hz].
-    eapply (fsup_at z). apply HX. exact Hz. reflexivity.
+    eapply (sup_at (exist _ z _)).
+    Unshelve. 2: { apply HX. exact Hz. }
+    reflexivity.
   Qed.
 
 End ORDER.
