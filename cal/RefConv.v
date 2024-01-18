@@ -78,19 +78,24 @@ Module M.
   Inductive sim {E A}: t E A -> t E A -> Prop :=
     | sim_sup_l {I} (f: I -> t E A) (g: t E A):
         (forall i, sim (f i) g) -> sim (Sup f) g
-    | sim_sup_r {I} (f: I -> t E A) (g: t E A):
-        (exists i, sim g (f i)) -> sim g (Sup f)
-    | sim_inf_l {I} (f: I -> t E A) (g: t E A):
-        (exists i, sim (f i) g) -> sim (Inf f) g
+    | sim_sup_r {I} (f: I -> t E A) (g: t E A) i:
+        sim g (f i) -> sim g (Sup f)
+    | sim_inf_l {I} (f: I -> t E A) (g: t E A) i:
+        sim (f i) g -> sim (Inf f) g
     | sim_inf_r {I} (f: I -> t E A) (g: t E A):
         (forall i, sim g (f i)) -> sim g (Inf f)
     | sim_ret (x: A):
         sim (Ret x) (Ret x)
-    | sim_bind {B} (m1 m2: E B) (k1 k2: B -> t E A):
+    | sim_bind {B} (m: E B) (k1 k2: B -> t E A):
         (forall v, sim (k1 v) (k2 v)) ->
-        sim (Bind m1 k1) (Bind m2 k2).
+        sim (Bind m k1) (Bind m k2).
   Definition sim_ {E F}: subst E F -> subst E F -> Prop :=
     fun s1 s2 => forall A m, sim (s1 A m) (s2 A m).
+
+  Definition bisim {E A}: t E A -> t E A -> Prop :=
+    fun x y => sim x y /\ sim y x.
+  Definition bisim_ {E F}: subst E F -> subst E F -> Prop :=
+    fun s1 s2 => forall A m, bisim (s1 A m) (s2 A m).
 
   Definition ref {E A} (x y: t E A) := x [= y.
   Definition ref_ {E F} (x y: subst E F) := forall A m, (x A m) [= (y A m).
@@ -113,6 +118,45 @@ Module M.
     | Ret x => Ret x
     | Bind m k => bind (s _ m) (fun v => apply s (k v))
     end.
+
+  Instance bind_proper {E A B}:
+    Proper (sim ==> (pointwise_relation _ sim) ==> sim) (@bind E A B).
+  Proof.
+    intros x1 x2 Hx k1 k2 Hk. induction Hx; cbn; try econstructor; eauto.
+  Qed.
+
+  Instance apply_proper {E F A}:
+    Proper (sim_ ==> sim ==> sim) (@apply E F A).
+  Proof.
+    intros s1 s2 Hs t1 t2 Ht. induction Ht; cbn; try econstructor; eauto.
+    apply bind_proper; eauto.
+  Qed.
+
+  Lemma sim_sound {E A} (x y: t E A):
+    sim x y -> ref x y.
+  Proof.
+    induction 1; unfold ref; cbn.
+    - apply sup_iff. intros i. apply H0.
+    - apply (sup_at i). apply IHsim.
+    - apply (inf_at i). apply IHsim.
+    - apply inf_iff. intros i. apply H0.
+    - reflexivity.
+    - setoid_rewrite Sup.mor.
+      apply sup_iff. intros [ b | ].
+      + setoid_rewrite FCD.ext_ana. cbn. apply join_lub.
+        * apply (sup_at None). setoid_rewrite FCD.ext_ana. reflexivity.
+        * apply (sup_at (Some b)). setoid_rewrite FCD.ext_ana.
+          cbn. apply join_r.
+          specialize (H0 b). unfold ref in H0.
+          rewrite H0. reflexivity.
+      + apply (sup_at None). setoid_rewrite FCD.ext_ana. reflexivity.
+  Qed.
+
+  Lemma sim_sound_ {E F} (s1 s2: subst E F):
+    sim_ s1 s2 -> ref_ s1 s2.
+  Proof.
+    intros Hsim A m. apply sim_sound. apply Hsim.
+  Qed.
 
   Instance ref_preo {E A} : PreOrder (@ref E A).
   Proof.
@@ -147,60 +191,93 @@ Module M.
   Instance ref_po_ {E A} : Antisymmetric _ (@eq_ E A) (@ref_ E A).
   Proof. intros x y ? ? ? ?. apply antisymmetry; eauto. Qed.
 
-  (* Instance bind_proper_eq {E A B}: *)
-  (*   Proper (eq ==> (pointwise_relation _ eq) ==> eq) (@Bind E A B). *)
-  (* Proof. *)
-  (*   intros x1 x2 Hx k1 k2 Hk. unfold eq. cbn. *)
-  (*   rewrite Hx. unfold pointwise_relation in Hk. *)
-  (*   f_equal. extensionality v. apply Hk. *)
-  (* Qed. *)
-
-  (* Instance apply_proper {E F A}: *)
-  (*   Proper (ref_ ==> ref ==> ref) (@apply E F A). *)
-  (* Proof. *)
-  (*   intros s1 s2 Hs x1 x2 Hx. unfold ref in Hx. *)
-
-  (* Abort. *)
-
   Definition compose {E F G} (s: subst F G) (t: subst E F): subst E G :=
     fun A m => apply t (s A m).
   Definition identity {E: esig}: subst E E :=
     fun A m => Bind m (fun v => Ret v).
 
-  (* Lemma compose_int_l {E F} (s: subst E F): *)
-  (*   eq_ (compose (@Int F) s) s. *)
-  (* Proof. unfold compose. intros A m; reflexivity. Qed. *)
-  (* Lemma compose_int_r {E F} (s: subst E F): *)
-  (*   eq_ (compose s (@Int E)) s. *)
-  (* Proof. *)
-  (*   intros A m. unfold compose. generalize (s A m) as x. clear m. *)
-  (*   induction x; cbn; try reflexivity. *)
-  (*   - setoid_rewrite H. reflexivity. *)
-  (*   - setoid_rewrite H. reflexivity. *)
-  (*   - rewrite IHx. setoid_rewrite H. reflexivity. *)
-  (* Qed. *)
-  (* Lemma apply_assoc {E F G} (s: subst G F) (t: subst F E) {A} (x: @M.t _ A): *)
-  (*   eq (apply s (apply t x)) (apply (compose t s) x). *)
-  (* Proof. *)
-  (*   induction x; cbn; try reflexivity; unfold eq; cbn. *)
-  (*   - f_equal. extensionality i. apply H. *)
-  (*   - f_equal. extensionality i. apply H. *)
-  (*   - rewrite IHx. f_equal. extensionality i. apply H. *)
-  (* Qed. *)
+  Instance bisim_equiv {E A}: Equivalence (@bisim E A).
+  Proof. Admitted.
+  Instance bisim_equiv_ {E A}: Equivalence (@bisim_ E A).
+  Proof. Admitted.
 
-  (* Lemma compose_unit_l {E F} (s: subst E F): *)
-  (*   eq_ (compose identity s) s. *)
-  (* Proof. apply compose_int_l. Qed. *)
-  (* Lemma compose_unit_r {E F} (s: subst E F): *)
-  (*   eq_ (compose s identity) s. *)
-  (* Proof. apply compose_int_r. Qed. *)
-  (* Lemma compose_assoc {E F G H} (s: subst G H) (t: subst F G) (u: subst E F): *)
-  (*   eq_ (compose (compose s t) u) (compose s (compose t u)). *)
-  (* Proof. *)
-  (*   cbn. intros A m. unfold compose. *)
-  (*   generalize (s A m) as x. clear m. intros x. *)
-  (*   apply apply_assoc. *)
-  (* Qed. *)
+  Instance sim_preo {E A}: PreOrder (@sim E A).
+  Proof. Admitted.
+  Instance sim_preo_ {E A}: PreOrder (@sim_ E A).
+  Proof. Admitted.
+
+  Lemma bind_ret: forall {E A} (x: t E A), bisim (bind x Ret) x.
+  Proof.
+    split.
+    - induction x; cbn; try (solve [ econstructor; eauto ]).
+      + apply sim_sup_l. intros. eapply sim_sup_r. apply H.
+      + apply sim_inf_r. intros. eapply sim_inf_l. apply H.
+    - induction x; cbn; try (solve [ econstructor; eauto ]).
+      + apply sim_sup_l. intros. eapply sim_sup_r. apply H.
+      + apply sim_inf_r. intros. eapply sim_inf_l. apply H.
+  Qed.
+
+  Lemma bind_bind {E A B C} (x: t E A) (k1: A -> t E B) (k2: B -> t E C):
+    bisim (bind (bind x k1) k2) (bind x (fun v => bind (k1 v) k2)).
+  Proof.
+    induction x.
+    - split; (apply sim_sup_l; intros; eapply sim_sup_r; apply H).
+    - split; (apply sim_inf_r; intros; eapply sim_inf_l; apply H).
+    - cbn. reflexivity.
+    - split; cbn; apply sim_bind; intros; apply H.
+  Qed.
+
+  Lemma bind_apply {E F A B} (s: subst E F) (x: t F A) (k: A -> t F B):
+    bisim (apply s (bind x k)) (bind (apply s x) (fun v => apply s (k v))).
+  Proof.
+    induction x.
+    - split; (apply sim_sup_l; intros; eapply sim_sup_r; apply H).
+    - split; (apply sim_inf_r; intros; eapply sim_inf_l; apply H).
+    - cbn. reflexivity.
+    - cbn. rewrite bind_bind. split.
+      + apply bind_proper. reflexivity.
+        intros v. apply H.
+      + apply bind_proper. reflexivity.
+        intros v. apply H.
+  Qed.
+
+  Lemma compose_unit_l {E F} (s: subst E F):
+    bisim_ (compose identity s) s.
+  Proof. intros A m. apply bind_ret. Qed.
+  Lemma compose_unit_r {E F} (s: subst E F):
+    bisim_ (compose s identity) s.
+  Proof.
+    intros A m; unfold compose, identity.
+    generalize (s A m). intros x. induction x; cbn.
+    - split; (apply sim_sup_l; intros; eapply sim_sup_r; apply H).
+    - split; (apply sim_inf_r; intros; eapply sim_inf_l; apply H).
+    - split; constructor.
+    - split; (constructor; apply H).
+  Qed.
+
+  Lemma apply_assoc {E F G} (s: subst G F) (t: subst F E) {A} (x: @M.t _ A):
+    bisim (apply s (apply t x)) (apply (compose t s) x).
+  Proof.
+    induction x; cbn.
+    - split; (apply sim_sup_l; intros; eapply sim_sup_r; apply H).
+    - split; (apply sim_inf_r; intros; eapply sim_inf_l; apply H).
+    - split; constructor.
+    - unfold compose; generalize (t B e); intros t1.
+      rewrite bind_apply. split.
+      (* TODO: cleanup *)
+      + apply bind_proper. reflexivity.
+        intros v. apply H.
+      + apply bind_proper. reflexivity.
+        intros v. apply H.
+  Qed.
+
+  Lemma compose_assoc {E F G H} (s: subst G H) (t: subst F G) (u: subst E F):
+    bisim_ (compose (compose s t) u) (compose s (compose t u)).
+  Proof.
+    cbn. intros A m. unfold compose.
+    generalize (s A m) as x. clear m. intros x.
+    apply apply_assoc.
+  Qed.
 
   Definition fsup {E A} {I} (P : I -> Prop) (f : I -> t E A) :=
     Sup (I := sig P) (fun x => f (proj1_sig x)).
@@ -232,6 +309,10 @@ Notation "x ⊑ y" := (M.ref x%mspec y%mspec) (at level 70, no associativity, on
 Notation "x ⊑ y" := (M.ref_ x%mspec y%mspec) (at level 70, no associativity).
 Notation "x ≡ y" := (M.eq x%mspec y%mspec) (at level 70, only printing).
 Notation "x ≡ y" := (M.eq_ x%mspec y%mspec) (at level 70).
+Notation "x ≲ y" := (M.sim x%mspec y%mspec) (at level 70, no associativity, only printing).
+Notation "x ≲ y" := (M.sim_ x%mspec y%mspec) (at level 70, no associativity).
+Notation "x ≈ y" := (M.bisim x%mspec y%mspec) (at level 70, no associativity, only printing).
+Notation "x ≈ y" := (M.bisim_ x%mspec y%mspec) (at level 70, no associativity).
 
 Infix "⤳" := M.subst (at level 99).
 Notation "x ≫= k" := (M.Bind x k) (at level 40, left associativity).
@@ -611,12 +692,12 @@ Section RC_ADJ.
     constructor. intros ar.
     constructor. intros m'.
     constructor. intros [R Hrc]. cbn.
-    econstructor. exists A.
-    econstructor. exists m.
-    econstructor. exists (exist _ R Hrc).
+    econstructor. instantiate (1 := A).
+    econstructor. instantiate (1 := m).
+    econstructor. instantiate (1 := (exist _ R Hrc)).
     constructor. intros v.
     constructor. intros [n Hr]. cbn in *.
-    constructor. exists (exist _ v Hr). cbn.
+    econstructor. instantiate (1 := (exist _ v Hr)). cbn.
     constructor.
   Qed.
 
