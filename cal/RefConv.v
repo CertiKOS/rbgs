@@ -51,6 +51,19 @@ Ltac clear_hyp :=
          | [ H : (?t = ?t)%type |- _ ] => clear H
          end.
 
+Require Import Coqlib.
+Require Import Classical_Prop.
+
+Ltac subst_dep :=
+  subst;
+  lazymatch goal with
+  | H: existT ?P ?x _ = existT ?P ?x _ |- _ =>
+      apply inj_pair2 in H; subst_dep
+  | _ => idtac
+  end.
+
+Require Import Coq.Program.Equality.
+
 Module M.
 
   Inductive t (E: esig) (A: Type) : Type :=
@@ -95,7 +108,7 @@ Module M.
   Definition bisim {E A}: t E A -> t E A -> Prop :=
     fun x y => sim x y /\ sim y x.
   Definition bisim_ {E F}: subst E F -> subst E F -> Prop :=
-    fun s1 s2 => forall A m, bisim (s1 A m) (s2 A m).
+    fun s1 s2 => sim_ s1 s2 /\ sim_ s2 s1.
 
   Definition ref {E A} (x y: t E A) := x [= y.
   Definition ref_ {E F} (x y: subst E F) := forall A m, (x A m) [= (y A m).
@@ -119,18 +132,32 @@ Module M.
     | Bind m k => bind (s _ m) (fun v => apply s (k v))
     end.
 
-  Instance bind_proper {E A B}:
+  Instance bind_proper_sim {E A B}:
     Proper (sim ==> (pointwise_relation _ sim) ==> sim) (@bind E A B).
   Proof.
     intros x1 x2 Hx k1 k2 Hk. induction Hx; cbn; try econstructor; eauto.
   Qed.
+  Instance bind_proper_bisim {E A B}:
+    Proper (bisim ==> (pointwise_relation _ bisim) ==> bisim) (@bind E A B).
+  Proof.
+    intros x1 x2 [Hx1 Hx2] k1 k2 Hk. split; apply bind_proper_sim; eauto.
+    intros i. apply Hk. intros i. apply Hk.
+  Qed.
 
-  Instance apply_proper {E F A}:
+  Instance apply_proper_sim {E F A}:
     Proper (sim_ ==> sim ==> sim) (@apply E F A).
   Proof.
     intros s1 s2 Hs t1 t2 Ht. induction Ht; cbn; try econstructor; eauto.
-    apply bind_proper; eauto.
+    apply bind_proper_sim; eauto.
   Qed.
+  Instance apply_proper_bisim {E F A}:
+    Proper (bisim_ ==> bisim ==> bisim) (@apply E F A).
+  Proof.
+    intros s1 s2 Hs t1 t2 [Ht1 Ht2]. split; apply apply_proper_sim; eauto.
+    intros i. apply Hs. intros i. apply Hs.
+  Qed.
+
+  (* --- relation properties --- *)
 
   Lemma sim_sound {E A} (x y: t E A):
     sim x y -> ref x y.
@@ -191,20 +218,70 @@ Module M.
   Instance ref_po_ {E A} : Antisymmetric _ (@eq_ E A) (@ref_ E A).
   Proof. intros x y ? ? ? ?. apply antisymmetry; eauto. Qed.
 
+  Lemma sim_sup_l_inv {E I A} (f: I -> t E A) y:
+    sim (Sup f) y -> forall i, sim (f i) y.
+  Proof.
+    intros H. dependent induction H.
+    - eauto.
+    - intros j. eapply sim_sup_r. apply IHsim. reflexivity.
+    - intros i. apply sim_inf_r. intros j.
+      apply H0. reflexivity.
+  Qed.
+
+  Instance sim_preo {E A}: PreOrder (@sim E A).
+  Proof.
+    split.
+    - intros x. induction x; try (solve [ econstructor; eauto ]).
+      + apply sim_sup_l. intros. eapply sim_sup_r. apply H.
+      + apply sim_inf_r. intros. eapply sim_inf_l. apply H.
+    - intros x y z Hxy Hyz. revert z Hyz. induction Hxy; intros z Hyz.
+      + apply sim_sup_l. eauto.
+      + eauto using sim_sup_l_inv.
+      + eapply sim_inf_l. eauto.
+      + clear H. dependent induction Hyz.
+        * eapply sim_sup_r. eapply IHHyz; eauto.
+        * eauto.
+        * eapply sim_inf_r. intros i. eauto.
+      + eauto.
+      + clear H. dependent induction Hyz.
+        * eapply sim_sup_r. eauto.
+        * apply sim_inf_r. intros. eauto.
+        * constructor. intros; eauto.
+  Qed.
+  Instance sim_preo_ {E A}: PreOrder (@sim_ E A).
+  Proof.
+    split.
+    - intros x ? m. reflexivity.
+    - intros x y z Hxy Hyz ? m. etransitivity; eauto.
+  Qed.
+
+  Instance bisim_equiv {E A}: Equivalence (@bisim E A).
+  Proof.
+    split.
+    - intros x. split; reflexivity.
+    - intros x y [Hxy Hyx]. split; auto.
+    - intros x y z [Hxy Hyx] [Hyz Hzy]. split; etransitivity; eauto.
+  Qed.
+  Instance bisim_equiv_ {E A}: Equivalence (@bisim_ E A).
+  Proof.
+    split.
+    - intros x. split; reflexivity.
+    - intros x y Hxy. split; apply Hxy.
+    - intros x y z Hxy Hyz.
+      split; etransitivity; eauto; try apply Hxy; try apply Hyz.
+  Qed.
+
+  Instance sim_po {E A} : Antisymmetric _ (@bisim E A) (@sim E A).
+  Proof. intros x y ? ?. unfold bisim. split; eauto. Qed.
+  Instance sim_po_ {E A} : Antisymmetric _ (@bisim_ E A) (@sim_ E A).
+  Proof. intros x y ? ?. split; eauto. Qed.
+
+  (* --- categorical properties --- *)
+
   Definition compose {E F G} (s: subst F G) (t: subst E F): subst E G :=
     fun A m => apply t (s A m).
   Definition identity {E: esig}: subst E E :=
     fun A m => Bind m (fun v => Ret v).
-
-  Instance bisim_equiv {E A}: Equivalence (@bisim E A).
-  Proof. Admitted.
-  Instance bisim_equiv_ {E A}: Equivalence (@bisim_ E A).
-  Proof. Admitted.
-
-  Instance sim_preo {E A}: PreOrder (@sim E A).
-  Proof. Admitted.
-  Instance sim_preo_ {E A}: PreOrder (@sim_ E A).
-  Proof. Admitted.
 
   Lemma bind_ret: forall {E A} (x: t E A), bisim (bind x Ret) x.
   Proof.
@@ -234,25 +311,23 @@ Module M.
     - split; (apply sim_sup_l; intros; eapply sim_sup_r; apply H).
     - split; (apply sim_inf_r; intros; eapply sim_inf_l; apply H).
     - cbn. reflexivity.
-    - cbn. rewrite bind_bind. split.
-      + apply bind_proper. reflexivity.
-        intros v. apply H.
-      + apply bind_proper. reflexivity.
-        intros v. apply H.
+    - cbn. rewrite bind_bind. setoid_rewrite H. reflexivity.
   Qed.
 
-  Lemma compose_unit_l {E F} (s: subst E F):
-    bisim_ (compose identity s) s.
-  Proof. intros A m. apply bind_ret. Qed.
   Lemma compose_unit_r {E F} (s: subst E F):
+    bisim_ (compose identity s) s.
+  Proof. split; intros A m; apply bind_ret. Qed.
+  Lemma compose_unit_l {E F} (s: subst E F):
     bisim_ (compose s identity) s.
   Proof.
-    intros A m; unfold compose, identity.
-    generalize (s A m). intros x. induction x; cbn.
-    - split; (apply sim_sup_l; intros; eapply sim_sup_r; apply H).
-    - split; (apply sim_inf_r; intros; eapply sim_inf_l; apply H).
-    - split; constructor.
-    - split; (constructor; apply H).
+    split; intros A m; unfold compose, identity;
+      generalize (s A m); intros x;
+     (induction x; cbn; [
+          apply sim_sup_l; intros; eapply sim_sup_r; apply H
+        | apply sim_inf_r; intros; eapply sim_inf_l; apply H
+        | constructor
+        | constructor; apply H
+        ]).
   Qed.
 
   Lemma apply_assoc {E F G} (s: subst G F) (t: subst F E) {A} (x: @M.t _ A):
@@ -263,19 +338,14 @@ Module M.
     - split; (apply sim_inf_r; intros; eapply sim_inf_l; apply H).
     - split; constructor.
     - unfold compose; generalize (t B e); intros t1.
-      rewrite bind_apply. split.
-      (* TODO: cleanup *)
-      + apply bind_proper. reflexivity.
-        intros v. apply H.
-      + apply bind_proper. reflexivity.
-        intros v. apply H.
+      rewrite bind_apply. setoid_rewrite H. reflexivity.
   Qed.
 
   Lemma compose_assoc {E F G H} (s: subst G H) (t: subst F G) (u: subst E F):
     bisim_ (compose (compose s t) u) (compose s (compose t u)).
   Proof.
-    cbn. intros A m. unfold compose.
-    generalize (s A m) as x. clear m. intros x.
+    split; intros A m; unfold compose;
+    generalize (s A m) as x; clear m; intros x;
     apply apply_assoc.
   Qed.
 
@@ -329,8 +399,8 @@ Class poset_adjunction (A B: esig) :=
   {
     left_arrow : A ⤳ B;
     right_arrow : B ⤳ A;
-    epsilon : left_arrow ∘ right_arrow ⊑ M.identity;
-    eta : M.identity ⊑ right_arrow ∘ left_arrow;
+    epsilon : left_arrow ∘ right_arrow ≲ M.identity;
+    eta : M.identity ≲ right_arrow ∘ left_arrow;
   }.
 Arguments left_arrow {_ _}.
 Arguments right_arrow {_ _}.
@@ -339,17 +409,35 @@ Arguments eta {_ _}.
 
 Infix "<~>" := poset_adjunction (at level 50).
 
+Instance compose_proper_sim {E F G}:
+  Proper (M.sim_ ==> M.sim_ ==> M.sim_) (@M.compose E F G).
+Proof.
+  intros s1 s2 Hs t1 t2 Ht A m. unfold M.compose.
+  apply M.apply_proper_sim; auto.
+Qed.
+
+Instance compose_proper_bisim {E F G}:
+  Proper (M.bisim_ ==> M.bisim_ ==> M.sim_) (@M.compose E F G).
+Proof.
+  intros s1 s2 Hs t1 t2 Ht A m. unfold M.compose.
+  apply M.apply_proper_sim.
+  intros ? ?. apply Ht. apply Hs.
+Qed.
+
+Instance sim_proper {E F}:
+  Proper (M.bisim_ ==> M.bisim_ ==> iff) (@M.sim_ E F).
+Proof.
+  intros s1 s2 Hs t1 t2 Ht. split; intros H A m.
+  - etransitivity. apply Hs.
+    etransitivity. apply H. apply Ht.
+  - etransitivity. apply Hs.
+    etransitivity. apply H. apply Ht.
+Qed.
+
 (** ** Composition and identity of adjunctions *)
 
-(* NOTE: composition does not hold *)
+(* Set Typeclasses Debug. *)
 
-Instance compose_proper {A B C}:
-  Proper (M.ref_ ==> M.ref_ ==> M.ref_) (@M.compose A B C).
-Proof.
-  intros s1 s2 Hs t1 t2 Ht X m. unfold M.compose.
-  specialize (Hs X m).
-Abort.
-(*
 Program Definition adj_compose {A B C} (phi: A <~> B) (psi: B <~> C) :=
   {|
     left_arrow := left_arrow psi ∘ left_arrow phi;
@@ -359,27 +447,26 @@ Next Obligation.
   intros *. etransitivity.
   instantiate (1 := (left_arrow psi ∘ (left_arrow phi ∘ right_arrow phi) ∘ right_arrow psi)).
   rewrite !M.compose_assoc. reflexivity.
-  rewrite epsilon. rewrite compose_unit_l. apply epsilon.
+  rewrite epsilon. rewrite M.compose_unit_l. apply epsilon.
 Qed.
 Next Obligation.
   intros *. etransitivity.
-  instantiate (1 := right_arrow phi @ (right_arrow psi @ left_arrow psi) @ left_arrow phi).
-  rewrite <- eta. rewrite compose_unit_l. apply eta.
-  rewrite !compose_assoc. reflexivity.
+  instantiate (1 := right_arrow phi ∘ (right_arrow psi ∘ left_arrow psi) ∘ left_arrow phi).
+  rewrite <- eta. rewrite M.compose_unit_l. apply eta.
+  rewrite !M.compose_assoc. reflexivity.
 Qed.
-*)
 
-(* Program Definition adj_id {A: esig} := *)
-(*   {| *)
-(*     left_arrow := @M.identity A; *)
-(*     right_arrow := @M.identity A; *)
-(*   |}. *)
-(* Next Obligation. *)
-(*   intros *. intros X m. rewrite M.compose_unit_l. reflexivity. *)
-(* Qed. *)
-(* Next Obligation. *)
-(*   intros *. intros X m. rewrite M.compose_unit_l. reflexivity. *)
-(* Qed. *)
+Program Definition adj_id {A: esig} :=
+  {|
+    left_arrow := @M.identity A;
+    right_arrow := @M.identity A;
+  |}.
+Next Obligation.
+  intros *. rewrite M.compose_unit_l. reflexivity.
+Qed.
+Next Obligation.
+  intros *. rewrite M.compose_unit_l. reflexivity.
+Qed.
 
 (** * Refinement Conventions *)
 
