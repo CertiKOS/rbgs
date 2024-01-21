@@ -702,11 +702,6 @@ Qed.
 
 (** ** Definition *)
 
-Instance sim_transitive {E A}:
-  Transitive (@M.sim E A).
-Proof.
-Admitted.
-
 Section RC_ADJ.
   (* E is the source level signature *)
   Context {E F} (rc: E <=> F).
@@ -723,57 +718,22 @@ Section RC_ADJ.
       ⊓ ar' m', ⊓ { R | rc ar m ar' m' R }, m' ≫=
         (fun n' => ⊔ { n | R n n' }, M.Ret n).
 
-  (* Lemma rc_adj_epsilon : rc_adj_left ∘ rc_adj_right ⊑ M.identity. *)
-  (* Proof. *)
-  (*   intros ar m. cbn. *)
-  (*   apply sup_iff. intros ar'. apply sup_iff. intros m'. *)
-  (*   apply sup_iff. intros [R Hrc]. cbn. *)
-  (*   rewrite Inf.mor. apply (inf_at ar). *)
-  (*   rewrite Inf.mor. apply (inf_at m). *)
-  (*   rewrite Inf.mor. apply (inf_at (exist _ R Hrc)). *)
-  (*   unfold int. rewrite !Sup.mor. *)
-  (*   apply sup_iff. intros [n|]. *)
-  (*   - apply (sup_at (Some n)). fcd_simpl. *)
-  (*     rewrite Sup.mor_join. apply join_lub. *)
-  (*     + setoid_rewrite FCD.ext_ana. cbn. *)
-  (*       rstep. constructor. *)
-  (*     + rewrite !Sup.mor. apply sup_iff. intros [n' Hr]. cbn. *)
-  (*       setoid_rewrite FCD.ext_ana. *)
-  (*       setoid_rewrite FCD.ext_ana. cbn. *)
-  (*       apply join_lub. *)
-  (*       * rstep. constructor. *)
-  (*       * rewrite !Inf.mor. apply (inf_at (exist _ n Hr)). cbn. *)
-  (*         setoid_rewrite FCD.ext_ana. reflexivity. *)
-  (*   - apply (sup_at None). fcd_simpl. reflexivity. *)
-  (* Qed. *)
+  Lemma rc_adj_epsilon: (rc_adj_left ∘ rc_adj_right) ≲ M.identity.
+  Proof.
+    intros A m. unfold M.identity. cbn.
+    constructor. intros ar'.
+    constructor. intros m'.
+    constructor. intros [R Hrc]. cbn.
+    eapply M.sim_inf_l with (i := A).
+    eapply M.sim_inf_l with (i := m).
+    eapply M.sim_inf_l with (i := (exist _ R Hrc)).
+    constructor. intros v. cbn.
+    constructor. intros [n Hr]. cbn in *.
+    eapply M.sim_inf_l with (i := (exist _ v Hr)). cbn.
+    reflexivity.
+  Qed.
 
-  (* Lemma rc_adj_eta : M.identity ⊑ rc_adj_right ∘ rc_adj_left. *)
-  (*   intros ar m. cbn. *)
-  (*   apply inf_iff. intros ar'. apply inf_iff. intros m'. *)
-  (*   apply inf_iff. intros [R Hrc]. cbn. *)
-  (*   sup_mor. apply (sup_at ar). *)
-  (*   sup_mor. apply (sup_at m). *)
-  (*   sup_mor. apply (sup_at (exist _ R Hrc)). cbn. *)
-  (*   unfold int. rewrite !Sup.mor. *)
-  (*   apply sup_iff. intros [n|]. *)
-  (*   - apply (sup_at (Some n)). fcd_simpl. *)
-  (*     rewrite Sup.mor_join. apply join_r. *)
-  (*     rewrite !Inf.mor. apply inf_iff. intros [n' Hr]. cbn. *)
-  (*     fcd_simpl. apply join_r. *)
-  (*     rewrite Sup.mor. apply (sup_at (exist _ n Hr)). cbn. *)
-  (*     fcd_simpl. reflexivity. *)
-  (*   - apply (sup_at None). fcd_simpl. reflexivity. *)
-  (* Qed. *)
-
-  (* Definition rc_adj : E <~> F := *)
-  (*   {| *)
-  (*     left_arrow := rc_adj_left; *)
-  (*     right_arrow := rc_adj_right; *)
-  (*     epsilon := rc_adj_epsilon; *)
-  (*     eta := rc_adj_eta; *)
-  (*   |}. *)
-
-  Lemma rc_adj_eta_sim: M.sim_ M.identity (rc_adj_right ∘ rc_adj_left).
+  Lemma rc_adj_eta: M.identity ≲ (rc_adj_right ∘ rc_adj_left).
   Proof.
     intros A m. unfold M.identity. cbn.
     constructor. intros ar.
@@ -788,176 +748,156 @@ Section RC_ADJ.
     constructor.
   Qed.
 
+  Definition rc_adj : E <~> F :=
+    {|
+      left_arrow := rc_adj_left;
+      right_arrow := rc_adj_right;
+      epsilon := rc_adj_epsilon;
+      eta := rc_adj_eta;
+    |}.
+
 End RC_ADJ.
+
+Lemma sim_finf_l {E A} {I} (i: I) (P : I -> Prop) (f : I -> M.t E A) (g : M.t E A) :
+  P i -> M.sim (f i) g -> M.sim (⊓ { i | P i }, f i) g.
+Proof.
+  intros. apply M.sim_inf_l with (i0 := (exist _ i H)). apply H0.
+Qed.
+
+Lemma sim_fsup_r {E A} {I} (i: I) (P : I -> Prop) (f : I -> M.t E A) (g : M.t E A) :
+  P i -> M.sim g (f i) -> M.sim g (⊔ { i | P i }, f i).
+Proof.
+  intros. apply M.sim_sup_r with (i0 := (exist _ i H)). apply H0.
+Qed.
 
 (** ** Functoriality *)
 
 Section FUNCTOR.
   Context {E F G} (rc1: E <=> F) (rc2: F <=> G).
 
-  Lemma left_arrow_compose:
-    left_arrow (rc_adj rc2) ∘ left_arrow (rc_adj rc1) ≡
-      left_arrow (rc_adj (rc_compose rc1 rc2)).
-  Proof.
-    apply antisymmetry; intros ar1 m1; cbn; unfold compose.
-    - apply sup_iff. intros ar2. apply sup_iff. intros m2.
-      apply sup_iff. intros [ R Hr ]. cbn.
-      rewrite !Sup.mor. apply sup_iff. intros ar3.
-      rewrite !Sup.mor. apply sup_iff. intros m3.
-      rewrite !Sup.mor. apply sup_iff. intros [ R' Hr' ].
-      apply (sup_at ar3). apply (sup_at m3).
-      eapply (sup_at (exist _ (fun x z => exists y, R' x y /\ R y z) _)).
-      cbn. Unshelve. 2: { cbn. rc_econstructor; eauto. }
-      unfold int. rewrite !Sup.mor.
-      apply sup_iff. intros [ n3 | ].
-      + setoid_rewrite FCD.ext_ana. cbn.
-        rewrite Sup.mor_join. apply join_lub.
-        * setoid_rewrite FCD.ext_ana. cbn.
-          apply (sup_at None).
-          setoid_rewrite FCD.ext_ana. cbn.
-          reflexivity.
-        * apply (sup_at (Some n3)).
-          setoid_rewrite FCD.ext_ana. cbn.
-          apply join_r.
-          rewrite !Inf.mor.
-          apply inf_iff. intros [ n1 [ n2 [ H2 H1 ] ] ]. cbn.
-          eapply (inf_at (exist _ n2 H2)). cbn.
-          repeat setoid_rewrite FCD.ext_ana. cbn.
-          apply join_lub.
-          -- rstep. constructor.
-          -- rewrite !Inf.mor. eapply (inf_at (exist _ n1 H1)). cbn.
-             setoid_rewrite FCD.ext_ana. reflexivity.
-      + setoid_rewrite FCD.ext_ana. cbn.
-        setoid_rewrite FCD.ext_ana. cbn.
-        apply (sup_at None).
-        setoid_rewrite FCD.ext_ana. cbn. reflexivity.
-    - apply sup_iff. intros ar3.
-      apply sup_iff. intros m3.
-      apply sup_iff. intros [ R Hr ].
-      rc_destruct Hr.
-      apply (sup_at ar2). apply (sup_at m2).
-      eapply (sup_at (exist _ R' _)). Unshelve. 2: { cbn. assumption. } cbn.
-      rewrite !Sup.mor. apply (sup_at ar1).
-      rewrite !Sup.mor. apply (sup_at m1).
-      rewrite !Sup.mor. eapply (sup_at (exist _ R0 _)).
-      Unshelve. 2: { cbn. assumption. } cbn.
-      unfold int. rewrite Sup.mor. apply sup_iff. intros [ n1 | ].
-      + setoid_rewrite FCD.ext_ana. cbn.
-        apply join_lub.
-        * rewrite !Sup.mor. apply (sup_at None).
-          setoid_rewrite FCD.ext_ana. cbn.
-          setoid_rewrite FCD.ext_ana. cbn. reflexivity.
-        * rewrite !Sup.mor. apply (sup_at (Some n1)).
-          setoid_rewrite FCD.ext_ana. cbn.
-          rewrite Sup.mor_join. apply join_r.
-          rewrite !Inf.mor. apply inf_iff. intros [ n2 H2 ]. cbn.
-          repeat setoid_rewrite FCD.ext_ana. cbn.
-          apply join_r.
-          rewrite !Inf.mor. apply inf_iff. intros [ n3 H3 ]. cbn.
-          setoid_rewrite FCD.ext_ana.
-          eapply (inf_at (exist _ n3 _)).
-          Unshelve. 2: { cbn. apply Hsub. eexists; split; eauto. } cbn.
-          reflexivity.
-      + setoid_rewrite FCD.ext_ana. cbn.
-        rewrite !Sup.mor. apply (sup_at None).
-        setoid_rewrite FCD.ext_ana. cbn.
-        setoid_rewrite FCD.ext_ana. cbn.
-        reflexivity.
-  Qed.
-
-  Lemma right_arrow_compose:
-    right_arrow (rc_adj rc1) ∘ right_arrow (rc_adj rc2) ≡
-      right_arrow (rc_adj (rc_compose rc1 rc2)).
-  Proof.
-    apply antisymmetry; intros ar1 m1; cbn; unfold compose.
-    - inf_intro ?. inf_intro m2. apply inf_iff. intros [R Hr].
-      rc_destruct Hr.
-      eapply inf_at. eapply (inf_at m2). eapply (inf_at (exist _ R0 r)).
-      eapply inf_at. eapply (inf_at m3). eapply (inf_at (exist _ R' r0)).
-      sup_intro [n3|].
-      + fcd_simpl. sup_mor. sup_mor. apply join_lub.
-        * apply (sup_at None). fcd_simpl. reflexivity.
-        * sup_intro (n2 & Hn2). fcd_simpl. apply join_lub.
-          -- apply (sup_at None). fcd_simpl. reflexivity.
-          -- apply (sup_at (Some n3)). fcd_simpl. apply join_r.
-             sup_intro (n1 & Hn1). fcd_simpl.
-             eapply (sup_at (exist _ n1 _)).
-             Unshelve. 2: { apply Hsub. eexists; split; eauto. }
-             reflexivity.
-      + apply (sup_at None). fcd_simpl. reflexivity.
-    - inf_intro ?. inf_intro m2. inf_intro (R1 & HR1).
-      inf_intro ?. inf_intro m3. inf_intro (R2 & HR2).
-      eapply inf_at. eapply (inf_at m3).
-      eapply (inf_at (exist _ (fun x z => exists y, R1 x y /\ R2 y z) _)).
-      Unshelve. 2: { cbn. rc_econstructor; eauto. }
-      sup_intro [n3|].
-      + fcd_simpl. apply join_lub.
-        * apply (sup_at None). fcd_simpl. reflexivity.
-        * apply (sup_at (Some n3)). fcd_simpl.
-          sup_mor. sup_mor. apply join_r.
-          sup_intro (n1 & Hn1). destruct Hn1 as (n2 & Hn1 & Hn2).
-          apply (sup_at (exist _ n2 Hn2)). fcd_simpl. apply join_r.
-          sup_mor. apply (sup_at (exist _ n1 Hn1)). fcd_simpl.
-          reflexivity.
-      + apply (sup_at None). fcd_simpl. reflexivity.
-  Qed.
-
   Lemma left_arrow_id:
-    left_arrow (rc_adj (@rc_id E)) ≡ M.identity.
+    left_arrow (rc_adj (@rc_id E)) ≈ M.identity.
   Proof.
-    apply antisymmetry; intros ar m; cbn.
-    - apply sup_iff. intros ar'.
-      apply sup_iff. intros m'.
-      apply sup_iff. intros [ R Hr ]. rc_destruct Hr. cbn.
-      unfold int. sup_intro [ n | ].
-      + fcd_simpl. apply join_lub.
-        * apply (sup_at None). reflexivity.
-        * apply (sup_at (Some n)).
-          inf_mor. eapply (inf_at (exist _ n _)).
-          Unshelve. 2: { now apply Hsub. }
-          now fcd_simpl.
-      + apply (sup_at None). now fcd_simpl.
-    - apply (sup_at ar). apply (sup_at m).
-      eapply (sup_at (exist _ (@eq ar) _)). cbn.
-      (* rc_econstructor. *)
-      Unshelve. 2: { cbn. exists (@eq ar). split; eauto. constructor. reflexivity. }.
-      unfold int. apply sup_iff. intros [ n | ].
-      + rewrite Sup.mor. apply (sup_at (Some n)).
-        fcd_simpl. apply join_r.
-        inf_intro [ n' <- ]. now fcd_simpl.
-      + sup_mor. apply (sup_at None). now fcd_simpl.
+    apply antisymmetry; intros ar m; cbn;
+      unfold M.identity, rc_adj_left.
+    - constructor. intros ar'.
+      constructor. intros m'.
+      constructor. intros [R Hr]. cbn.
+      rc_destruct Hr.
+      constructor. intros n.
+      apply sim_finf_l with (i := n). now apply Hsub.
+      reflexivity.
+    - eapply M.sim_sup_r with (i := ar).
+      eapply M.sim_sup_r with (i := m).
+      eapply sim_fsup_r with (i := (@eq ar)). rc_econstructor.
+      constructor. intros v.
+      constructor. intros [n <-]. cbn.
+      reflexivity.
   Qed.
 
   Lemma right_arrow_id:
-    right_arrow (rc_adj (@rc_id E)) ≡ M.identity.
+    right_arrow (rc_adj (@rc_id E)) ≈ M.identity.
   Proof.
-    apply antisymmetry; intros ar m; cbn.
-    - apply (inf_at ar). apply (inf_at m).
-      eapply (inf_at (exist _ (@eq ar) _)). cbn.
-      (* rc_econstructor. *)
-      Unshelve. 2: { cbn. exists (@eq ar). split; eauto. constructor. reflexivity. }.
-      unfold int. sup_intro [ n | ].
-      + fcd_simpl. apply join_lub.
-        * apply (sup_at None). reflexivity.
-        * apply (sup_at (Some n)).
-          sup_intro [ n' <- ]. now fcd_simpl.
-      + apply (sup_at None). now fcd_simpl.
-    - apply inf_iff. intros ar'.
-      apply inf_iff. intros m'.
-      apply inf_iff. intros [ R Hr ]. rc_destruct Hr. cbn.
-      unfold identity, int. sup_intro [ n | ].
-      + apply (sup_at (Some n)). fcd_simpl.
-        apply join_r. sup_mor.
-        eapply (sup_at (exist _ n _)).
-        Unshelve. 2: { now apply Hsub. }
-        now fcd_simpl.
-      + apply (sup_at None). now fcd_simpl.
+    apply antisymmetry; intros ar m; cbn;
+      unfold M.identity, rc_adj_right.
+    - eapply M.sim_inf_l with (i := ar).
+      eapply M.sim_inf_l with (i := m).
+      eapply sim_finf_l with (i := (@eq ar)). rc_econstructor.
+      constructor. intros v.
+      constructor. intros [n <-]. cbn.
+      reflexivity.
+    - constructor. intros ar'.
+      constructor. intros m'.
+      constructor. intros [R Hr]. cbn.
+      rc_destruct Hr.
+      constructor. intros n.
+      apply sim_fsup_r with (i := n). now apply Hsub.
+      reflexivity.
+  Qed.
+
+  Lemma left_arrow_compose:
+    left_arrow (rc_adj rc2) ∘ left_arrow (rc_adj rc1) ≈
+      left_arrow (rc_adj (rc_compose rc1 rc2)).
+  Proof.
+    apply antisymmetry; intros ar1 m1; cbn;
+      unfold compose, rc_adj_left.
+    - constructor. intros ar2.
+      constructor. intros m2.
+      constructor. intros [R Hr]. cbn.
+      constructor. intros ar3.
+      constructor. intros m3.
+      constructor. intros [R' Hr']. cbn.
+      eapply M.sim_sup_r with (i := ar3).
+      eapply M.sim_sup_r with (i := m3).
+      eapply sim_fsup_r with (i := (fun x z => exists y, R' x y /\ R y z)).
+      rc_econstructor; eauto.
+      constructor. intros n3.
+      constructor. intros [n1 [n2 [H2 H1]]]. cbn.
+      eapply M.sim_inf_l with (i := (exist _ n2 H2)).
+      eapply M.sim_inf_l with (i := (exist _ n1 H1)).
+      reflexivity.
+    - constructor. intros ar3.
+      constructor. intros m3.
+      constructor. intros [R Hr]. cbn.
+      rc_destruct Hr.
+      eapply M.sim_sup_r with (i := ar2).
+      eapply M.sim_sup_r with (i := m2).
+      eapply M.sim_sup_r with (i := exist _ R' H0).
+      eapply M.sim_sup_r with (i := ar1).
+      eapply M.sim_sup_r with (i := m1).
+      eapply M.sim_sup_r with (i := exist _ R0 H). cbn.
+      constructor. intros n1.
+      constructor. intros [n2 H2]. cbn.
+      constructor. intros [n3 H3]. cbn.
+      assert (R n1 n3) as HR. apply Hsub. eexists; eauto.
+      eapply M.sim_inf_l with (i := (exist _ n3 HR)).
+      reflexivity.
+  Qed.
+
+  Lemma right_arrow_compose:
+    right_arrow (rc_adj rc1) ∘ right_arrow (rc_adj rc2) ≈
+      right_arrow (rc_adj (rc_compose rc1 rc2)).
+  Proof.
+    apply antisymmetry; intros ar1 m1; cbn;
+      unfold compose, rc_adj_right.
+    - constructor. intros ar2.
+      constructor. intros m2.
+      constructor. intros [R Hr]. cbn.
+      rc_destruct Hr.
+      eapply M.sim_inf_l with (i := ar2).
+      eapply M.sim_inf_l with (i := m2).
+      eapply M.sim_inf_l with (i := exist _ R0 H).
+      eapply M.sim_inf_l with (i := ar3).
+      eapply M.sim_inf_l with (i := m3).
+      eapply M.sim_inf_l with (i := exist _ R' H0). cbn.
+      constructor. intros n3.
+      constructor. intros (n2 & Hn2). cbn.
+      constructor. intros (n1 & Hn1). cbn.
+      assert (R n1 n3) as HR. apply Hsub. eexists; eauto.
+      eapply M.sim_sup_r with (i := (exist _ n1 HR)).
+      reflexivity.
+    - constructor. intros ar2.
+      constructor. intros m2.
+      constructor. intros [R1 HR1]. cbn.
+      constructor. intros ar3.
+      constructor. intros m3.
+      constructor. intros [R2 HR2]. cbn.
+      eapply M.sim_inf_l with (i := ar3).
+      eapply M.sim_inf_l with (i := m3).
+      eapply sim_finf_l with (i := (fun x z => exists y, R1 x y /\ R2 y z)).
+      rc_econstructor; eauto.
+      constructor. intros n3.
+      constructor. intros [n1 [n2 [Hn1 Hn2]]]. cbn.
+      eapply M.sim_sup_r with (i := (exist _ n2 Hn2)).
+      eapply M.sim_sup_r with (i := (exist _ n1 Hn1)).
+      reflexivity.
   Qed.
 
 End FUNCTOR.
 
 (** ** Order Preserving *)
 
+(* May not be needed in this module *)
 Lemma int_ref {E A B} (x: E A) (f g: A -> t E B):
   (forall a, f a [= g a) ->
   a <- int x; f a [= a <- int x; g a.
@@ -975,34 +915,38 @@ Section ORDER.
   Context {E F} (rc1 rc2: E <=> F) (H: rc_ref rc1 rc2).
 
   Lemma left_arrow_monotonic:
-    left_arrow (rc_adj rc1) ⊑ left_arrow (rc_adj rc2).
+    left_arrow (rc_adj rc1) ≲ left_arrow (rc_adj rc2).
   Proof.
-    intros ? e. cbn.
-    apply sup_iff. intros ?. apply sup_iff. intros f.
-    apply sup_iff. intros [R1 H1].
+    intros ? e. cbn. unfold rc_adj_left.
+    constructor. intros ar.
+    constructor. intros f.
+    constructor. intros [R1 H1]. cbn.
     unfold rc_ref in H. edestruct H as [R2 [HR2 HX]]. exact H1.
-    apply (sup_at i). apply (sup_at f).
-    apply (sup_at (exist _ R2 HR2)). cbn.
-    apply int_ref. intros a.
-    apply inf_iff. intros [z Hz].
-    eapply (inf_at (exist _ z _)).
-    Unshelve. 2: { apply HX. exact Hz. }
+    eapply M.sim_sup_r with (i := ar).
+    eapply M.sim_sup_r with (i := f).
+    eapply sim_fsup_r with (i := R2). eauto.
+    constructor. intros n.
+    constructor. intros [z Hz]. cbn.
+    assert (Hz': R1 n z). apply HX. exact Hz.
+    eapply sim_finf_l with (i := z). eauto.
     reflexivity.
   Qed.
 
   Lemma right_arrow_monotonic:
-    right_arrow (rc_adj rc2) ⊑ right_arrow (rc_adj rc1).
+    right_arrow (rc_adj rc2) ≲ right_arrow (rc_adj rc1).
   Proof.
-    intros ? e. cbn.
-    apply inf_iff. intros ?. apply inf_iff. intros f.
-    apply inf_iff. intros [R1 H1].
+    intros ? e. cbn. unfold rc_adj_right.
+    constructor. intros ar.
+    constructor. intros f.
+    constructor. intros [R1 H1]. cbn.
     unfold rc_ref in H. edestruct H as [R2 [HR2 HX]]. exact H1.
-    apply (inf_at i). apply (inf_at f).
-    apply (inf_at (exist _ R2 HR2)).
-    apply int_ref. intros a.
-    apply sup_iff. intros [z Hz].
-    eapply (sup_at (exist _ z _)).
-    Unshelve. 2: { apply HX. exact Hz. }
+    eapply M.sim_inf_l with (i := ar).
+    eapply M.sim_inf_l with (i := f).
+    eapply sim_finf_l with (i := R2). eauto.
+    constructor. intros n.
+    constructor. intros [z Hz]. cbn.
+    assert (Hz': R1 z n). apply HX. exact Hz.
+    eapply sim_fsup_r with (i := z). eauto.
     reflexivity.
   Qed.
 
@@ -1098,6 +1042,9 @@ Qed.
 Coercion cc_refconv {liA liB} (cc: callconv liA liB): refconv liA liB :=
   normalize_rc (cc_rc cc).
 
+(* TODO: restore state *)
+
+(*
 (** * Functor from Rel to RC *)
 
 (** ** Definition *)
@@ -1136,3 +1083,4 @@ Proof.
     econstructor. eexists; split; eauto.
     apply rel_compose_subrel; eauto.
 Qed.
+*)
