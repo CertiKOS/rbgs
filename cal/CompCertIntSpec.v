@@ -15,7 +15,72 @@ From structures Require Import
      Effects Lattice.
 From cal Require Import RefConv.
 
-Import ISpec.
+(* Import ISpec. *)
+
+Import RefConv.M.
+
+Lemma sim_refl {E A} (x: M.t E A) :
+  M.sim x x.
+Proof. reflexivity. Qed.
+
+Hint Constructors M.sim.
+Hint Resolve sim_refl.
+
+Lemma sim_sup {E I A} (x y: I -> M.t E A) :
+  (forall i, M.sim (x i) (y i)) -> M.sim (⊔ i, x i) (⊔ i, y i).
+Proof.
+  intros. constructor. intros i. econstructor. eauto.
+Qed.
+
+Lemma sim_fsup {E I A} (x y: I -> M.t E A) (P: I -> Prop) :
+  (forall i, P i -> M.sim (x i) (y i)) ->
+  M.sim (⊔ { i | P i }, x i) (⊔ { i | P i }, y i).
+Proof.
+  intros. constructor. intros [i Hi]. econstructor. eauto.
+Qed.
+
+(* TODO: move to module M *)
+Definition join {E A} (x y: M.t E A) := ⊔ b: bool, if b then x else y.
+Definition meet {E A} (x y: M.t E A) := ⊓ b: bool, if b then x else y.
+Infix "⊓" := meet (at level 40, left associativity).
+Infix "⊔" := join (at level 50, left associativity).
+
+Definition assert {E A} (P: Prop) (x: M.t E A): M.t E A := ⊔ H: P, x.
+Definition assume {E A} (P: Prop) (x: M.t E A): M.t E A := ⊓ H: P, x.
+Notation "'assert' P ; x" := (assert P x) (at level 65).
+Notation "'assume' P ; x" := (assume P x) (at level 65).
+
+Definition bot {E A}: M.t E A := ⊔ i: Empty_set, match i with end.
+Definition top {E A}: M.t E A := ⊓ i: Empty_set, match i with end.
+Notation "⊥" := bot.
+Notation "⊤" := top.
+
+Lemma bot_lb {E A} (x: M.t E A) :
+  M.sim bot x.
+Proof. constructor. intros [ ]. Qed.
+
+Lemma join_lub {E A} (x y z: M.t E A) :
+  M.sim x z -> M.sim y z -> M.sim (x ⊔ y) z.
+Proof.
+  intros Hx Hy. unfold join.
+  constructor. intros [|]; auto.
+Qed.
+
+Lemma join_l {E A} (x y z: M.t E A) :
+  M.sim x y -> M.sim x (y ⊔ z).
+Proof.
+  intro. etransitivity; eauto.
+  eapply sim_sup_r with (i := true). reflexivity.
+Qed.
+
+Lemma join_r {E A} (x y z: M.t E A) :
+  M.sim x z -> M.sim x (y ⊔ z).
+Proof.
+  intro. etransitivity; eauto.
+  eapply sim_sup_r with (i := false). reflexivity.
+Qed.
+
+Definition query_int {li} := @eli_intro li.
 
 (** * Embed CompCert Semantics into Game Semantics *)
 
@@ -43,109 +108,88 @@ Section LTS.
       transition does not finish within the number of steps, it
       crashes. Eventually, we use an angelic choice over the number of steps. *)
 
-    Fixpoint dem_lts_spec' (n: nat) (s: state L) se: ispec liA (reply liB) :=
+    Fixpoint dem_lts_spec' (n: nat) (s: state L) se: M.t liA (reply liB) :=
       match n with
-      | O => bot
+      | O => ⊥
       | S n =>
-          _ <- assert (safe (L se) s);
+          assert (safe (L se) s);
           (* internal step *)
-          (inf { s' | Step (L se) s E0 s' }, dem_lts_spec' n s' se) &&
+          (⊓ { s' | Step (L se) s E0 s' }, dem_lts_spec' n s' se) ⊓
           (* external call *)
-          (inf { q | at_external (L se) s q },
-           r <- query_int q se;
-           _ <- assert (exists s', after_external (L se) s r s');
-           inf { s' | after_external (L se) s r s' }, dem_lts_spec' n s' se) &&
+          (⊓ { q | at_external (L se) s q },
+           r ← query_int q se;
+           assert (exists s', after_external (L se) s r s');
+           ⊓ { s' | after_external (L se) s r s' }, dem_lts_spec' n s' se) ⊓
           (* final state *)
-          (inf { r | final_state (L se) s r }, ret r)
+          (⊓ { r | final_state (L se) s r }, M.Ret r)
       end.
 
     Definition dem_lts_spec: subst liA liB :=
-      fun _ '(eli_intro q se) => sup n,
-        _ <- assert (exists s, initial_state (L se) q s);
-        inf { s | initial_state (L se) q s }, dem_lts_spec' n s se.
+      fun _ '(eli_intro q se) => ⊔ n,
+        assert (exists s, initial_state (L se) q s);
+        ⊔ { s | initial_state (L se) q s }, dem_lts_spec' n s se.
 
   End DEM.
 
   (** *** Angelic Semantics *)
   Section ANG.
 
-    Fixpoint ang_lts_exec (n: nat) (s: state L) se: ispec liA (reply liB) :=
+    Fixpoint ang_lts_exec (n: nat) (s: state L) se: M.t liA (reply liB) :=
       match n with
-      | O => bot
+      | O => ⊥
       | S n =>
           (* internal step *)
-          (sup { s' | Star (L se) s E0 s' }, ang_lts_exec n s' se) ||
+          (⊔ { s' | Star (L se) s E0 s' }, ang_lts_exec n s' se) ⊔
           (* external call *)
-          (sup { q | at_external (L se) s q },
-           r <- query_int q se;
-           sup { s' | after_external (L se) s r s' }, ang_lts_exec n s' se) ||
+          (⊔ { q | at_external (L se) s q },
+           r ← query_int q se;
+           ⊔ { s' | after_external (L se) s r s' }, ang_lts_exec n s' se) ⊔
           (* final step *)
-          (sup { r | final_state (L se) s r }, ret r)
+          (⊔ { r | final_state (L se) s r }, M.Ret r)
       end.
 
     Definition ang_lts_spec' sk: subst liA liB :=
       fun _ '(eli_intro q se) =>
-        _ <- assume (Genv.valid_for sk se);
-        sup n, sup { s | initial_state (L se) q s }, ang_lts_exec n s se.
+        assume (Genv.valid_for sk se);
+        ⊔ n, ⊔ { s | initial_state (L se) q s }, ang_lts_exec n s se.
 
     Definition ang_lts_spec: subst liA liB := ang_lts_spec' (skel L).
 
     (** Executing one step in the FCD specification *)
     Lemma lts_spec_step s se:
-      sup n, ang_lts_exec n s se =
-        (sup { s' | Star (L se) s E0 s' }, sup n, ang_lts_exec n s' se) ||
-        (sup { q | at_external (L se) s q },
-          r <- query_int q se;
-         sup { s' | after_external (L se) s r s' }, sup n, ang_lts_exec n s' se) ||
-        (sup { r | final_state (L se) s r }, ret r).
+      M.bisim
+        (⊔ n, ang_lts_exec n s se)
+        ((⊔ { s' | Star (L se) s E0 s' }, ⊔ n, ang_lts_exec n s' se) ⊔
+         (⊔ { q | at_external (L se) s q },
+           ⊔ n,
+           r ← query_int q se;
+           ⊔ { s' | after_external (L se) s r s' }, ang_lts_exec n s' se) ⊔
+         (⊔ { r | final_state (L se) s r }, M.Ret r)).
     Proof.
       apply antisymmetry.
-      - apply sup_iff. intros i.
+      - constructor. intros i.
         destruct i; cbn; eauto using bot_lb.
         repeat apply join_lub.
         + apply join_l. apply join_l.
-          apply sup_iff. intros [s' H]. cbn.
-          apply (sup_at (exist _ s' H)). apply (sup_at i). reflexivity.
+          apply sim_fsup. intros s' H. eauto.
         + apply join_l. apply join_r.
-          apply sup_iff. intros [q H]. cbn.
-          apply (sup_at (exist _ q H)). cbn.
-          apply bind_proper_ref; try reflexivity.
-          intros ra. unfold bind.
-          apply sup_iff. intros [s' Hs'].
-          eapply fsup_at. eauto. cbn.
-          apply (sup_at i). reflexivity.
-        + apply join_r. reflexivity.
+          apply sim_fsup. intros q H.
+          econstructor. eauto.
+        + apply join_r. eauto.
       - repeat apply join_lub.
-        + apply sup_iff. intros [s' H]. cbn.
-          apply sup_iff. intros n. apply (sup_at (S n)). cbn.
+        + constructor. intros [s' H]. cbn.
+          constructor. intros n.
+          eapply sim_sup_r with (i := S n). cbn.
           apply join_l. apply join_l.
-          apply (sup_at (exist _ s' H)). reflexivity.
-        + apply sup_iff. intros [q Hq]. cbn.
-          unfold bind. setoid_rewrite Sup.mor.
-          apply sup_iff. intros [ra|].
-          * rewrite FCD.ext_ana. cbn. apply join_lub.
-            -- apply (sup_at 1%nat). cbn. apply join_l. apply join_r.
-               eapply fsup_at. eauto.
-               setoid_rewrite Sup.mor.
-               apply (sup_at (Some ra)). unfold bind.
-               rewrite FCD.ext_ana. cbn.
-               apply join_l. reflexivity.
-            -- setoid_rewrite Sup.mor. apply sup_iff. intros [s' Hs'].
-               cbn. rewrite Sup.mor. apply sup_iff. intros i.
-               apply (sup_at (S i)). cbn. apply join_l. apply join_r.
-               eapply fsup_at; eauto. unfold bind.
-               setoid_rewrite Sup.mor. apply (sup_at (Some ra)).
-               rewrite FCD.ext_ana. cbn. apply join_r.
-               setoid_rewrite Sup.mor.
-               apply (sup_at (exist _ s' Hs')). cbn. reflexivity.
-          * rewrite FCD.ext_ana. cbn.
-            apply (sup_at 1%nat). cbn. apply join_l. apply join_r.
-            eapply fsup_at; eauto. unfold bind.
-            setoid_rewrite Sup.mor. apply (sup_at None).
-            rewrite FCD.ext_ana. reflexivity.
-        + apply sup_iff. intros [r Hr]. cbn.
-          apply (sup_at 1%nat). cbn. apply join_r.
-          eapply fsup_at; eauto. reflexivity.
+          eapply sim_fsup_r with (i := s'); eauto.
+        + constructor. intros [q H]. cbn.
+          constructor. intros n.
+          eapply sim_sup_r with (i := (S n)). cbn.
+          apply join_l. apply join_r.
+          eapply sim_fsup_r with (i := q); eauto.
+        + constructor. intros [r H]. cbn.
+          eapply sim_sup_r with (i := 1%nat). cbn.
+          apply join_r. eapply sim_fsup_r with (i := r); eauto.
     Qed.
 
   End ANG.
@@ -166,17 +210,56 @@ End LTS.
 
 (** The skeleton is used for choosing a compatible symbol table. So a larger
   skeleton accepts less symbol tables and thus leads to less behavior. *)
-Instance skel_order_proper {liA liB} (L: semantics liA liB):
-  Proper (Linking.linkorder ++> ref) (ang_lts_spec' L).
-Proof.
-  intros sk1 sk2 Hsk. intros k [qb se]. cbn.
-  apply assume_r. intros Hv.
-  apply assume_l. reflexivity.
-  eapply Genv.valid_for_linkorder; eauto.
-Qed.
+(* Instance skel_order_proper {liA liB} (L: semantics liA liB): *)
+(*   Proper (Linking.linkorder ++> M.sim_) (ang_lts_spec' L). *)
+(* Proof. *)
+(*   intros sk1 sk2 Hsk. intros k [qb se]. cbn. *)
+(*   apply assume_r. intros Hv. *)
+(*   apply assume_l. reflexivity. *)
+(*   eapply Genv.valid_for_linkorder; eauto. *)
+(* Qed. *)
 
 (* Note: it's hard to imply the [esig] from the context, since
    higher-order unification is generally difficult, i.e. to imply [E] from [E X] *)
+
+Lemma assume_l {E A} (P : Prop) (x y : M.t E A) :
+  P -> M.sim x y -> M.sim (assume P; x) y.
+Proof. intros Hxy HP. constructor; eauto. Qed.
+
+Lemma bind_join {E A B} (x y: M.t E A) (f: A -> M.t E B) :
+  M.bisim (bind (x ⊔ y) f) ((bind x f) ⊔ (bind y f)).
+Proof.
+  split; cbn.
+  - constructor. intros [ | ]; [ apply join_l | apply join_r ]; eauto.
+  - apply join_lub.
+    apply sim_sup_r with (i := true). reflexivity.
+    apply sim_sup_r with (i := false). reflexivity.
+Qed.
+
+Lemma apply_join {E F A} (x y: M.t F A) (z: E ⤳ F) :
+  M.bisim ((x ⊔ y) // z) ((x // z) ⊔ (y // z)).
+Proof.
+  split; cbn.
+  - constructor. intros [ | ]; [ apply join_l | apply join_r ]; eauto.
+  - apply join_lub.
+    apply sim_sup_r with (i := true). reflexivity.
+    apply sim_sup_r with (i := false). reflexivity.
+Qed.
+
+Instance apply_proper_sim {E F A}:
+  Proper (bisim_ ==> bisim ==> sim) (@apply E F A).
+Proof.
+(*   intros s1 s2 Hs t1 t2 Ht. induction Ht; cbn; try econstructor; eauto. *)
+(*   apply bind_proper_sim; eauto. *)
+(* Qed. *)
+Admitted.
+
+Instance sim_proper_ {E F}:
+  Proper (M.bisim ==> M.bisim ==> iff) (@M.sim E F).
+Proof.
+Admitted.
+
+(* Opaque join. *)
 
 (** ** Monotonicity of Embedding *)
 Section SEM.
@@ -189,33 +272,37 @@ Section SEM.
   Hypothesis FSIM: forward_simulation ccA ccB L1 L2.
 
   Lemma ang_fsim_embed' :
-    ang_lts_spec' L1 sk [= (right_arrow (cc_rc ccB)) @ ang_lts_spec' L2 sk @ (left_arrow (cc_rc ccA)).
+    ang_lts_spec' L1 sk ≲ (right_arrow (cc_rc ccB)) ∘ ang_lts_spec' L2 sk ∘ (left_arrow (cc_rc ccA)).
   Proof.
     intros k [qb1 se1]. unfold compose. cbn.
-    unfold rc_adj_right. inf_intro a. inf_intro [qb2 se2].
-    inf_intro [Rrb Hrb]. rc_inversion Hrb. depsubst.
+    apply sim_inf_r. intros a.
+    apply sim_inf_r. intros [qb2 se2]. cbn.
+    apply sim_inf_r. intros [Rrb Hrb]. cbn.
+    rc_inversion Hrb. subst_dep.
     rename H4 into Hse. rename H5 into Hqb. rename w into wB.
     clear Hrel. rename Hsub into HRrb.
-    intm. inf_mor. inf_intro Hv2.
+    apply sim_inf_r. intros Hv2.
     assert (Hv1: Genv.valid_for sk se1).
     { rewrite @match_senv_valid_for; eauto. }
-    apply (inf_at Hv1). intm.
-    apply sup_iff. intros steps.
-    apply sup_iff. intros [s H1]. cbn.
+    apply assume_l. exact Hv1.
+    apply sim_sup_l. intros steps.
+    apply sim_sup_l. intros [s H1]. cbn.
     destruct FSIM as [[? ? match_states Hskeq Hfp Hlts Hwf]].
     clear FSIM. rename Hlts into FSIM.
     assert (Hsk1: Genv.valid_for (skel L1) se1).
     { eapply Genv.valid_for_linkorder; eauto. }
     specialize (FSIM se1 se2 wB Hse Hsk1).
     clear Hv1 Hv2 Hskeq.
-    intm. sup_mor. apply (sup_at steps).
+    apply sim_sup_r with (i := steps).
     edestruct (fsim_match_initial_states FSIM) as (i & s2 & H2 & Hs); eauto.
-    sup_mor. eapply (fsup_at s2). apply H2.
+    eapply sim_sup_r with (i0 := (exist _ s2 H2)). cbn.
     clear H1 H2 Hqb. revert i s s2 Hs.
     induction steps; eauto using bot_lb.
     intros i s1 s2 Hs. cbn.
     repeat apply join_lub.
-    - sup_intro [s1' Hstep]. apply join_l. apply join_l.
+    - apply sim_sup_l. intros [s1' Hstep]. cbn.
+      apply sim_sup_r with (i0 := true). cbn. (* join_l *)
+      apply sim_sup_r with (i0 := true). cbn. (* join_l *)
       assert (exists i s2', Star (L2 se2) s2 E0 s2' /\ match_states se1 se2 wB i s1' s2') as (i' & s2' & Hstep2 & Hs').
       {
         revert i s2 Hs. pattern s1, s1'. eapply star_E0_ind; eauto; clear s1 s1' Hstep.
@@ -226,34 +313,29 @@ Section SEM.
           eexists i'', s2''. split; eauto.
           eapply star_trans; eauto.
       }
-      sup_mor. eapply (fsup_at s2'). apply Hstep2.
-      specialize (IHsteps _ _ _ Hs'). apply IHsteps.
-    - sup_intro [qa1 H1]. apply join_l. apply join_r.
+      apply sim_sup_r with (i0 := (exist _ s2' Hstep2)). cbn.
+      eapply IHsteps; eauto.
+    - apply sim_sup_l. intros [qa1 H1]. cbn.
+      apply sim_sup_r with (i0 := true). cbn. (* join_l *)
+      apply sim_sup_r with (i0 := false). cbn. (* join_r *)
       edestruct @fsim_match_external as (w & qa2 & H2 & Hqa & Hse' & Hrx); eauto.
-      sup_mor. eapply (fsup_at qa2). apply H2.
-      unfold query_int. intm. unfold rc_adj_left at 3.
-      sup_mor. eapply sup_at.
-      sup_mor. eapply (sup_at (eli_intro qa1 se1)).
-      sup_mor. eapply (fsup_at (match_reply ccA w)).
-      { rc_econstructor; eauto. }
-      intm. sup_mor. apply sup_iff. intros [ ra1 | ].
-      + fcd_simpl. apply join_lub.
-        * apply (sup_at None). fcd_simpl. reflexivity.
-        * apply (sup_at (Some ra1)).
-          fcd_simpl. apply join_r.
-          inf_intro [ra2 Hr]. intm.
-          sup_intro [s' H1'].
-          specialize (Hrx _ _ _ Hr H1') as (i' & s2' & H2' & Hs').
-          eapply (fsup_at s2'). apply H2'.
-          specialize (IHsteps _ _ _ Hs').
-          rewrite IHsteps. reflexivity.
-      + apply (sup_at None). fcd_simpl. reflexivity.
-    - sup_intro [rb1 H1]. apply join_r.
+      apply sim_sup_r with (i0 := (exist _ qa2 H2)). cbn.
+      eapply sim_sup_r. eapply sim_sup_r with (i0 := (eli_intro qa1 se1)).
+      eapply sim_sup_r with (i0 := exist _ (match_reply ccA w) _). cbn.
+      Unshelve. 2: { cbn. rc_econstructor; eauto. }
+      constructor. intros ra1.
+      apply sim_inf_r. intros [ra2 Hr]. cbn.
+      apply sim_sup_l. intros [s' H1']. cbn.
+      specialize (Hrx _ _ _ Hr H1') as (i' & s2' & H2' & Hs').
+      eapply sim_sup_r with (i0 := (exist _ s2' H2')). cbn.
+      eapply IHsteps; eauto.
+    - apply sim_sup_l. intros [rb1 H1]. cbn.
+      apply sim_sup_r with (i0 := false). cbn. (* join_r *)
       edestruct @fsim_match_final_states as (rb2 & H2 & Hr); eauto.
-      sup_mor. apply (fsup_at rb2). apply H2.
-      intm. sup_mor.
-      apply (fsup_at rb1). apply HRrb. apply Hr.
-      intm. reflexivity.
+      apply sim_sup_r with (i0 := (exist _ rb2 H2)). cbn.
+      eapply sim_sup_r with (i0 := exist _ rb1 _). cbn.
+      Unshelve. 2: { cbn. apply HRrb. apply Hr. }
+      reflexivity.
   Qed.
 
 End SEM.
@@ -261,7 +343,7 @@ End SEM.
 Lemma ang_fsim_embed {liA1 liA2 liB1 liB2} ccA ccB
       (L1: semantics liA1 liB1) (L2: semantics liA2 liB2):
   forward_simulation ccA ccB L1 L2 ->
-  ang_lts_spec L1 [= (right_arrow (cc_rc ccB)) @ ang_lts_spec L2 @ (left_arrow (cc_rc ccA)).
+  ang_lts_spec L1 ≲ (right_arrow (cc_rc ccB)) ∘ ang_lts_spec L2 ∘ (left_arrow (cc_rc ccA)).
 Proof.
   intros FSIM. destruct FSIM as [[]].
   unfold ang_lts_spec. rewrite <- fsim_skel.
@@ -272,12 +354,14 @@ Qed.
 
 Lemma ang_fsim_embed_cc_id {liA liB} (L1 L2: semantics liA liB):
   forward_simulation 1 1 L1 L2 ->
-  ang_lts_spec L1 [= ang_lts_spec L2.
+  ang_lts_spec L1 ≲ ang_lts_spec L2.
 Proof.
   intros H. apply ang_fsim_embed in H.
   rewrite H. rewrite !cc_rc_id.
-  rewrite right_arrow_id. rewrite compose_unit_l.
-  rewrite left_arrow_id. rewrite compose_unit_r.
+  rewrite right_arrow_id.
+  rewrite left_arrow_id.
+  rewrite compose_unit_r.
+  rewrite compose_unit_l.
   reflexivity.
 Qed.
 
@@ -314,7 +398,8 @@ Section COMP.
         apply sup_iff. intros steps. apply (sup_at (S steps)).
         cbn. apply join_l. apply join_l.
         eapply fsup_at. apply Hstep. reflexivity.
-      + sup_intro [qb1 Hext1]. unfold query_int. intm.
+      + sup_intro [qb1 Hext1]. unfold query_int.
+        rewrite apply_bind. intm.
         apply assume_l; eauto.
         sup_intro steps2. sup_intro [s2 Hinit2].
         rewrite lts_spec_step. apply join_l. apply join_l.
