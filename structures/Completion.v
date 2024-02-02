@@ -113,8 +113,11 @@ Module LatticeCompletionDefs (LC : LatticeCategory) (CS : LatticeCompletionSpec 
   Admitted.
 
   Global Instance emb_params : Params (@CS.emb) 1.
+  Defined.
   Global Instance ext_params : Params (@CS.ext) 1.
+  Defined.
   Global Instance map_params : Params (@map) 1.
+  Defined.
 
 End LatticeCompletionDefs.
 

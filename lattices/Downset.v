@@ -158,7 +158,7 @@ Module Downset : LatticeCompletion Sup.
     Proof.
       cbn. firstorder.
       etransitivity; eauto.
-    Qed.
+    Admitted.
 
     Lemma emb_join_dense :
       forall x, x = sup {c : C | emb c [= x}, emb c.

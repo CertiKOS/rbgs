@@ -4,4 +4,4 @@
 [submodule "compcert"]
 	path = compcert
 	url = https://github.com/CertiKOS/compcert.git
-	branch = compcerto
+	branch = compcertoe-pldi24

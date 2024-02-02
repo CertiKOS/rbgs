@@ -206,6 +206,7 @@ Module ISpec.
 
   Instance bind_mor_params :
     Params (@bind) 1.
+  Defined.
 
   Lemma bind_ret_r {E A B} (a : A) (f : A -> t E B) :
     bind f (ret a) = f a.
@@ -306,6 +307,7 @@ Module ISpec.
 
   Instance apply_mor_params :
     Params (@apply) 1.
+  Defined.
 
   Definition compose {E F G} (g : subst F G) (f : subst E F) : subst E G :=
     fun ar m => apply f (g ar m).
