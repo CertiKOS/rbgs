@@ -192,6 +192,12 @@ Section LTS.
           apply join_r. eapply sim_fsup_r with (i := r); eauto.
     Qed.
 
+    Lemma lts_spec_step' s se:
+      M.sim
+        (⊔ n, ang_lts_exec (S n) s se)
+        (⊔ n, ang_lts_exec n s se).
+    Proof. constructor. intros i. eauto. Qed.
+
   End ANG.
 
   (** The two interpretations coincide when the computation has at most one
@@ -367,6 +373,18 @@ Qed.
 
 Require Import compcert.common.CategoricalComp.
 
+Lemma sup_sup {E I J A} (x: I -> J -> M.t E A) :
+  M.bisim (⊔ i, ⊔ j, x i j) (⊔ j, ⊔ i, x i j).
+Proof.
+  split; do 2 (constructor; intros); do 2 econstructor; eauto.
+Qed.
+
+Lemma sup_bind {E I A B} (x: E A) (f: I -> A -> M.t E B):
+  M.sim (M.Bind x (fun v => ⊔ i, f i v)) (⊔ i, M.Bind x (f i)).
+Proof.
+Abort.
+
+
 (** ** Functoriality of the embedding *)
 (** We prove the embedding preserves composition, i.e. ⟦L1⟧ ∘ ⟦L2⟧ ⊑ ⟦L1 ∘ L2⟧. *)
 Section COMP.
@@ -377,66 +395,61 @@ Section COMP.
   Hypothesis HSK: Linking.linkorder (skel L) sk.
 
   Lemma comp_embed':
-    ang_lts_spec' L1 sk @ ang_lts_spec' L2 sk [= ang_lts_spec' L sk.
+    ang_lts_spec' L1 sk ∘ ang_lts_spec' L2 sk ≲ ang_lts_spec' L sk.
   Proof.
     Local Opaque comp_semantics'.
     intros _ [qc se]. unfold comp_semantics, option_map in COMP.
-    destruct Linking.link eqn: Hlk; try congruence. inv COMP.
-    unfold ISpec.compose. unfold ang_lts_spec' at 2.
-    inf_mor. inf_intro Hsk.
-    apply (inf_at Hsk). intm. sup_intro steps1.
-    sup_intro [s1 Hinit]. unfold fsup. rewrite sup_sup.
+    destruct Linking.link eqn: Hlk; try congruence. inv COMP. cbn.
+    apply sim_inf_r. intros Hsk.
+    eapply sim_inf_l. apply Hsk.
+    apply sim_sup_l. intros steps1.
+    apply sim_sup_l. intros [s1 Hinit]. cbn.
+    setoid_rewrite sup_sup.
     exploit @comp_initial_state_intro. eapply Hinit. intro Hinit'.
-    eapply (sup_at (exist _ (st1 _ _ s1) Hinit')). cbn.
+    eapply sim_sup_r with (i := (exist _ (st1 _ _ s1) Hinit')). cbn.
     clear Hinit Hinit'. revert s1. induction steps1.
-    - intros s. apply (sup_at 0%nat). cbn.
-      rewrite Sup.mor_bot. reflexivity.
-    - intros s1. cbn. rewrite !Sup.mor_join. repeat apply join_lub.
-      + sup_intro [s1' Hstep1].
+    - intros s. apply sim_sup_r with (i := 0%nat). cbn.
+      constructor. intros [  ].
+    - intros s1. cbn.
+      apply sim_sup_l; intros [ | ]. cbn. (* apply join_lub *)
+      apply sim_sup_l; intros [ | ].
+      + apply sim_sup_l. intros [s1' Hstep1]. cbn.
         exploit @star_internal1. apply Hstep1. intros Hstep.
         specialize (IHsteps1 s1'). etransitivity. apply IHsteps1.
-        apply sup_iff. intros steps. apply (sup_at (S steps)).
-        cbn. apply join_l. apply join_l.
-        eapply fsup_at. apply Hstep. reflexivity.
-      + sup_intro [qb1 Hext1]. unfold query_int.
-        rewrite apply_bind. intm.
-        apply assume_l; eauto.
-        sup_intro steps2. sup_intro [s2 Hinit2].
+        apply sim_sup_l. intros steps. apply sim_sup_r with (i := S steps). cbn.
+        apply join_l. apply join_l.
+        eapply sim_fsup_r. apply Hstep. reflexivity.
+      + apply sim_sup_l. intros [qb Hext1]. cbn.
+        apply assume_l. apply Hsk.
+        apply sim_sup_l. intros steps2.
+        apply sim_sup_l. intros [s2 Hinit2]. cbn.
         rewrite lts_spec_step. apply join_l. apply join_l.
-        eapply fsup_at. apply star_one. eapply step_push; eauto.
+        eapply sim_fsup_r. apply star_one. eapply step_push; eauto.
+        (* apply sim_sup_r with (i := steps2). *)
 
         clear Hext1 Hinit2. revert s2. induction steps2; intros s2; cbn.
-        * rewrite Sup.mor_bot. apply bot_lb.
-        * rewrite !Sup.mor_join. repeat apply join_lub.
-          -- sup_intro [s2' H2]. specialize (IHsteps2 s2').
+        * apply sim_sup_l. intros [  ].
+        * apply sim_sup_l. intros [ | ]. cbn.
+          apply sim_sup_l. intros [ | ]. cbn.
+          -- apply sim_sup_l. intros [ s2' H2 ]. cbn.
              etransitivity. apply IHsteps2.
-             apply sup_iff. intros steps. apply (sup_at (S steps)). cbn.
+             apply sim_sup_l. intros steps. apply sim_sup_r with (i := S steps). cbn.
              apply join_l. apply join_l.
-             eapply fsup_at. apply star_internal2; eauto. reflexivity.
-          -- sup_intro [qa Hext2]. unfold query_int. intm.
-             assert (Hcrash: (FCD.emb (@pmove (eli liA) _ _ (eli_intro qa se))) [=
-                               sup n : nat, ang_lts_exec ((comp_semantics' L1 L2 p) ) n (st2 L1 L2 s1 s2) se).
-             {
-               apply (sup_at 1%nat). cbn. apply join_l. apply join_r.
-               eapply fsup_at. econstructor; eauto.
-               unfold query_int. sup_mor. apply (sup_at None).
-               fcd_simpl. reflexivity.
-             }
-             sup_intro [ra|].
-             ++ fcd_simpl. apply join_lub.
-                ** apply Hcrash.
-                ** sup_intro [s2' Haft].
-                   specialize (IHsteps2 s2').
-                   rewrite IHsteps2. clear IHsteps2.
-                   sup_intro steps. apply (sup_at (S steps)). cbn.
-                   apply join_l. apply join_r.
-                   eapply fsup_at. econstructor; eauto.
-                   unfold query_int. sup_mor. apply (sup_at (Some ra)).
-                   fcd_simpl. apply join_r.
-                   sup_mor. eapply (fsup_at (st2 _ _ s1 s2')). now constructor.
-                   apply ext_proper_ref; try typeclasses eauto.
-                   intros c. reflexivity. reflexivity.
-             ++ fcd_simpl. apply Hcrash.
+             eapply sim_fsup_r. apply star_internal2; eauto. reflexivity.
+
+          -- cbn. apply sim_sup_l. intros [ qa Hext2 ]. cbn.
+             apply join_l. apply join_r.
+             eapply sim_fsup_r. constructor. apply Hext2.
+             constructor. intros ra.
+             apply sim_sup_l. intros [s2' Haft]. cbn.
+             rewrite IHsteps2.
+             eapply sim_fsup_r. constructor. apply Haft.
+             reflexivity.
+          -- cbn. apply join_l. apply join_l.
+             apply sim_sup_l. intros [rb Hfinal2]. cbn.
+             apply sim_sup_l. intros [s1' Haft1]. cbn.
+             rewrite IHsteps1.
+
           -- sup_intro [rb Hfinal2]. intm.
              sup_intro [s1' Haft1].
              specialize (IHsteps1 s1').
