@@ -99,37 +99,39 @@ Section LComp.
   | star_refl: forall a, star R a a
   | star_step: forall a b c, R a b -> star R b c -> star R a c.
 
+  Inductive event_state mg: lcomp_state mg -> Prop :=
+  | event_state1 s r
+    (RET: return_ L1 s r): event_state (lcomp_state1 _ s)
+  | event_state2 me mf (s: transition_state L2 mf) (e: E me) kont1 kont2
+    (CALL: call L2 s e kont2): event_state (lcomp_state2 _ s kont1).
+
   Inductive lcomp_init mg: G mg -> lcomp_state mg -> Prop :=
-  | lcomp_init1 (g: G mg) s r:
-      init L1 g s ->
-      (* this is only for proving identity *)
-      return_ L1 s r ->
-      lcomp_init g (lcomp_state1 _ s)
-  | lcomp_init2 mf (g: G mg) (f: F mf) kont1 s1 s2:
-      init L1 g s1 ->
-      call L1 s1 f kont1 ->
-      init L2 f s2 ->
-      lcomp_init g (lcomp_state2 _ s2 kont1).
+  | lcomp_init_intro (g: G mg) s1 s2
+      (INIT: init L1 g s1)
+      (STAR: star (internal_step (mg:=mg)) (lcomp_state1 _ s1) s2)
+      (EVENT: event_state s2):
+      lcomp_init g s2.
 
   Inductive lift_kont mg mf me
       (kont2: me -> transition_state L2 mf -> Prop)
       (kont1: mf -> transition_state L1 mg -> Prop):
       me -> lcomp_state mg -> Prop :=
-  | lift_kont_intro: forall r s2',
-      kont2 r s2' -> lift_kont kont2 kont1 r (lcomp_state2 _ s2' kont1).
+  | lift_kont_intro: forall r s2' s
+      (KONT: kont2 r s2')
+      (STAR: star (internal_step (mg:=mg)) (lcomp_state2 _ s2' kont1) s)
+      (EVENT: event_state s),
+      lift_kont kont2 kont1 r s.
 
   Inductive lcomp_call me mg: lcomp_state mg -> E me ->
                                  (me -> lcomp_state mg -> Prop) -> Prop :=
   | lcomp_call_intro:
-    forall mf s (s2: transition_state L2 mf) (e: E me) kont1 kont2,
-      star (internal_step (mg:=mg)) s (lcomp_state2 _ s2 kont1) ->
-      call L2 s2 e kont2 ->
-      lcomp_call s e (lift_kont kont2 kont1).
+    forall mf (s: transition_state L2 mf) (e: E me) kont1 kont2
+      (CALL: call L2 s e kont2),
+      lcomp_call (lcomp_state2 _ s kont1) e (lift_kont kont2 kont1).
 
   Inductive lcomp_return mg: lcomp_state mg -> mg -> Prop :=
-  | lcomp_return_intro s s1 r:
-      star (internal_step (mg:=mg)) s (lcomp_state1 _ s1) ->
-      return_ L1 s1 r -> lcomp_return s r.
+  | lcomp_return_intro s1 r
+      (RETURN: return_ L1 s1 r): lcomp_return (lcomp_state1 _ s1) r.
 
   Definition lcomp: semantics E G := {|
     transition_state := lcomp_state;
@@ -184,12 +186,14 @@ Section Properties.
     Context {E F: esig} (L: semantics E F).
 
     Inductive left_unit_match_state: forall mf1 mf2,
-      transition_state (lcomp id L) mf1 -> transition_state L mf2 -> (mf1 -> mf2 -> Prop) -> Prop :=
-    | left_unit_match_state1 mf (f: F mf) s f_rel:
-        subrel eq f_rel ->
-        init L f s -> @left_unit_match_state mf mf
-                       (lcomp_state1 id L (id_state1 f)) s f_rel
-    | left_unit_match_state2 mf s f_rel:
+        transition_state (lcomp id L) mf1 -> transition_state L mf2 -> (mf1 -> mf2 -> Prop) -> Prop :=
+    | left_unit_match_state_call mf s1 s r f_rel:
+      subrel eq f_rel ->
+      return_ L s r ->
+      s1 = id_state2 r ->
+      @left_unit_match_state mf mf
+        (lcomp_state1 id L s1) s f_rel
+    | left_unit_call mf s f_rel:
       subrel eq f_rel ->
       @left_unit_match_state
         mf mf (lcomp_state2 id L s (@id_kont F mf)) s f_rel.
@@ -199,30 +203,44 @@ Section Properties.
       econstructor.
       eapply Build_fsim_properties
         with (match_state:= left_unit_match_state).
-      - intros * Hrc Hinit. inv Hinit.
-        + inv H. inv H0.
-        + inv H.
-          (* FIXME: rc_id is tricky: inversion doesn't work; but simple
-             inversion works *)
-          destruct Hrc as (R & Hrel & Hsub).
-          simple inversion Hrel. depsubst.
-          inv H0. depsubst.
-          exists s2. split; repeat constructor; eauto.
-      - intros * Hs Hcall. inv Hcall.
-        simple inversion Hs.
-        + admit.
-        + depsubst. intros Hsub.
-          inv H. depsubst.
-          * admit.
-          * inv H1. depsubst.
-            inv KONT.
+      - intros * Hrc Hinit. inv Hinit. inv INIT.
+        (* FIXME: rc_id is tricky:
+           inversion doesn't work; but simple inversion works *)
+        destruct Hrc as (R & Hrel & Hsub).
+        simple inversion Hrel. depsubst.
+        inv STAR.
+        + exfalso. inv EVENT. inv RET.
+        + inv H. inv CALL. depsubst. inv H0.
+          (* L makes external call *)
+          * exists s2. split; eauto. inv EVENT. depsubst.
+            econstructor; eauto.
+          (* L returns directly *)
+          * inv H. depsubst. inv KONT. inv H1.
+            -- exists s2. split; eauto. econstructor; eauto.
+            -- inv H. inv CALL.
+      - intros * Hs Hcall. inv Hcall. inv Hs. depsubst.
+        eexists _, e1, kont2, eq. repeat apply conj; eauto.
+        + rc_econstructor.
+        + intros * Hk Hx. inv Hk.
+          * inv STAR.
+            (* L makes next call *)
+            -- inv EVENT. depsubst.
+               exists s2'. split; eauto. econstructor; eauto.
+            (* L returns *)
+            -- inv H. depsubst. inv KONT0. inv H0.
+               ++ inv EVENT. inv RET0.
+                  exists s2'. split; eauto. econstructor; eauto.
+                ++ exfalso. inv H. inv CALL0.
+      - intros * Hs Hret. inv Hret. inv RETURN.
+        inversion Hs. depsubst. intros.
+        inv Hs; depsubst. inv H. exists r1. split; eauto.
+    Qed.
 
-
-
+    Lemma left_unit2: fsim rc_id rc_id L (lcomp id L).
+    Proof.
+    Admitted.
 
   End Unit.
-
-
 
 End Properties.
 
