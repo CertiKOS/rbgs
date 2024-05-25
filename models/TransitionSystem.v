@@ -99,17 +99,14 @@ Section LComp.
   | star_refl: forall a, star R a a
   | star_step: forall a b c, R a b -> star R b c -> star R a c.
 
-  Inductive event_state mg: lcomp_state mg -> Prop :=
-  | event_state1 s r
-    (RET: return_ L1 s r): event_state (lcomp_state1 _ s)
-  | event_state2 me mf (s: transition_state L2 mf) (e: E me) kont1 kont2
-    (CALL: call L2 s e kont2): event_state (lcomp_state2 _ s kont1).
+  Definition no_internal_step (mg: Type) (s: lcomp_state mg): Prop :=
+    forall s', ~ internal_step s s'.
 
   Inductive lcomp_init mg: G mg -> lcomp_state mg -> Prop :=
   | lcomp_init_intro (g: G mg) s1 s2
       (INIT: init L1 g s1)
       (STAR: star (internal_step (mg:=mg)) (lcomp_state1 _ s1) s2)
-      (EVENT: event_state s2):
+      (EVENT: no_internal_step s2):
       lcomp_init g s2.
 
   Inductive lift_kont mg mf me
@@ -119,7 +116,7 @@ Section LComp.
   | lift_kont_intro: forall r s2' s
       (KONT: kont2 r s2')
       (STAR: star (internal_step (mg:=mg)) (lcomp_state2 _ s2' kont1) s)
-      (EVENT: event_state s),
+      (EVENT: no_internal_step s),
       lift_kont kont2 kont1 r s.
 
   Inductive lcomp_call me mg: lcomp_state mg -> E me ->
@@ -209,7 +206,8 @@ Section Properties.
         destruct Hrc as (R & Hrel & Hsub).
         simple inversion Hrel. depsubst.
         inv STAR.
-        + exfalso. inv EVENT. inv RET.
+        + exfalso. eapply EVENT. econstructor. econstructor.
+inv RET.
         + inv H. inv CALL. depsubst. inv H0.
           (* L makes external call *)
           * exists s2. split; eauto. inv EVENT. depsubst.
@@ -238,6 +236,18 @@ Section Properties.
 
     Lemma left_unit2: fsim rc_id rc_id L (lcomp id L).
     Proof.
+      econstructor.
+      set (ms := (fun mf1 mf2 s1 s2 r => @left_unit_match_state mf2 mf1 s2 s1 (flip r))).
+      eapply Build_fsim_properties with (match_state:= ms).
+      - intros * Hrc Hinit.
+        destruct Hrc as (R & Hrel & Hsub).
+        simple inversion Hrel. depsubst.
+        exists (lcomp_state2 id L s1 (@id_kont F mf2)). split.
+        + econstructor; eauto.
+          * econstructor.
+          * repeat econstructor; eauto.
+          *
+
     Admitted.
 
   End Unit.
