@@ -20,6 +20,7 @@ lattices/AdjoinBot.v
 models/Signature.v
 models/IntSpec.v
 models/Coherence.v
+models/IntStrat.v
 examples/CAL.v
 examples/CompCertSem.v
 interfaces/Category.v

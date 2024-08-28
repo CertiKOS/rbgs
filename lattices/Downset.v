@@ -76,7 +76,7 @@ End Sup.
   extensionality to prove antisymmetry, and the axiom of choice to
   prove distributivity. *)
 
-Module Downset : LatticeCompletion Sup.
+Module Downset <: LatticeCompletion Sup.
 
   Record downset {C : poset} :=
     {
@@ -215,6 +215,7 @@ Module Downset : LatticeCompletion Sup.
 
   End DOWNSETS.
 
+  Arguments F : clear implicits.
   Include (LatticeCompletionDefs Sup).
 
 End Downset.
