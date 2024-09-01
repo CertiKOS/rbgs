@@ -31,7 +31,7 @@ Ltac xsubst :=
     end;
     subst).
 
-Ltac xinv H := inversion H; clear H; xsubst.
+Ltac xinv H := inversion H; clear H; subst; xsubst.
 
 (** * Strategies *)
 
@@ -397,6 +397,7 @@ End COMPOSE.
 
 Section RC.
   Context {E1 E2 : esig}.
+  Obligation Tactic := cbn.
 
   (** *** Definition 4.1 *)
 
@@ -445,6 +446,7 @@ Section RC.
   Program Definition rcnext q1 q2 r1 r2 (R : conv) : conv :=
     {| Downset.has w := Downset.has R (rcp_cont q1 q2 r1 r2 w) |}.
   Next Obligation.
+    intros q1 q2 r1 r2 R s t Hst Hs.
     eapply Downset.closed; eauto.
     eapply rcp_cont_ref; auto.
   Qed.
@@ -453,10 +455,48 @@ Section RC.
 
   Hint Constructors rcp_ref.
 
+  Global Instance rcnext_ref :
+    Monotonic rcnext (forallr -, forallr -, - ==> - ==> ref ++> ref).
+  Proof.
+    intros q1 q2 r1 r2 R S HRS.
+    cbn. eauto.
+  Qed.
+
   Lemma rcp_allows (s : rcp) :
     exists m1 m2, rcp_allow m1 m2 [= s.
   Proof.
     destruct s; cbn; eauto.
+  Qed.
+
+  Variant rctrim_has q1 q2 r1 r2 (R : conv) : rcp -> Prop :=
+    | rctrim_allow :
+        Downset.has R (rcp_allow q1 q2) ->
+        rctrim_has q1 q2 r1 r2 R (rcp_allow q1 q2)
+    | rctrim_forbid n1 n2 :
+        Downset.has R (rcp_allow q1 q2) ->
+        (n1 = r1 -> n2 = r2 -> Downset.has R (rcp_forbid q1 q2 n1 n2)) ->
+        rctrim_has q1 q2 r1 r2 R (rcp_forbid q1 q2 n1 n2)
+    | rctrim_cont n1 n2 s :
+        Downset.has R (rcp_allow q1 q2) ->
+        (n1 = r1 -> n2 = r2 -> Downset.has R (rcp_cont q1 q2 n1 n2 s)) ->
+        rctrim_has q1 q2 r1 r2 R (rcp_cont q1 q2 n1 n2 s).
+
+  Program Definition rctrim q1 q2 r1 r2 R : conv :=
+    {| Downset.has := rctrim_has q1 q2 r1 r2 R |}.
+  Next Obligation.
+    intros q1 q2 r1 r2 R s t Hst Hs.
+    induction Hs; inversion Hst; clear Hst; xsubst; constructor; auto.
+    - clear H. intros H1 H2. eapply Downset.closed; eauto. constructor.
+    - clear H. intros H1 H2. eapply Downset.closed; eauto. constructor; auto.
+  Qed.
+
+  Lemma rcnext_rctrim m1 m2 n1 n2 R :
+    rcnext m1 m2 n1 n2 (rctrim m1 m2 n1 n2 R) = rcnext m1 m2 n1 n2 R.
+  Proof.
+    apply antisymmetry; cbn.
+    - inversion 1; xsubst. eauto.
+    - intros s Hs. constructor; auto.
+      eapply Downset.closed; eauto. constructor.
   Qed.
 End RC.
 
@@ -561,7 +601,7 @@ Section RSQ.
       rsq R S (rs_suspended q1 q2 m1 m2) (next (pq m1) σ) (next (pq m2) τ).
   Proof.
     intros Hστ H.
-    apply Hστ in H.
+    apply Hστ in H. 
     dependent destruction H. exists m2. split; auto.
     dependent destruction H0. cbn in H0. split; auto.
     intros s Hs. cbn in Hs.
@@ -645,99 +685,63 @@ Section RSQ_COMP.
   (** Having enumerated them, we can formulate the compatibility of
     composition with refinement squares as follows. *)
 
-  Hint Constructors comp_has pref.
+  Hint Constructors comp_has pref rscpos.
+
+  Lemma rsp_comp {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
+    @rscpos i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk ->
+    forall (s : @play F1 G1 i1) (t : @play E1 F1 j1)
+      (σ : strat F2 G2 i2) (τ : strat E2 F2 j2) (w : @play E1 G1 k1),
+      comp_has p1 s t w ->
+      rsp S T pi s σ ->
+      rsp R S pj t τ ->
+      rsp R T pk w (compose p2 σ τ).
+  Proof.
+    intros p s t σ τ w Hw Hs Ht.
+    revert R S T i2 j2 k2 p2 pi pj pk p σ τ Hs Ht.
+    induction Hw; intros.
+    - (* ready *)
+      xinv p. xinv Hs. constructor; cbn.
+      exists pnil_ready, pnil_ready. repeat apply conj; eauto.
+      xinv Ht; eauto.
+    - (* incoming question *)
+      xinv p. xinv Hs. constructor; cbn.
+      + exists pnil_ready, pnil_ready. repeat apply conj; eauto.
+        xinv Ht; eauto.
+      + intros q2 Hq. rewrite <- (compose_next_oq q2). eauto.
+    - (* internal question *)
+      xinv p. xinv Hs. xinv Ht.
+      rewrite <- (compose_next_lq m2). eauto.
+    - (* outgoing question *)
+      xinv p. xinv Ht. econstructor; eauto.
+      rewrite <- compose_next_rq. eauto.
+    - (* suspended *)
+      xinv p. xinv Ht. constructor. cbn.
+      exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
+      repeat apply conj; eauto.
+      xinv Hs; eauto.
+    - (* environment answer *)
+      xinv p. xinv Ht. constructor.
+      + exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
+        repeat apply conj; eauto. xinv Hs; eauto.
+      + intros n2 Hn. rewrite <- compose_next_oa. eauto.
+    - (* answer of τ *)
+      xinv p. xinv Hs. xinv Ht.
+      rewrite <- (compose_next_ra r2). eauto.
+    - (* answer of σ *)
+      xinv p. xinv Hs. econstructor; eauto.
+      rewrite <- (compose_next_la r2). eauto.
+  Qed.
 
   Lemma rsq_comp {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
     @rscpos i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk ->
     forall (σ1 : strat F1 G1 i1) (τ1 : strat E1 F1 j1)
-           (σ2 : strat F2 G2 i2) (τ2 : strat E2 F2 j2)
-           `{Hσ2 : !Deterministic σ2} `{Hτ2 : !Deterministic τ2},
+           (σ2 : strat F2 G2 i2) (τ2 : strat E2 F2 j2),
       rsq S T pi σ1 σ2 ->
       rsq R S pj τ1 τ2 ->
       rsq R T pk (compose p1 σ1 τ1) (compose p2 σ2 τ2).
   Proof.
-    intros p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ w1 (s1 & t1 & Hs1 & Ht1 & Hst1).
-    revert R S T i2 j2 k2 p2 pi pj pk p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ Hs1 Ht1.
-    induction Hst1; intros.
-    - (* ready *)
-      inversion p; clear p; xsubst.
-      constructor; cbn.
-      exists pnil_ready, pnil_ready.
-      eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-      specialize (Hσ _ Hs1). inversion Hσ; clear Hσ; xsubst.
-      specialize (Hτ _ Ht1). inversion Hτ; clear Hτ; xsubst.
-      eauto.
-    - (* incoming question *)
-      inversion p; clear p; xsubst.
-      constructor.
-      + exists pnil_ready, pnil_ready.
-        eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-        specialize (Hσ _ Hs1). inversion Hσ; clear Hσ; xsubst.
-        specialize (Hτ _ Ht1). inversion Hτ; clear Hτ; xsubst.
-        eauto.
-      + intros q2 Hq.
-        rewrite <- (compose_next_oq q2).
-        eapply IHHst1 with (1 := rsc_left q q2)
-                           (σ1 := next (oq q) σ1); cbn; eauto with typeclass_instances.
-        apply rsq_next_oq; auto.
-    - (* internal question *)
-      inversion p; clear p; xsubst.
-      edestruct @rsq_next_pq as (m2 & Hm & Hm2 & ?); eauto.
-      { eapply Downset.closed; cbn; eauto. constructor. constructor. }
-      rewrite <- (compose_next_lq m2).
-      eapply IHHst1 with (1 := rsc_right q q2 m m2)
-                         (σ1 := next (pq m) σ1)
-                         (τ1 := next (oq m) τ1); eauto with typeclass_instances.
-      apply rsq_next_oq; auto.
-    - (* outgoing question *)
-      inversion p; clear p; xsubst.
-      edestruct @rsq_next_pq as (u2 & Hu & Hu2 & ?); eauto.
-      { eapply Downset.closed; cbn; eauto. constructor. constructor. }
-      econstructor; eauto.
-      rewrite <- compose_next_rq.
-      eapply IHHst1 with (1 := rsc_suspended q q2 m m2 u u2)
-                         (σ1 := σ1)
-                         (τ1 := next (pq u) τ1); eauto with typeclass_instances.
-    - (* suspended *)
-      inversion p; clear p; xsubst.
-      constructor; cbn.
-      exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
-      eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
-      specialize (Hσ _ Hs1). dependent destruction Hσ.
-      specialize (Hτ _ Ht1). dependent destruction Hτ.
-      eauto.
-    - (* environment answer *)
-      inversion p; clear p; xsubst.
-      constructor.
-      + exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
-        eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
-        specialize (Hσ _ Hs1). dependent destruction Hσ.
-        specialize (Hτ _ Ht1). dependent destruction Hτ.
-        eauto.
-      + intros n2 Hn.
-        rewrite <- compose_next_oa.
-        eapply IHHst1 with (1 := rsc_right q q2 m m2)
-                           (σ1 := σ1)
-                           (τ1 := next (oa v) τ1); eauto with typeclass_instances.
-        apply rsq_next_oa; auto.
-    - (* answer of τ *)
-      inversion p; clear p; xsubst.
-      edestruct @rsq_next_pa as (n2 & Hn & Hn2 & H); eauto.
-      { eapply Downset.closed; eauto. cbn. constructor. constructor. }
-      rewrite <- (compose_next_ra n2).
-      eapply IHHst1 with (1 := rsc_left q q2)
-                         (σ1 := next (oa n) σ1)
-                         (τ1 := next (pa n) τ1); eauto with typeclass_instances.
-      apply rsq_next_oa; auto.
-    - (* answer of σ *)
-      inversion p; clear p; xsubst.
-      edestruct @rsq_next_pa as (r2 & Hr & Hr2 & H); eauto.
-      { eapply Downset.closed; eauto. cbn. constructor. constructor. }
-      econstructor; eauto.
-      rewrite <- (compose_next_la r2).
-      eapply IHHst1 with (1 := rsc_ready)
-                         (σ1 := next (pa r) σ1)
-                         (τ1 := τ1); eauto with typeclass_instances.
+    intros p σ1 τ1 σ2 τ2 Hσ Hτ w1 (s1 & t1 & Hs1 & Ht1 & Hst1).
+    eauto using rsp_comp.
   Qed.
 End RSQ_COMP.
 
@@ -804,7 +808,12 @@ Section SEQ_COMP.
   End DEF.
 
   Class RegularConv {E F} (R : conv E F) :=
-    { regular_conv m1 m2 n1 n2: rcnext m1 m2 n1 n2 R = R; }.
+    {
+      regular_conv m1 m2 n1 n2:
+        Downset.has R (rcp_allow m1 m2) ->
+        ~ Downset.has R (rcp_forbid m1 m2 n1 n2) ->
+        rcnext m1 m2 n1 n2 R = R;
+    }.
 
   Hint Constructors seq_comp_has.
   Hint Constructors pref.
@@ -848,13 +857,13 @@ Section SEQ_COMP.
         assert (Ht: seq_compose (next (oa n2) τ1) τ2 [= next (oa n2) (seq_compose τ1 τ2)).
         { intros k (k1 & k2 & Hk1 & Hk2 & Hk3). cbn in *; eauto 10. }
         rewrite <- Ht. specialize (H9 _ Hn).
-        rewrite regular_conv in *; eauto.
+        rewrite regular_conv in *; eauto. 1-2: admit.
     - intros. xinv Hs1. dependent destruction pj.
       econstructor; eauto.
       assert (Ht: seq_compose (next (pa r2) τ1) τ2 [= next (pa r2) (seq_compose τ1 τ2)).
       { intros k (k1 & k2 & Hk1 & Hk2 & Hk3). cbn in *; eauto 10. }
-      rewrite <- Ht. rewrite regular_conv in *. eauto.
-  Qed.
+      rewrite <- Ht. rewrite regular_conv in *; eauto. 1-2: admit.
+  Admitted.
 
   Lemma rsq_seq_comp {E1 E2 F1 F2} (R S: conv _ _)
     `{!RegularConv R} `{!RegularConv S}
@@ -919,6 +928,214 @@ Proof.
     rewrite <- closure_unfold.
     eapply rsp_seq_comp; eauto.
 Qed.
+
+(** ** §6.1 Embedding *)
+
+From compcert Require Import LanguageInterface Smallstep Globalenvs.
+
+Section SIG.
+
+  Variable li: language_interface.
+
+  Canonical Structure li_sig: esig :=
+    {|
+      op := Genv.symtbl * query li;
+      ar _ := reply li;
+    |}.
+
+End SIG.
+
+Coercion li_sig: language_interface >-> esig.
+
+Require Import Classical_Prop.
+
+Section CONV.
+
+  Obligation Tactic := cbn.
+
+  Context {liA liB: language_interface} (cc: callconv liA liB).
+
+  Inductive callconv_conv_has: rcp liA liB -> Prop :=
+  | callconv_conv_has_allow m1 m2 se1 se2:
+    (exists w, match_senv cc w se1 se2 /\ match_query cc w m1 m2) ->
+    callconv_conv_has (rcp_allow (se1, m1) (se2, m2))
+  | callconv_conv_has_forbid m1 m2 n1 n2 se1 se2:
+    (exists w, match_senv cc w se1 se2 /\ match_query cc w m1 m2 /\
+          ~ match_reply cc w n1 n2) ->
+    callconv_conv_has (rcp_forbid (se1, m1) (se2, m2) n1 n2)
+  | callconv_conv_has_cont m1 m2 n1 n2 se1 se2 k:
+    (exists w, match_senv cc w se1 se2 /\ match_query cc w m1 m2 /\
+          (match_reply cc w n1 n2 -> callconv_conv_has k)) ->
+    callconv_conv_has (rcp_cont (se1, m1) (se2, m2) n1 n2 k).
+
+  Hint Constructors callconv_conv_has.
+  Hint Constructors rcp_ref.
+  Hint Resolve (reflexivity (R := rcp_ref)).
+
+  Program Canonical Structure callconv_conv: conv liA liB :=
+    {| Downset.has w := callconv_conv_has w |}.
+  Next Obligation.
+    intros x y H1. induction H1; intros Hx; eauto.
+    - xinv Hx. destruct H0 as (w & A & B & C). eauto.
+    - xinv Hx. destruct H0 as (w & A & B & C). eauto.
+    - xinv Hx. destruct H0 as (w & A & B & C). eauto 10.
+    - xinv Hx. destruct H0 as (w & A & B & C).
+      constructor. exists w. repeat apply conj; eauto.
+      intros. exfalso. eauto.
+  Qed.
+
+  Lemma rcp_forbid_match_reply w se1 se2 q1 q2:
+    match_senv cc w se1 se2 -> match_query cc w q1 q2 ->
+    forall r1 r2, ~ Downset.has callconv_conv (rcp_forbid (se1, q1) (se2, q2) r1 r2) ->
+             match_reply cc w r1 r2.
+  Proof.
+    intros Hse Hq * Hr. 
+    apply NNPP. intros Hnr.
+    apply Hr. constructor. eauto 10.
+  Qed.
+
+  Instance callconv_regular: RegularConv callconv_conv.
+  Proof.
+    split. intros * Hm Hn. apply antisymmetry.
+    - intros x Hx. cbn in *. xinv Hx. 
+      destruct H0 as (w & Hq & Hse & Hr).
+      apply Hr. eapply rcp_forbid_match_reply; eauto.
+    - intros x Hx. cbn. xinv Hm.
+      destruct H0 as (w & Hq & Hse).
+      constructor. exists w. eauto.
+  Qed.
+
+End CONV.
+
+Coercion callconv_conv: callconv >-> poset_carrier.
+
+Require Import Coqlib.
+Close Scope list_scope.
+
+Section LTS.
+
+  Obligation Tactic := cbn.
+
+  Context {liA liB: language_interface} (L: semantics liA liB).
+
+  Inductive state_strat_has (se: Genv.symtbl) (q: query liB) (s: state L): forall {i}, @play liA liB i -> Prop :=
+  | state_strat_has_suspended s1 t m
+    (STAR: Star (L se) s t s1) (EXT: at_external (L se) s1 m):
+    @state_strat_has se q s (running (se, q)) (pq (se, m) :: pnil_suspended (se, q) (se, m))
+  | state_strat_has_external s1 s2 t k m n
+    (STAR: Star (L se) s t s1) (EXT: at_external (L se) s1 m)
+    (AFT: after_external (L se) s1 n s2) (HK: state_strat_has se q s2 k):
+    @state_strat_has se q s (running (se, q)) (pq (se, m) :: @oa liA liB (se, q) (se, m) n :: k)
+  | state_strat_has_final s1 t r
+    (STAR: Star (L se) s t s1) (FIN: final_state (L se) s1 r):
+    @state_strat_has se q s (running (se, q)) (@pa liA liB (se, q) r :: pnil_ready).
+
+  Program Definition state_strat se q s i: @strat liA liB i :=
+    {| Downset.has w := @state_strat_has se q s i w |}.
+  Next Obligation.
+    intros *. intros Href H. revert Href. induction H.
+    - intros Href. simple inversion Href; try discriminate.
+      subst. xsubst. inv H2. xsubst. intros Href'.
+      xinv Href'. econstructor; eauto.
+    - intros Href. simple inversion Href; try discriminate.
+      subst. xsubst. intros Href'. inv H3. xsubst.
+      simple inversion Href'; try discriminate.
+      + inv H0. xsubst. econstructor; eauto.
+      + subst. xsubst. inv H3. xsubst. intros Href''.
+        econstructor; eauto.
+    - intros Href. simple inversion Href; try discriminate.
+      subst. xsubst. inv H2. xsubst.
+      intros Href'. xinv Href'. econstructor; eauto.
+  Qed.
+
+  Inductive lts_strat_has: forall {i}, @play liA liB i -> Prop :=
+  | lts_strat_has_nil: @lts_strat_has ready pnil_ready
+  | lts_strat_has_intro se q s k:
+    Genv.valid_for (skel L) se ->
+    initial_state (L se) q s ->
+    state_strat_has se q s k ->
+    @lts_strat_has ready (@oq liA liB (se, q) :: k).
+
+  Program Definition lts_strat' i: strat liA liB i :=
+    {| Downset.has w := @lts_strat_has i w |}.
+  Next Obligation.
+    intros. xinv H0.
+    - xinv H. constructor.
+    - simple inversion H; try discriminate.
+      + xsubst. constructor.
+      + intros. subst. xsubst. xinv H4.
+        econstructor; eauto.
+        eapply state_strat_obligation_1; eauto.
+  Qed.
+
+  Program Definition lts_strat: strat liA liB ready :=
+    closure (lts_strat' ready).
+
+End LTS.
+
+Coercion lts_strat: semantics >-> poset_carrier.
+
+Section FSIM.
+
+  Context {liA1 liA2 liB1 liB2: language_interface}
+    (ccA: callconv liA1 liA2) (ccB: callconv liB1 liB2)
+    (L1: semantics liA1 liB1) (L2: semantics liA2 liB2)
+    (FSIM: forward_simulation ccA ccB L1 L2).
+
+  Hint Constructors state_strat_has lts_strat_has.
+
+  Lemma fsim_rsq: rsq ccA ccB rs_ready L1 L2.
+  Proof.
+    apply rsq_closure; try apply callconv_regular.
+    intros p Hp. cbn in Hp. xinv Hp. { repeat constructor. }
+    constructor. { constructor. }
+    intros q2 Hq2. cbn in Hq2. 
+    rename q into q1. destruct q2 as (se2 & q2).
+    xinv Hq2. subst. destruct H3 as (w & Hse & Hq).
+    destruct FSIM. destruct X.
+    specialize (fsim_lts _ _ _ Hse H0).
+    rename s into s1. rename se into se1.
+    edestruct (@fsim_match_initial_states) as (i & s2 & A & B); eauto.
+    assert (Hs: state_strat L2 se2 q2 s2 (running (se2, q2))
+                  [= (next (oq (se2, q2)) (lts_strat' L2 ready))).
+    { intros p Hp. cbn in *. econstructor; eauto.
+      eapply match_senv_valid_for in Hse. apply Hse.
+      rewrite <- fsim_skel. eauto. }
+    rewrite <- Hs. clear Hs fsim_skel fsim_footprint A H0 H1.
+    revert i s2 B. dependent induction H2; intros i ts Hts.
+    - edestruct @simulation_star as (i1 & ts1 & A & B); eauto.
+      edestruct @fsim_match_external as (wx & tq2 & C & D & E & F); eauto.
+      eapply rsp_pq. constructor. exists wx. split; eauto.
+      eapply rsp_suspended. cbn. econstructor; eauto.
+    - edestruct @simulation_star as (i1 & ts1 & A & B); eauto.
+      edestruct @fsim_match_external as (wx & tq2 & C & D & E & F); eauto.
+      eapply rsp_pq. constructor. exists wx. split; eauto.
+      eapply rsp_oa. cbn. econstructor; eauto.
+      intros n2 Hn. eapply rcp_forbid_match_reply in Hn; eauto.
+      specialize (F _ _ _ Hn AFT) as (i' & ts2 & X & Y).
+      exploit IHstate_strat_has; eauto. intros Z.
+      rewrite @regular_conv. 2: apply callconv_regular.
+      2: { constructor. eauto. }
+      2: {
+
+      (* intros Hr. xinv Hr. destruct H0 as (wt & HA & HB & HC). *)
+        admit.
+
+      }
+      assert (Hs: state_strat L2 se2 q2 ts2 (running (se2, q2))
+               [= next (oa n2) (next (pq (se2, tq2)) (state_strat L2 se2 q2 ts (running (se2, q2))))).
+      { intros p Hp. cbn in *. econstructor; eauto. }
+      rewrite <- Hs. apply Z. 
+    - edestruct (@simulation_star) as (i1 & ts1 & A & B); eauto.
+      clear Hts.
+      edestruct (@fsim_match_final_states) as (r2 & C & D); eauto.
+      eapply rsp_pa with (r3 := r2).
+      + intros Hr. xinv Hr. eapply HR; eauto.
+      + constructor. cbn. econstructor; eauto.
+    Qed.
+
+End FSIM.
+
 
 (** ** §4.4 Vertical Composition *)
 
@@ -998,6 +1215,17 @@ Section VCOMP.
       destruct (classic (Downset.has S (rcp_forbid m2 m3 n2 n3))) as [ | Hn23]; auto.
       specialize (Hs (exist _ n2 (conj Hn12 Hn23))); cbn in *; auto.
   Qed.
+
+  Lemma rcnext_vcomp' m1 m2 m3 n1 n2 n3 R S :
+    rcnext m1 m3 n1 n3 (vcomp (rctrim m1 m2 n1 n2 R) (rctrim m2 m3 n2 n3 S)) =
+    vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S).
+  Proof.
+    apply antisymmetry; intros s; cbn.
+    - intros (xm2 & Hm12 & Hm23 & Hn).
+      assert (xm2 = m2) by (inversion Hm12; auto); subst.
+      specialize (Hn n2); destruct Hn as [? | [? | ?]]; auto.
+      +
+  Abort.
 End VCOMP.
 
 (** *** Theorem 4.7 (Veritcal composition of refinement squares) *)
