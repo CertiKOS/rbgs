@@ -1019,43 +1019,40 @@ Section CONV.
 
   Context {liA liB: language_interface} (cc: callconv liA liB).
 
-  Inductive cc_conv_has (w: ccworld cc): rcp liA liB -> Prop :=
-  | cc_conv_has_allow m1 m2 se1 se2:
-    (match_senv cc w se1 se2 /\ match_query cc w m1 m2) ->
-    cc_conv_has w (rcp_allow (se1, m1) (se2, m2))
-  | cc_conv_has_forbid m1 m2 n1 n2 se1 se2:
-    (match_senv cc w se1 se2 /\ match_query cc w m1 m2 /\
-          ~ match_reply cc w n1 n2) ->
-    cc_conv_has w (rcp_forbid (se1, m1) (se2, m2) n1 n2)
-  | cc_conv_has_cont m1 m2 n1 n2 se1 se2 k:
-    (match_senv cc w se1 se2 /\ match_query cc w m1 m2 /\
-          (match_reply cc w n1 n2 -> cc_conv_has w k)) ->
-    cc_conv_has w (rcp_cont (se1, m1) (se2, m2) n1 n2 k).
+  Inductive cc_conv_has: list (ccworld cc) -> rcp liA liB -> Prop :=
+  | cc_conv_has_allow m1 m2 se1 se2 w ws
+    (HSE: match_senv cc w se1 se2) (HM: match_query cc w m1 m2):
+    cc_conv_has (cons w ws) (rcp_allow (se1, m1) (se2, m2))
+  | cc_conv_has_forbid m1 m2 n1 n2 se1 se2 w ws
+    (HSE: match_senv cc w se1 se2) (HM: match_query cc w m1 m2)
+    (HN: ~ match_reply cc w n1 n2):
+    cc_conv_has (cons w ws) (rcp_forbid (se1, m1) (se2, m2) n1 n2)
+  | cc_conv_has_cont m1 m2 n1 n2 se1 se2 k w ws
+    (HSE: match_senv cc w se1 se2) (HM: match_query cc w m1 m2)
+    (HK: match_reply cc w n1 n2 -> cc_conv_has ws k):
+    cc_conv_has (cons w ws) (rcp_cont (se1, m1) (se2, m2) n1 n2 k).
 
   Hint Constructors cc_conv_has.
   Hint Constructors rcp_ref.
   Hint Resolve (reflexivity (R := rcp_ref)).
 
-  Program Canonical Structure cc_conv' w: conv liA liB :=
-    {| Downset.has s := cc_conv_has w s |}.
+  Program Canonical Structure cc_conv' ws: conv liA liB :=
+    {| Downset.has s := cc_conv_has ws s |}.
   Next Obligation.
-    intros w x y H1. induction H1; intros Hx; eauto.
-    - xinv Hx. destruct H0 as (A & B & C). eauto.
-    - xinv Hx. destruct H0 as (A & B & C). eauto.
-    - xinv Hx. destruct H0 as (A & B & C). eauto 10.
-    - xinv Hx. destruct H0 as (A & B & C).
-      constructor. repeat apply conj; eauto.
-      intros. exfalso. eauto.
+    intros w x y H1. revert w. induction H1; intros w Hx; try (xinv Hx; eauto).
+    constructor; eauto.
+    intros. exfalso. eauto.
   Qed.
 
-  Lemma rcp_forbid_mr w se1 se2 q1 q2:
+  Lemma rcp_forbid_mr w ws se1 se2 q1 q2:
     match_senv cc w se1 se2 -> match_query cc w q1 q2 ->
-    forall r1 r2, ~ Downset.has (cc_conv' w) (rcp_forbid (se1, q1) (se2, q2) r1 r2) ->
+    forall r1 r2, ~ Downset.has (cc_conv' (cons w ws))
+               (rcp_forbid (se1, q1) (se2, q2) r1 r2) ->
              match_reply cc w r1 r2.
   Proof.
     intros Hse Hq * Hr.
     apply NNPP. intros Hnr.
-    apply Hr. constructor. eauto 10.
+    apply Hr. constructor; eauto 10.
   Qed.
 
   (* Lemma match_reply_rcp_forbid se1 se2 q1 q2 r1 r2: *)
@@ -1064,21 +1061,21 @@ Section CONV.
   (* Proof. *)
   (* Admitted. *)
 
-  Definition cc_conv := sup w, cc_conv' w.
+  Definition cc_conv := sup ws, cc_conv' ws.
 
   Instance cc_regular: RegularConv cc_conv.
   Proof.
     split. intros * Hm Hn. apply antisymmetry.
     - intros x Hx. cbn in *.
-      destruct Hx as (w & Hx). exists w. xinv Hx.
-      destruct H0 as (Hq & Hse & Hr).
-      apply Hr. eapply rcp_forbid_mr; eauto.
+      destruct Hx as (w & Hx). xinv Hx. exists ws.
+      apply HK. eapply rcp_forbid_mr; eauto.
       eapply not_ex_all_not in Hn. apply Hn.
     - intros x Hx. cbn in *.
-      destruct Hm as (w & Hm). xinv Hm.
-      destruct H0 as (Hq & Hse).
-      exists w. constructor. repeat apply conj; eauto.
-  Admitted.
+      destruct Hm as (ws & Hm). xinv Hm.
+      destruct Hx as (wt & Hx). exists (cons w wt).
+      constructor; eauto.
+      Unshelve. exact ws.
+  Qed.
 
 End CONV.
 
@@ -1150,12 +1147,71 @@ End LTS.
 
 Coercion lts_strat: semantics >-> poset_carrier.
 
-Lemma sup_rsq {E1 E2 F1 F2 I} (R: conv E1 E2) (S: I -> conv F1 F2)
+Lemma rsq_sup {E1 E2 F1 F2 I} (R: conv E1 E2) (S: I -> conv F1 F2)
   i1 i2 (p: rspos i1 i2) σ τ:
   (forall i, rsq R (S i) p σ τ) -> rsq R (sup i, S i) p σ τ.
 Proof.
   intros H i. erewrite sup_lub.
-Abort.
+Admitted.
+
+Section FSIM.
+
+  Context {liA1 liA2 liB1 liB2: language_interface}
+    (ccA: callconv liA1 liA2) (ccB: callconv liB1 liB2)
+    (L1: semantics liA1 liB1) (L2: semantics liA2 liB2)
+    (FSIM: forward_simulation ccA ccB L1 L2).
+
+  Hint Constructors state_strat_has lts_strat_has.
+
+  Lemma fsim_rsq: rsq (cc_conv ccA) (cc_conv ccB) rs_ready L1 L2.
+  Proof.
+    apply rsq_closure; try apply cc_regular.
+    apply rsq_sup. intros ws.
+    intros p Hp. cbn in Hp. xinv Hp. { repeat constructor. }
+    constructor. { constructor. }
+    intros q2 Hq2. cbn in Hq2.
+    rename q into q1. destruct q2 as (se2 & q2).
+    xinv Hq2. rename ws0 into ws.
+    destruct FSIM. destruct X.
+    specialize (fsim_lts _ _ _ HSE H0).
+    rename s into s1. rename se into se1.
+    edestruct (@fsim_match_initial_states) as (i & s2 & A & B); eauto.
+    assert (Hs: state_strat L2 se2 q2 s2 (running (se2, q2))
+                  [= (next (oq (se2, q2)) (lts_strat' L2 ready))).
+    { intros p Hp. cbn in *. econstructor; eauto.
+      eapply match_senv_valid_for in HSE. apply HSE.
+      rewrite <- fsim_skel. eauto. }
+    rewrite <- Hs. clear Hs fsim_skel fsim_footprint A H0 H1.
+    revert i s2 B. dependent induction H2; intros i ts Hts.
+    - edestruct @simulation_star as (i1 & ts1 & A & B); eauto.
+      edestruct @fsim_match_external as (wx & tq2 & C & D & E & F); eauto.
+      eapply rsp_pq. exists (cons wx nil). constructor; eauto.
+      eapply rsp_suspended. cbn. econstructor; eauto.
+    - edestruct @simulation_star as (i1 & ts1 & A & B); eauto.
+      edestruct @fsim_match_external as (wx & tq2 & C & D & E & F); eauto.
+      eapply rsp_pq. exists (cons wx nil). constructor; eauto.
+      eapply rsp_oa. cbn. econstructor; eauto.
+      intros n2 Hn.
+      rewrite @regular_conv. 2: apply cc_regular.
+      2: { exists (cons wx nil). constructor; eauto. }
+      2: apply Hn.
+      cbn in Hn. eapply not_ex_all_not with (n := (cons wx nil)) in Hn.
+      eapply rcp_forbid_mr in Hn; eauto.
+      specialize (F _ _ _ Hn AFT) as (i' & ts2 & X & Y).
+      exploit IHstate_strat_has; eauto. intros Z.
+      assert (Hs: state_strat L2 se2 q2 ts2 (running (se2, q2))
+               [= next (oa n2) (next (pq (se2, tq2)) (state_strat L2 se2 q2 ts (running (se2, q2))))).
+      { intros p Hp. cbn in *. econstructor; eauto. }
+      rewrite <- Hs. apply Z.
+    - edestruct (@simulation_star) as (i1 & ts1 & A & B); eauto.
+      clear Hts.
+      edestruct (@fsim_match_final_states) as (r2 & C & D); eauto.
+      eapply rsp_pa with (r3 := r2).
+      + intros Hr. xinv Hr. eauto.
+      + constructor. cbn. econstructor; eauto.
+    Qed.
+
+End FSIM.
 
 Section FSIM.
 
