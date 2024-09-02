@@ -994,6 +994,12 @@ Section CONV.
     apply Hr. constructor. eauto 10.
   Qed.
 
+  Lemma match_reply_rcp_forbid se1 se2 q1 q2 r1 r2:
+    (forall w, match_senv cc w se1 se2 /\ match_query cc w q1 q2 /\ match_reply cc w r1 r2) ->
+    ~ Downset.has callconv_conv (rcp_forbid (se1, q1) (se2, q2) r1 r2).
+  Proof.
+  Admitted.
+
   Instance callconv_regular: RegularConv callconv_conv.
   Proof.
     split. intros * Hm Hn. apply antisymmetry.
@@ -1007,7 +1013,76 @@ Section CONV.
 
 End CONV.
 
-Coercion callconv_conv: callconv >-> poset_carrier.
+Section CONV.
+
+  Obligation Tactic := cbn.
+
+  Context {liA liB: language_interface} (cc: callconv liA liB).
+
+  Inductive cc_conv_has (w: ccworld cc): rcp liA liB -> Prop :=
+  | cc_conv_has_allow m1 m2 se1 se2:
+    (match_senv cc w se1 se2 /\ match_query cc w m1 m2) ->
+    cc_conv_has w (rcp_allow (se1, m1) (se2, m2))
+  | cc_conv_has_forbid m1 m2 n1 n2 se1 se2:
+    (match_senv cc w se1 se2 /\ match_query cc w m1 m2 /\
+          ~ match_reply cc w n1 n2) ->
+    cc_conv_has w (rcp_forbid (se1, m1) (se2, m2) n1 n2)
+  | cc_conv_has_cont m1 m2 n1 n2 se1 se2 k:
+    (match_senv cc w se1 se2 /\ match_query cc w m1 m2 /\
+          (match_reply cc w n1 n2 -> cc_conv_has w k)) ->
+    cc_conv_has w (rcp_cont (se1, m1) (se2, m2) n1 n2 k).
+
+  Hint Constructors cc_conv_has.
+  Hint Constructors rcp_ref.
+  Hint Resolve (reflexivity (R := rcp_ref)).
+
+  Program Canonical Structure cc_conv' w: conv liA liB :=
+    {| Downset.has s := cc_conv_has w s |}.
+  Next Obligation.
+    intros w x y H1. induction H1; intros Hx; eauto.
+    - xinv Hx. destruct H0 as (A & B & C). eauto.
+    - xinv Hx. destruct H0 as (A & B & C). eauto.
+    - xinv Hx. destruct H0 as (A & B & C). eauto 10.
+    - xinv Hx. destruct H0 as (A & B & C).
+      constructor. repeat apply conj; eauto.
+      intros. exfalso. eauto.
+  Qed.
+
+  Lemma rcp_forbid_mr w se1 se2 q1 q2:
+    match_senv cc w se1 se2 -> match_query cc w q1 q2 ->
+    forall r1 r2, ~ Downset.has (cc_conv' w) (rcp_forbid (se1, q1) (se2, q2) r1 r2) ->
+             match_reply cc w r1 r2.
+  Proof.
+    intros Hse Hq * Hr.
+    apply NNPP. intros Hnr.
+    apply Hr. constructor. eauto 10.
+  Qed.
+
+  (* Lemma match_reply_rcp_forbid se1 se2 q1 q2 r1 r2: *)
+  (*   (forall w, match_senv cc w se1 se2 /\ match_query cc w q1 q2 /\ match_reply cc w r1 r2) -> *)
+  (*   ~ Downset.has callconv_conv (rcp_forbid (se1, q1) (se2, q2) r1 r2). *)
+  (* Proof. *)
+  (* Admitted. *)
+
+  Definition cc_conv := sup w, cc_conv' w.
+
+  Instance cc_regular: RegularConv cc_conv.
+  Proof.
+    split. intros * Hm Hn. apply antisymmetry.
+    - intros x Hx. cbn in *.
+      destruct Hx as (w & Hx). exists w. xinv Hx.
+      destruct H0 as (Hq & Hse & Hr).
+      apply Hr. eapply rcp_forbid_mr; eauto.
+      eapply not_ex_all_not in Hn. apply Hn.
+    - intros x Hx. cbn in *.
+      destruct Hm as (w & Hm). xinv Hm.
+      destruct H0 as (Hq & Hse).
+      exists w. constructor. repeat apply conj; eauto.
+  Admitted.
+
+End CONV.
+
+Coercion cc_conv: callconv >-> poset_carrier.
 
 Require Import Coqlib.
 Close Scope list_scope.
@@ -1075,6 +1150,13 @@ End LTS.
 
 Coercion lts_strat: semantics >-> poset_carrier.
 
+Lemma sup_rsq {E1 E2 F1 F2 I} (R: conv E1 E2) (S: I -> conv F1 F2)
+  i1 i2 (p: rspos i1 i2) σ τ:
+  (forall i, rsq R (S i) p σ τ) -> rsq R (sup i, S i) p σ τ.
+Proof.
+  intros H i. erewrite sup_lub.
+Abort.
+
 Section FSIM.
 
   Context {liA1 liA2 liB1 liB2: language_interface}
@@ -1130,9 +1212,9 @@ Section FSIM.
       clear Hts.
       edestruct (@fsim_match_final_states) as (r2 & C & D); eauto.
       eapply rsp_pa with (r3 := r2).
-      + intros Hr. xinv Hr. eapply HR; eauto.
+      + intros Hr. xinv Hr. admit.
       + constructor. cbn. econstructor; eauto.
-    Qed.
+    Admitted.
 
 End FSIM.
 
@@ -1215,6 +1297,27 @@ Section VCOMP.
       destruct (classic (Downset.has S (rcp_forbid m2 m3 n2 n3))) as [ | Hn23]; auto.
       specialize (Hs (exist _ n2 (conj Hn12 Hn23))); cbn in *; auto.
   Qed.
+
+  Lemma rcnext_vcomp1 m1 m3 n1 n3 R S m2 n2:
+    rcnext m1 m3 n1 n3 (vcomp R S) [=
+    vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S).
+  Proof.
+  Admitted.
+
+  Lemma rcnext_vcomp2 m1 m3 n1 n3 R S m2 n2:
+   Downset.has R (rcp_allow m1 m2) ->
+   Downset.has S (rcp_allow m2 m3) ->
+   ~ Downset.has R (rcp_forbid m1 m2 n1 n2) ->
+   ~ Downset.has S (rcp_forbid m2 m3 n2 n3) ->
+   vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S) [=
+   rcnext m1 m3 n1 n3 (vcomp R S).
+  Proof.
+    intros A B C D x Hx. cbn in *.
+    exists m2. repeat apply conj; eauto.
+    intros n2'.
+
+
+  Admitted.
 
   Lemma rcnext_vcomp' m1 m2 m3 n1 n2 n3 R S :
     rcnext m1 m3 n1 n3 (vcomp (rctrim m1 m2 n1 n2 R) (rctrim m2 m3 n2 n3 S)) =
@@ -1304,12 +1407,15 @@ Section RSVCOMP.
       apply not_and_or in Hn as [? | Hn]; try tauto.
       apply not_all_ex_not in Hn as (n2 & Hn).
       apply not_or_and in Hn as (Hn12 & Hn23).
-      rewrite rcnext_vcomp.
+      rewrite <- rcnext_vcomp2.
+      eapply (H1 n2 Hn12 _ _ _ _ (rsv_running q1 q2 q3)); eauto with typeclass_instances.
+      eapply rsq_next_oa; eauto.
+
       rewrite <- (fsup_ub m2) by auto.
       rewrite <- finf_glb.
       + eapply (H1 n2 Hn12 _ _ _ _ (rsv_running q1 q2 q3)); eauto with typeclass_instances.
         eapply rsq_next_oa; eauto.
-      + intros ? _. reflexivity.
+      + intros ? _. admit.
       apply not_and_or in Hn23. destruct Hn23; try tauto.
 
   Lemma rsq_vcomp {p1 p2 p3 p12 p23 p13} (p : @rsvpos p1 p2 p3 p12 p23 p13) :
