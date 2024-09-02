@@ -494,6 +494,18 @@ Section RC.
     - intros s Hs. constructor; auto.
       eapply Downset.closed; eauto. constructor.
   Qed.
+
+  Lemma rcnext_inf {I} m1 m2 n1 n2 (R : I -> conv) :
+    rcnext m1 m2 n1 n2 (linf R) = inf i, rcnext m1 m2 n1 n2 (R i).
+  Proof.
+    apply antisymmetry; cbn; auto.
+  Qed.
+
+  Lemma rcnext_sup {I} m1 m2 n1 n2 (R : I -> conv) :
+    rcnext m1 m2 n1 n2 (lsup R) = sup i, rcnext m1 m2 n1 n2 (R i).
+  Proof.
+    apply antisymmetry; cbn; auto.
+  Qed.
 End RC.
 
 Arguments rcp : clear implicits.
@@ -650,11 +662,87 @@ Section RSQ.
 
   (** *** Continuity vs. refinement conventions *)
 
-  Lemma rcnext_inf {I} (R : I -> conv E1 E2) m1 m2 n1 n2 :
-    rcnext m1 m2 n1 n2 (inf i, R i) =
-    inf i, rcnext m1 m2 n1 n2 (R i).
+  Lemma rsp_sup_cases {I} {i1 i2} (p : rspos i1 i2) R (S : I -> conv F1 F2) (s : play i1) (τ : strat E2 F2 i2) `{Hτ : !Deterministic τ}:
+    match p with
+    | rs_ready => fun s τ =>
+      forall i, rsp R (S i) p s τ
+    | rs_running q1 q2
+    | rs_suspended q1 q2 _ _ => fun s τ =>
+      (exists i, Downset.has (S i) (rcp_allow q1 q2)) /\
+      (forall i, Downset.has (S i) (rcp_allow q1 q2) -> rsp R (S i) p s τ)
+    end s τ ->
+    rsp R (lsup S) p s τ.
   Proof.
-    apply antisymmetry; intros s; cbn; auto.
+    revert i2 p I S τ Hτ.
+    induction s; intros i2 p I S τ Hτ.
+    - dependent destruction p.
+      admit.
+    - dependent destruction p.
+      admit.
+    - dependent destruction m.
+      + rename q into q1.
+        dependent destruction p.
+        intros H.
+        constructor.
+        * admit.
+        * intros q2 Hq12.
+          apply (IHs _ (rs_running q1 q2) I S (next (oq q2) τ) _).
+          split; eauto.
+          intros i Hi.
+          specialize (H i). dependent destruction H.
+          apply H0. assumption.
+      + admit.
+      + admit.
+      + rename q into q1, r into r1.
+        dependent destruction p.
+        specialize (IHs _ rs_ready). cbn iota beta in IHs.
+        intros [[i Hi] H].
+        apply H in Hi. dependent destruction Hi.
+        econstructor.
+        * intros [j Hj].
+          assert (Downset.has (S j) (rcp_allow q1 q2)). {
+            eapply Downset.closed; eauto.
+            constructor.
+          }
+          apply H0 in H1. dependent destruction H1.
+          assert (r3 = r2) by admit. subst r3. (* determinism of τ *)
+          apply H1. eapply Hj.
+        * (** This is where we take advantage of the fact that
+            rcnext q1 q2 r1 r2 (sup {j | Downset.has (S j) (q1q2)}, S j) =
+            rcnext q1 q2 r1 r2 (sup j, S i) *)
+          assert (rcnext q1 q2 r1 r2 (sup {j | Downset.has (S j) (rcp_allow q1 q2)}, S j) =
+                  rcnext q1 q2 r1 r2 (lsup S)). {
+            clear. apply antisymmetry; cbn.
+            -- intros ? [? ?]. eauto.
+            -- intros s [i Hi].
+               assert (Hi' : Downset.has (S i) (rcp_allow q1 q2))
+                 by (eapply Downset.closed; [constructor | eauto]).
+               exists (exist _ i Hi'). cbn. auto.
+          }
+          rewrite <- H1. unfold fsup.
+          rewrite rcnext_sup.
+          apply IHs. { typeclasses eauto. }
+          intros [j Hj].
+          specialize (H0 j Hj).
+          dependent destruction H0. cbn.
+          assert (r3 = r2) by admit. (*determinism*)
+          congruence.
+  Admitted.
+
+  Lemma rsp_sup {I} R S s τ `{Hτ : !Deterministic τ} :
+    (forall i:I, rsp R (S i) rs_ready s τ) ->
+    rsp R (lsup S) rs_ready s τ.
+  Proof.
+    apply (rsp_sup_cases rs_ready); auto.
+  Qed.
+
+  Lemma rsq_sup {I} R S σ τ `{Hτ : !Deterministic τ} :
+    (forall i:I, rsq R (S i) rs_ready σ τ) ->
+    rsq R (lsup S) rs_ready σ τ.
+  Proof.
+    intros H s Hs.
+    apply rsp_sup; auto.
+    intro i. apply H, Hs.
   Qed.
 
   Lemma rsp_all {I} R S {i1 i2} {p : rspos i1 i2} s τ `{Hτ : !Deterministic τ} :
