@@ -157,7 +157,8 @@ Module Downset <: LatticeCompletion Sup.
       emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
       cbn. firstorder.
-      etransitivity; eauto.
+      - apply H. reflexivity.
+      - etransitivity; eauto.
     Qed.
 
     Lemma emb_join_dense :

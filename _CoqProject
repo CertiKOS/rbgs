@@ -1,5 +1,5 @@
--R coqrel coqrel
 -R compcert compcert
+-R coqrel coqrel
 -R structures structures
 -R lattices lattices
 -R models models
