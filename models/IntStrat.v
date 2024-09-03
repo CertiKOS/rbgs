@@ -113,6 +113,25 @@ Section STRAT.
       determinism : forall s t, Downset.has σ s -> Downset.has σ t -> pcoh s t;
     }.
 
+  Lemma pq_determinism {q} (σ : strat (running q)) `{!Deterministic σ} m1 m2 s1 s2 :
+    Downset.has σ (pcons (pq m1) s1) ->
+    Downset.has σ (pcons (pq m2) s2) ->
+    m1 = m2.
+  Proof.
+    intros H1 H2.
+    pose proof (determinism _ _ H1 H2) as H12.
+    dependent destruction H12; auto.
+  Qed.
+
+  Lemma pa_determinism {q} (σ : strat (running q)) `{!Deterministic σ} r1 r2 s1 s2 :
+    Downset.has σ (pcons (pa r1) s1) ->
+    Downset.has σ (pcons (pa r2) s2) ->
+    r1 = r2.
+  Proof.
+    intros H1 H2.
+    pose proof (determinism _ _ H1 H2) as H12.
+    dependent destruction H12; auto.
+  Qed.
 
   (** ** Residuals *)
 
@@ -665,6 +684,7 @@ Section RSQ.
   Lemma rsp_sup_cases {I} {i1 i2} (p : rspos i1 i2) R (S : I -> conv F1 F2) (s : play i1) (τ : strat E2 F2 i2) `{Hτ : !Deterministic τ}:
     match p with
     | rs_ready => fun s τ =>
+      inhabited I /\
       forall i, rsp R (S i) p s τ
     | rs_running q1 q2
     | rs_suspended q1 q2 _ _ => fun s τ =>
@@ -673,44 +693,85 @@ Section RSQ.
     end s τ ->
     rsp R (lsup S) p s τ.
   Proof.
-    revert i2 p I S τ Hτ.
-    induction s; intros i2 p I S τ Hτ.
-    - dependent destruction p.
-      admit.
-    - dependent destruction p.
-      admit.
-    - dependent destruction m.
-      + rename q into q1.
+    revert i2 p I R S τ Hτ.
+    induction s as [ | q1 m1 | i1 j1 m s' IHs']; intros i2 p I R S τ Hτ.
+    - (* ready *)
+      dependent destruction p.
+      intros [[i] H]. specialize (H i).
+      dependent destruction H.
+      constructor; auto.
+    - (* suspended *)
+      dependent destruction p.
+      intros [[i Hi] H]. specialize (H i Hi).
+      dependent destruction H.
+      constructor; auto.
+    - (* move *)
+      dependent destruction m.
+      + (* incoming question *)
+        rename q into q1.
         dependent destruction p.
-        intros H.
+        intros [[i] H].
         constructor.
-        * admit.
-        * intros q2 Hq12.
-          apply (IHs _ (rs_running q1 q2) I S (next (oq q2) τ) _).
+        * specialize (H i).
+          dependent destruction H.
+          assumption.
+        * clear i. intros q2 Hq12.
+          apply (IHs' _ (rs_running q1 q2) I R S (next (oq q2) τ) _).
           split; eauto.
           intros i Hi.
           specialize (H i). dependent destruction H.
           apply H0. assumption.
-      + admit.
-      + admit.
-      + rename q into q1, r into r1.
+      + (* outgoing question *)
+        rename q into q1, m into m1.
         dependent destruction p.
-        specialize (IHs _ rs_ready). cbn iota beta in IHs.
-        intros [[i Hi] H].
-        apply H in Hi. dependent destruction Hi.
+        intros [[i Hiq] H].
+        pose proof (H i Hiq) as Hi.
+        dependent destruction Hi.
+        econstructor; eauto.
+        eapply IHs'; try typeclasses eauto.
+        split; eauto.
+        intros j Hjq.
+        pose proof (H j Hjq) as Hj.
+        dependent destruction Hj.
+        assert (m3 = m2). {
+          dependent destruction Hi;
+          dependent destruction Hj; cbn in *;
+          eapply (pq_determinism τ); eauto.
+        }
+        subst m3; auto.
+      + (* environment answer *)
+        rename q into q1, m into m1, n into n1.
+        dependent destruction p.
+        intros [[i Hiq] H]. constructor.
+        * specialize (H i Hiq).
+          dependent destruction H.
+          assumption.
+        * intros n2 Hn.
+          eapply IHs'. { typeclasses eauto. }
+          split; eauto.
+          intros j Hjq.
+          specialize (H j Hjq).
+          dependent destruction H; eauto.
+      + (* component answer *)
+        rename q into q1, r into r1.
+        dependent destruction p.
+        (* specialize (IHs _ rs_ready). cbn iota beta in IHs. *)
+        intros [[i Hiq] H].
+        pose proof (H i Hiq) as Hi. dependent destruction Hi.
         econstructor.
-        * intros [j Hj].
-          assert (Downset.has (S j) (rcp_allow q1 q2)). {
+        * intros [j Hjr].
+          assert (Downset.has (S j) (rcp_allow q1 q2)) as Hjq. {
             eapply Downset.closed; eauto.
             constructor.
           }
-          apply H0 in H1. dependent destruction H1.
-          assert (r3 = r2) by admit. subst r3. (* determinism of τ *)
-          apply H1. eapply Hj.
-        * (** This is where we take advantage of the fact that
-            rcnext q1 q2 r1 r2 (sup {j | Downset.has (S j) (q1q2)}, S j) =
-            rcnext q1 q2 r1 r2 (sup j, S i) *)
-          assert (rcnext q1 q2 r1 r2 (sup {j | Downset.has (S j) (rcp_allow q1 q2)}, S j) =
+          pose proof (H j Hjq) as Hj. dependent destruction Hj.
+          assert (r3 = r2). {
+            dependent destruction Hi;
+            dependent destruction Hj; cbn in *;
+            eapply (pa_determinism τ); eauto.
+          }
+          subst r3. eauto.
+        * assert (rcnext q1 q2 r1 r2 (sup {j | Downset.has (S j) (rcp_allow q1 q2)}, S j) =
                   rcnext q1 q2 r1 r2 (lsup S)). {
             clear. apply antisymmetry; cbn.
             -- intros ? [? ?]. eauto.
@@ -721,26 +782,32 @@ Section RSQ.
           }
           rewrite <- H1. unfold fsup.
           rewrite rcnext_sup.
-          apply IHs. { typeclasses eauto. }
+          apply IHs'. { typeclasses eauto. }
+          split; eauto.
           intros [j Hj].
-          specialize (H0 j Hj).
-          dependent destruction H0. cbn.
-          assert (r3 = r2) by admit. (*determinism*)
+          specialize (H j Hj).
+          dependent destruction H. cbn.
+          assert (r0 = r2). {
+            dependent destruction H0; dependent destruction Hi; cbn in *;
+            eapply (pa_determinism τ); eauto.
+          }
           congruence.
-  Admitted.
+  Qed.
 
   Lemma rsp_sup {I} R S s τ `{Hτ : !Deterministic τ} :
+    inhabited I ->
     (forall i:I, rsp R (S i) rs_ready s τ) ->
     rsp R (lsup S) rs_ready s τ.
   Proof.
-    apply (rsp_sup_cases rs_ready); auto.
+    eauto using (rsp_sup_cases rs_ready).
   Qed.
 
   Lemma rsq_sup {I} R S σ τ `{Hτ : !Deterministic τ} :
+    inhabited I ->
     (forall i:I, rsq R (S i) rs_ready σ τ) ->
     rsq R (lsup S) rs_ready σ τ.
   Proof.
-    intros H s Hs.
+    intros HI H s Hs.
     apply rsp_sup; auto.
     intro i. apply H, Hs.
   Qed.
