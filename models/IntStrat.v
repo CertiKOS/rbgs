@@ -18,18 +18,6 @@ Record esig :=
 
 Arguments ar {_}.
 
-(** Tactics *)
-
-Ltac xsubst :=
-  repeat progress
-   (match goal with
-    | H : ?x = ?x |- _ =>
-      clear H
-    | H : existT _ _ _ = existT _ _ _ |- _ =>
-      apply inj_pair2 in H
-    end;
-    subst).
-
 
 (** * Strategies *)
 
@@ -69,11 +57,11 @@ Section STRAT.
     - red. induction x; constructor; auto.
     - intros x y z Hxy Hyz.
       induction Hxy; try constructor;
-      inversion Hyz; xsubst; constructor; auto.
+      dependent destruction Hyz; constructor; auto.
   Qed.
   Next Obligation.
     intros x y Hxy Hyx.
-    induction Hxy; inversion Hyx; xsubst; auto;
+    induction Hxy; dependent destruction Hyx; auto;
     elim IHHxy; auto.
   Qed.
 
@@ -281,20 +269,20 @@ Section COMPOSE.
     induction 1; cbn in *.
     - (* ready *)
       intros w' Hw'.
-      inversion Hw'; clear Hw'; xsubst; eauto.
+      dependent destruction Hw'; eauto.
     - (* incoming question *)
       intros w' Hw'.
       dependent destruction w'; eauto.
-      inversion Hw'; clear Hw'; xsubst.
-      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw'); eauto 10.
+      dependent destruction Hw'.
+      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
     - (* internal question *)
       intros w' Hw'.
       edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
     - (* outgoing question *)
       intros w' Hw'.
       dependent destruction w'; eauto.
-      inversion Hw'; clear Hw'; xsubst.
-      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw'); eauto 10.
+      dependent destruction Hw'.
+      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
     - (* waiting for answer *)
       intros w' Hw'.
       dependent destruction w'; eauto.
@@ -302,16 +290,16 @@ Section COMPOSE.
     - (* outgoing question is answered *)
       intros w' Hw'.
       dependent destruction w'; eauto.
-      inversion Hw'; clear Hw'; xsubst.
-      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw'); eauto 10.
+      dependent destruction Hw'.
+      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
     - (* internal answer *)
       intros w' Hw'.
       edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
     - (* incoming question is answered *)
       intros w' Hw'.
       dependent destruction w'; eauto.
-      inversion Hw'; clear Hw'; xsubst.
-      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw'); eauto 10.
+      dependent destruction Hw'.
+      edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
   Qed.
 
   Program Definition compose {i j k} p (σ : strat F G i) (τ : strat E F j) : strat E G k :=
@@ -456,11 +444,11 @@ Section RC.
       induction w; constructor; auto.
     - intros x y z Hxy. revert z.
       induction Hxy; intros z Hyz;
-      inversion Hyz; clear Hyz; xsubst; constructor; auto.
+      dependent destruction Hyz; constructor; auto.
   Qed.
   Next Obligation.
     intros w1 w2 Hw12 Hw21.
-    induction Hw12; inversion Hw21; xsubst; firstorder congruence.
+    induction Hw12; dependent destruction Hw21; firstorder congruence.
   Qed.
 
   Definition conv :=
@@ -910,22 +898,20 @@ Section RSQ_COMP.
   Proof.
     intros p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ w1 (s1 & t1 & Hs1 & Ht1 & Hst1).
     revert R S T i2 j2 k2 p2 pi pj pk p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ Hs1 Ht1.
-    induction Hst1; intros.
+    induction Hst1; intros; dependent destruction p.
     - (* ready *)
-      inversion p; clear p; xsubst.
       constructor; cbn.
       exists pnil_ready, pnil_ready.
       eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-      specialize (Hσ _ Hs1). inversion Hσ; clear Hσ; xsubst.
-      specialize (Hτ _ Ht1). inversion Hτ; clear Hτ; xsubst.
+      specialize (Hσ _ Hs1). dependent destruction Hσ.
+      specialize (Hτ _ Ht1). dependent destruction Hτ.
       eauto.
     - (* incoming question *)
-      inversion p; clear p; xsubst.
       constructor.
       + exists pnil_ready, pnil_ready.
         eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-        specialize (Hσ _ Hs1). inversion Hσ; clear Hσ; xsubst.
-        specialize (Hτ _ Ht1). inversion Hτ; clear Hτ; xsubst.
+        specialize (Hσ _ Hs1). dependent destruction Hσ.
+        specialize (Hτ _ Ht1). dependent destruction Hτ.
         eauto.
       + intros q2 Hq.
         rewrite <- (compose_next_oq q2).
@@ -933,7 +919,6 @@ Section RSQ_COMP.
                            (σ1 := next (oq q) σ1); cbn; eauto with typeclass_instances.
         apply rsq_next_oq; auto.
     - (* internal question *)
-      inversion p; clear p; xsubst.
       edestruct @rsq_next_pq as (m2 & Hm & Hm2 & ?); eauto.
       { eapply Downset.closed; cbn; eauto. constructor. constructor. }
       rewrite <- (compose_next_lq m2).
@@ -942,7 +927,6 @@ Section RSQ_COMP.
                          (τ1 := next (oq m) τ1); eauto with typeclass_instances.
       apply rsq_next_oq; auto.
     - (* outgoing question *)
-      inversion p; clear p; xsubst.
       edestruct @rsq_next_pq as (u2 & Hu & Hu2 & ?); eauto.
       { eapply Downset.closed; cbn; eauto. constructor. constructor. }
       econstructor; eauto.
@@ -951,7 +935,6 @@ Section RSQ_COMP.
                          (σ1 := σ1)
                          (τ1 := next (pq u) τ1); eauto with typeclass_instances.
     - (* suspended *)
-      inversion p; clear p; xsubst.
       constructor; cbn.
       exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
       eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
@@ -959,7 +942,6 @@ Section RSQ_COMP.
       specialize (Hτ _ Ht1). dependent destruction Hτ.
       eauto.
     - (* environment answer *)
-      inversion p; clear p; xsubst.
       constructor.
       + exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
         eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
@@ -973,7 +955,6 @@ Section RSQ_COMP.
                            (τ1 := next (oa v) τ1); eauto with typeclass_instances.
         apply rsq_next_oa; auto.
     - (* answer of τ *)
-      inversion p; clear p; xsubst.
       edestruct @rsq_next_pa as (n2 & Hn & Hn2 & H); eauto.
       { eapply Downset.closed; eauto. cbn. constructor. constructor. }
       rewrite <- (compose_next_ra n2).
@@ -982,7 +963,6 @@ Section RSQ_COMP.
                          (τ1 := next (pa n) τ1); eauto with typeclass_instances.
       apply rsq_next_oa; auto.
     - (* answer of σ *)
-      inversion p; clear p; xsubst.
       edestruct @rsq_next_pa as (r2 & Hr & Hr2 & H); eauto.
       { eapply Downset.closed; eauto. cbn. constructor. constructor. }
       econstructor; eauto.
