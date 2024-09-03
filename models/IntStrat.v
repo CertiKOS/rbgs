@@ -477,43 +477,6 @@ Section RC.
     cbn. eauto.
   Qed.
 
-  Lemma rcp_allows (s : rcp) :
-    exists m1 m2, rcp_allow m1 m2 [= s.
-  Proof.
-    destruct s; cbn; eauto.
-  Qed.
-
-  Variant rctrim_has q1 q2 r1 r2 (R : conv) : rcp -> Prop :=
-    | rctrim_allow :
-        Downset.has R (rcp_allow q1 q2) ->
-        rctrim_has q1 q2 r1 r2 R (rcp_allow q1 q2)
-    | rctrim_forbid n1 n2 :
-        Downset.has R (rcp_allow q1 q2) ->
-        (n1 = r1 -> n2 = r2 -> Downset.has R (rcp_forbid q1 q2 n1 n2)) ->
-        rctrim_has q1 q2 r1 r2 R (rcp_forbid q1 q2 n1 n2)
-    | rctrim_cont n1 n2 s :
-        Downset.has R (rcp_allow q1 q2) ->
-        (n1 = r1 -> n2 = r2 -> Downset.has R (rcp_cont q1 q2 n1 n2 s)) ->
-        rctrim_has q1 q2 r1 r2 R (rcp_cont q1 q2 n1 n2 s).
-
-  Program Definition rctrim q1 q2 r1 r2 R : conv :=
-    {| Downset.has := rctrim_has q1 q2 r1 r2 R |}.
-  Next Obligation.
-    intros q1 q2 r1 r2 R s t Hst Hs.
-    induction Hs; inversion Hst; clear Hst; xsubst; constructor; auto.
-    - clear H. intros H1 H2. eapply Downset.closed; eauto. constructor.
-    - clear H. intros H1 H2. eapply Downset.closed; eauto. constructor; auto.
-  Qed.
-
-  Lemma rcnext_rctrim m1 m2 n1 n2 R :
-    rcnext m1 m2 n1 n2 (rctrim m1 m2 n1 n2 R) = rcnext m1 m2 n1 n2 R.
-  Proof.
-    apply antisymmetry; cbn.
-    - inversion 1; xsubst. eauto.
-    - intros s Hs. constructor; auto.
-      eapply Downset.closed; eauto. constructor.
-  Qed.
-
   Lemma rcnext_inf {I} m1 m2 n1 n2 (R : I -> conv) :
     rcnext m1 m2 n1 n2 (linf R) = inf i, rcnext m1 m2 n1 n2 (R i).
   Proof.
@@ -812,50 +775,11 @@ Section RSQ.
     intro i. apply H, Hs.
   Qed.
 
-  Lemma rsp_all {I} R S {i1 i2} {p : rspos i1 i2} s τ `{Hτ : !Deterministic τ} :
+  Lemma rsp_inf {I} R S {i1 i2} {p : rspos i1 i2} s τ `{Hτ : !Deterministic τ} :
     inhabited I ->
     (forall i:I, rsp (R i) S p s τ) ->
     rsp (linf R) S p s τ.
-  Proof.
-    intros [j]. revert R S i2 p τ Hτ.
-    induction s as [ | | _ _ [q1 | q1 m1 | q1 m1 n1 | q1 r1]];
-    intros R S i2 p τ Hτ H;
-    dependent destruction p.
-    - (* ready *)
-      constructor.
-      specialize (H j). dependent destruction H. auto.
-    - (* suspended *)
-      constructor.
-      specialize (H j). dependent destruction H. auto.
-    - (* incoming question *)
-      constructor.
-      + specialize (H j). dependent destruction H. auto.
-      + intros q2 Hq. eapply IHs. typeclasses eauto. intros i.
-        specialize (H i). dependent destruction H. auto.
-    - (* outgoing question *)
-      pose proof (H j) as Hj.
-      dependent destruction Hj. clear H0.
-      assert (Downset.has τ (pq m2 :: pnil_suspended q2 m2)) as Hm2
-        by (dependent destruction Hj; auto). clear Hj.
-      econstructor; eauto.
-      + intros i. pose proof (H i) as Hi. dependent destruction Hi.
-        rewrite <- pnil_suspended_pref in Hi. dependent destruction Hi. cbn in H1.
-        pose proof (determinism _ _ Hm2 H1) as Hm23. dependent destruction Hm23.
-        eassumption.
-      + eapply IHs. typeclasses eauto.
-        intros i. pose proof (H i) as Hi. dependent destruction Hi. generalize Hi.
-        rewrite <- pnil_suspended_pref in Hi. dependent destruction Hi. cbn in H1.
-        pose proof (determinism _ _ Hm2 H1) as Hm23. dependent destruction Hm23.
-        auto.
-    - (* environment answer *)
-      constructor.
-      + specialize (H j). dependent destruction H. auto.
-      + intros n2 Hn. rewrite rcnext_inf.
-        eapply IHs. typeclasses eauto.
-        intro i. pose proof (H i) as Hi. dependent destruction Hi.
-        eapply H1. intro. apply Hn. cbn.  auto.
-        cbn in *. clear - Hn. firstorder.
-  Abort.
+  Admitted.
 End RSQ.
 
 Global Instance rsp_params : Params (@rsp) 7.
@@ -1039,12 +963,116 @@ Section VCOMP.
     intros until 1. rauto.
   Qed.
 
-  Lemma vcomp_has_inv_ex σ τ w :
-    vcomp_has σ τ w ->
-    exists s t, Downset.has σ s /\ Downset.has τ t.
-  Proof.
-    destruct w; cbn; firstorder.
+  (** The following formulations and properties of [vcomp] are useful
+    for the vertical composition proof of refinement squares below. *)
+
+  Definition vcomp_at_question_has (m2 : E2) R S s : Prop :=
+    match s with
+      | rcp_allow m1 m3 =>
+        Downset.has R (rcp_allow m1 m2) /\
+        Downset.has S (rcp_allow m2 m3)
+      | rcp_forbid m1 m3 n1 n3 =>
+        Downset.has R (rcp_allow m1 m2) /\
+        Downset.has S (rcp_allow m2 m3) /\
+        forall n2, Downset.has R (rcp_forbid m1 m2 n1 n2) \/
+                   Downset.has S (rcp_forbid m2 m3 n2 n3)
+      | rcp_cont m1 m3 n1 n3 k =>
+        Downset.has R (rcp_allow m1 m2) /\
+        Downset.has S (rcp_allow m2 m3) /\
+        forall n2, Downset.has R (rcp_forbid m1 m2 n1 n2) \/
+                   Downset.has S (rcp_forbid m2 m3 n2 n3) \/
+                   Downset.has (vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S)) k
+    end.
+
+  Program Definition vcomp_at_question m2 R S : conv E1 E3 :=
+    {| Downset.has := vcomp_at_question_has m2 R S |}.
+  Next Obligation.
+    intros m2 R S s t Hst.
+    induction Hst; cbn; try tauto.
+    + setoid_rewrite Hst. auto.
+    + firstorder auto.
   Qed.
+
+  Lemma vcomp_sup_at_question R S :
+    vcomp R S = sup m2, vcomp_at_question m2 R S.
+  Proof.
+    apply antisymmetry; intros [m1 m3 | m1 m3 n1 n3 | m1 m3 n1 n3 k]; cbn; firstorder.
+  Qed.
+
+  Definition vcomp_at_has (m2 : E2) (xn2 : option (ar m2)) R S s : Prop :=
+    match s with
+      | rcp_allow m1 m3 =>
+        Downset.has R (rcp_allow m1 m2) /\
+        Downset.has S (rcp_allow m2 m3)
+      | rcp_forbid m1 m3 n1 n3 =>
+        Downset.has R (rcp_allow m1 m2) /\
+        Downset.has S (rcp_allow m2 m3) /\
+        forall n2, xn2 = Some n2 ->
+                   Downset.has R (rcp_forbid m1 m2 n1 n2) \/
+                   Downset.has S (rcp_forbid m2 m3 n2 n3)
+      | rcp_cont m1 m3 n1 n3 k =>
+        Downset.has R (rcp_allow m1 m2) /\
+        Downset.has S (rcp_allow m2 m3) /\
+        forall n2, xn2 = Some n2 ->
+                   Downset.has R (rcp_forbid m1 m2 n1 n2) \/
+                   Downset.has S (rcp_forbid m2 m3 n2 n3) \/
+                   Downset.has (vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S)) k
+    end.
+
+  Program Definition vcomp_at m2 n2 R S : conv E1 E3 :=
+    {| Downset.has := vcomp_at_has m2 n2 R S |}.
+  Next Obligation.
+    intros m2 xn2 R S s t Hst.
+    induction Hst; cbn; try tauto.
+    + setoid_rewrite Hst. auto.
+    + firstorder auto.
+  Qed.
+
+  Lemma vcomp_expand R S :
+    vcomp R S = sup m2, inf xn2, vcomp_at m2 xn2 R S.
+  Proof.
+    apply antisymmetry; intros [m1 m3 | m1 m3 n1 n3 | m1 m3 n1 n3 k]; cbn.
+    - firstorder.
+    - firstorder.
+    - firstorder.
+    - firstorder.
+    - intros (m2 & H2). exists m2.
+      pose proof (H2 None) as (? & ? & _). split; auto. split; auto.
+      intros n2. pose proof (H2 (Some n2)) as (? & ? & ?). eauto.
+    - intros (m2 & H2). exists m2.
+      pose proof (H2 None) as (? & ? & _). split; auto. split; auto.
+      intros n2. pose proof (H2 (Some n2)) as (? & ? & ?). eauto.
+  Qed.
+
+  Lemma rcnext_vcomp_at m1 m2 m3 n1 n2 n3 R S :
+    ~ Downset.has R (rcp_forbid m1 m2 n1 n2) ->
+    ~ Downset.has S (rcp_forbid m2 m3 n2 n3) ->
+    rcnext m1 m3 n1 n3 (vcomp_at m2 (Some n2) R S) =
+    vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S).
+  Proof.
+    intros Hn12 Hn23.
+    apply antisymmetry; intros s; cbn.
+    - intros (Hm12 & Hm23 & Hn). specialize (Hn _ (reflexivity _)).
+      destruct Hn as [? | [? | ?]]; tauto.
+    - destruct s as [m1' m3' | m1' m3' n1' n3' | m1' m3' n1' n3' k]; cbn.
+      + intros (m2' & Hm12' & Hm23').
+        split. { eapply Downset.closed; eauto. constructor. }
+        split. { eapply Downset.closed; eauto. constructor. }
+        inversion 1; clear H; subst.
+        eauto.
+      + intros (m2' & Hm12' & Hm23' & Hn13').
+        split. { eapply Downset.closed; eauto. constructor. }
+        split. { eapply Downset.closed; eauto. constructor. }
+        inversion 1; clear H; subst.
+        eauto 10.
+      + intros (m2' & Hm12' & Hm23' & Hn13').
+        split. { eapply Downset.closed; eauto. constructor. }
+        split. { eapply Downset.closed; eauto. constructor. }
+        inversion 1; clear H; subst.
+        eauto 10.
+  Qed.
+
+  (* ... *)
 
   Lemma rcnext_vcomp m1 m3 n1 n3 R S :
     rcnext m1 m3 n1 n3 (vcomp R S) =
@@ -1064,18 +1092,6 @@ Section VCOMP.
       destruct (classic (Downset.has S (rcp_forbid m2 m3 n2 n3))) as [ | Hn23]; auto.
       specialize (Hs (exist _ n2 (conj Hn12 Hn23))); cbn in *; auto.
   Qed.
-
-  Lemma rcnext_vcomp' m1 m2 m3 n1 n2 n3 R S :
-    rcnext m1 m3 n1 n3 (vcomp (rctrim m1 m2 n1 n2 R) (rctrim m2 m3 n2 n3 S)) =
-    vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S).
-  Proof.
-    apply antisymmetry; intros s; cbn.
-    - intros (xm2 & Hm12 & Hm23 & Hn).
-      assert (xm2 = m2) by (inversion Hm12; auto); subst.
-      specialize (Hn n2); destruct Hn as [? | [? | ?]]; auto.
-      + 
-  Abort.
-
 End VCOMP.
 
 (** *** Theorem 4.7 (Veritcal composition of refinement squares) *)
@@ -1083,7 +1099,9 @@ End VCOMP.
 Section RSVCOMP.
   Context {E1 F1 E2 F2 E3 F3 : esig}.
 
-  Variant rsvpos : forall {p1 p2 p3}, @rspos E1 E2 F1 F2 p1 p2 -> @rspos E2 E3 F2 F3 p2 p3 -> @rspos E1 E3 F1 F3 p1 p3 -> Type :=
+  Variant rsvpos : forall {p1 p2 p3}, @rspos E1 E2 F1 F2 p1 p2 ->
+                                      @rspos E2 E3 F2 F3 p2 p3 ->
+                                      @rspos E1 E3 F1 F3 p1 p3 -> Type :=
     | rsv_ready :
         rsvpos rs_ready
                rs_ready
@@ -1107,45 +1125,53 @@ Section RSVCOMP.
         | rsv_ready =>
           rsp (vcomp R R') (vcomp S S') p13 s1 σ3
         | rsv_running q1 q2 q3 =>
-          (*
-          Downset.has S (rcp_allow q1 q2) ->
-          Downset.has S' (rcp_allow q2 q3) ->
-           *)
-          rsp (vcomp R R') (vcomp S S') p13 s1 σ3
+          rsp (vcomp R R') (inf r2, vcomp_at q2 r2 S S') p13 s1 σ3
         | rsv_suspended q1 q2 q3 m1 m2 m3 =>
-          (*
-          Downset.has S (rcp_allow q1 q2) ->
-          Downset.has S' (rcp_allow q2 q3) ->
-          Downset.has R (rcp_allow m1 m2) ->
-          Downset.has R' (rcp_allow m2 m3) ->
-           *)
-          forall n1 n2 n3,
-            rsp (vcomp (rctrim m1 m2 n1 n2 R) (rctrim m2 m3 n2 n3 R')) (vcomp S S') p13 s1 σ3
+          rsp (inf n2, vcomp_at m2 n2 R R') (inf r2, vcomp_at q2 r2 S S') p13 s1 σ3
       end.
   Proof.
     intros R R' S S' s1 σ2 σ3 Hσ2 Hσ3 H12 Hσ23.
     revert p3 p23 p13 p R' S' σ3 Hσ3 Hσ23.
-    induction H12; dependent destruction p; intros.
+    induction H12; intros; dependent destruction p.
     - (* ready *)
-      specialize (Hσ23 _ H).
-      dependent destruction Hσ23.
-      constructor; auto.
-    - (* incoming question *)
       pose proof (Hσ23 _ H) as Hnil.
       dependent destruction Hnil.
-      constructor; auto. cbn. 
-      intros q3 (q2 & Hq12 & Hq23).
+      constructor; auto.
+    - (* incoming question *)
+      rewrite (vcomp_expand S S').
+      pose proof (Hσ23 _ H) as Hnil.
+      dependent destruction Hnil.
+      constructor; auto.
+      intros q3 Hq13.
+      apply rsp_sup_cases; eauto with typeclass_instances.
+      split. { destruct Hq13 as [q2 Hq13]. eauto. } clear Hq13.
+      intros q2 Hq13. cbn in Hq13. specialize (Hq13 None) as [Hq12 Hq23].
       eapply (H1 q2 Hq12 _ _ _ _ (rsv_running q1 q2 q3)); eauto with typeclass_instances.
       eapply rsq_next_oq; eauto.
     - (* outgoing question *)
       rename q4 into q3.
+      rewrite (vcomp_expand R R'), <- (sup_ub m2).
       assert (Hm2 : Downset.has τ (pq m2 :: pnil_suspended q2 m2))
         by (dependent destruction H12; cbn in *; auto).
       edestruct @rsq_next_pq as (m3 & Hm23 & Hm3 & Hnext); eauto.
-      econstructor; cbn; eauto.
-      specialize (IHrsp _ _ _ _ (rsv_suspended q1 q2 q3 m1 m2 m3)); cbn in IHrsp.
-      eauto with typeclass_instances.
-
-  Abort.
-
+      econstructor. { cbn. eauto. }
+      eapply (IHrsp _ _ _ _ (rsv_suspended q1 q2 q3 m1 m2 m3)); eauto with typeclass_instances.
+    - (* suspended *)
+      rename q4 into q3, m4 into m3.
+      pose proof (Hσ23 _ H) as Hnil.
+      dependent destruction Hnil.
+      constructor; auto.
+    - (* environment answer *)
+      rename q4 into q3, m4 into m3.
+      admit.
+    - (* component answer *)
+      rename q4 into q3, H into Hr12.
+      rewrite (inf_lb (Some r2)).
+      destruct (rsq_next_pa r2 Hσ23) as (r3 & Hr23 & Hr3 & H23). {
+        dependent destruction H12; auto.
+      }
+      econstructor. { cbn. intros (Hq12 & Hq23 & [Hr | Hr]); eauto. }
+      rewrite rcnext_vcomp_at by auto.
+      eapply (IHrsp _ _ _ _ rsv_ready); eauto with typeclass_instances.
+  Admitted.
 End RSVCOMP.
