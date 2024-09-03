@@ -113,24 +113,18 @@ Section STRAT.
       determinism : forall s t, Downset.has σ s -> Downset.has σ t -> pcoh s t;
     }.
 
-  Lemma pq_determinism {q} (σ : strat (running q)) `{!Deterministic σ} m1 m2 s1 s2 :
-    Downset.has σ (pcons (pq m1) s1) ->
-    Downset.has σ (pcons (pq m2) s2) ->
+  Lemma pcoh_inv_pq {q} (m1 m2 : E) (s1 s2 : play (suspended q _)) :
+    pcoh (pcons (pq m1) s1) (pcons (pq m2) s2) ->
     m1 = m2.
   Proof.
-    intros H1 H2.
-    pose proof (determinism _ _ H1 H2) as H12.
-    dependent destruction H12; auto.
+    intros H. dependent destruction H. auto.
   Qed.
 
-  Lemma pa_determinism {q} (σ : strat (running q)) `{!Deterministic σ} r1 r2 s1 s2 :
-    Downset.has σ (pcons (pa r1) s1) ->
-    Downset.has σ (pcons (pa r2) s2) ->
+  Lemma pcoh_inv_pa {q} (r1 r2 : ar q) (s1 s2 : play ready) :
+    pcoh (pcons (pa r1) s1) (pcons (pa r2) s2) ->
     r1 = r2.
   Proof.
-    intros H1 H2.
-    pose proof (determinism _ _ H1 H2) as H12.
-    dependent destruction H12; auto.
+    intros H. dependent destruction H. auto.
   Qed.
 
   (** ** Residuals *)
@@ -198,6 +192,22 @@ End STRAT.
 
 Arguments strat : clear implicits.
 Infix "::" := pcons.
+
+(** To make using determinism properties easier, we provide the
+  [determinism] tactic below. Additional hints in the [determinism]
+  database can used to establish that the strategy makes particular
+  moves. *)
+
+Hint Resolve determinism pcoh_inv_pq pcoh_inv_pa : determinism.
+
+Hint Extern 1 (Downset.has ?σ (?e :: ?s)) =>
+       change (Downset.has (next e σ) s) : determinism.
+
+Ltac determinism m m' :=
+  assert (m' = m) by eauto 10 with determinism;
+  subst m'.
+
+(** ** Compositional structure *)
 
 Section ID.
   Context {E : esig}.
@@ -570,6 +580,24 @@ Section RSQ.
     eapply H; eauto.
   Qed.
 
+  (** *** Determinism *)
+
+  Lemma rsp_ready_inv_nil R S s τ :
+    rsp R S rs_ready s τ ->
+    Downset.has τ pnil_ready.
+  Proof.
+    intro H. dependent destruction H; auto.
+  Qed.
+
+  Lemma rsp_suspended_inv_nil R S q1 q2 m1 m2 s τ :
+    rsp R S (rs_suspended q1 q2 m1 m2) s τ ->
+    Downset.has τ (pnil_suspended q2 m2).
+  Proof.
+    intro H. dependent destruction H; auto.
+  Qed.
+
+  Hint Resolve rsp_ready_inv_nil rsp_suspended_inv_nil : determinism.
+
   (** *** Operational behavior *)
 
   Lemma rsq_next_oq {R S σ τ} q1 q2 :
@@ -598,12 +626,7 @@ Section RSQ.
     intros s Hs. cbn in Hs.
     apply Hστ in Hs.
     dependent destruction Hs.
-    assert (m3 = m2). {
-      rewrite <- (pnil_suspended_pref s) in Hs.
-      dependent destruction Hs. cbn in H2.
-      pose proof (determinism _ _ H0 H2) as H23.
-      dependent destruction H23; auto.
-    }
+    determinism m2 m3.
     subst. auto.
   Qed.
 
@@ -633,13 +656,8 @@ Section RSQ.
     intros s Hs. cbn in Hs.
     apply Hστ in Hs.
     dependent destruction Hs.
-    assert (r3 = r2). {
-      rewrite <- (pnil_ready_pref s) in Hs.
-      dependent destruction Hs. cbn in H2.
-      pose proof (determinism _ _ H0 H2) as H23.
-      dependent destruction H23; auto.
-    }
-    subst. auto.
+    determinism r2 r3.
+    assumption.
   Qed.
 
   (** *** Continuity vs. refinement conventions *)
@@ -696,12 +714,8 @@ Section RSQ.
         intros j Hjq.
         pose proof (H j Hjq) as Hj.
         dependent destruction Hj.
-        assert (m3 = m2). {
-          dependent destruction Hi;
-          dependent destruction Hj; cbn in *;
-          eapply (pq_determinism τ); eauto.
-        }
-        subst m3; auto.
+        determinism m2 m3.
+        assumption.
       + (* environment answer *)
         rename q into q1, m into m1, n into n1.
         dependent destruction p.
@@ -728,12 +742,8 @@ Section RSQ.
             constructor.
           }
           pose proof (H j Hjq) as Hj. dependent destruction Hj.
-          assert (r3 = r2). {
-            dependent destruction Hi;
-            dependent destruction Hj; cbn in *;
-            eapply (pa_determinism τ); eauto.
-          }
-          subst r3. eauto.
+          determinism r2 r3.
+          eauto.
         * assert (rcnext q1 q2 r1 r2 (sup {j | Downset.has (S j) (rcp_allow q1 q2)}, S j) =
                   rcnext q1 q2 r1 r2 (lsup S)). {
             clear. apply antisymmetry; cbn.
@@ -750,11 +760,8 @@ Section RSQ.
           intros [j Hj].
           specialize (H j Hj).
           dependent destruction H. cbn.
-          assert (r0 = r2). {
-            dependent destruction H0; dependent destruction Hi; cbn in *;
-            eapply (pa_determinism τ); eauto.
-          }
-          congruence.
+          determinism r2 r0.
+          assumption.
   Qed.
 
   Lemma rsp_sup {I} R S s τ `{Hτ : !Deterministic τ} :
@@ -813,22 +820,14 @@ Section RSQ.
         econstructor.
         * intros j. specialize (H j).
           dependent destruction H.
-          assert (m0 = m2). {
-            dependent destruction H0;
-            dependent destruction Hi; cbn in *;
-            eapply pq_determinism; eauto.
-          }
-          subst m0; eauto.
+          determinism m2 m0.
+          eassumption.
         * eapply IHs'. { typeclasses eauto. }
           split; eauto.
           intros j. specialize (H j).
           dependent destruction H.
-          assert (m0 = m2). {
-            dependent destruction H0;
-            dependent destruction Hi; cbn in *;
-            eapply pq_determinism; eauto.
-          }
-          subst m0; eauto.
+          determinism m2 m0.
+          eassumption.
       + (* environment answer *)
         rename q into q1, m into m1, n into n1.
         dependent destruction p.
@@ -866,14 +865,12 @@ Section RSQ.
         split; auto.
         intros j.
         pose proof (H j) as Hj. dependent destruction Hj.
-        assert (r3 = r2). {
-          dependent destruction Hi;
-          dependent destruction Hj; cbn in *;
-          eapply pa_determinism; eauto.
-        }
-        subst r3; eauto.
+        determinism r2 r3.
+        eassumption.
   Qed.
 End RSQ.
+
+Hint Resolve rsp_ready_inv_nil rsp_suspended_inv_nil : determinism.
 
 Global Instance rsp_params : Params (@rsp) 7.
 Global Instance rsq_params : Params (@rsq) 7.
