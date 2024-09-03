@@ -775,11 +775,104 @@ Section RSQ.
     intro i. apply H, Hs.
   Qed.
 
-  Lemma rsp_inf {I} R S {i1 i2} {p : rspos i1 i2} s τ `{Hτ : !Deterministic τ} :
+  Lemma rsp_inf {I} {i1 i2} (p : rspos i1 i2) R S s τ `{Hτ : !Deterministic τ}:
     inhabited I ->
     (forall i:I, rsp (R i) S p s τ) ->
     rsp (linf R) S p s τ.
-  Admitted.
+  Proof.
+    revert i2 p I R S τ Hτ.
+    induction s as [ | q1 m1 | i1 j1 m s' IHs']; intros i2 p I R S τ Hτ.
+    - (* ready *)
+      dependent destruction p.
+      intros [i] H. specialize (H i).
+      dependent destruction H.
+      constructor; auto.
+    - (* suspended *)
+      dependent destruction p.
+      intros [i] H. specialize (H i).
+      dependent destruction H.
+      constructor; auto.
+    - (* move *)
+      dependent destruction m.
+      + (* incoming question *)
+        rename q into q1.
+        dependent destruction p.
+        intros [i] H. pose proof (H i) as Hi.
+        dependent destruction Hi.
+        constructor; auto.
+        intros q2 Hq.
+        eapply IHs'. { typeclasses eauto. }
+        split; auto. clear i H1.
+        intros i. specialize (H i).
+        dependent destruction H; auto.
+      + (* outgoing question *)
+        rename q into q1, m into m1.
+        dependent destruction p.
+        intros [i] H. pose proof (H i) as Hi.
+        dependent destruction Hi.
+        econstructor.
+        * intros j. specialize (H j).
+          dependent destruction H.
+          assert (m0 = m2). {
+            dependent destruction H0;
+            dependent destruction Hi; cbn in *;
+            eapply pq_determinism; eauto.
+          }
+          subst m0; eauto.
+        * eapply IHs'. { typeclasses eauto. }
+          split; eauto.
+          intros j. specialize (H j).
+          dependent destruction H.
+          assert (m0 = m2). {
+            dependent destruction H0;
+            dependent destruction Hi; cbn in *;
+            eapply pq_determinism; eauto.
+          }
+          subst m0; eauto.
+      + (* environment answer *)
+        rename q into q1, m into m1, n into n1.
+        dependent destruction p.
+        intros [i] H. constructor.
+        * specialize (H i).
+          dependent destruction H.
+          assumption.
+        * intros n2 Hn.
+          assert
+            (rcnext m1 m2 n1 n2 (linf R) =
+             rcnext m1 m2 n1 n2 (inf {j | ~ Downset.has (R j) (rcp_forbid m1 m2 n1 n2)}, R j)).
+          {
+            clear.
+            apply antisymmetry; cbn; eauto.
+            intros s Hs i.
+            destruct (classic (Downset.has (R i) (rcp_forbid m1 m2 n1 n2))).
+            -- eapply Downset.closed; eauto. constructor.
+            -- apply (Hs (exist _ i H)).
+          }
+          rewrite H0.
+          unfold finf.
+          rewrite rcnext_inf.
+          eapply IHs'.
+          -- typeclasses eauto.
+          -- cbn in Hn. apply not_all_ex_not in Hn as [j Hj]. eauto.
+          -- intros [j Hnj]. cbn. specialize (H j).
+             dependent destruction H; eauto.
+      + (* component answer *)
+        rename q into q1, r into r1.
+        dependent destruction p.
+        intros [i] H.
+        pose proof (H i) as Hi. dependent destruction Hi.
+        econstructor; eauto.
+        eapply IHs'. { typeclasses eauto. }
+        split; auto.
+        intros j.
+        pose proof (H j) as Hj. dependent destruction Hj.
+        assert (r3 = r2). {
+          dependent destruction Hi;
+          dependent destruction Hj; cbn in *;
+          eapply pa_determinism; eauto.
+        }
+        subst r3; eauto.
+  Qed.
 End RSQ.
 
 Global Instance rsp_params : Params (@rsp) 7.
@@ -1127,6 +1220,8 @@ Section RSVCOMP.
         | rsv_running q1 q2 q3 =>
           rsp (vcomp R R') (inf r2, vcomp_at q2 r2 S S') p13 s1 σ3
         | rsv_suspended q1 q2 q3 m1 m2 m3 =>
+          Downset.has R (rcp_allow m1 m2) ->
+          Downset.has R' (rcp_allow m2 m3) ->
           rsp (inf n2, vcomp_at m2 n2 R R') (inf r2, vcomp_at q2 r2 S S') p13 s1 σ3
       end.
   Proof.
@@ -1163,7 +1258,22 @@ Section RSVCOMP.
       constructor; auto.
     - (* environment answer *)
       rename q4 into q3, m4 into m3.
-      admit.
+      pose proof (Hσ23 _ H) as Hnil.
+      dependent destruction Hnil.
+      intros Hm12 Hm23.
+      apply (rsp_inf (rs_suspended q1 q3 m1 m3)). { typeclasses eauto. }
+      split. { eauto using None. }
+      intros xn2.
+      constructor; auto.
+      intros n3 Hn13. cbn in Hn13.
+      apply not_and_or in Hn13 as [ | Hn13]; try tauto.
+      apply not_and_or in Hn13 as [ | Hn13]; try tauto.
+      apply not_all_ex_not in Hn13 as [n2 Hn13].
+      apply imply_to_and in Hn13 as [Hxn2 Hn13]. subst xn2.
+      apply not_or_and in Hn13 as [Hn12 Hn23].
+      rewrite rcnext_vcomp_at by auto.
+      eapply (H1 n2 Hn12 _ _ _ _ (rsv_running q1 q2 q3)); eauto with typeclass_instances.
+      apply rsq_next_oa; auto.
     - (* component answer *)
       rename q4 into q3, H into Hr12.
       rewrite (inf_lb (Some r2)).
@@ -1173,5 +1283,5 @@ Section RSVCOMP.
       econstructor. { cbn. intros (Hq12 & Hq23 & [Hr | Hr]); eauto. }
       rewrite rcnext_vcomp_at by auto.
       eapply (IHrsp _ _ _ _ rsv_ready); eauto with typeclass_instances.
-  Admitted.
+  Qed.
 End RSVCOMP.
