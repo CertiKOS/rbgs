@@ -21,57 +21,86 @@ Ltac depsubst :=
       clear_hyp
   end.
 
-(* Open Semantics *)
+From coqrel Require Import LogicalRelations.
+Require Import IntSpec.
+
+Definition action (E: esig) (R: Type): Type -> Type :=
+  fun T => { N & (E N * (N -> T -> Prop) + R) }%type.
+
 Record semantics {E F: esig} : Type := {
-    transition_state: Type -> Type;
-    init mf: F mf -> transition_state mf -> Prop;
-    call me mf: transition_state mf -> E me -> (me -> transition_state mf -> Prop) -> Prop;
-    return_ mf: transition_state mf -> mf -> Prop;
-  }.
+    state: Type -> Type;
+    init Nf: F Nf -> state Nf -> Prop;
+    next Nf: state Nf -> action E Nf (state Nf) -> Prop;
+}.
 Arguments semantics : clear implicits.
 Arguments init {_ _} _ {_} _ _.
-Arguments call {_ _} _ {_ _} _ _ _.
+Arguments next {_ _} _ {_} _.
 
-Require Import RefConv.
+Record t {E : esig} {V} := {
+    p :> ISpec.play E V -> Prop;
+    down : forall s t, ISpec.pref s t -> p t -> p s;
+  }.
+
+Section F.
+
+  Context (E: esig).
+
+  Definition istate := @t E.
+
+  Inductive inext r (s: istate r): action E r (istate r) -> Prop :=
+  | inext_pret m v:
+    s (ISpec.pret v) -> inext s (existT _ m (inr v))
+  | inext_pcons m (e: E m) (k: m -> istate r -> Prop) (s': istate r) e_r:
+    (forall (s': istate r), k e_r s' -> forall p', s' p' <-> s (ISpec.pcons e e_r p')) ->
+    inext s (existT _ m (inl (e, k))).
+
+  Context (F: esig) (L: semantics E F).
+
+  Definition mor r (s: state L r): istate r.
+
+End F.
+
+Record econv {E1 E2: esig} : Type := {
+    eworld: Type;
+    match_query: eworld -> forall m1 m2, E1 m1 -> E2 m2 -> Prop;
+    match_reply: eworld -> forall m1 m2, m1 -> m2 -> Prop;
+  }.
+Arguments econv : clear implicits.
+Arguments match_query {E1 E2}%esig_scope _ _ [m1 m2]%type_scope.
+
+(* Require Import RefConv. *)
 
 Section FSIM.
 
   Context {E1 E2 F1 F2: esig}
-    (rcE: refconv E1 E2) (rcF: refconv F1 F2)
+    (Re: econv E1 E2) (Rf: econv F1 F2)
     (L1: semantics E1 F1) (L2: semantics E2 F2).
 
   Record fsim_properties := {
-      match_state mf1 mf2:
-        transition_state L1 mf1 ->
-        transition_state L2 mf2 ->
-        (mf1 -> mf2 -> Prop) -> Prop;
-      fsim_init mf1 mf2 (f1: F1 mf1) (f2: F2 mf2) s1 f_rel:
-        rcF _ f1 _ f2 f_rel ->
-        init L1 f1 s1 ->
-        exists s2, init L2 f2 s2 /\
-        match_state s1 s2 f_rel;
-      fsim_call mf1 mf2 (s1: transition_state L1 mf1)
-                    (s2: transition_state L2 mf2)
-                    me1 (e1: E1 me1) kont1 f_rel:
-        match_state s1 s2 f_rel ->
-        call L1 s1 e1 kont1 ->
-        exists me2 (e2: E2 me2) kont2 e_rel, call L2 s2 e2 kont2 /\
-        rcE _ e1 _ e2 e_rel /\
-        forall r1 r2 s1', kont1 r1 s1' -> e_rel r1 r2 -> exists s2', kont2 r2 s2' /\
-        match_state s1' s2' f_rel;
-      fsim_return mf1 mf2 s1 s2 (r1: mf1) f_rel:
-        match_state s1 s2 f_rel ->
-        return_ L1 s1 r1 ->
-        exists r2: mf2, return_ L2 s2 r2 /\
-        f_rel r1 r2;
+      match_state:
+        eworld Rf -> forall mf1 mf2, transition_state L1 mf1 -> transition_state L2 mf2 -> Prop;
+      fsim_init mf1 mf2 (f1: F1 mf1) (f2: F2 mf2) s1 wf:
+        match_query Rf wf f1 f2 -> init L1 f1 s1 ->
+        exists s2, init L2 f2 s2 /\  match_state wf mf1 mf2 s1 s2;
+      fsim_call mf1 mf2 wf
+        (s1: transition_state L1 mf1) (s2: transition_state L2 mf2)
+        me1 (e1: E1 me1) kont1:
+        match_state wf mf1 mf2 s1 s2 -> call L1 s1 e1 kont1 ->
+        exists me2 (e2: E2 me2) kont2 we, call L2 s2 e2 kont2 /\
+        match_query Re we e1 e2 /\
+        forall r1 r2 s1', kont1 r1 s1' -> match_reply Re we r1 r2 ->
+        exists s2', kont2 r2 s2' /\ match_state wf mf1 mf2 s1' s2';
+      fsim_return wf mf1 mf2 s1 s2 (r1: mf1):
+        match_state wf mf1 mf2 s1 s2 -> return_ L1 s1 r1 ->
+        exists r2: mf2, return_ L2 s2 r2 /\ match_reply Rf wf r1 r2;
     }.
 
 End FSIM.
 
 Definition fsim {E1 E2 F1 F2: esig}
-    (rcE: refconv E1 E2) (rcF: refconv F1 F2)
+    (Re: econv E1 E2) (Rf: econv F1 F2)
     (L1: semantics E1 F1) (L2: semantics E2 F2) :=
-  inhabited (fsim_properties rcE rcF L1 L2).
+  inhabited (fsim_properties Re Rf L1 L2).
 
 Section LComp.
 

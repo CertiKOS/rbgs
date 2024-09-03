@@ -77,6 +77,7 @@ Program Fixpoint compose_play2  {E F G A B} (k: B -> s E F -> t E G A) (t2: play
   match t2 with
   | pm _ m => down (pm m)
   | pmn _ m n p_next =>
+      down (pm m) ||
       Downset.map (fun p => pmn m n p) (compose_play2 k p_next)
   | pr r => k r (fun _ _ => bot)
   | prq A r q p_next =>
@@ -94,6 +95,7 @@ Fixpoint compose_play1 {E F G A} (s2: s E F) (p1: play F G A): t E G A :=
   match p1 with
   | pr r => down (pr r)
   | prq _ r q p_next =>
+      down (pr r) ||
       Downset.map (fun p => prq r q p) (compose_play1 s2 p_next)
   | pm _ m => compose_t2 (fun _ _ => bot) (s2 _ m)
   | pmn _ m n p_next =>
@@ -285,6 +287,79 @@ End SIM.
 
 Generalizable All Variables.
 
+Instance prq_mor {E F A A'} (r: A) (q: F A'):
+  PosetMorphism (fun a : play E F A' => down (prq r q a)).
+Proof.
+  constructor. intros x y Hxy.
+  apply Downset.emb_mor. constructor; eauto.
+Qed.
+
+Instance pmn_mor {E F A B} (m: E B) (n: B):
+  PosetMorphism (fun a : play E F A => down (pmn m n a)).
+Proof.
+  constructor. intros x y Hxy.
+  apply Downset.emb_mor. constructor; eauto.
+Qed.
+
+Lemma ext_mor' {C: poset} {L: cdlattice} (f g: C -> L)  {Hf: PosetMorphism f} {Hg: PosetMorphism g} t:
+  (forall c, f c [= g c) ->
+  Downset.ext f t [= Downset.ext g t.
+Proof.
+  intros Hc.
+  pose proof (Downset.emb_join_dense t).
+  rewrite H.
+  rewrite !fsup_mor.
+  apply sup_iff. intros (i & Hi).
+  eapply (fsup_at i); eauto. cbn.
+  rewrite !Downset.ext_ana. apply Hc.
+Qed.
+
+
+Instance compose_play1_mor {E F G A} (t2: s E F):
+  PosetMorphism (@compose_play1 E F G A t2).
+Proof.
+  constructor. intros x y Hxy.
+  induction Hxy; cbn; try easy.
+  - apply join_l. reflexivity.
+  - unfold Downset.map.
+    Local Transparent join. unfold join.
+    apply sup_iff. intros b.
+    apply (sup_at b). destruct b. reflexivity.
+    rewrite IHHxy. easy.
+  - unfold compose_t2. eapply ext_mor'.
+    admit. admit. admit.
+  - admit.
+Admitted.
+
+Instance compose_play2_mor {E F G A B} (k: B -> s E F -> t E G A):
+  PosetMorphism (@compose_play2 E F G A B k).
+Proof.
+Admitted.
+
+(* Instance compose_play2_mor {E F G A B} (k: B -> s E F -> t E G A): *)
+(*   (forall b, PosetMorphism (k b)) -> *)
+(*   PosetMorphism (@compose_play2 E F G A B k). *)
+(* Proof. *)
+(*   intros Hk. constructor. intros x y Hxy. *)
+(*   induction Hxy; try easy. *)
+(*   - cbn. apply Hk. *)
+(*     intros X x. apply bot_lb. *)
+(*   - cbn. apply Hk. *)
+(*     intros X x. *)
+(*     unfold compose_play2_obligation_1. *)
+(*     apply sup_iff. intros <-. *)
+(*     eapply sup_at. Unshelve. 2: reflexivity. *)
+(*     unfold eq_rect. *)
+(*     apply sup_iff. intros <-. *)
+(*     eapply sup_at. reflexivity. *)
+(*     apply Downset.emb_mor. apply Hxy. *)
+(*   - cbn. *)
+(*     admit. *)
+(*   - cbn. unfold Downset.map. *)
+(*     rewrite IHHxy. reflexivity. *)
+(*     apply Hk. *)
+(* Abort. *)
+
 Section HCOMP.
 
   Lemma map_prq_elim A A' `(s: t E F A')
@@ -298,10 +373,10 @@ Section HCOMP.
     setoid_rewrite Sup.mor in Hp.
     apply Downset.emb_join_prime in Hp.
     destruct Hp as ((i & Hi) & Hp). cbn in Hp.
-    setoid_rewrite @Downset.ext_ana in Hp. 2: admit.
+    rewrite Downset.ext_ana in Hp. 
     apply (iff_sym (Downset.emb_mor _ _)) in Hp.
     exists i. split; eauto.
-  Admitted.
+  Qed.
 
   Lemma map_pmn_elim A B `(s: t E F A)
     (p: play E F A) (m: E B) (n: B):
@@ -314,30 +389,37 @@ Section HCOMP.
     setoid_rewrite Sup.mor in Hp. 
     apply Downset.emb_join_prime in Hp.
     destruct Hp as ((i & Hi) & Hp). cbn in Hp.
-    setoid_rewrite @Downset.ext_ana in Hp. 2: admit.
+    rewrite Downset.ext_ana in Hp.
     apply (iff_sym (Downset.emb_mor _ _)) in Hp.
     exists i. split; eauto.
-  Admitted.
+  Qed.
 
   Lemma at_final_intro_t `(t1: t F G A) `(t2: s E F) r:
     at_final t1 r -> at_final (compose_t1 t1 t2) r.
   Proof.
     unfold at_final, compose_t1. intros Hp.
-    rewrite <- Hp. rewrite @Downset.ext_ana. 2: admit.
+    rewrite <- Hp. rewrite Downset.ext_ana. 
     cbn. reflexivity.
-  Admitted.
+  Qed.
 
   Lemma after_final_compose_t
     `(t1: t F G X) `(t2: s E F) r1 `(q2: G X'):
-    after_final (compose_t1 t1 t2) r1 q2 =
-      (compose_t1 (after_final t1 r1 q2) t2).
+    (compose_t1 (after_final t1 r1 q2) t2) [=
+      after_final (compose_t1 t1 t2) r1 q2.
   Proof.
-    unfold after_final, compose_t1.
-    unfold fsup.
-    setoid_rewrite Sup.mor.
-    apply antisymmetry.
-    - apply sup_iff. intros (i & Hi). cbn.
-  Admitted.
+    unfold after_final.
+    unfold compose_t1 at 1. rewrite fsup_mor.
+    apply sup_iff. intros (i & Hi). cbn.
+    rewrite Downset.ext_ana.
+    pose proof (Downset.emb_join_dense (compose_play1 t2 i)) as Hp.
+    rewrite Hp. apply sup_iff. intros (k & Hk). cbn.
+    apply (fsup_at k). 2: reflexivity.
+    unfold compose_t1. rewrite <- Hi.
+    rewrite Downset.ext_ana. cbn.
+    apply join_r.
+    unfold Downset.map. rewrite <- Hk.
+    rewrite Downset.ext_ana. cbn. reflexivity.
+  Qed.
 
   Lemma at_external_compose_t `(p: t F G A) {E X Y} (s: s E F) (m0: F X) (m: E Y):
     at_external (s X m0) m ->
@@ -346,10 +428,10 @@ Section HCOMP.
   Proof.
     unfold at_external, compose_t1.
     intros Hp1 Hp2.
-    rewrite <- Hp2. rewrite @Downset.ext_ana. 2: admit. cbn.
+    rewrite <- Hp2. rewrite Downset.ext_ana. cbn.
     unfold compose_t2. rewrite <- Hp1.
-    rewrite @Downset.ext_ana. 2: admit. cbn. reflexivity.
-  Admitted.
+    rewrite Downset.ext_ana. cbn. reflexivity.
+  Qed.
 
   Definition filter_m `(p: t F G A): t F G A :=
     sup { p' | (exists B (m: F B), pm m [= p') /\ down p' [= p }, down p'.
@@ -386,32 +468,32 @@ Section HCOMP.
   Proof.
     unfold compose_t1 at 1, filter_m.
     setoid_rewrite Sup.mor. apply sup_iff.
-    intros (i & Ha & Hb). cbn. rewrite @Downset.ext_ana. 2: admit.
+    intros (i & Ha & Hb). cbn. rewrite Downset.ext_ana. 
     destruct Ha as (? & q & Hq).
     pose proof (Downset.emb_join_dense (compose_play1 (fun (Y : Type) (q0 : F Y) => after_external (s Y q0) m n) i)) as Hp.
     rewrite Hp. apply sup_iff. intros (k & Hk). cbn.
     unfold after_external.
     apply (fsup_at k). 2: reflexivity.
     unfold compose_t1.
-    rewrite <- Hb. rewrite @Downset.ext_ana. 2: admit. cbn.
+    rewrite <- Hb. rewrite Downset.ext_ana. cbn.
     inv Hq; subst_dep; cbn.
     - cbn in Hk. unfold compose_t2 in Hk.
       setoid_rewrite Sup.mor in Hk.
       apply Downset.emb_join_prime in Hk as ((i & Hi) & Hk).
-      rewrite @Downset.ext_ana in Hk. 2: admit. cbn in Hk.
+      rewrite Downset.ext_ana in Hk. cbn in Hk.
       unfold compose_t2. rewrite <- Hi.
-      rewrite @Downset.ext_ana. 2: admit. cbn.
-      unfold Downset.map. rewrite <- Hk.
-      rewrite @Downset.ext_ana. 2: admit. reflexivity.
+      rewrite Downset.ext_ana. cbn.
+      unfold Downset.map. apply join_r. rewrite <- Hk.
+      rewrite Downset.ext_ana. reflexivity.
     - cbn in Hk. unfold compose_t2 in Hk.
       setoid_rewrite Sup.mor in Hk.
       apply Downset.emb_join_prime in Hk as ((i & Hi) & Hk).
-      rewrite @Downset.ext_ana in Hk. 2: admit. cbn in Hk.
+      rewrite Downset.ext_ana in Hk. cbn in Hk.
       unfold compose_t2. rewrite <- Hi.
-      rewrite @Downset.ext_ana. 2: admit. cbn.
-      unfold Downset.map. rewrite <- Hk.
-      rewrite @Downset.ext_ana. 2: admit. reflexivity.
-  Admitted.
+      rewrite Downset.ext_ana. cbn.
+      unfold Downset.map. apply join_r. rewrite <- Hk.
+      rewrite Downset.ext_ana. reflexivity.
+  Qed.
 
   Lemma at_final_compose2 `(t1: t F G A) `(t2: s E F) `(m: F B) n r:
     at_final (after_external t1 m n) r ->
@@ -423,13 +505,14 @@ Section HCOMP.
     destruct H1 as ((i & Hi) & Hp). cbn in Hp.
     apply (iff_sym (Downset.emb_mor _ _)) in Hp.
     unfold compose_t1. rewrite <- Hi.
-    rewrite @Downset.ext_ana. 2: admit. cbn.
+    rewrite Downset.ext_ana. cbn.
     unfold compose_t2. rewrite <- H2.
-    rewrite @Downset.ext_ana. 2: admit. cbn.
+    rewrite Downset.ext_ana. cbn.
     assert (Hn: n = n) by reflexivity.
     apply (sup_at Hn).
     inv Hp; cbn. reflexivity.
-  Admitted.
+    apply join_l. reflexivity.
+  Qed.
 
   Definition filter_r `(p: t F G A): t F G A :=
     sup { p' | (exists r, pr r [= p') /\ down p' [= p }, down p'.
@@ -444,62 +527,74 @@ Section HCOMP.
     intros Hf. unfold compose_t1 at 1.
     unfold after_external.
     setoid_rewrite Sup.mor. apply sup_iff. intros (i & Hi). cbn.
-    rewrite @Downset.ext_ana. 2: admit.
+    rewrite Downset.ext_ana. 
     unfold compose_t1. rewrite <- Hi. clear Hi.
-    rewrite @Downset.ext_ana. 2: admit.
+    rewrite Downset.ext_ana. 
     cbn. unfold compose_t2. rewrite <- Ht2.  clear Ht2.
     clear p. induction i.
     - cbn. unfold filter_r.
       rewrite fsup_mor. eapply (fsup_at (pr n1)).
       split. exists n1. reflexivity. apply Hf.
-      rewrite @Downset.ext_ana. 2: admit.
+      rewrite Downset.ext_ana. 
       cbn. eapply sup_at. reflexivity. reflexivity.
-    - cbn. unfold Downset.map. rewrite IHi. clear IHi.
-      rewrite @Downset.ext_ext. 2-3: admit.
+    - cbn. apply join_lub.
+      {
+        unfold filter_r.
+        rewrite fsup_mor. eapply (fsup_at (pr n1)).
+        split. exists n1. reflexivity. apply Hf.
+        rewrite Downset.ext_ana.
+        cbn. eapply sup_at. reflexivity.
+        apply join_l. reflexivity.
+      }
+      unfold Downset.map. rewrite IHi. clear IHi.
+      rewrite @Downset.ext_ext. 2-3: typeclasses eauto.
       unfold filter_r.
       setoid_rewrite Sup.mor.
       apply sup_iff. intros (x & Hx). apply (sup_at (exist _ x Hx)).
-      cbn. rewrite !@Downset.ext_ana. 2-3: admit.
+      cbn. rewrite !@Downset.ext_ana. 2: typeclasses eauto.
+      2: {
+        clear. constructor. intros x y Hxy.
+        rstep. apply compose_play2_mor. eauto. }
       destruct Hx as ((r & Hr) & Hb). inv Hr.
       + cbn.
         rewrite Sup.mor. apply sup_iff. intros <-.
-        eapply sup_at. reflexivity. reflexivity.
+        eapply sup_at. reflexivity. apply join_r. reflexivity.
       + cbn.
         rewrite Sup.mor. apply sup_iff. intros <-.
-        eapply sup_at. reflexivity. reflexivity.
+        eapply sup_at. reflexivity. apply join_r. reflexivity.
     - cbn. unfold after_final.
       unfold compose_t2.
       rewrite fsup_mor. apply sup_iff.
       intros (x & Hx). cbn.
-      rewrite @Downset.ext_ana. 2: admit.
+      rewrite Downset.ext_ana. 
       unfold filter_r.
       rewrite fsup_mor. eapply (fsup_at (prq n1 e x)).
       split. exists n1. constructor. apply Hx.
-      rewrite @Downset.ext_ana. 2: admit.
+      rewrite Downset.ext_ana. 
       cbn. eapply sup_at. reflexivity.
       unfold compose_play2_obligation_1.
       rewrite Sup.mor. eapply sup_at. Unshelve. 2: reflexivity.
       unfold eq_rect. rewrite Sup.mor. eapply sup_at.
       reflexivity.
-      rewrite @Downset.ext_ana. 2: admit.
+      rewrite Downset.ext_ana. 
       reflexivity.
     - cbn. unfold after_final.
       unfold compose_t2.
       rewrite fsup_mor. apply sup_iff.
       intros (x & Hx). cbn.
-      rewrite @Downset.ext_ana. 2: admit.
+      rewrite Downset.ext_ana.
       unfold filter_r.
       rewrite fsup_mor. eapply (fsup_at (prq n1 e x)).
       split. exists n1. constructor. apply Hx.
-      rewrite @Downset.ext_ana. 2: admit.
+      rewrite Downset.ext_ana. 
       cbn. eapply sup_at. reflexivity.
       unfold compose_play2_obligation_1.
       rewrite Sup.mor. eapply sup_at. Unshelve. 2: reflexivity.
       unfold eq_rect. rewrite Sup.mor. eapply sup_at.
       reflexivity.
-      rewrite @Downset.ext_ana. 2: admit.
+      rewrite Downset.ext_ana.
       reflexivity.
-  Admitted.
+  Qed.
 
   Context `(s1: s F1 G1) `(s2: s E1 F1) `(t1: s F2 G2) `(t2: s E2 F2)
     (re: r E1 E2) (rf: r F1 F2) (rg: r G1 G2)
@@ -515,7 +610,7 @@ Section HCOMP.
     rewrite H in Hp1. setoid_rewrite Sup.mor in Hp1.
     apply Downset.emb_join_prime in Hp1.
     destruct Hp1 as ((c & Hc) & Hp1). cbn in Hp1.
-    rewrite @Downset.ext_ana in Hp1. 2: admit.
+    rewrite Downset.ext_ana in Hp1. 
     unfold sim_t in sim1. specialize (sim1 _ Hc).
     clear H. clear Hc.
     (* we could also induction on p1? *)
@@ -532,6 +627,16 @@ Section HCOMP.
     - intros.
       cbn in sim1. destruct sim1 as (r2 & Hf2 & Hr2 & Hnext).
       clear sim1. cbn in Hp1.
+      Local Transparent join. unfold join in Hp1.
+      apply Downset.emb_join_prime in Hp1 as (i & Hp1).
+      destruct i.
+      {
+        (* duplicate proof *)
+        apply (iff_sym (Downset.emb_mor _ _)) in Hp1.
+        inv Hp1. cbn.
+        exists r2. split; eauto.
+        apply at_final_intro_t. eauto.
+      }
       apply map_prq_elim in Hp1 as (_next & Hp1 & Hpnext).
       inv Hp1.
       + subst_dep. cbn.
@@ -540,9 +645,9 @@ Section HCOMP.
       + subst_dep. cbn.
         exists r2. split. apply at_final_intro_t. eauto.
         split. eauto.
-        intros X2' q2' Hq2.
-        specialize (Hnext _ _ Hq2).
-        rewrite after_final_compose_t.
+        intros X2' q2' Hq2. specialize (Hnext _ _ Hq2).
+        eapply sim_play_propers. reflexivity.
+        apply after_final_compose_t.
         exploit (IHc next0). apply Hq2. 2: apply Hnext. 2: apply sim2.
         etransitivity; eauto. apply Downset.emb_mor; eauto.
         tauto.
@@ -555,7 +660,7 @@ Section HCOMP.
       rewrite H in Hp1. setoid_rewrite Sup.mor in Hp1.
       apply Downset.emb_join_prime in Hp1.
       destruct Hp1 as ((c & Hc) & Hp1). cbn in Hp1.
-      rewrite @Downset.ext_ana in Hp1. 2: admit.
+      rewrite Downset.ext_ana in Hp1. 
       specialize (sim2 _ Hc).
       clear Hc Hqg H Hm1. revert t2 p1 re sim2 Hp1.
       revert p He1.
@@ -567,7 +672,18 @@ Section HCOMP.
         cbn in sim2. destruct sim2 as (Y2 & m2 & He2 & Hm2).
         exists Y2, m2. split; eauto.
         eapply at_external_compose_t; eauto.
-      + cbn in Hp1. apply map_pmn_elim in Hp1 as (_next & Hp1 & Hpnext).
+      + cbn in Hp1.
+        apply Downset.emb_join_prime in Hp1 as (i & Hp1).
+        destruct i.
+        {
+          (* duplicate proof *)
+          apply (iff_sym (Downset.emb_mor _ _)) in Hp1.
+          inv Hp1. subst_dep. cbn.
+          destruct sim2 as (Y2 & m2 & He2 & Hm2 & Hnext2).
+          exists Y2, m2. split; eauto.
+          eapply at_external_compose_t; eauto.
+        }
+        apply map_pmn_elim in Hp1 as (_next & Hp1 & Hpnext).
         inv Hp1.
         * subst_dep. cbn in sim2.
           destruct sim2 as (Y2 & m2 & He2 & Hm2 & ?). clear sim2.
@@ -595,7 +711,7 @@ Section HCOMP.
       rewrite H in Hp1. setoid_rewrite Sup.mor in Hp1. 
       apply Downset.emb_join_prime in Hp1.
       destruct Hp1 as ((d & Hd) & Hp1). cbn in Hp1.
-      rewrite @Downset.ext_ana in Hp1. 2: admit.
+      rewrite Downset.ext_ana in Hp1. 
       specialize (sim2 _ Hd). clear Hd. clear H.
       revert p1 b Hp1 t2 re sim2 Hnext1.
       revert p He1.
@@ -645,6 +761,16 @@ Section HCOMP.
         cbn in sim2. destruct sim2 as (Y2 & m2 & He2 & Hm2).
         exists Y2, m2. split; eauto. eapply at_external_compose_t; eauto.
       + cbn in Hp1.
+        apply Downset.emb_join_prime in Hp1 as (i & Hp1).
+        destruct i.
+        {
+          (* duplicate proof *)
+          apply (iff_sym (Downset.emb_mor _ _)) in Hp1.
+          inv Hp1. subst_dep. cbn.
+          destruct sim2 as (Y2 & m2 & He2 & Hm2 & Hnext2).
+          exists Y2, m2. split; eauto.
+          eapply at_external_compose_t; eauto.
+        }
         apply map_pmn_elim in Hp1 as (next_ & Hp1 & Hpnext).
         destruct sim2 as (Y2 & m2 & He2 & Hm2 & Hnext2). clear sim2.
         inv Hp1.
@@ -665,7 +791,7 @@ Section HCOMP.
           apply IHd. apply Hnext2.
           intros n1 Hn1. rewrite <- filter_m_after_external.
           apply Hnext1. eauto.
-  Admitted.
+  Qed.
 
 End HCOMP.
 

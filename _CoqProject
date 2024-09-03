@@ -21,7 +21,7 @@ lattices/LatticeProduct.v
 lattices/AdjoinBot.v
 models/IntSpec.v
 models/Coherence.v
-
+models/NStrat1x.v
 
 cal/RefConv.v
 cal/CompCertIntSpec.v

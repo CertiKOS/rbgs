@@ -1147,12 +1147,33 @@ End LTS.
 
 Coercion lts_strat: semantics >-> poset_carrier.
 
-Lemma rsq_sup {E1 E2 F1 F2 I} (R: conv E1 E2) (S: I -> conv F1 F2)
-  i1 i2 (p: rspos i1 i2) σ τ:
-  (forall i, rsq R (S i) p σ τ) -> rsq R (sup i, S i) p σ τ.
-Proof.
-  intros H i. erewrite sup_lub.
-Admitted.
+Section RSQ_SUP.
+
+  Context {E1 E2 F1 F2 I} (R: conv E1 E2) (S: I -> conv F1 F2).
+
+  Lemma rsp_sup i1 i2 (p: rspos i1 i2) s τ:
+    (forall i, rsp R (S i) p s τ) -> rsp R (lsup S) p s τ.
+  Proof.
+    intros H. induction s.
+    - dependent destruction p.
+      constructor. admit.
+    - dependent destruction p.
+      constructor. admit.
+    - Local Opaque lsup.
+      dependent destruction p; dependent destruction m.
+      + constructor. admit.
+        intros q2 Hq.
+  Admitted.
+
+
+  Lemma rsq_sup i1 i2 (p: rspos i1 i2) σ τ:
+    (forall i, rsq R (S i) p σ τ) -> rsq R (lsup S) p σ τ.
+  Proof.
+    intros H i. erewrite sup_lub.
+  Admitted.
+
+
+End RSQ_SUP.
 
 Section FSIM.
 

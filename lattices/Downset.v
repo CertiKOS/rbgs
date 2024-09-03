@@ -112,7 +112,7 @@ Module Type SupCompletion := LatticeCompletion Sup <+
   extensionality to prove antisymmetry, and the axiom of choice to
   prove distributivity. *)
 
-Module Downset : SupCompletion.
+Module Downset <: SupCompletion.
 
   Record downset {C : poset} :=
     {
@@ -287,6 +287,7 @@ Module Downset : SupCompletion.
 
   End DOWNSETS.
 
+  Arguments F : clear implicits.
   Include (LatticeCompletionDefs Sup).
   Include (MeetCompleteCompletion Sup).
 End Downset.
