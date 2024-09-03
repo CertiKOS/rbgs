@@ -487,16 +487,32 @@ Section RC.
     cbn. eauto.
   Qed.
 
+  (** [rcnext] not only trivially preserves [sup]s and [inf]s, but the
+    fact that it is only sensitive to part of the refinement
+    convention allows us to formulate these stronger properties. *)
+
   Lemma rcnext_inf {I} m1 m2 n1 n2 (R : I -> conv) :
-    rcnext m1 m2 n1 n2 (linf R) = inf i, rcnext m1 m2 n1 n2 (R i).
+    rcnext m1 m2 n1 n2 (linf R) =
+    inf {i | ~ Downset.has (R i) (rcp_forbid m1 m2 n1 n2)}, rcnext m1 m2 n1 n2 (R i).
   Proof.
     apply antisymmetry; cbn; auto.
+    intros s Hs i.
+    destruct (classic (Downset.has (R i) (rcp_forbid m1 m2 n1 n2))).
+    - eapply Downset.closed; eauto. constructor.
+    - apply (Hs (exist _ i H)).
   Qed.
 
   Lemma rcnext_sup {I} m1 m2 n1 n2 (R : I -> conv) :
-    rcnext m1 m2 n1 n2 (lsup R) = sup i, rcnext m1 m2 n1 n2 (R i).
+    rcnext m1 m2 n1 n2 (lsup R) =
+    sup {i | Downset.has (R i) (rcp_allow m1 m2)}, rcnext m1 m2 n1 n2 (R i).
   Proof.
     apply antisymmetry; cbn; auto.
+    - intros s [i Hi].
+      assert (Hi' : Downset.has (R i) (rcp_allow m1 m2)). {
+        eapply Downset.closed; eauto. constructor.
+      }
+      exists (exist _ i Hi'); cbn; eauto.
+    - intros s [[i Hi] Hi']; eauto.
   Qed.
 End RC.
 
@@ -744,17 +760,7 @@ Section RSQ.
           pose proof (H j Hjq) as Hj. dependent destruction Hj.
           determinism r2 r3.
           eauto.
-        * assert (rcnext q1 q2 r1 r2 (sup {j | Downset.has (S j) (rcp_allow q1 q2)}, S j) =
-                  rcnext q1 q2 r1 r2 (lsup S)). {
-            clear. apply antisymmetry; cbn.
-            -- intros ? [? ?]. eauto.
-            -- intros s [i Hi].
-               assert (Hi' : Downset.has (S i) (rcp_allow q1 q2))
-                 by (eapply Downset.closed; [constructor | eauto]).
-               exists (exist _ i Hi'). cbn. auto.
-          }
-          rewrite <- H1. unfold fsup.
-          rewrite rcnext_sup.
+        * rewrite rcnext_sup.
           apply IHs'. { typeclasses eauto. }
           split; eauto.
           intros [j Hj].
@@ -836,19 +842,6 @@ Section RSQ.
           dependent destruction H.
           assumption.
         * intros n2 Hn.
-          assert
-            (rcnext m1 m2 n1 n2 (linf R) =
-             rcnext m1 m2 n1 n2 (inf {j | ~ Downset.has (R j) (rcp_forbid m1 m2 n1 n2)}, R j)).
-          {
-            clear.
-            apply antisymmetry; cbn; eauto.
-            intros s Hs i.
-            destruct (classic (Downset.has (R i) (rcp_forbid m1 m2 n1 n2))).
-            -- eapply Downset.closed; eauto. constructor.
-            -- apply (Hs (exist _ i H)).
-          }
-          rewrite H0.
-          unfold finf.
           rewrite rcnext_inf.
           eapply IHs'.
           -- typeclasses eauto.
