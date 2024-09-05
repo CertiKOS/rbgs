@@ -5,3 +5,10 @@ Makefile.conf
 *.glob
 .*.aux
 *.d
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
