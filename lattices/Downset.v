@@ -156,8 +156,9 @@ Module Downset <: LatticeCompletion Sup.
     Lemma emb_mor (c1 c2 : C) :
       emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
-      cbn. firstorder.
-      etransitivity; eauto.
+      cbn. split.
+      - intro H. apply H. reflexivity.
+      - intros H c Hc. etransitivity; eauto.
     Qed.
 
     Lemma emb_join_dense :

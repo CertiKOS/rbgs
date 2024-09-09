@@ -86,7 +86,7 @@ Module LBot.
 
     Next Obligation.
       split.
-      - firstorder.
+      - intros x. eauto using (reflexivity (R:=ref)).
       - intros [x Hx] [y Hy] [z Hz] Hxy Hyz l Hl. cbn in *.
         destruct (Hxy l) as (m & Hm & Hlm); auto.
         destruct (Hyz m) as (n & Hn & Hmn); auto.

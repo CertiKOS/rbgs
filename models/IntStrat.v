@@ -260,7 +260,7 @@ Section COMPOSE.
 
   Hint Constructors comp_has.
   Hint Constructors pref.
-  Hint Resolve (reflexivity (R := pref)).
+  Hint Resolve (fun E F i => reflexivity (R := @pref E F i)).
 
   Lemma comp_has_pref {i j k} (p : cpos i j k) s t w :
     comp_has p s t w ->
@@ -507,7 +507,7 @@ End RC.
 Arguments rcp : clear implicits.
 Arguments rcp_poset : clear implicits.
 Arguments conv : clear implicits.
-Global Instance rcnext_params : Params (@rcnext) 5.
+Global Instance rcnext_params : Params (@rcnext) 5 := { }.
 
 (** ** §4.3 Refinement Squares *)
 
@@ -853,8 +853,8 @@ End RSQ.
 
 Hint Resolve rsp_ready_inv_nil rsp_suspended_inv_nil : determinism.
 
-Global Instance rsp_params : Params (@rsp) 7.
-Global Instance rsq_params : Params (@rsq) 7.
+Global Instance rsp_params : Params (@rsp) 7 := { }.
+Global Instance rsq_params : Params (@rsq) 7 := { }.
 
 Section RSQ_COMP.
   Context {E1 E2} (R : conv E1 E2).

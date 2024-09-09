@@ -120,9 +120,7 @@ Module Upset : LatticeCompletion Inf.
 
     Lemma emb_mor c1 c2 : emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
-      split; intro Hc; cbn in *.
-      - rewrite Downset.emb_mor in Hc. assumption.
-      - rewrite Downset.emb_mor. assumption.
+      apply (Downset.emb_mor (C := opp_poset C)).
     Qed.
 
     Context {L : cdlattice}.
@@ -135,15 +133,17 @@ Module Upset : LatticeCompletion Inf.
     Instance ext_mor :
       Inf.Morphism (ext f).
     Proof.
-      intros I x. unfold ext. cbn.
-      rewrite Sup.mor. cbn. auto.
+      intros I x. unfold ext.
+      change (@linf L) with (@lsup (opp_cdlat L)).
+      rewrite <- Downset.ext_mor.
+      reflexivity.
     Qed.
 
     Lemma ext_ana :
       (forall x, ext f (emb x) = f x).
     Proof.
-      intros x. unfold ext, emb. cbn.
-      rewrite @Downset.ext_ana. cbn. auto.
+      intros x. unfold ext, emb.
+      rewrite @Downset.ext_ana; auto.
       firstorder.
     Qed.
 
@@ -151,7 +151,7 @@ Module Upset : LatticeCompletion Inf.
       (forall x, g (emb x) = f x) -> forall x, g x = ext f x.
     Proof.
       intros Hgf x.
-      unfold emb, ext in *. cbn in *.
+      unfold emb, ext in *.
       erewrite <- @Downset.ext_unique; eauto.
       firstorder.
     Qed.

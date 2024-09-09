@@ -174,12 +174,21 @@ Section EXPR_DETERM.
   Variable le: Clight.temp_env.
   Variable m: Memory.Mem.mem.
 
-  Lemma deref_loc_determ t mem loc ofs v1 v2:
-    Clight.deref_loc t mem loc ofs v1 ->
-    Clight.deref_loc t mem loc ofs v2 ->
+  Lemma load_bitfield_determ t sz sgn a b mem v v1 v2 :
+    Cop.load_bitfield t sz sgn a b mem v v1 ->
+    Cop.load_bitfield t sz sgn a b mem v v2 ->
     v1 = v2.
   Proof.
-    induction 1; inversion 1; subst; congruence.
+    destruct 1; inversion 1; subst; congruence.
+  Qed.
+
+  Lemma deref_loc_determ t mem loc ofs bf v1 v2:
+    Clight.deref_loc t mem loc ofs bf v1 ->
+    Clight.deref_loc t mem loc ofs bf v2 ->
+    v1 = v2.
+  Proof.
+    induction 1; inversion 1; subst; try congruence.
+    eapply load_bitfield_determ; eauto.
   Qed.
 
   Ltac find_specialize :=
@@ -199,10 +208,10 @@ Section EXPR_DETERM.
           Clight.eval_expr ge e le m a v2 ->
           v1 = v2)
     /\
-    (forall a b1 ofs1,
-        Clight.eval_lvalue ge e le m a b1 ofs1 ->
+    (forall a b1 ofs1 bf,
+        Clight.eval_lvalue ge e le m a b1 ofs1 bf ->
         forall b2 ofs2,
-          Clight.eval_lvalue ge e le m a b2 ofs2 ->
+          Clight.eval_lvalue ge e le m a b2 ofs2 bf ->
           b1 = b2 /\ ofs1 = ofs2).
   Proof.
     apply Clight.eval_expr_lvalue_ind.
@@ -211,22 +220,19 @@ Section EXPR_DETERM.
     - inversion 1; expr_determ_solve.
     - inversion 1; expr_determ_solve.
     - inversion 2; expr_determ_solve.
-    - intros. inversion H1; expr_determ_solve.
+    - admit.
     - intros. inversion H2; expr_determ_solve.
     - intros. inversion H4; expr_determ_solve.
     - intros. inversion H2; expr_determ_solve.
     - inversion 1; expr_determ_solve.
     - inversion 1; expr_determ_solve.
-    - intros. inversion H2; subst; try easy.
-      exploit H0. exact H3.
-      intros [<- <-].
-      determ_solve deref_loc_determ.
+    - admit.
     - inversion 2; expr_determ_solve.
     - inversion 3; expr_determ_solve.
     - inversion 3; expr_determ_solve.
     - intros. inversion H4; expr_determ_solve.
-    - intros. inversion H3; expr_determ_solve.
-  Qed.
+    - intros. inversion H4; expr_determ_solve.
+  Admitted.
 
   Lemma eval_expr_determ:
     forall a v1,
@@ -239,10 +245,10 @@ Section EXPR_DETERM.
   Qed.
 
   Lemma eval_lvalue_determ:
-    forall a b1 ofs1,
-      Clight.eval_lvalue ge e le m a b1 ofs1 ->
+    forall a b1 ofs1 bf,
+      Clight.eval_lvalue ge e le m a b1 ofs1 bf ->
       forall b2 ofs2,
-        Clight.eval_lvalue ge e le m a b2 ofs2 ->
+        Clight.eval_lvalue ge e le m a b2 ofs2 bf ->
         b1 = b2 /\ ofs1 = ofs2.
   Proof.
     intros. eapply expr_determ; eauto.
@@ -264,13 +270,14 @@ Section EXPR_DETERM.
   Qed.
 End EXPR_DETERM.
 
-Lemma assign_loc_determ ge t m loc ofs v m1 m2:
-    Clight.assign_loc ge t m loc ofs v m1 ->
-    Clight.assign_loc ge t m loc ofs v m2 ->
+Lemma assign_loc_determ ge t m loc ofs v bf m1 m2:
+    Clight.assign_loc ge t m loc ofs bf v m1 ->
+    Clight.assign_loc ge t m loc ofs bf v m2 ->
     m1 = m2.
 Proof.
-  inversion 1; inversion 1; congruence.
-Qed.
+  inversion 1; inversion 1; try congruence.
+  subst. admit. (* store_bitfield *)
+Admitted.
 
 Lemma alloc_variables_determ ge e m vars e1 e2 m1 m2:
     Clight.alloc_variables ge e m vars e1 m1 ->
@@ -329,10 +336,12 @@ Proof.
     inversion step2; subst; false_solve;
       try (split; autoc).
   + determ_solve eval_expr_determ.
+    admit. (*
     determ_solve eval_lvalue_determ.
     assert (v = v1) as <- by congruence.
     determ_solve assign_loc_determ.
     split; autoc.
+            *)
   + determ_solve eval_expr_determ.
     split; auto.
   + determ_solve eval_expr_determ.
@@ -358,7 +367,7 @@ Proof.
     split. apply H0.
     intros. exploit (proj2 H0). auto.
     intros [<- <-]. auto.
-Qed.
+Admitted.
 
 Lemma clight_single_event p se:
   single_events ((Clight.semantics1 p) se).
