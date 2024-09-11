@@ -1,10 +1,3 @@
--R coqrel coqrel
--R structures structures
--R lattices lattices
--R models models
--R examples examples
--R interfaces interfaces
-
 -R compcert/lib compcert.lib
 -R compcert/common compcert.common
 -R compcert/x86_64 compcert.x86_64
@@ -17,6 +10,13 @@
 -R compcert/cklr compcert.cklr
 -R compcert/flocq Flocq
 -R compcert/MenhirLib MenhirLib
+
+-R coqrel coqrel
+-R structures structures
+-R lattices lattices
+-R models models
+-R examples examples
+-R interfaces interfaces
 
 structures/Poset.v
 structures/Lattice.v
