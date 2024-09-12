@@ -68,6 +68,32 @@ Section STRAT.
   Definition strat (p : position) :=
     downset (play_poset p).
 
+  (** ** Useful lemmas *)
+
+  Lemma pcons_eq_inv_l {i j} (m1 m2 : move i j) (s1 s2 : play j) :
+    pcons m1 s1 = pcons m2 s2 -> m1 = m2.
+  Proof.
+    intro H. dependent destruction H. reflexivity.
+  Qed.
+
+  Lemma pcons_eq_inv_r {i j} (m1 m2 : move i j) (s1 s2 : play j) :
+    pcons m1 s1 = pcons m2 s2 -> s1 = s2.
+  Proof.
+    intro H. dependent destruction H. reflexivity.
+  Qed.
+
+  Lemma oa_eq_inv q m n1 n2 :
+    @oa q m n1 = @oa q m n2 -> n1 = n2.
+  Proof.
+    intro H. dependent destruction H. reflexivity.
+  Qed.
+
+  Lemma pa_eq_inv q r1 r2 :
+    @pa q r1 = @pa q r2 -> r1 = r2.
+  Proof.
+    intro H. dependent destruction H. reflexivity.
+  Qed.
+
   (** ** Determinism *)
 
   Inductive pcoh : forall {i : position}, relation (play i) :=
@@ -1339,22 +1365,84 @@ Section TSTRAT.
                  (pa r2 :: s2)
                  (pa (q:=(q1,q2)) (r1,r2) :: s).
 
-  Context {i1 i2 i} (p : tpos i1 i2 i) (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2).
   Obligation Tactic := cbn.
   Hint Constructors pref tstrat_has.
 
-  Program Definition tstrat : strat (tens E1 E2) (tens F1 F2) i :=
-    {| Downset.has s := exists s1 s2, tstrat_has p s1 s2 s /\
-                                      Downset.has σ1 s1 /\
-                                      Downset.has σ2 s2 |}.
+  Program Definition tstrat {i1 i2 i} (p : tpos i1 i2 i)
+    (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2) : strat (tens E1 E2) (tens F1 F2) i :=
+      {| Downset.has s := exists s1 s2, tstrat_has p s1 s2 s /\
+                                        Downset.has σ1 s1 /\
+                                        Downset.has σ2 s2 |}.
   Next Obligation.
-    intros t s Hts (s1 & s2 & Hs & Hs1 & Hs2).
+    intros i1 i2 i p σ1 σ2 t s Hts (s1 & s2 & Hs & Hs1 & Hs2).
     cut (exists t1 t2, tstrat_has p t1 t2 t /\ pref t1 s1 /\ pref t2 s2).
     { intros (t1 & t2 & Ht & Hts1 & Hts2).
       eauto 10 using Downset.closed. }
     clear - Hts Hs. revert t Hts.
     induction Hs; intros t Hts; dependent destruction Hts; eauto 10;
       edestruct IHHs as (t1 & t2 & Ht & H1 & H2); eauto 10.
+  Qed.
+
+  Lemma tstrat_next_oq q1 q2 σ1 σ2 :
+    next (oq (q1,q2)) (tstrat tp_ready σ1 σ2) =
+    tstrat (tp_running q1 q2) (next (oq q1) σ1) (next (oq q2) σ2).
+  Proof.
+    apply antisymmetry; cbn.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2). dependent destruction Hs. eauto.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2). eauto 10.
+  Qed.
+
+  Lemma tstrat_next_pq {q1 q2} m1 m2 σ1 σ2 :
+    next (pq (m1,m2)) (tstrat (tp_running q1 q2) σ1 σ2) =
+    tstrat (tp_suspended q1 q2 m1 m2) (next (pq m1) σ1) (next (pq m2) σ2).
+  Proof.
+    apply antisymmetry; cbn.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2). dependent destruction Hs. eauto.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2). eauto 10.
+  Qed.
+
+  Lemma tstrat_next_oa {q1 q2 m1 m2} n1 n2 σ1 σ2 :
+    next (oa (m := (m1,m2)) (n1,n2)) (tstrat (tp_suspended q1 q2 m1 m2) σ1 σ2) =
+    tstrat (tp_running q1 q2) (next (oa n1) σ1) (next (oa n2) σ2).
+  Proof.
+    apply antisymmetry; cbn in *.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2).
+      remember (oa (m:=(m1,m2)) (n1,n2) :: s) as s' in Hs.
+      inversion Hs; subst.
+      + dependent destruction H4.
+        dependent destruction H5.
+        dependent destruction H6.
+      + dependent destruction H0.
+        dependent destruction H4.
+        apply inj_pair2 in H5.
+        pose proof (pcons_eq_inv_r _ _ _ _ H5). subst s4.
+        pose proof (pcons_eq_inv_l _ _ _ _ H5). clear H5.
+        apply oa_eq_inv in H. dependent destruction H.
+        eauto.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2).
+      eauto 10.
+  Qed.
+
+  Lemma tstrat_next_pa q1 q2 r1 r2 σ1 σ2 :
+    next (pa (q := (q1,q2)) (r1,r2)) (tstrat (tp_running q1 q2) σ1 σ2) =
+    tstrat tp_ready (next (pa r1) σ1) (next (pa r2) σ2).
+  Proof.
+    apply antisymmetry; cbn.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2). cbn in *.
+      remember (pa (q:=(q1,q2)) (r1,r2) :: s) as s' in Hs.
+      inversion Hs; subst.
+      + dependent destruction H1.
+        dependent destruction H2.
+        dependent destruction H3.
+      + dependent destruction H1.
+        dependent destruction H2.
+        apply inj_pair2 in H3.
+        pose proof (pcons_eq_inv_r _ _ _ _ H3). subst s4.
+        pose proof (pcons_eq_inv_l _ _ _ _ H3). clear H3.
+        apply pa_eq_inv in H. dependent destruction H.
+        eauto.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2).
+      eauto 10.
   Qed.
 End TSTRAT.
 
@@ -1436,7 +1524,14 @@ Section TRSQ.
     rsp R1 S1 u1 s1 τ1 ->
     rsp R2 S2 u2 s2 τ2 ->
     tstrat_has v s1 s2 s ->
-    rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat v' τ1 τ2).
+    match p with
+      | trs_suspended q1 q2 q1' q2' m1 m2 m1' m2' =>
+        Downset.has R1 (rcp_allow m1 m1') ->
+        Downset.has R2 (rcp_allow m2 m2') ->
+        rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat v' τ1 τ2)
+      | _ =>
+        rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat v' τ1 τ2)
+    end.
   Proof.
     intros i1 i2 j1 j2 i j u1 u2 u v v' p R1 S1 s1 τ1 R2 S2 s2 τ2 s H1 H2 Hs.
     revert j1 j2 j u1 u2 u v' p R1 S1 τ1 R2 S2 τ2 H1 H2.
@@ -1452,8 +1547,47 @@ Section TRSQ.
       dependent destruction H2.
       constructor; cbn; eauto.
       intros [q1' q2'] [Hq1 Hq2].
-      (* rewrite with next, etc. *)
-  Abort.
+      rewrite tstrat_next_oq.
+      eapply (IHHs _ _ _ _ _ _ _ (trs_running q1 q2 q1' q2')); eauto.
+    - (* outgoing question *)
+      dependent destruction p.
+      dependent destruction H1.
+      dependent destruction H2.
+      apply rsp_pq with (m2 := (m3,m4)); cbn; eauto.
+      rewrite tstrat_next_pq.
+      eapply (IHHs _ _ _ _ _ _ _ (trs_suspended q1 q2 q1' q2' m1 m2 m3 m4)); eauto.
+    - (* suspended *)
+      dependent destruction p.
+      dependent destruction H1.
+      dependent destruction H2.
+      constructor; cbn; eauto.
+    - (* environment answer *)
+      dependent destruction p. intros Hm1 Hm2.
+      dependent destruction H1.
+      dependent destruction H2.
+      constructor; cbn; eauto.
+      intros [n1' n2'] Hn.
+      apply not_and_or in Hn as [ | Hn]; try tauto.
+      apply not_and_or in Hn as [ | Hn]; try tauto.
+      apply not_or_and in Hn as [Hn1 Hn2].
+      assert (tconv (rcnext m1 m1' n1 n1' R1) (rcnext m2 m2' n2 n2' R2) [=
+              rcnext (m1,m2) (m1',m2') (n1,n2) (n1',n2') (tconv R1 R2)) as HR.
+      { clear - Hm1 Hm2 Hn1 Hn2. cbn. firstorder. }
+      rewrite <- HR.
+      setoid_rewrite tstrat_next_oa.
+      eapply (IHHs _ _ _ _ _ _ _ (trs_running q1 q2 q1' q2')); eauto.
+    - (* component answer *)
+      dependent destruction p.
+      dependent destruction H1.
+      dependent destruction H2.
+      apply rsp_pa with (r2 := (r3,r4)); cbn; [firstorder | ].
+      assert (rcnext (q1,q2) (q1',q2') (r1,r2) (r3,r4) (tconv S1 S2) [=
+              tconv (rcnext q1 q1' r1 r3 S1) (rcnext q2 q2' r2 r4 S2)) as HS.
+      { cbn. firstorder. }
+      rewrite HS.
+      rewrite tstrat_next_pa.
+      eapply (IHHs _ _ _ _ _ _ _ trs_ready); eauto.
+  Qed.
 End TRSQ.
 
 (** ** Stateful lenses *)
