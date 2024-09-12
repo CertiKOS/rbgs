@@ -403,6 +403,19 @@ Section COMPOSE.
   Qed.
 End COMPOSE.
                                           
+(** ** §3.3 Flat Composition *)
+
+Section FCOMP.
+  Context {E F : esig}.
+
+  Definition fcomp E F :=
+    {|
+      op := op E + op F;
+      ar m := match m with inl m | inr m => ar m end;
+    |}.
+
+End FCOMP.
+
 
 (** * §4 REFINEMENT CONVENTIONS *)
                                           
@@ -1255,3 +1268,271 @@ Section RSVCOMP.
       eapply (IHrsp _ _ _ _ rsv_ready); eauto with typeclass_instances.
   Qed.
 End RSVCOMP.
+
+
+(** * Spatial composition *)
+
+(** ** Tensor product *)
+
+(** *** Effect signatures *)
+
+Canonical Structure tens E1 E2 :=
+  {|
+    op := op E1 * op E2;
+    ar m := ar (fst m) * ar (snd m);
+  |}%type.
+
+(** *** Strategies *)
+
+(** We can define a form of tensor product for strategies, however
+  note that it is not well-behaved in general. In partcular, if
+  [running] strategies conflict on whether an outgoing question or
+  top-level answer should come next, the result will be undefined.
+  One consequence of that the composite [(σ1 ⊙ τ1) ⊗ (σ2 ⊙ τ2)]
+  may synchronize even as the components [(σ1 ⊗ σ2) ⊙ (τ1 ⊗ τ2)]
+  do not, weakening functoriality. *)
+
+Section TSTRAT.
+  Context {E1 E2 F1 F2 : esig}.
+
+  Variant tpos : @position E1 F1 -> @position E2 F2 -> @position (tens E1 E2) (tens F1 F2) -> Type :=
+    | tp_ready :
+        tpos ready ready ready
+    | tp_running q1 q2 :
+        tpos (running q1) (running q2) (running (q1,q2))
+    | tp_suspended q1 q2 m1 m2 :
+        tpos (suspended q1 m1) (suspended q2 m2) (suspended (q1,q2) (m1,m2)).
+
+  Inductive tstrat_has : forall {i1 i2 i}, tpos i1 i2 i -> play i1 -> play i2 -> play i -> Prop :=
+    | tstrat_has_ready :
+        tstrat_has (tp_ready)
+                 pnil_ready
+                 pnil_ready
+                 pnil_ready
+    | tstrat_has_oq q1 q2 s1 s2 s :
+        tstrat_has (tp_running q1 q2) s1 s2 s ->
+        tstrat_has (tp_ready)
+                 (oq q1 :: s1)
+                 (oq q2 :: s2)
+                 (oq (q1,q2) :: s)
+    | tstrat_has_pq q1 q2 m1 m2 s1 s2 s :
+        tstrat_has (tp_suspended q1 q2 m1 m2) s1 s2 s ->
+        tstrat_has (tp_running q1 q2)
+                 (pq m1 :: s1)
+                 (pq m2 :: s2)
+                 (pq (m1,m2) :: s)
+    | tstrat_has_suspended q1 q2 m1 m2 :
+        tstrat_has (tp_suspended q1 q2 m1 m2)
+                 (pnil_suspended q1 m1)
+                 (pnil_suspended q2 m2)
+                 (pnil_suspended (q1,q2) (m1,m2))
+    | tstrat_has_oa q1 q2 m1 m2 n1 n2 s1 s2 s :
+        tstrat_has (tp_running q1 q2) s1 s2 s ->
+        tstrat_has (tp_suspended q1 q2 m1 m2)
+                 (oa n1 :: s1)
+                 (oa n2 :: s2)
+                 (oa (m:=(m1,m2)) (n1,n2) :: s)
+    | tstrat_has_pa q1 q2 r1 r2 s1 s2 s :
+        tstrat_has (tp_ready) s1 s2 s ->
+        tstrat_has (tp_running q1 q2)
+                 (pa r1 :: s1)
+                 (pa r2 :: s2)
+                 (pa (q:=(q1,q2)) (r1,r2) :: s).
+
+  Context {i1 i2 i} (p : tpos i1 i2 i) (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2).
+  Obligation Tactic := cbn.
+  Hint Constructors pref tstrat_has.
+
+  Program Definition tstrat : strat (tens E1 E2) (tens F1 F2) i :=
+    {| Downset.has s := exists s1 s2, tstrat_has p s1 s2 s /\
+                                      Downset.has σ1 s1 /\
+                                      Downset.has σ2 s2 |}.
+  Next Obligation.
+    intros t s Hts (s1 & s2 & Hs & Hs1 & Hs2).
+    cut (exists t1 t2, tstrat_has p t1 t2 t /\ pref t1 s1 /\ pref t2 s2).
+    { intros (t1 & t2 & Ht & Hts1 & Hts2).
+      eauto 10 using Downset.closed. }
+    clear - Hts Hs. revert t Hts.
+    induction Hs; intros t Hts; dependent destruction Hts; eauto 10;
+      edestruct IHHs as (t1 & t2 & Ht & H1 & H2); eauto 10.
+  Qed.
+End TSTRAT.
+
+(** *** Refinement conventions *)
+
+Section TCONV.
+  Context {E1 E2 F1 F2 : esig}.
+
+  Fixpoint tconv_has (R1 : conv E1 F1) (R2 : conv E2 F2) (s : rcp (tens E1 E2) (tens F1 F2)) :=
+    match s with
+      | rcp_allow (e1,e2) (f1,f2) =>
+        Downset.has R1 (rcp_allow e1 f1) /\
+        Downset.has R2 (rcp_allow e2 f2)
+      | rcp_forbid (e1,e2) (f1,f2) (n1,n2) (r1,r2) =>
+        Downset.has R1 (rcp_allow e1 f1) /\
+        Downset.has R2 (rcp_allow e2 f2) /\
+        (Downset.has R1 (rcp_forbid e1 f1 n1 r1) \/
+         Downset.has R2 (rcp_forbid e2 f2 n2 r2))
+      | rcp_cont (e1,e2) (f1,f2) (n1,n2) (r1,r2) k =>
+        Downset.has R1 (rcp_allow e1 f1) /\
+        Downset.has R2 (rcp_allow e2 f2) /\
+        (Downset.has R1 (rcp_forbid e1 f1 n1 r1) \/
+         Downset.has R2 (rcp_forbid e2 f2 n2 r2) \/
+         tconv_has (rcnext e1 f1 n1 r1 R1) (rcnext e2 f2 n2 r2 R2) k)
+    end.
+
+  Obligation Tactic := cbn.
+
+  Program Definition tconv R1 R2 : conv (tens E1 E2) (tens F1 F2) :=
+    {| Downset.has := tconv_has R1 R2 |}.
+  Next Obligation.
+    intros R1 R2 s t Hst. revert R1 R2.
+    induction Hst as [[e1 e2] [f1 f2] |
+                      [e1 e2] [f1 f2] [n1 n2] [r1 r2] k |
+                      [e1 e2] [f1 f2] [n1 n2] [r1 r2] |
+                      [e1 e2] [f1 f2] [n1 n2] [r1 r2] k k' Hkk' |
+                      [e1 e2] [f1 f2] [n1 n2] [r1 r2] k |
+                      [e1 e2] [f1 f2] [n1 n2] [r1 r2]]; cbn; firstorder.
+  Qed. 
+End TCONV.
+
+(** *** Refinement squares *)
+
+Section TRSQ.
+  Context {E1 E2 F1 F2 E1' E2' F1' F2' : esig}.
+
+  Variant trspos :
+    forall {i1 i2 j1 j2 i j}, @rspos E1 E1' F1 F1' i1 j1 ->
+                              @rspos E2 E2' F2 F2' i2 j2 ->
+                              @rspos (tens E1 E2) (tens E1' E2') (tens F1 F2) (tens F1' F2') i j ->
+                              @tpos E1 E2 F1 F2 i1 i2 i ->
+                              @tpos E1' E2' F1' F2' j1 j2 j -> Type :=
+    | trs_ready :
+        trspos rs_ready
+               rs_ready
+               rs_ready
+               tp_ready
+               tp_ready
+    | trs_running q1 q2 q1' q2' :
+        trspos (rs_running q1 q1')
+               (rs_running q2 q2')
+               (rs_running (q1,q2) (q1',q2'))
+               (tp_running q1 q2)
+               (tp_running q1' q2')
+    | trs_suspended q1 q2 q1' q2' m1 m2 m1' m2' :
+        trspos (rs_suspended q1 q1' m1 m1')
+               (rs_suspended q2 q2' m2 m2')
+               (rs_suspended (q1,q2) (q1',q2') (m1,m2) (m1',m2'))
+               (tp_suspended q1 q2 m1 m2)
+               (tp_suspended q1' q2' m1' m2').
+
+  Hint Constructors tstrat_has.
+
+  Lemma trsp :
+    forall {i1 i2 j1 j2 i j u1 u2 u v v'} {p : @trspos i1 i2 j1 j2 i j u1 u2 u v v'}
+      (R1 : conv E1 E1') (S1 : conv F1 F1') (s1 : @play E1 F1 i1) (τ1 : strat E1' F1' j1)
+      (R2 : conv E2 E2') (S2 : conv F2 F2') (s2 : @play E2 F2 i2) (τ2 : strat E2' F2' j2)
+      (s : @play (tens E1 E2) (tens F1 F2) i),
+    rsp R1 S1 u1 s1 τ1 ->
+    rsp R2 S2 u2 s2 τ2 ->
+    tstrat_has v s1 s2 s ->
+    rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat v' τ1 τ2).
+  Proof.
+    intros i1 i2 j1 j2 i j u1 u2 u v v' p R1 S1 s1 τ1 R2 S2 s2 τ2 s H1 H2 Hs.
+    revert j1 j2 j u1 u2 u v' p R1 S1 τ1 R2 S2 τ2 H1 H2.
+    induction Hs; intros.
+    - (* ready *)
+      dependent destruction p.
+      dependent destruction H1.
+      dependent destruction H2.
+      constructor; cbn; eauto.
+    - (* incoming question *)
+      dependent destruction p.
+      dependent destruction H1.
+      dependent destruction H2.
+      constructor; cbn; eauto.
+      intros [q1' q2'] [Hq1 Hq2].
+      (* rewrite with next, etc. *)
+  Abort.
+End TRSQ.
+
+(** ** Stateful lenses *)
+
+Section LENS.
+
+  Record lens {U V} :=
+    {
+      get : U -> V;
+      set : U -> V -> U;
+      get_set u v : get (set u v) = v;
+      set_get u : set u (get u) = u;
+      set_set u v v' : set (set u v) v' = set u v';
+    }.
+
+  Global Arguments lens : clear implicits.
+
+  Record slens {U V} :=
+    {
+      slens_state : Type;
+      slens_init : slens_state;
+      slens_lens :> lens (V * slens_state) U;
+    }.
+
+  Global Arguments slens : clear implicits.
+
+  (** Promoting a stateful lens to a strategy *)
+
+  Definition glob U : esig := {| op := U; ar _ := U |}.
+
+  Context {U V : Type}.
+
+  (** Between any two visits back to the [ready] state, the strategy
+    associated with a lens only needs to remember which [u] is
+    currently the latest candidate for being written back into the
+    [(v, p)] pair before we give it back to the environment. Given the
+    lens laws, there are many equivalent ways to formulate it as far
+    as when [get] and [set] are being used. But since we need to
+    remember the latest incoming question for play structure purposes
+    anyway, we choose to keep it constant and use this solution. *)
+
+  Variant sls_state {P} : @position (glob U) (glob V) -> Type :=
+    | sls_ready (p : P) : sls_state ready
+    | sls_running (p : P) v (u : U) : sls_state (running v)
+    | sls_suspended (p : P) v u : sls_state (suspended v u).
+
+  Inductive sls_has {P} (f: lens (V*P) U): forall {i}, _ i -> play i -> Prop :=
+    | sls_has_ready p :
+        sls_has f (sls_ready p) pnil_ready
+    | sls_has_oq p v u s :
+        sls_has f (sls_running p v u) s ->
+        get f (v, p) = u ->
+        sls_has f (sls_ready p) (oq v :: s)
+    | sls_has_pq p v u s :
+        sls_has f (sls_suspended p v u) s ->
+        sls_has f (sls_running p v u) (pq u :: s)
+    | sls_has_suspended p v u :
+        sls_has f (sls_suspended p v u) (pnil_suspended v u)
+    | sls_has_oa p v u u' s :
+        sls_has f (sls_running p v u') s ->
+        sls_has f (sls_suspended p v u) (@oa _ _ v u u' :: s)
+    | sls_has_pa p v u p' v' s :
+        sls_has f (sls_ready p') s ->
+        set f (v, p) u = (v', p') ->
+        sls_has f (sls_running p v u) (@pa _ (glob V) v v' :: s).
+
+  Obligation Tactic := cbn.
+
+  Program Definition sls (f : slens U V) : strat (glob U) (glob V) ready :=
+    {| Downset.has := sls_has (slens_lens f) (sls_ready (slens_init f)) |}.
+  Next Obligation.
+    intros f.
+    generalize (@ready (glob U) (glob V)), (sls_ready (slens_init f)).
+    intros i q x y Hxy Hy. revert q Hy.
+    induction Hxy; intros;
+      try dependent destruction q;
+      try dependent destruction Hy;
+      econstructor; eauto.
+  Qed.
+End LENS.
+
+
