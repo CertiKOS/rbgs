@@ -428,7 +428,7 @@ Section COMPOSE.
     eauto 10.
   Qed.
 End COMPOSE.
-                                          
+
 (** ** §3.3 Flat Composition *)
 
 Section FCOMP.
@@ -444,7 +444,7 @@ End FCOMP.
 
 
 (** * §4 REFINEMENT CONVENTIONS *)
-                                          
+
 (** ** §4.2 Refinement Conventions *)
 
 Section RC.
@@ -548,7 +548,7 @@ Section RC.
     apply antisymmetry; cbn; auto.
     intros s Hs i.
     destruct (classic (Downset.has (R i) (rcp_forbid m1 m2 n1 n2))).
-    - eapply Downset.closed; eauto. constructor.
+    - eauto using conv_has_forbid_cont.
     - apply (Hs (exist _ i H)).
   Qed.
 
@@ -558,9 +558,8 @@ Section RC.
   Proof.
     apply antisymmetry; cbn; auto.
     - intros s [i Hi].
-      assert (Hi' : Downset.has (R i) (rcp_allow m1 m2)). {
-        eapply Downset.closed; eauto. constructor.
-      }
+      assert (Hi' : Downset.has (R i) (rcp_allow m1 m2))
+        by eauto using conv_has_cont_allow.
       exists (exist _ i Hi'); cbn; eauto.
     - intros s [[i Hi] Hi']; eauto.
   Qed.
@@ -731,7 +730,7 @@ Section RSQ.
     assumption.
   Qed.
 
-  (** *** Continuity vs. refinement conventions *)
+  (** *** Preservation of joins and meets *)
 
   Lemma rsp_sup_cases {I} {i1 i2} (p : rspos i1 i2) R (S : I -> conv F1 F2) (s : play i1) (τ : strat E2 F2 i2) `{Hτ : !Deterministic τ}:
     match p with
@@ -1090,41 +1089,8 @@ Section VCOMP.
     intros until 1. rauto.
   Qed.
 
-  (** The following formulations and properties of [vcomp] are useful
+  (** The following formulation and properties of [vcomp] are useful
     for the vertical composition proof of refinement squares below. *)
-
-  Definition vcomp_at_question_has (m2 : E2) R S s : Prop :=
-    match s with
-      | rcp_allow m1 m3 =>
-        Downset.has R (rcp_allow m1 m2) /\
-        Downset.has S (rcp_allow m2 m3)
-      | rcp_forbid m1 m3 n1 n3 =>
-        Downset.has R (rcp_allow m1 m2) /\
-        Downset.has S (rcp_allow m2 m3) /\
-        forall n2, Downset.has R (rcp_forbid m1 m2 n1 n2) \/
-                   Downset.has S (rcp_forbid m2 m3 n2 n3)
-      | rcp_cont m1 m3 n1 n3 k =>
-        Downset.has R (rcp_allow m1 m2) /\
-        Downset.has S (rcp_allow m2 m3) /\
-        forall n2, Downset.has R (rcp_forbid m1 m2 n1 n2) \/
-                   Downset.has S (rcp_forbid m2 m3 n2 n3) \/
-                   Downset.has (vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S)) k
-    end.
-
-  Program Definition vcomp_at_question m2 R S : conv E1 E3 :=
-    {| Downset.has := vcomp_at_question_has m2 R S |}.
-  Next Obligation.
-    intros m2 R S s t Hst.
-    induction Hst; cbn; try tauto.
-    + setoid_rewrite Hst. auto.
-    + firstorder auto.
-  Qed.
-
-  Lemma vcomp_sup_at_question R S :
-    vcomp R S = sup m2, vcomp_at_question m2 R S.
-  Proof.
-    apply antisymmetry; intros [m1 m3 | m1 m3 n1 n3 | m1 m3 n1 n3 k]; cbn; firstorder.
-  Qed.
 
   Definition vcomp_at_has (m2 : E2) (xn2 : option (ar m2)) R S s : Prop :=
     match s with
@@ -1194,27 +1160,6 @@ Section VCOMP.
         repeat (split; eauto).
         inversion 1; clear H; subst.
         eauto 10.
-  Qed.
-
-  (* ... *)
-
-  Lemma rcnext_vcomp m1 m3 n1 n3 R S :
-    rcnext m1 m3 n1 n3 (vcomp R S) =
-    sup {m2 | Downset.has R (rcp_allow m1 m2) /\ Downset.has S (rcp_allow m2 m3)},
-    inf {n2 | ~Downset.has R (rcp_forbid m1 m2 n1 n2) /\ ~Downset.has S (rcp_forbid m2 m3 n2 n3)},
-    vcomp (rcnext m1 m2 n1 n2 R) (rcnext m2 m3 n2 n3 S).
-  Proof.
-    apply antisymmetry; intros s; cbn.
-    - intros (m2 & Hm12 & Hm23 & Hs).
-      exists (exist _ m2 (conj Hm12 Hm23)); cbn.
-      intros (n2 & Hn12 & Hn23); cbn.
-      firstorder.
-    - intros ((m2 & Hm12 & Hm23) & Hs); cbn in *.
-      exists m2; repeat (split; auto).
-      intros n2.
-      destruct (classic (Downset.has R (rcp_forbid m1 m2 n1 n2))) as [ | Hn12]; auto.
-      destruct (classic (Downset.has S (rcp_forbid m2 m3 n2 n3))) as [ | Hn23]; auto.
-      specialize (Hs (exist _ n2 (conj Hn12 Hn23))); cbn in *; auto.
   Qed.
 End VCOMP.
 
@@ -1320,9 +1265,7 @@ End RSVCOMP.
 
 (** * Spatial composition *)
 
-(** ** Tensor product *)
-
-(** *** Effect signatures *)
+(** ** Tensor product of effect signatures *)
 
 Canonical Structure tens E1 E2 :=
   {|
@@ -1330,7 +1273,7 @@ Canonical Structure tens E1 E2 :=
     ar m := ar (fst m) * ar (snd m);
   |}%type.
 
-(** *** Strategies *)
+(** ** Tensor product of strategies *)
 
 (** We can define a form of tensor product for strategies, however
   note that it is not well-behaved in general. In partcular, if
@@ -1405,6 +1348,8 @@ Section TSTRAT.
       edestruct IHHs as (t1 & t2 & Ht & H1 & H2); eauto 10.
   Qed.
 
+  (** *** Residuals *)
+
   Lemma tstrat_next_oq q1 q2 σ1 σ2 :
     next (oq (q1,q2)) (tstrat tp_ready σ1 σ2) =
     tstrat (tp_running q1 q2) (next (oq q1) σ1) (next (oq q2) σ2).
@@ -1468,7 +1413,7 @@ Section TSTRAT.
   Qed.
 End TSTRAT.
 
-(** *** Refinement conventions *)
+(** ** Tensor product of refinement conventions *)
 
 Section TCONV.
   Context {E1 E2 F1 F2 : esig}.
@@ -1505,7 +1450,7 @@ Section TCONV.
                       [e1 e2] [f1 f2] [n1 n2] [r1 r2]]; cbn; firstorder.
   Qed.
 
-  (** Residuals *)
+  (** *** Residuals *)
 
   Lemma rcnext_tconv m1 m2 m1' m2' n1 n2 n1' n2' R1 R2 :
     ~ Downset.has R1 (rcp_forbid m1 m1' n1 n1') ->
@@ -1524,7 +1469,7 @@ Section TCONV.
         cbn in Hs; repeat (destruct Hs as [? Hs]); eauto.
   Qed.
 
-  (** Preservation of [sup] and [inf]. *)
+  (** *** Preservation of [sup] and [inf]. *)
 
   Lemma tconv_sup_l {I} R1 R2 :
     tconv (sup i:I, R1 i) R2 = sup i:I, tconv (R1 i) R2.
@@ -1679,6 +1624,8 @@ Section TCONV.
   Qed.
 End TCONV.
 
+(** *** Functoriality vs vertical composition *)
+
 Section TCONV_VCOMP.
   Context {E1 F1 G1} (R1 : conv E1 F1) (S1 : conv F1 G1).
   Context {E2 F2 G2} (R2 : conv E2 F2) (S2 : conv F2 G2).
@@ -1782,7 +1729,7 @@ Section TCONV_VCOMP.
   Qed.
 End TCONV_VCOMP.
 
-(** *** Refinement squares *)
+(** ** Tensor product of refinement squares *)
 
 Section TRSQ.
   Context {E1 E2 F1 F2 E1' E2' F1' F2' : esig}.
@@ -1966,5 +1913,3 @@ Section LENS.
       econstructor; eauto.
   Qed.
 End LENS.
-
-
