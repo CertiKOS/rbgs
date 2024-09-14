@@ -214,6 +214,15 @@ Module Downset <: LatticeCompletion Sup.
       (* maybe use emb_join_prime *)
     Admitted.
 
+    (** These are not required to implement the interface but can be
+      useful when using the concrete implementation directly. *)
+
+    Lemma has_eq_ext (x y : F) :
+      (forall c, has x c <-> has y c) -> x = y.
+    Proof.
+      intros H.
+      apply antisymmetry; intros c Hc; apply H; auto.
+    Qed.
   End DOWNSETS.
 
   Arguments F : clear implicits.

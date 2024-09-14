@@ -514,6 +514,29 @@ Section RC.
     cbn. eauto.
   Qed.
 
+  (** The following [auto] hints facilitate the use of downward closure. *)
+
+  Lemma conv_has_cont_allow q1 q2 r1 r2 k R :
+    Downset.has R (rcp_cont q1 q2 r1 r2 k) ->
+    Downset.has R (rcp_allow q1 q2).
+  Proof.
+    apply Downset.closed. constructor.
+  Qed.
+
+  Lemma conv_has_forbid_allow q1 q2 r1 r2 R :
+    Downset.has R (rcp_forbid q1 q2 r1 r2) ->
+    Downset.has R (rcp_allow q1 q2).
+  Proof.
+    apply Downset.closed. constructor.
+  Qed.
+
+  Lemma conv_has_forbid_cont q1 q2 r1 r2 k R :
+    Downset.has R (rcp_forbid q1 q2 r1 r2) ->
+    Downset.has R (rcp_cont q1 q2 r1 r2 k).
+  Proof.
+    apply Downset.closed. constructor.
+  Qed.
+
   (** [rcnext] not only trivially preserves [sup]s and [inf]s, but the
     fact that it is only sensitive to part of the refinement
     convention allows us to formulate these stronger properties. *)
@@ -547,6 +570,11 @@ Arguments rcp : clear implicits.
 Arguments rcp_poset : clear implicits.
 Arguments conv : clear implicits.
 Global Instance rcnext_params : Params (@rcnext) 5 := { }.
+
+Global Hint Immediate
+  conv_has_cont_allow
+  conv_has_forbid_allow
+  conv_has_forbid_cont : core.
 
 (** ** §4.3 Refinement Squares *)
 
@@ -780,10 +808,7 @@ Section RSQ.
         pose proof (H i Hiq) as Hi. dependent destruction Hi.
         econstructor.
         * intros [j Hjr].
-          assert (Downset.has (S j) (rcp_allow q1 q2)) as Hjq. {
-            eapply Downset.closed; eauto.
-            constructor.
-          }
+          assert (Downset.has (S j) (rcp_allow q1 q2)) as Hjq by eauto.
           pose proof (H j Hjq) as Hj. dependent destruction Hj.
           determinism r2 r3.
           eauto.
@@ -1158,18 +1183,15 @@ Section VCOMP.
       destruct Hn as [? | [? | ?]]; tauto.
     - destruct s as [m1' m3' | m1' m3' n1' n3' | m1' m3' n1' n3' k]; cbn.
       + intros (m2' & Hm12' & Hm23').
-        split. { eapply Downset.closed; eauto. constructor. }
-        split. { eapply Downset.closed; eauto. constructor. }
+        repeat (split; eauto).
         inversion 1; clear H; subst.
         eauto.
       + intros (m2' & Hm12' & Hm23' & Hn13').
-        split. { eapply Downset.closed; eauto. constructor. }
-        split. { eapply Downset.closed; eauto. constructor. }
+        repeat (split; eauto).
         inversion 1; clear H; subst.
         eauto 10.
       + intros (m2' & Hm12' & Hm23' & Hn13').
-        split. { eapply Downset.closed; eauto. constructor. }
-        split. { eapply Downset.closed; eauto. constructor. }
+        repeat (split; eauto).
         inversion 1; clear H; subst.
         eauto 10.
   Qed.
@@ -1481,8 +1503,284 @@ Section TCONV.
                       [e1 e2] [f1 f2] [n1 n2] [r1 r2] k k' Hkk' |
                       [e1 e2] [f1 f2] [n1 n2] [r1 r2] k |
                       [e1 e2] [f1 f2] [n1 n2] [r1 r2]]; cbn; firstorder.
-  Qed. 
+  Qed.
+
+  (** Residuals *)
+
+  Lemma rcnext_tconv m1 m2 m1' m2' n1 n2 n1' n2' R1 R2 :
+    ~ Downset.has R1 (rcp_forbid m1 m1' n1 n1') ->
+    ~ Downset.has R2 (rcp_forbid m2 m2' n2 n2') ->
+    rcnext (m1,m2) (m1',m2') (n1,n2) (n1',n2') (tconv R1 R2) =
+    tconv (rcnext m1 m1' n1 n1' R1) (rcnext m2 m2' n2 n2' R2).
+  Proof.
+    intros Hn1' Hn2'.
+    apply antisymmetry.
+    - intros s. cbn. tauto.
+    - intros s Hs. cbn.
+      cut (Downset.has R1 (rcp_allow m1 m1') /\ Downset.has R2 (rcp_allow m2 m2')); try tauto.
+      destruct s as [[q1 q2] [q1' q2'] |
+                     [q1 q2] [q1' q2'] [r1 r2] [r1' r2'] |
+                     [q1 q2] [q1' q2'] [r1 r2] [r1' r2'] k];
+        cbn in Hs; repeat (destruct Hs as [? Hs]); eauto.
+  Qed.
+
+  (** Preservation of [sup] and [inf]. *)
+
+  Lemma tconv_sup_l {I} R1 R2 :
+    tconv (sup i:I, R1 i) R2 = sup i:I, tconv (R1 i) R2.
+  Proof.
+    apply antisymmetry.
+    - intros s. revert I R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn in *. firstorder.
+      + cbn in *.
+        intros I R1 R2 ([i Hm1] & Hm2 & [[j Hn1] | Hn2]); eauto 10.
+      + cbn -[lsup] in *.
+        intros I R1 R2 ([i Hm1] & Hm2 & [[j Hn1] | [Hn2 | Hk]]); cbn; eauto 10.
+        rewrite rcnext_sup in Hk.
+        eapply IHk in Hk.
+        destruct Hk as [[j Hj] Hk].
+        eauto 10.
+    - intros s. revert I R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn in *. firstorder.
+      + cbn in *. firstorder.
+      + intros I R1 R2 [i Hk]. cbn in Hk. cbn -[lsup].
+        destruct Hk as (Hm1 & Hm2 & Hn).
+        firstorder. right. right.
+        rewrite rcnext_sup.
+        eapply IHk. cbn.
+        exists (exist _ i Hm1). eauto.
+  Qed.
+
+  Lemma tconv_sup_r {I} R1 R2 :
+    tconv R1 (sup i:I, R2 i) = sup i:I, tconv R1 (R2 i).
+  Proof.
+    apply antisymmetry.
+    - intros s. revert I R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn in *. firstorder.
+      + cbn in *.
+        intros I R1 R2 (Hm1 & [i Hm2] & [Hn1 | [j Hn2]]); eauto 10.
+      + cbn -[lsup] in *.
+        intros I R1 R2 (Hm1 & [i Hm2] & [Hn1 | [[j Hn2] | Hk]]); cbn; eauto 10.
+        rewrite rcnext_sup in Hk.
+        eapply IHk in Hk.
+        destruct Hk as [[j Hj] Hk].
+        eauto 10.
+    - intros s. revert I R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn in *. firstorder.
+      + cbn in *. firstorder.
+      + intros I R1 R2 [i Hk]. cbn in Hk. cbn -[lsup].
+        destruct Hk as (Hm1 & Hm2 & Hn).
+        firstorder. right. right.
+        rewrite rcnext_sup.
+        eapply IHk. cbn.
+        exists (exist _ i Hm2). eauto.
+  Qed.
+
+  Lemma tconv_sup {I J} R1 R2 :
+    tconv (sup i:I, R1 i) (sup j:J, R2 j) = sup i j, tconv (R1 i) (R2 j).
+  Proof.
+    rewrite tconv_sup_l. f_equal.
+    apply FunctionalExtensionality.functional_extensionality. intro i.
+    apply tconv_sup_r.
+  Qed.
+
+  Lemma tconv_inf_l {I} R1 R2 :
+    inhabited I ->
+    tconv (inf i:I, R1 i) R2 = inf i:I, tconv (R1 i) R2.
+  Proof.
+    intros HI.
+    apply antisymmetry.
+    - intros s. clear HI. revert I R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn. firstorder.
+      + cbn. firstorder.
+      + cbn -[linf].
+        intros I R1 R2 (Hm1 & Hm2 & Hn) i. cbn.
+        split; auto.
+        split; auto.
+        destruct Hn as [Hn | Hn]; auto.
+        destruct Hn as [Hn | Hn]; auto.
+        rewrite rcnext_inf in Hn.
+        apply IHk in Hn.
+        destruct (classic (Downset.has (R1 i) (rcp_forbid m1 m1' n1 n1'))) as [? | Hi]; auto.
+        specialize (Hn (exist _ i Hi)). cbn in Hn. auto.
+    - intros s. revert I HI R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn. firstorder.
+      + cbn. firstorder.
+        destruct (classic (Downset.has R2 (rcp_forbid m2 m2' n2 n2'))) as [?|H2]; auto.
+        left. intros i. specialize (H i) as (? & ? & [? | ?]); tauto.
+      + intros I HI R1 R2 H. cbn in H. cbn -[linf].
+        split. { firstorder. }
+        split. { firstorder. }
+        destruct (classic (Downset.has (inf i:I, R1 i) (rcp_forbid m1 m1' n1 n1'))); auto. right.
+        destruct (classic (Downset.has R2 (rcp_forbid m2 m2' n2 n2'))); auto. right.
+        rewrite rcnext_inf.
+        eapply IHk.
+        * apply not_all_ex_not in H0 as [i Hi]. eauto.
+        * intros [i Hi]. cbn. firstorder.
+  Qed.
+
+  Lemma tconv_inf_r {I} R1 R2 :
+    inhabited I ->
+    tconv R1 (inf i:I, R2 i) = inf i:I, tconv R1 (R2 i).
+  Proof.
+    intros HI.
+    apply antisymmetry.
+    - intros s. clear HI. revert I R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn. firstorder.
+      + cbn. firstorder.
+      + cbn -[linf].
+        intros I R1 R2 (Hm1 & Hm2 & Hn) i. cbn.
+        split; auto.
+        split; auto.
+        destruct Hn as [Hn | Hn]; auto.
+        destruct Hn as [Hn | Hn]; auto.
+        rewrite rcnext_inf in Hn.
+        apply IHk in Hn.
+        destruct (classic (Downset.has (R2 i) (rcp_forbid m2 m2' n2 n2'))) as [? | Hi]; auto.
+        specialize (Hn (exist _ i Hi)). cbn in Hn. auto.
+    - intros s. revert I HI R1 R2.
+      induction s as [[m1 m2] [m1' m2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] |
+                      [m1 m2] [m1' m2'] [n1 n2] [n1' n2'] k IHk].
+      + cbn. firstorder.
+      + cbn. firstorder.
+        destruct (classic (Downset.has R1 (rcp_forbid m1 m1' n1 n1'))) as [?|H1]; auto.
+        right. intros i. specialize (H i) as (? & ? & [? | ?]); tauto.
+      + intros I HI R1 R2 H. cbn in H. cbn -[linf].
+        split. { firstorder. }
+        split. { firstorder. }
+        destruct (classic (Downset.has R1 (rcp_forbid m1 m1' n1 n1'))); auto. right.
+        destruct (classic (Downset.has (inf i:I, R2 i) (rcp_forbid m2 m2' n2 n2'))); auto. right.
+        rewrite rcnext_inf.
+        eapply IHk.
+        * apply not_all_ex_not in H1 as [i Hi]. eauto.
+        * intros [i Hi]. cbn. firstorder.
+  Qed.
 End TCONV.
+
+Section TCONV_VCOMP.
+  Context {E1 F1 G1} (R1 : conv E1 F1) (S1 : conv F1 G1).
+  Context {E2 F2 G2} (R2 : conv E2 F2) (S2 : conv F2 G2).
+
+  Definition combine_ans (m1' : F1) (m2' : F2) (n1' : option (ar m1')) (n2' : option (ar m2')) :=
+    match n1', n2' with
+      | Some x, Some y => Some  (x, y)
+      | _, _ => None
+    end.
+
+  Ltac refold :=
+    repeat
+      match goal with
+      | |- context C[vcomp_has ?R ?S ?s] =>
+        let P := context C[Downset.has (vcomp R S) s] in change P
+      | |- context C[vcomp_at_has ?m1 ?m2 ?n1 ?n2 ?R ?S ?s] =>
+        let P := context C[Downset.has (vcomp_at m1 m2 n1 n2 R S) s] in change P
+      | |- context C[tconv_has ?R ?S ?s] =>
+        let P := context C[Downset.has (tconv R S) s] in change P
+      end.
+
+  Instance funext_rel A B :
+    subrelation (- ==> eq) (@eq (A -> B)).
+  Proof.
+    intros f g Hfg.
+    apply FunctionalExtensionality.functional_extensionality.
+    assumption.
+  Qed.
+
+  Instance sup_eq :
+    Monotonic (@lsup) (forallr -, forallr -, (- ==> eq) ==> eq).
+  Proof.
+    repeat rstep. f_equal. rstep.
+  Qed.
+
+  Instance inf_eq :
+    Monotonic (@linf) (forallr -, forallr -, (- ==> eq) ==> eq).
+  Proof.
+    repeat rstep. f_equal. rstep.
+  Qed.
+
+  Lemma tconv_vcomp_at m1' m2' n1' n2' :
+    tconv (vcomp_at m1' n1' R1 S1) (vcomp_at m2' n2' R2 S2) =
+    vcomp_at (m1', m2') (combine_ans m1' m2' n1' n2') (tconv R1 R2) (tconv S1 S2).
+  Proof.
+    (* we will need these property *)
+    assert (EQSOME: forall A a (P : A -> Prop), (forall x:A, Some a = Some x -> P x) <-> P a).
+    { clear. firstorder congruence. }
+    assert (EQNONE: forall A (P : A -> Prop), (forall x:A, None = Some x -> P x) <-> True).
+    { clear. firstorder congruence. }
+
+    apply Downset.has_eq_ext. intro s.
+    revert m1' m2' n1' n2' R1 R2 S1 S2.
+    induction s as [[m1 m2] [m1'' m2''] |
+                    [m1 m2] [m1'' m2''] [n1 n2] [n1'' n2''] |
+                    [m1 m2] [m1'' m2''] [n1 n2] [n1'' n2''] k].
+    - cbn. tauto.
+    - cbn. intros.
+      destruct n1' as [n1' | ], n2' as [n2' | ]; cbn;
+        rewrite ?EQSOME, ?EQNONE; tauto.
+    - cbn. intros.
+      destruct n1' as [n1' | ], n2' as [n2' | ]; cbn;
+        rewrite ?EQSOME, ?EQNONE; try tauto.
+      refold.
+      destruct (classic (Downset.has R1 (rcp_forbid m1 m1' n1 n1'))); try tauto.
+      destruct (classic (Downset.has R2 (rcp_forbid m2 m2' n2 n2'))); try tauto.
+      destruct (classic (Downset.has S1 (rcp_forbid m1' m1'' n1' n1''))); try tauto.
+      destruct (classic (Downset.has S2 (rcp_forbid m2' m2'' n2' n2''))); try tauto.
+      rewrite !rcnext_vcomp_at by auto.
+      rewrite !rcnext_tconv by auto.
+      rewrite !vcomp_expand.
+      rewrite !tconv_sup.
+      setoid_rewrite tconv_inf_l; [ | constructor; exact None ].
+      setoid_rewrite tconv_inf_r; [ | constructor; exact None ].
+      cbn. setoid_rewrite IHk. cbn.
+      assert (forall m1' m2' (P : _ -> Prop),
+                 (forall x y, P (combine_ans m1' m2' x y)) <-> (forall xy, P xy)).
+      { clear. split. - intros H [[??]|]; cbn. apply (H (Some a) (Some a0)). apply (H None None).
+                      - intros H [|] [|]; cbn; auto. }
+      setoid_rewrite <- H3.
+      assert (forall (P : F1 * F2 -> Prop), (exists xy, P xy) <-> (exists x y, P (x,y))).
+      { intro. split. intros [[? ?] ?]; eauto. intros (? & ? & ?); eauto. }
+      setoid_rewrite H4.
+      tauto.
+  Qed.
+
+  Lemma tconv_vcomp :
+    tconv (vcomp R1 S1) (vcomp R2 S2) = vcomp (tconv R1 R2) (tconv S1 S2).
+  Proof.
+    assert (OPTHAB: forall A, inhabited (option A)) by (constructor; apply None).
+    rewrite !vcomp_expand.
+    rewrite tconv_sup.
+    setoid_rewrite tconv_inf_l; auto.
+    setoid_rewrite tconv_inf_r; auto.
+    setoid_rewrite tconv_vcomp_at.
+    apply Downset.has_eq_ext. cbn.
+    intros s. split.
+    - intros (m1' & m2' & H). exists (m1', m2').
+      intros [[x y] | ]; cbn. apply (H (Some x) (Some y)). apply (H None None).
+    - intros ([m1' m2'] & H). exists m1', m2'. eauto.
+  Qed.
+End TCONV_VCOMP.
 
 (** *** Refinement squares *)
 
