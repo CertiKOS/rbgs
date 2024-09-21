@@ -227,22 +227,28 @@ Section ID.
   Context {E : esig}.
   Obligation Tactic := cbn.
 
-  Inductive id_has : forall {p}, @play E E p -> Prop :=
-    | id_has_pnil_ready :
-        id_has pnil_ready
-    | id_has_q m s :
-        id_has s ->
-        id_has (oq m :: pq m :: s)
-    | id_has_pnil_suspended m :
-        id_has (@pnil_suspended E E m m)
-    | id_has_a {m} (n : ar m) s :
-        id_has s ->
-        id_has (oa n :: pa n :: s).
+  Variant idpos : @position E E -> Type :=
+    | id_ready : idpos ready
+    | id_suspended m : idpos (suspended m m).
 
-  Program Definition id : strat E E ready :=
-    {| Downset.has := id_has |}.
+  Inductive id_has : forall {i}, idpos i -> @play E E i -> Prop :=
+    | id_has_pnil_ready :
+        id_has id_ready pnil_ready
+    | id_has_q m s :
+        id_has (id_suspended m) s ->
+        id_has id_ready (oq m :: pq m :: s)
+    | id_has_pnil_suspended m :
+        id_has (id_suspended m) (@pnil_suspended E E m m)
+    | id_has_a {m} (n : ar m) s :
+        id_has id_ready s ->
+        id_has (id_suspended m) (oa n :: pa n :: s).
+
+  Program Definition id {i} (p : idpos i) : strat E E i :=
+    {| Downset.has := id_has p |}.
   Next Obligation.
-  Admitted.
+    intros i p s t Hst Ht.
+    induction Ht; repeat (dependent destruction Hst; try constructor; eauto).
+  Qed.
 End ID.
 
 Section COMPOSE.
@@ -428,6 +434,143 @@ Section COMPOSE.
     eauto 10.
   Qed.
 End COMPOSE.
+                                          
+Section COMPOSE_ID.
+  Context {E F : esig}.
+
+  Hint Constructors id_has comp_has.
+
+  (** When the identity is composed on the left,
+    it passes through incoming interactions unchanged. *)
+
+  Definition id_pos_l (i : @position E F) : @position F F :=
+    match i with
+      | ready => ready
+      | running q => suspended q q
+      | suspended q m => suspended q q
+    end.
+
+  Definition id_idpos_l i : idpos (id_pos_l i) :=
+    match i with
+      | ready => id_ready
+      | running q => id_suspended q
+      | suspended q m => id_suspended q
+    end.
+
+  Definition id_cpos_l i : cpos (id_pos_l i) i i :=
+    match i with
+      | ready => cpos_ready
+      | running q => cpos_right q q
+      | suspended q m => cpos_suspended q q m
+    end.
+
+  Lemma compose_id_has_l_gt {i} (s : @play E F i) :
+    exists t, id_has (id_idpos_l i) t /\ comp_has (id_cpos_l i) t s s.
+  Proof.
+    induction s; cbn; eauto 10.
+    destruct IHs as (t & Ht & Hst).
+    dependent destruction m; cbn in *; eauto 10.
+  Qed.
+
+  Lemma compose_id_has_l_lt {i} (s s' : @play E F i) (t : @play F F (id_pos_l i)) :
+    id_has (id_idpos_l i) t ->
+    comp_has (id_cpos_l i) t s s' ->
+    s' [= s.
+  Proof.
+    revert t s'.
+    induction s; cbn; intros t s' Ht Hs'.
+    - dependent destruction Hs'. { constructor. }
+      dependent destruction Ht.
+      dependent destruction Hs'.
+    - dependent destruction Hs'. constructor.
+    - dependent destruction Hs'; cbn in *.
+      + constructor.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+      + constructor; eauto.
+      + constructor; eauto.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+  Qed.
+
+  Lemma compose_id_l {i} (σ : strat E F i) :
+    compose (id_cpos_l i) (id (id_idpos_l i)) σ = σ.
+  Proof.
+    apply antisymmetry; cbn.
+    - intros w (s & t & Hs & Ht & Hw).
+      eapply Downset.closed; eauto using compose_id_has_l_lt.
+    - intros s Hs.
+      edestruct (compose_id_has_l_gt s) as (t & Ht & Hst); eauto.
+  Qed.
+
+  (** Likewise, when the identity is composed on the right,
+    it passes through outgoing interactions unchanged. *)
+
+  Definition id_pos_r (i : @position E F) : @position E E :=
+    match i with
+      | ready => ready
+      | running q => ready
+      | suspended q m => suspended m m
+    end.
+
+  Definition id_idpos_r i : idpos (id_pos_r i) :=
+    match i with
+      | ready => id_ready
+      | running q => id_ready
+      | suspended q m => id_suspended m
+    end.
+
+  Definition id_cpos_r i : cpos i (id_pos_r i) i :=
+    match i with
+      | ready => cpos_ready
+      | running q => cpos_left q
+      | suspended q m => cpos_suspended q m m
+    end.
+
+  Lemma compose_id_has_r_gt {i} (s : @play E F i) :
+    exists t, id_has (id_idpos_r i) t /\ comp_has (id_cpos_r i) s t s.
+  Proof.
+    induction s; cbn; eauto 10.
+    destruct IHs as (t & Ht & Hst).
+    dependent destruction m; cbn in *; eauto 10.
+  Qed.
+
+  Lemma compose_id_has_r_lt {i} (s s' : @play E F i) (t : @play E E (id_pos_r i)) :
+    id_has (id_idpos_r i) t ->
+    comp_has (id_cpos_r i) s t s' ->
+    s' [= s.
+  Proof.
+    revert t s'.
+    induction s; cbn; intros t s' Ht Hs'.
+    - dependent destruction Hs'. constructor.
+    - dependent destruction Hs'. { constructor. }
+      dependent destruction Ht.
+      dependent destruction Hs'.
+    - dependent destruction Hs'; cbn in *.
+      + constructor; eauto.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+      + constructor; eauto.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+      + constructor; eauto.
+  Qed.
+
+  Lemma compose_id_r {i} (σ : strat E F i) :
+    compose (id_cpos_r i) σ (id (id_idpos_r i)) = σ.
+  Proof.
+    apply antisymmetry; cbn.
+    - intros w (s & t & Hs & Ht & Hw).
+      eapply Downset.closed; eauto using compose_id_has_r_lt.
+    - intros s Hs.
+      edestruct (compose_id_has_r_gt s) as (t & Ht & Hst); eauto.
+  Qed.
+End COMPOSE_ID.
+
 
 (** ** §3.3 Flat Composition *)
 
