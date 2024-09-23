@@ -19,8 +19,6 @@ Ltac xsubst :=
 
 Ltac xinv H := inversion H; clear H; subst; xsubst.
 
-Definition conv := IntStrat.conv.
-
 Class RegularConv {E F} (R : conv E F) :=
   {
     regular_conv m1 m2 n1 n2:
@@ -1003,6 +1001,26 @@ Section CC_COMP.
         intros [? HX]. eauto.
   Qed.
 
+  Lemma decompose_seq_comp {E F G i j k}
+    p1 (w1: @play E G k) w2 w (s1: @play F G i) s2 (t1: @play E F j) t2:
+    seq_comp_has w1 w2 w -> comp_has p1 s1 t1 w1 -> comp_has cpos_ready s2 t2 w2 ->
+    exists s t,
+      seq_comp_has s1 s2 s /\ seq_comp_has t1 t2 t /\ comp_has p1 s t w.
+  Proof.
+    (* seq decompose t1 into two parts *)
+  Admitted.
+    
+
+  Lemma closure_comp_ref2 {E F G} (σ: strat F G ready) (τ: strat E F ready)
+    (Hτ: Regular τ):
+    closure (compose cpos_ready σ τ) [= compose cpos_ready (closure σ) τ.
+  Proof.
+    intros ? H. cbn in *. dependent induction H.
+    { exists pnil_ready, pnil_ready. repeat apply conj; eauto. admit. }
+    destruct H as (s1 & s2 & Hs1 & Hs2 & Hst1).
+    edestruct IHclosure_has as (t1 & t2 & Ht1 & Ht2 & Hst2); eauto.
+  Admitted.
+
   Global Instance closure_ref:
     Monotonic (@closure) (forallr -, forallr -, ref ++> ref).
   Proof.
@@ -1022,3 +1040,173 @@ Section CC_COMP.
   Qed.
 
 End CC_COMP.
+
+Section REL.
+  Obligation Tactic := cbn.
+  Context (U V: Type) (R: rel U V).
+
+  Canonical glob.
+  Inductive rel_conv_has : rcp (glob U) (glob V) -> Prop :=
+  | rel_conv_has_allow uq vq (HQ: R uq vq):
+    rel_conv_has (rcp_allow uq vq)
+  | rel_conv_has_forbid uq vq (HQ: R uq vq) ua va (HA: ~ R ua va):
+    rel_conv_has (rcp_forbid uq vq ua va)
+  | rel_conv_has_cont uq vq (HQ: R uq vq) ua va k (HK: R ua va -> rel_conv_has k):
+    rel_conv_has (rcp_cont uq vq ua va k).
+  Hint Constructors rel_conv_has.
+
+  Program Definition rel_conv : conv (glob U) (glob V) :=
+    {| Downset.has s := rel_conv_has s |}.
+  Next Obligation.
+    intros x y H1. induction H1; intros Hx; try (xinv Hx; eauto).
+    econstructor; eauto.
+    intros. exfalso. eauto.
+  Qed.
+End REL.
+
+Coercion rel_conv : rel >-> poset_carrier.
+
+Section CONV_ID.
+  Obligation Tactic := cbn.
+  Context {E: esig}.
+
+  Inductive conv_id_has : rcp E E -> Prop :=
+  | conv_id_allow m: conv_id_has (rcp_allow m m)
+  | conv_id_forbid m n1 n2: n1 <> n2 -> conv_id_has (rcp_forbid m m n1 n2)
+  | conv_id_cont m n1 n2 k
+      (HK: n1 = n2 -> conv_id_has k): conv_id_has (rcp_cont m m n1 n2 k).
+  Hint Constructors conv_id_has.
+
+  Program Definition conv_id : conv E E :=
+    {|
+      Downset.has s := conv_id_has s;
+    |}.
+  Next Obligation.
+    intros x y H1. induction H1; intros Hx; try (xinv Hx; eauto).
+    econstructor; eauto.
+    intros. exfalso. eauto.
+  Qed.
+
+End CONV_ID.
+
+From compcert.clightp Require Import Example.
+
+Definition val := Values.val.
+Definition N := Example.N.
+
+Inductive bq_op := enq: val -> bq_op | deq: bq_op.
+Canonical Structure E_bq : esig :=
+  {|
+    op := bq_op;
+    ar op := match op with | enq _ => unit | deq => val end;
+  |}.
+Inductive rb_op :=
+| set : nat -> val -> rb_op | get : nat -> rb_op
+| inc1 : rb_op | inc2 : rb_op.
+Canonical Structure E_rb : esig :=
+  {|
+    op := rb_op;
+    ar op :=
+      match op with
+      | set _ _ => unit | get _ => val | inc1 | inc2 => nat
+      end;
+  |}.
+Definition empty_sig : esig :=
+  {|
+    op := Empty_set;
+    ar op := match op with end;
+  |}.
+
+Definition M_enq_play (v: val) (i: nat): @play E_rb E_bq ready :=
+  oq (enq v) ::
+  pq inc2 ::
+  @oa _ _ _ inc2 i ::
+  pq (set i v) ::
+  @oa _ _ _ (set i v) tt ::
+  @pa _ _ (enq v) tt :: pnil_ready.
+Definition M_deq_play (v: val) (i: nat): @play E_rb E_bq ready :=
+  oq deq ::
+  pq inc1 ::
+  @oa _ _ _ inc1 i ::
+  pq (get i) ::
+  @oa _ _ _ (get i) v ::
+  @pa _ _ deq v :: pnil_ready.
+Definition M_enq_strat: strat E_rb E_bq ready := sup v, sup i, down (M_enq_play v i).
+Definition M_deq_strat: strat E_rb E_bq ready := sup v, sup i, down (M_deq_play v i).
+Definition M_bq : strat E_rb E_bq ready := closure (join M_enq_strat M_deq_strat).
+
+Definition S_bq : Type := bq_state.
+Definition S_rb : Type := rb_state.
+Definition bq_rb_rel : rel S_bq S_rb := rb_bq.
+
+Declare Scope esig_scope.
+Delimit Scope esig_scope with esig.
+Notation "E @ S" := (tens E (glob S)) : esig_scope.
+Notation "0" := (empty_sig) : esig_scope.
+Bind Scope esig_scope with esig.
+
+Definition L_enq_play (v: val) (q: S_bq): @play 0 (E_bq @ S_bq) ready :=
+  oq (enq v, q) :: @pa _ _ (enq v, q) (tt, app q (cons v nil)) :: pnil_ready.
+Definition L_deq_play (v: val) (q: S_bq): @play 0 (E_bq @ S_bq) ready :=
+  oq (deq, cons v q) :: @pa _ _ (deq, cons v q) (v, q) :: pnil_ready.
+Definition L_enq_strat: strat 0 (E_bq @ S_bq) ready := sup v, sup q, down (L_enq_play v q).
+Definition L_deq_strat: strat 0 (E_bq @ S_bq) ready := sup v, sup q, down (L_deq_play v q).
+Definition L_bq : strat empty_sig (E_bq @ S_bq) ready := closure (join L_enq_strat L_deq_strat).
+
+Definition L_inc1_play (f: nat -> val) (c1 c2: nat): @play 0 (E_rb @ S_rb) ready :=
+  oq (inc1, (f, c1, c2)) :: @pa _ _ (inc1, (f, c1, c2)) (c1, (f, ((S c1) mod N)%nat, c2)) :: pnil_ready.
+Definition L_inc2_play (f: nat -> val) (c1 c2: nat): @play 0 (E_rb @ S_rb) ready :=
+  oq (inc2, (f, c1, c2)) :: @pa _ _ (inc2, (f, c1, c2)) (c2, (f, c1, ((S c2) mod N)%nat)) :: pnil_ready.
+Definition L_get_play (f: nat -> val) (c1 c2: nat) (i: nat): @play 0 (E_rb @ S_rb) ready :=
+  oq (get i, (f, c1, c2)) :: @pa _ _ (get i, (f, c1, c2)) (f i, (f, c1, c2)) :: pnil_ready.
+Definition L_set_play (f: nat -> val) (c1 c2: nat) (i: nat) (v: val): @play 0 (E_rb @ S_rb) ready :=
+  oq (set i v, (f, c1, c2)) :: @pa _ _ (set i v, (f, c1, c2)) (tt , (fun j => if Nat.eq_dec i j then v else f j, c1, c2)) :: pnil_ready.
+Definition L_inc1_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, down (L_inc1_play f c1 c2).
+Definition L_inc2_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, down (L_inc2_play f c1 c2).
+Definition L_get_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, sup i, down (L_get_play f c1 c2 i).
+Definition L_set_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, sup i, sup v, down (L_set_play f c1 c2 i v).
+Definition L_rb : strat empty_sig (E_rb @ S_rb) ready := closure (join (join L_inc1_strat L_inc2_strat) (join L_get_strat L_set_strat)).
+
+Lemma closure_lift {E F U} (σ: strat E F ready):
+  tstrat tp_ready (closure σ) (@id U) = closure (tstrat tp_ready σ id).
+Admitted.
+
+(* L_bq ⊑ (M_bq @ S_rb) ∘ L_rb *)
+Lemma L_bq_correct :
+  rsq conv_id (tconv conv_id bq_rb_rel) rs_ready
+    L_bq
+    (compose cpos_ready (tstrat tp_ready M_bq id) L_rb).
+Proof.
+  unfold M_bq. setoid_rewrite closure_lift.
+  rewrite <- @closure_comp_ref2.
+  apply rsq_closure.
+Admitted.
+
+Definition E_bq_conv : conv E_bq li_c. Admitted.
+Definition E_rb_conv : conv E_rb li_c. Admitted.
+
+Lemma M_bq_cspec : rsq E_rb_conv E_bq_conv rs_ready M_bq bq_spec.
+Proof.
+  apply rsq_closure.
+Admitted.
+
+(* [bq_spec] is implemented by clight as shown in bq_correct2 *)
+
+Lemma embed_lift_sig {A: language_interface} {U: Type}:
+  (A @ U)%esig = Lifting.lifted_li U A.
+Proof.
+Admitted.
+
+Definition E0_conv : conv 0 li_c. Admitted.
+Definition E_rb_S_rb_conv : conv (E_rb @ S_rb) (Lifting.lifted_li rb_state li_c).
+Proof.
+  rewrite <- embed_lift_sig.
+  refine (tconv E_rb_conv conv_id).
+Defined.
+
+Lemma L_rb_cspec : rsq E0_conv E_rb_S_rb_conv rs_ready L_rb rb_spec.
+Proof.
+  apply rsq_closure.
+Admitted.
+
+(* [rb_spec] is implemented by clight as shown in rb_correct2 *)

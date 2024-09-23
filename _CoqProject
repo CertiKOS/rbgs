@@ -10,6 +10,7 @@
 -R compcert/cklr compcert.cklr
 -R compcert/flocq Flocq
 -R compcert/MenhirLib MenhirLib
+-R compcert/clightp compcert.clightp
 
 -R coqrel coqrel
 -R structures structures
