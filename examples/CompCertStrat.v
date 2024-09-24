@@ -27,6 +27,8 @@ Class RegularConv {E F} (R : conv E F) :=
     rcnext m1 m2 n1 n2 R = R;
   }.
 
+Global Hint Constructors pref comp_has : core.
+
 (** * Sequential composition *)
 
 Section SEQ_COMP.
@@ -89,10 +91,29 @@ Section SEQ_COMP.
       eauto 10 using Downset.closed.
     Qed.
 
+    Lemma seq_comp_has_exists i (s1: @play E F i) s2:
+      exists (s: @play E F i), seq_comp_has s1 s2 s.
+    Proof.
+      revert s2. dependent induction s1; intros s2. 1-2:eexists; eauto.
+      edestruct IHs1 as (s & Hs).
+      exists (m :: s). dependent destruction m; eauto.
+    Qed.
+
+    Lemma seq_comp_assoc {i} (s1: @play E F i) s2 s3 s12 s123:
+      seq_comp_has s1 s2 s12 -> seq_comp_has s12 s3 s123 ->
+      exists s23, seq_comp_has s1 s23 s123 /\ seq_comp_has s2 s3 s23.
+    Proof.
+      intros Ha Hb. revert s3 s123 Hb. dependent induction Ha; intros;
+        try (dependent destruction Hb; edestruct IHHa as (s23 & A & B); eauto).
+      - eexists _. split; eauto.
+      - dependent destruction Hb.
+        edestruct seq_comp_has_exists as (s23 & A).
+        eexists. split; eauto.
+    Qed.
+
   End DEF.
 
-  Hint Constructors seq_comp_has.
-  Hint Constructors pref.
+  Hint Constructors seq_comp_has : core.
 
   Lemma rsp_seq_comp {E1 E2 F1 F2} (R S: conv _ _)
     `{!RegularConv R} `{!RegularConv S}
@@ -159,6 +180,8 @@ Section SEQ_COMP.
 
 End SEQ_COMP.
 
+Global Hint Constructors seq_comp_has : core.
+
 (** * Clousure operator *)
 
 Section CLOSURE.
@@ -194,7 +217,19 @@ Section CLOSURE.
     econstructor; eauto.
   Qed.
 
+  Lemma closure_seq_comp (σ: strat E F ready) s t w:
+    closure_has σ s -> closure_has σ t -> seq_comp_has s t w ->
+    closure_has σ w.
+  Proof.
+    intros Hs Ht Hw. revert t w Ht Hw. dependent induction Hs.
+    - intros. dependent destruction Hw; eauto.
+    - intros. edestruct @seq_comp_assoc as (x & A & B).
+      apply H0. apply Hw. eauto.
+  Qed.
+
 End CLOSURE.
+
+Global Hint Constructors closure_has : core.
 
 Lemma rsq_closure {E1 E2 F1 F2} (R S: conv _ _)
   `{!RegularConv R} `{!RegularConv S}
@@ -555,7 +590,7 @@ Section DETERM.
     rename s2 into t0. rename t into t1. rename w into t.
     assert (pcoh s0 t0). apply determinism; eauto.
     assert (pcoh s1 t1). eauto.
-    assert (pcoh t s1). symmetry. eapply IHHs; eauto. eapply closure_has_cons; eauto.
+    assert (pcoh t s1). symmetry. eapply IHHs; eauto.
     assert (pcoh s t1). eapply IHHt; eauto.
     eapply seq_comp_pcoh; eauto. apply non_recur; eauto. apply non_recur; eauto.
   Qed.
@@ -641,11 +676,13 @@ Section REGULAR.
   Arguments play_suspended {E F i}.
 
   Class Regular {E F} (σ: strat E F ready) :=
-    { regular:
-        forall s s1 s2, Downset.has σ s -> seq_comp_has s1 s2 s ->
-                   Downset.has σ s1 /\ (~ play_suspended s1 -> Downset.has σ s2); }.
+    { regular: forall s s1 s2, Downset.has σ s -> seq_comp_has s1 s2 s ->
+               Downset.has σ s1 /\ (~ play_suspended s1 -> Downset.has σ s2);
+      infinite: forall s1 s2 s, Downset.has σ s1 -> Downset.has σ s2 ->
+                seq_comp_has s1 s2 s -> Downset.has σ s;
+      non_empty: exists s, Downset.has σ s;
+    }.
 
-  Hint Constructors seq_comp_has.
   Hint Constructors play_suspended.
 
   Lemma comp_has_suspended {E F G i j k} (p: cpos i j k) (s: @play F G i) (t: @play E F j) w:
@@ -693,8 +730,6 @@ Section REGULAR.
     dependent destruction m; constructor; eauto.
   Qed.
 
-  Hint Constructors seq_comp_has.
-
   Lemma play_suspended_cons_contrapos {E F i j} (t: @play E F i) (m: move j i):
     ~ play_suspended (m :: t) -> ~ play_suspended t.
   Proof.
@@ -737,15 +772,11 @@ Section REGULAR.
     - seq_comp_split Hst Hs Hp IHHt H1 x.
   Qed.
 
-  Hint Constructors closure_has.
-
   Lemma seq_comp_has_incr {E F i} (s1: @play E F i) s2 s:
     seq_comp_has s1 s2 s -> s1 [= s.
   Proof.
     intros Hs. dependent induction Hs; constructor; eauto.
   Qed.
-
-  Hint Constructors pref.
 
   Lemma pref_or {E F i} (s t: @play E F i) w:
     s [= w -> t [= w -> s [= t \/ t [= s.
@@ -782,40 +813,43 @@ Section REGULAR.
   Instance lts_regular {liA liB} (L: semantics liA liB):
     Regular L.
   Proof.
-    split. intros * HL Hs. cbn in *.
-    destruct (classic (play_suspended s1)) as [Hp | Hp].
-    - split.
-      + apply seq_comp_has_incr in Hs.
-        eapply closure_obligation_1; eauto.
-      + easy.
-    - revert s1 s2 Hs Hp. dependent induction HL.
-      { intros; xinv Hs. split; intros; apply closure_has_nil. }
-      specialize (IHHL liA liB L t eq_refl eq_refl JMeq_refl JMeq_refl).
-      intros * Hs Hp. rename s0 into t1. rename t into t2.
-      edestruct (pref_or t1 s1) as [Hq | Hq].
-      { eapply seq_comp_has_incr; eauto. }
-      { eapply seq_comp_has_incr; eauto. }
-      + assert (exists w1, seq_comp_has t1 w1 s1 /\ seq_comp_has w1 s2 t2)
-          as (w1 & Hw1 & Hw2).
-        { eapply seq_comp_split2; eauto. }
-        assert (HW: ~ play_suspended w1).
-        { intros Hx. apply Hp. eapply seq_comp_has_suspended2; eauto. }
-        specialize (IHHL _ _ Hw2 HW) as (IH1 & IH2).
-        split; eauto.
-      + edestruct @seq_comp_split1 as (w1 & Hw1 & Hw2).
-        3: eauto. 1-3: eauto.
-        exploit @lts_strat_one_shot; eauto.
-        intros [ -> | -> ].
-        * split.
-          -- apply closure_has_nil.
-          -- intros. dependent destruction Hs.
-          dependent destruction Hw1. eauto.
-        * dependent destruction Hw2. split.
-          -- apply seq_comp_has_nil1 in Hw1. subst.
-             eapply closure_has_cons. apply H.
-             apply closure_has_nil.
-             apply seq_comp_has_nil2. reflexivity.
-          -- intros. apply HL.
+    split.
+    - intros * HL Hs. cbn in *.
+      destruct (classic (play_suspended s1)) as [Hp | Hp].
+      + split.
+        * apply seq_comp_has_incr in Hs.
+          eapply closure_obligation_1; eauto.
+        * easy.
+      + revert s1 s2 Hs Hp. dependent induction HL.
+        { intros; xinv Hs. split; intros; apply closure_has_nil. }
+        specialize (IHHL liA liB L t eq_refl eq_refl JMeq_refl JMeq_refl).
+        intros * Hs Hp. rename s0 into t1. rename t into t2.
+        edestruct (pref_or t1 s1) as [Hq | Hq].
+        { eapply seq_comp_has_incr; eauto. }
+        { eapply seq_comp_has_incr; eauto. }
+        * assert (exists w1, seq_comp_has t1 w1 s1 /\ seq_comp_has w1 s2 t2)
+            as (w1 & Hw1 & Hw2).
+          { eapply seq_comp_split2; eauto. }
+          assert (HW: ~ play_suspended w1).
+          { intros Hx. apply Hp. eapply seq_comp_has_suspended2; eauto. }
+          specialize (IHHL _ _ Hw2 HW) as (IH1 & IH2).
+          split; eauto.
+        * edestruct @seq_comp_split1 as (w1 & Hw1 & Hw2).
+          3: eauto. 1-3: eauto.
+          exploit @lts_strat_one_shot; eauto.
+          intros [ -> | -> ].
+          -- split.
+             ++ apply closure_has_nil.
+             ++ intros. dependent destruction Hs.
+                dependent destruction Hw1. eauto.
+          -- dependent destruction Hw2. split.
+             ++ apply seq_comp_has_nil1 in Hw1. subst.
+                eapply closure_has_cons. apply H.
+                apply closure_has_nil.
+                apply seq_comp_has_nil2. reflexivity.
+             ++ intros. apply HL.
+    - intros. cbn. eapply closure_seq_comp. 3: eauto. 1-2: eauto.
+    - eexists (pnil_ready); eauto. constructor.
   Qed.
 
 End REGULAR.
@@ -899,8 +933,6 @@ Section CC_COMP.
       eauto.
   Admitted.
 
-  Hint Constructors comp_has seq_comp_has.
-
   Lemma comp_has_exists {E: esig} {F G i j k} (p: cpos i j k) (s: @play F G i):
     inhabited E -> exists (t: @play E F j) w, comp_has p s t w .
   Proof.
@@ -970,9 +1002,6 @@ Section CC_COMP.
       eauto 20.
   Qed.
 
-  (* Hint Resolve (reflexivity (R := pref)). *)
-  Hint Constructors closure_has.
-
   (* s* ∘ t ⊑ (s ∘ t)* *)
   Lemma closure_comp_ref {E F G} (σ: strat F G ready) (τ: strat E F ready)
     (Hτ: Regular τ):
@@ -988,9 +1017,10 @@ Section CC_COMP.
     destruct (classic (play_suspended t1)) as [Hp | Hp].
     - specialize (P Hp).
       eapply closure_has_cons with (s := c) (t := pnil_ready).
-      + exists s1, t1. firstorder eauto.
-        exploit @seq_comp_has_suspended1. apply D. apply P.
-        congruence.
+      + exists s1, t1. repeat apply conj.
+        * apply H.
+        * destruct Hτ. edestruct regular0 as (R1 & R2); eauto.
+        * exploit @seq_comp_has_suspended1. apply D. apply P. congruence.
       + apply closure_has_nil.
       + apply seq_comp_has_nil2; eauto.
     - eapply closure_has_cons. 3: eauto.
@@ -1004,22 +1034,54 @@ Section CC_COMP.
   Lemma decompose_seq_comp {E F G i j k}
     p1 (w1: @play E G k) w2 w (s1: @play F G i) s2 (t1: @play E F j) t2:
     seq_comp_has w1 w2 w -> comp_has p1 s1 t1 w1 -> comp_has cpos_ready s2 t2 w2 ->
-    exists s t,
-      seq_comp_has s1 s2 s /\ seq_comp_has t1 t2 t /\ comp_has p1 s t w.
+    exists s t1_head t1_trail t,
+      seq_comp_has s1 s2 s /\ seq_comp_has t1_head t1_trail t1 /\
+        seq_comp_has t1_head t2 t /\ comp_has p1 s t w.
   Proof.
-    (* seq decompose t1 into two parts *)
-  Admitted.
-    
+    intros Hw Hw1 Hw2. revert w w2 s2 t2 Hw Hw2.
+    dependent induction Hw1.
+    - intros. dependent induction Hw.
+      eexists s2, _, _, _. firstorder eauto.
+    - intros. dependent destruction Hw.
+      edestruct IHHw1 as (sx & t1_head & t1_trail & tx & A & B & C & D); eauto.
+      eexists _, _, _, _. firstorder eauto.
+    - intros.
+      edestruct IHHw1 as (sx & t1_head & t1_trail & tx & A & B & C & D); eauto.
+      eexists (pq m :: sx), (oq m :: t1_head), _, _. firstorder eauto.
+    - intros. dependent destruction Hw.
+      edestruct IHHw1 as (sx & t1_head & t1_trail & tx & A & B & C & D); eauto.
+      eexists _, _, _, _. firstorder eauto.
+    - intros. dependent destruction Hw.
+      edestruct @seq_comp_has_exists as (si & Hsi).
+      eexists si, _, _, _. firstorder eauto.
+    - intros. dependent destruction Hw.
+      edestruct IHHw1 as (sx & t1_head & t1_trail & tx & A & B & C & D); eauto.
+      eexists _, _, _, _. firstorder eauto.
+    - intros.
+      edestruct IHHw1 as (sx & t1_head & t1_trail & tx & A & B & C & D); eauto.
+      eexists _, _, _, _. firstorder eauto.
+    - intros. dependent destruction Hw.
+      edestruct IHHw1 as (sx & t1_head & t1_trail & tx & A & B & C & D); eauto.
+      eexists _, _, _, _. firstorder eauto.
+    Unshelve. eauto.
+  Qed.
 
+  (* This is used by the bq example, see below *)
   Lemma closure_comp_ref2 {E F G} (σ: strat F G ready) (τ: strat E F ready)
     (Hτ: Regular τ):
     closure (compose cpos_ready σ τ) [= compose cpos_ready (closure σ) τ.
   Proof.
     intros ? H. cbn in *. dependent induction H.
-    { exists pnil_ready, pnil_ready. repeat apply conj; eauto. admit. }
+    { exists pnil_ready, pnil_ready. repeat apply conj; eauto.
+      destruct Hτ. destruct non_empty0 as (s & Hs).
+      eapply Downset.closed; eauto. constructor. }
     destruct H as (s1 & s2 & Hs1 & Hs2 & Hst1).
     edestruct IHclosure_has as (t1 & t2 & Ht1 & Ht2 & Hst2); eauto.
-  Admitted.
+    edestruct @decompose_seq_comp as (si & t1_head & t1_trail & ti & A & B & C & D); eauto.
+    exists si, ti. repeat apply conj; eauto.
+    destruct Hτ. edestruct regular0 as (R1 & R2). 2: apply B. eauto.
+    eapply infinite0. 3: eauto. 1-2: eauto.
+  Qed.
 
   Global Instance closure_ref:
     Monotonic (@closure) (forallr -, forallr -, ref ++> ref).
