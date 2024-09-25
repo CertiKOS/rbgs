@@ -1152,6 +1152,34 @@ Section CONV_ID.
 
 End CONV_ID.
 
+Section LENS_ID.
+
+  Program Definition lens_id {U} : lens U U :=
+    {|
+      IntStrat.get := fun u => u;
+      IntStrat.set := fun v u => u;
+    |}.
+
+  Program Definition embed_lens {U V} (l: @lens U V) : slens V U :=
+    {|
+      slens_lens :=
+        {|
+          IntStrat.get := fun '(u, tt) => l.(IntStrat.get) u;
+          IntStrat.set := fun '(u, tt) v => (l.(IntStrat.set) u v, tt);
+        |};
+      slens_state := unit;
+      slens_init := tt;
+    |}.
+  Next Obligation. destruct u0. apply get_set. Qed.
+  Next Obligation. destruct u0. rewrite set_get. easy. Qed.
+  Next Obligation. destruct u0. rewrite set_set. easy. Qed.
+
+  Definition slens_id {U} : slens U U := embed_lens lens_id.
+
+End LENS_ID.
+
+Coercion sls : slens >-> poset_carrier.
+
 From compcert.clightp Require Import Example.
 
 Definition val := Values.val.
@@ -1212,7 +1240,8 @@ Definition L_enq_play (v: val) (q: S_bq): @play 0 (E_bq @ S_bq) ready :=
   oq (enq v, q) :: @pa _ _ (enq v, q) (tt, app q (cons v nil)) :: pnil_ready.
 Definition L_deq_play (v: val) (q: S_bq): @play 0 (E_bq @ S_bq) ready :=
   oq (deq, cons v q) :: @pa _ _ (deq, cons v q) (v, q) :: pnil_ready.
-Definition L_enq_strat: strat 0 (E_bq @ S_bq) ready := sup v, sup q, down (L_enq_play v q).
+Definition L_enq_strat: strat 0 (E_bq @ S_bq) ready :=
+  sup {v | Cop.val_casted v tint}, sup {q | (List.length q < N)%nat}, down (L_enq_play v q).
 Definition L_deq_strat: strat 0 (E_bq @ S_bq) ready := sup v, sup q, down (L_deq_play v q).
 Definition L_bq : strat empty_sig (E_bq @ S_bq) ready := closure (join L_enq_strat L_deq_strat).
 
@@ -1230,19 +1259,122 @@ Definition L_get_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, su
 Definition L_set_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, sup i, sup v, down (L_set_play f c1 c2 i v).
 Definition L_rb : strat empty_sig (E_rb @ S_rb) ready := closure (join (join L_inc1_strat L_inc2_strat) (join L_get_strat L_set_strat)).
 
+Global Hint Constructors tstrat_has id_has: core.
+
 Lemma closure_lift {E F U} (σ: strat E F ready):
-  tstrat tp_ready (closure σ) (@id U) = closure (tstrat tp_ready σ id).
+  closure (tstrat tp_ready σ slens_id) [= tstrat tp_ready (closure σ) (@slens_id U).
+Proof.
+  intros s Hs. cbn in *. dependent induction Hs.
+  - exists pnil_ready, pnil_ready. firstorder eauto. constructor.
+  - edestruct IHHs as (t1 & t2 & Ht1 & Ht2 & Ht3); eauto.
+    cbn in H. destruct H as (s1 & s2 & Hs1 & Hs2 & Hs3).
 Admitted.
+
+Global Instance compose_monotonic {E F G i j k p}:
+  Monotonic (@compose E F G i j k p) (ref ++> ref ++> ref).
+Admitted.
+
+Global Instance compose_params : Params (@compose) 2 := { }.
+
+(* Global Instance next_mor {E F i j} m: Sup.Morphism (@next E F i j m). *)
+(* Admitted. *)
+
+Lemma tstrat_sup_l {I} {E1 E2 F1 F2 i1 i2 i} (p: tpos i1 i2 i)
+  (σ: I -> strat E1 F1 i1) (τ: strat E2 F2 i2) :
+  tstrat p (sup i:I, σ i) τ = sup i:I, tstrat p (σ i) τ.
+Proof.
+  apply antisymmetry.
+  - intros x Hx. destruct Hx as (s & t & Hst & (a & Hs) & Ht).
+    exists a. exists s, t. firstorder eauto.
+  - intros x Hx. destruct Hx as (a & (s & t & Hs & Ht & Hst)).
+    exists s, t. firstorder eauto.
+Qed.
+
+Lemma compose_sup_l {I} {E F G i j k} (p: cpos i j k)
+  (σ: I -> strat F G i) (τ: strat E F j) :
+  compose p (sup i:I, σ i) τ = sup i:I, compose p (σ i) τ.
+Proof.
+  apply antisymmetry.
+  - intros x Hx. destruct Hx as (s & t & (a & Hs) & Ht & Hst).
+    exists a. exists s, t. firstorder eauto.
+  - intros x Hx. destruct Hx as (a & (s & t & Hs & Ht & Hst)).
+    exists s, t. firstorder eauto.
+Qed.
+
+Lemma rsp_sup_exist {I} {E1 E2 F1 F2 i1 i2} p R S s τ:
+  (exists i, @rsp E1 E2 F1 F2 R S i1 i2 p s (τ i)) -> rsp R S p s (sup i:I, τ i).
+Proof. intros (i & Hi). rewrite <- sup_ub. apply Hi. Qed.
+
+Global Instance conv_id_regular {E}: RegularConv (@conv_id E).
+Admitted.
+
+Global Instance rel_conv_regular {U V} (R: rel U V): RegularConv R.
+Admitted.
+
+Global Instance tconv_regular {E1 E2 F1 F2} R S (HR: RegularConv R) (HS: RegularConv S) :
+  RegularConv (@tconv E1 E2 F1 F2 R S).
+Admitted.
+
+Local Instance L_rb_regular : Regular L_rb.
+Admitted.
+
+Local Transparent join.
 
 (* L_bq ⊑ (M_bq @ S_rb) ∘ L_rb *)
 Lemma L_bq_correct :
   rsq conv_id (tconv conv_id bq_rb_rel) rs_ready
     L_bq
-    (compose cpos_ready (tstrat tp_ready M_bq id) L_rb).
+    (compose cpos_ready (tstrat tp_ready M_bq slens_id) L_rb).
 Proof.
-  unfold M_bq. setoid_rewrite closure_lift.
-  rewrite <- @closure_comp_ref2.
-  apply rsq_closure.
+  unfold M_bq. rewrite <- closure_lift.
+  rewrite <- @closure_comp_ref2. 2: typeclasses eauto.
+  apply rsq_closure; eauto with typeclass_instances.
+  intros s (i & Hs). destruct i.
+  - (* enq *)
+    destruct Hs as ((v & Hv) & (bq & Hbq) & Hs). cbn in Hs. rewrite Hs. clear Hs.
+    setoid_rewrite tstrat_sup_l. setoid_rewrite compose_sup_l.
+    apply rsp_sup_exist. exists true.
+    unfold L_enq_play. apply rsp_oq.
+    { repeat econstructor. }
+    intros (q & rb) (Hq1 & Hq2).
+    cbn in Hq1. dependent destruction Hq1.
+    cbn in Hq2. dependent destruction Hq2.
+    destruct rb as [[f c1] c2].
+    set (fx := (fun j : nat => if Nat.eq_dec c2 j then v else f j)).
+    eapply rsp_pa with (r2 := (tt, (fx, c1, S c2 mod N)%nat)).
+    {
+      (* match reply *)
+      intros HX. Local Opaque N. cbn in HX.
+      destruct HX as (? & ? & HX). clear - HX Hv Hbq. destruct HX as [HX|HX].
+      - dependent destruction HX. congruence.
+      - dependent destruction HX. apply HA.
+        apply refine_correct2; eauto. 
+    }
+    clear HQ. apply rsp_ready.
+    cbn - [compose tstrat M_enq_strat].
+    eexists _, _. repeat apply conj.
+    3: {
+      (* incoming question *)
+      apply comp_oq.
+      (* call inc *)
+      apply comp_lq. apply comp_ra.
+      (* call set *)
+      apply comp_lq. apply comp_ra.
+      (* return *)
+      apply comp_la. instantiate (1 := pnil_ready). apply comp_ready.
+    }
+    2: {
+      eapply closure_has_cons; [ | | apply seq_comp_oq; apply seq_comp_pa; eauto ].
+      2: eapply closure_has_cons; [ | | apply seq_comp_oq; apply seq_comp_pa; eauto ].
+      3: eauto.
+      - exists true. exists false. cbn. exists f, c1, c2. repeat econstructor.
+      - exists false. exists false. cbn. exists f, c1, (S c2 mod N)%nat, c2, v. repeat econstructor.
+    }
+    eexists _, _. repeat apply conj.
+    + repeat econstructor.
+    + exists v, c2. cbn. reflexivity.
+    + cbn. repeat econstructor.
+  - 
 Admitted.
 
 Definition E_bq_conv : conv E_bq li_c. Admitted.
@@ -1258,6 +1390,7 @@ Admitted.
 Lemma embed_lift_sig {A: language_interface} {U: Type}:
   (A @ U)%esig = Lifting.lifted_li U A.
 Proof.
+  unfold tens, li_sig. cbn.
 Admitted.
 
 Definition E0_conv : conv 0 li_c. Admitted.
