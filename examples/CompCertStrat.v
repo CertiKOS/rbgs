@@ -868,70 +868,6 @@ Section CC_COMP.
     - intros. xinv Heqw. xinv H1; eauto 10; try easy.
   Qed.
 
-  Context {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB).
-
-  Lemma cc_comp_ref_once sk:
-    compose cpos_ready (lts_strat' L1 ready) L2 [= lts_strat' (comp_semantics' L1 L2 sk) ready.
-  Proof.
-    intros ? (s & t & Hs & Ht & Hst). cbn in *.
-    dependent destruction Hs.
-    { dependent destruction Hst. constructor. }
-    dependent destruction Hst.
-    eapply lts_strat_has_intro with (s := st1 L1 L2 s0).
-    { admit. }
-    { constructor; eauto. }
-    clear HVF INIT. revert t Ht w Hst.
-    dependent induction HS; intros.
-    - (* L1 calls L2 but no return *)
-      xinv Hst. apply closure_has_cons_inv in Ht.
-      destruct Ht as (ts1 & ts2 & Hs1 & Hs2 & Hss).
-      xinv Hs1.
-      eapply state_strat_has_internal.
-      apply star_one. eapply step_push; eauto.
-      clear EXT Hs2 HVF INIT.
-      dependent induction HS.
-      + (* L2 makes a call but no return *)
-        xinv Hss. xinv H4. xinv H5. xinv H7.
-        eapply state_strat_has_external_suspend.
-        constructor. eauto.
-      + (* L2 makes a call and receives return value *)
-        xinv Hss. xinv H4. xinv H5. xinv H8.
-        eapply state_strat_has_external; try constructor; eauto.
-      + (* L2 returns, which leads to contradiction *)
-        xinv Hss. xinv H3. xinv H5.
-      + (* L2 internal steps *)
-        eapply state_strat_has_internal. apply star_internal2. eauto.
-        eauto.
-    - (* L1 calls L2 and L2 returns to L1 *)
-      specialize (IHHS L2 k0 eq_refl JMeq_refl).
-      xinv Hst. apply closure_has_cons_inv in Ht.
-      destruct Ht as (ts1 & ts2 & Hs1 & Hs2 & Hss).
-      specialize (IHHS _ Hs2). xinv Hs1.
-      eapply state_strat_has_internal.
-      apply star_one. eapply step_push; eauto.
-      clear EXT Hs2 HVF INIT. dependent induction HS0.
-      + (* L2 makes a call but no return, which should be a contradiction? *)
-        xinv Hss. xinv H4. xinv H5. xinv H7.
-        eapply state_strat_has_external_suspend.
-        constructor. eauto.
-      + (* L2 makes a call and receives return value *)
-        xinv Hss. xinv H4. xinv H5. xinv H8.
-        eapply state_strat_has_external; try constructor; eauto.
-      + (* L2 returns *)
-        xinv Hss. xinv H5. xinv H3.
-        eapply state_strat_has_internal.
-        apply star_one. eapply step_pop; eauto.
-        eauto.
-      + (* L2 internal steps *)
-        eapply state_strat_has_internal. apply star_internal2. eauto.
-        eauto.
-    - (* L1 returns *)
-      xinv Hst. xinv H4.
-      apply state_strat_has_final. constructor. apply FIN.
-    - (* L1 internal step *)
-      eapply state_strat_has_internal. apply star_internal1. eauto.
-      eauto.
-  Admitted.
 
   Lemma comp_has_exists {E: esig} {F G i j k} (p: cpos i j k) (s: @play F G i):
     inhabited E -> exists (t: @play E F j) w, comp_has p s t w .
@@ -1082,6 +1018,71 @@ Section CC_COMP.
     destruct Hτ. edestruct regular0 as (R1 & R2). 2: apply B. eauto.
     eapply infinite0. 3: eauto. 1-2: eauto.
   Qed.
+
+  Context {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB).
+
+  Lemma cc_comp_ref_once sk:
+    compose cpos_ready (lts_strat' L1 ready) L2 [= lts_strat' (comp_semantics' L1 L2 sk) ready.
+  Proof.
+    intros ? (s & t & Hs & Ht & Hst). cbn in *.
+    dependent destruction Hs.
+    { dependent destruction Hst. constructor. }
+    dependent destruction Hst.
+    eapply lts_strat_has_intro with (s := st1 L1 L2 s0).
+    { admit. }
+    { constructor; eauto. }
+    clear HVF INIT. revert t Ht w Hst.
+    dependent induction HS; intros.
+    - (* L1 calls L2 but no return *)
+      xinv Hst. apply closure_has_cons_inv in Ht.
+      destruct Ht as (ts1 & ts2 & Hs1 & Hs2 & Hss).
+      xinv Hs1.
+      eapply state_strat_has_internal.
+      apply star_one. eapply step_push; eauto.
+      clear EXT Hs2 HVF INIT.
+      dependent induction HS.
+      + (* L2 makes a call but no return *)
+        xinv Hss. xinv H4. xinv H5. xinv H7.
+        eapply state_strat_has_external_suspend.
+        constructor. eauto.
+      + (* L2 makes a call and receives return value *)
+        xinv Hss. xinv H4. xinv H5. xinv H8.
+        eapply state_strat_has_external; try constructor; eauto.
+      + (* L2 returns, which leads to contradiction *)
+        xinv Hss. xinv H3. xinv H5.
+      + (* L2 internal steps *)
+        eapply state_strat_has_internal. apply star_internal2. eauto.
+        eauto.
+    - (* L1 calls L2 and L2 returns to L1 *)
+      specialize (IHHS L2 k0 eq_refl JMeq_refl).
+      xinv Hst. apply closure_has_cons_inv in Ht.
+      destruct Ht as (ts1 & ts2 & Hs1 & Hs2 & Hss).
+      specialize (IHHS _ Hs2). xinv Hs1.
+      eapply state_strat_has_internal.
+      apply star_one. eapply step_push; eauto.
+      clear EXT Hs2 HVF INIT. dependent induction HS0.
+      + (* L2 makes a call but no return, which should be a contradiction? *)
+        xinv Hss. xinv H4. xinv H5. xinv H7.
+        eapply state_strat_has_external_suspend.
+        constructor. eauto.
+      + (* L2 makes a call and receives return value *)
+        xinv Hss. xinv H4. xinv H5. xinv H8.
+        eapply state_strat_has_external; try constructor; eauto.
+      + (* L2 returns *)
+        xinv Hss. xinv H5. xinv H3.
+        eapply state_strat_has_internal.
+        apply star_one. eapply step_pop; eauto.
+        eauto.
+      + (* L2 internal steps *)
+        eapply state_strat_has_internal. apply star_internal2. eauto.
+        eauto.
+    - (* L1 returns *)
+      xinv Hst. xinv H4.
+      apply state_strat_has_final. constructor. apply FIN.
+    - (* L1 internal step *)
+      eapply state_strat_has_internal. apply star_internal1. eauto.
+      eauto.
+  Admitted.
 
   Global Instance closure_ref:
     Monotonic (@closure) (forallr -, forallr -, ref ++> ref).
