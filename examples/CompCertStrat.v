@@ -1104,6 +1104,7 @@ Section CC_COMP.
 
 End CC_COMP.
 
+(* XXX: move to IntStrat.v *)
 Section RSVCOMP.
   Context {E1 F1 E2 F2 E3 F3 : esig}.
   Lemma rsq_vcomp {p1 p2 p3 p12 p23 p13} (p : rsvpos p12 p23 p13) :
@@ -1117,6 +1118,7 @@ Section RSVCOMP.
   Admitted.
 End RSVCOMP.
 
+(* XXX: move to IntStrat.v *)
 Section REL.
   Obligation Tactic := cbn.
   Context (U V: Type) (R: rel U V).
@@ -1142,6 +1144,7 @@ End REL.
 
 Coercion rel_conv : rel >-> poset_carrier.
 
+(* XXX: move to IntStrat.v *)
 Section CONV_ID.
   Obligation Tactic := cbn.
   Context {E: esig}.
@@ -1165,7 +1168,7 @@ Section CONV_ID.
 
 End CONV_ID.
 
-
+(* XXX: move to IntStrat.v *)
 Record esig_rel {E F: esig} : Type :=
   {
     match_query : op E -> op F -> Prop;
@@ -1173,6 +1176,7 @@ Record esig_rel {E F: esig} : Type :=
   }.
 Arguments esig_rel : clear implicits.
 
+(* XXX: move to IntStrat.v *)
 Section ESIG_REL_CONV.
   Obligation Tactic := cbn.
   Context {E F: esig} (R: esig_rel E F).
@@ -1217,6 +1221,7 @@ End ESIG_REL_CONV.
 
 Coercion esig_rel_conv : esig_rel >-> poset_carrier.
 
+(* XXX: move to IntStrat.v *)
 Section LENS_ID.
 
   Program Definition lens_id {U} : lens U U :=
@@ -1257,6 +1262,11 @@ Notation "E @ S" := (tens E (glob S)) : esig_scope.
 Notation "0" := (empty_sig) : esig_scope.
 Bind Scope esig_scope with esig.
 
+Declare Scope strat_scope.
+Delimit Scope strat_scope with strat.
+Notation "σ @ S" := (tstrat tp_ready σ (@slens_id S)) : strat_scope.
+Bind Scope strat_scope with strat.
+
 Lemma rcp_cont_inv {E1 E2} m1 m2 n1 n2 k q1 q2 r1 r2 c:
   @rcp_cont E1 E2 m1 m2 n1 n2 k = @rcp_cont E1 E2 q1 q2 r1 r2 c ->
   m1 = q1 /\ m2 = q2 /\
@@ -1272,6 +1282,7 @@ Lemma rcp_forbid_inv {E1 E2} m1 m2 n1 n2 q1 q2 r1 r2:
     existT (fun m2 : E2 => ar m2) m2 n2 = existT (fun m2 : E2 => ar m2) q2 r2.
 Proof. intros H. inversion H. firstorder eauto. Qed.
 
+(* XXX: move to IntStrat.v *)
 Section ENCAP.
   Obligation Tactic := cbn.
   Context {U: Type} (u0 : U).
@@ -1299,6 +1310,9 @@ Section ENCAP.
       dependent destruction Href.
       constructor. eapply IHHy. eauto.
   Qed.
+  (* Ideally, we would define the encap primitive as [e: U → 1] and use it as
+     [E@e : E@U → E] but then we have to handle the isomorphism between 1 × E and E
+     all the time. *)
   Program Definition e {E:esig} : strat (E@U) E ready :=
     {| Downset.has s := e_has u0 s |}.
   Next Obligation. intros. eapply e_has_ref; eauto. Qed.
@@ -1331,13 +1345,27 @@ Section ENCAP.
 
 End ENCAP.
 
+(* The encapsulated strategy is refined by the original strategy using the
+   "deencap" refinement convention.
+
+   This should follow from the conjoint property.
+   XXX: move to IntStrat.v *)
 Lemma deencap_rsq {E F: esig} {S: Type} (σ: strat E (F@S) ready) (s0: S):
   rsq conv_id (deencap s0 conv_id) rs_ready (encap s0 σ) σ.
 Proof.
 Admitted.
 
+(* E@[s0> ⊙ σ@S ⊑ σ ⊙ E@[s0>
+   XXX: move to IntStrat.v *)
 Lemma encap_lift {E F} {S: Type} (σ: strat E F ready) (s0: S):
-  compose cpos_ready (e s0) (tstrat tp_ready σ slens_id) = compose cpos_ready σ (e s0).
+  compose cpos_ready (e s0) (σ @ S)%strat [= compose cpos_ready σ (e s0).
+Admitted.
+
+(* R s0 t0 → E@[s0> ⊑_{E@R → 1} E@[t0>
+   XXX: move to IntStrat.v *)
+Lemma representation_independence {E} {S T: Type} (R: rel S T) s0 t0:
+  R s0 t0 -> rsq (tconv (@conv_id E) R) conv_id rs_ready (e s0) (e t0).
+Proof.
 Admitted.
 
 Lemma closure_lift {E F U} (σ: strat E F ready):
@@ -1349,14 +1377,25 @@ Proof.
     cbn in H. destruct H as (s1 & s2 & Hs1 & Hs2 & Hs3).
 Admitted.
 
+
+(* XXX: move to IntStrat.v *)
 Global Instance compose_monotonic {E F G i j k p}:
   Monotonic (@compose E F G i j k p) (ref ++> ref ++> ref).
 Admitted.
 
-Global Instance compose_params : Params (@compose) 2 := { }.
+(* XXX: move to IntStrat.v *)
+Lemma compose_assoc {E F G H i j k ij jk ijk}
+  (σ: strat G H i) (τ: strat F G j) (υ: strat E F k)
+  (p1: cpos i j ij) (p2: cpos ij k ijk) (p3: cpos j k jk) (p4: cpos i jk ijk):
+  compose p2 (compose p1 σ τ) υ = compose p4 σ (compose p3 τ υ).
+Admitted.
 
-(* Global Instance next_mor {E F i j} m: Sup.Morphism (@next E F i j m). *)
-(* Admitted. *)
+(* XXX: move to IntStrat.v *)
+Lemma rsq_id_conv {E F i} p (σ τ: strat E F i):
+  rsq conv_id conv_id p σ τ <-> σ [= τ.
+Admitted.
+
+Global Instance compose_params : Params (@compose) 2 := { }.
 
 Lemma tstrat_sup_l {I} {E1 E2 F1 F2 i1 i2 i} (p: tpos i1 i2 i)
   (σ: I -> strat E1 F1 i1) (τ: strat E2 F2 i2) :
@@ -1383,6 +1422,8 @@ Qed.
 Lemma rsp_sup_exist {I} {E1 E2 F1 F2 i1 i2} p R S s τ:
   (exists i, @rsp E1 E2 F1 F2 R S i1 i2 p s (τ i)) -> rsp R S p s (sup i:I, τ i).
 Proof. intros (i & Hi). rewrite <- sup_ub. apply Hi. Qed.
+
+(** * Example *)
 
 From compcert.clightp Require Import Example.
 Import Memory Values Integers ListNotations.
@@ -1549,7 +1590,7 @@ Local Instance L_rb_regular : Regular L_rb. Admitted.
 Local Transparent join.
 
 (* L_bq ⊑ (M_bq @ S_rb) ∘ L_rb *)
-Lemma L_bq_correct :
+Lemma ϕ1 :
   rsq conv_id (tconv conv_id bq_rb_rel) rs_ready
     L_bq
     (compose cpos_ready (tstrat tp_ready M_bq slens_id) L_rb).
@@ -1605,12 +1646,32 @@ Proof.
   - 
 Admitted.
 
+Definition rb0: rb_state := (fun _ => Vint (Int.zero), 0, 0)%nat.
+Definition bq0: bq_state := nil.
+
+Definition Π_rb := encap rb0 L_rb.
+Definition Π_bq := encap bq0 L_bq.
+
+(* Π_bq ⊑ M_bq ∘ Π_rb *)
+Lemma ϕ1' : Π_bq [= compose cpos_ready M_bq Π_rb.
+Proof.
+  unfold Π_bq, Π_rb. unfold encap.
+  rewrite <- compose_assoc with (p1 := cpos_ready) (p2 := cpos_ready).
+  rewrite <- encap_lift.
+  rewrite compose_assoc with (p3 := cpos_ready) (p4 := cpos_ready).
+  apply rsq_id_conv with (p := rs_ready).
+  eapply rsq_comp. constructor.
+  (* deterministic *) admit.
+  (* deterministic *) admit.
+  apply representation_independence with (R := rb_bq). admit.
+  apply ϕ1.
+Admitted.
+
 (** * Proving strategies are implemented by Clight programs *)
 
 Context tbq (HT1: ClightP.transl_program bq_program = Errors.OK tbq).
 Context trb (HT2: ClightP.transl_program rb_program = Errors.OK trb).
 
-Definition rb0: rb_state := (fun _ => Vint (Int.zero), 0, 0)%nat.
 Definition ce := ClightP.ClightP.prog_comp_env rb_program.
 Context (m0 : Mem.mem)
   (* (Hm0: PEnv.penv_mem_match (Maps.PTree.empty Ctypes.composite) se penv0 m0) *)
@@ -1738,8 +1799,6 @@ Proof.
   apply rsq_closure; eauto with typeclass_instances. admit. admit.
   intros s (i & Hs). destruct i; destruct Hs as [[|] Hs].
 Admitted.
-
-Definition Π_rb := encap rb0 L_rb.
 
 Definition E_rb_rb0_conv : conv E_rb (li_c @ S_rb) := deencap rb0 E_rb_conv.
 Definition E_rb_rb0_conv' : conv E_rb (Lifting.lifted_li S_rb li_c) :=
