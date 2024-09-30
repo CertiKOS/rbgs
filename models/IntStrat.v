@@ -214,9 +214,9 @@ Infix "::" := pcons.
   database can used to establish that the strategy makes particular
   moves. *)
 
-Hint Resolve determinism pcoh_inv_pq pcoh_inv_pa : determinism.
+Global Hint Resolve determinism pcoh_inv_pq pcoh_inv_pa : determinism.
 
-Hint Extern 1 (Downset.has ?σ (?e :: ?s)) =>
+Global Hint Extern 1 (Downset.has ?σ (?e :: ?s)) =>
        change (Downset.has (next e σ) s) : determinism.
 
 Ltac determinism m m' :=
@@ -294,9 +294,9 @@ Section COMPOSE.
         comp_has cpos_ready s t w ->
         comp_has (cpos_left q) (pa r :: s) t (pa r :: w).
 
-  Hint Constructors comp_has.
-  Hint Constructors pref.
-  Hint Resolve (fun E F i => reflexivity (R := @pref E F i)).
+  Hint Constructors comp_has : core.
+  Hint Constructors pref : core.
+  Hint Resolve (fun E F i => reflexivity (R := @pref E F i)) : core.
 
   Lemma comp_has_pref {i j k} (p : cpos i j k) s t w :
     comp_has p s t w ->
@@ -444,7 +444,7 @@ End COMPOSE.
 Section COMPOSE_ID.
   Context {E F : esig}.
 
-  Hint Constructors id_has comp_has.
+  Hint Constructors id_has comp_has : core.
 
   (** When the identity is composed on the left,
     it passes through incoming interactions unchanged. *)
@@ -611,7 +611,7 @@ Section COMPOSE_COMPOSE.
               (cpos_suspended q1 q2 q4)
               (cpos_suspended q1 q3 q4).
 
-  Hint Constructors pref comp_has.
+  Hint Constructors pref comp_has : core.
 
   Ltac destruct_comp_has :=
     repeat
@@ -879,7 +879,7 @@ Section RC.
 
   (** *** Miscellaneous useful things *)
 
-  Hint Constructors rcp_ref.
+  Hint Constructors rcp_ref : core.
 
   Global Instance rcnext_ref :
     Monotonic rcnext (forallr -, forallr -, - ==> - ==> ref ++> ref).
@@ -1288,7 +1288,7 @@ Section RSQ.
   Qed.
 End RSQ.
 
-Hint Resolve rsp_ready_inv_nil rsp_suspended_inv_nil : determinism.
+Global Hint Resolve rsp_ready_inv_nil rsp_suspended_inv_nil : determinism.
 
 Global Instance rsp_params : Params (@rsp) 7 := { }.
 Global Instance rsq_params : Params (@rsq) 7 := { }.
@@ -1322,7 +1322,7 @@ Section RSQ_COMP.
   (** Having enumerated them, we can formulate the compatibility of
     composition with refinement squares as follows. *)
 
-  Hint Constructors comp_has pref.
+  Hint Constructors comp_has pref : core.
 
   Lemma rsq_comp {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
     @rscpos i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk ->
@@ -1727,7 +1727,7 @@ Section TSTRAT.
                  (pa (q:=(q1,q2)) (r1,r2) :: s).
 
   Obligation Tactic := cbn.
-  Hint Constructors pref tstrat_has.
+  Hint Constructors pref tstrat_has : core.
 
   Program Definition tstrat {i1 i2 i} (p : tpos i1 i2 i)
     (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2) : strat (tens E1 E2) (tens F1 F2) i :=
@@ -2155,7 +2155,7 @@ Section TRSQ.
                (tp_suspended q1 q2 m1 m2)
                (tp_suspended q1' q2' m1' m2').
 
-  Hint Constructors tstrat_has.
+  Hint Constructors tstrat_has : core.
 
   Lemma trsp :
     forall {i1 i2 j1 j2 i j u1 u2 u v v'} {p : @trspos i1 i2 j1 j2 i j u1 u2 u v v'}
