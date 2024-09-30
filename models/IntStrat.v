@@ -19,12 +19,14 @@ Record esig :=
 Arguments ar {_}.
 
 
-(** * Strategies *)
+(** * §3 STRATEGY MODEL *)
+
+(** ** §3.1 Strategies *)
 
 Section STRAT.
   Context {E F : esig}.
 
-  (** ** Moves *)
+  (** *** Def 3.1 (Strategy) *)
 
   Variant position :=
     | ready
@@ -94,7 +96,7 @@ Section STRAT.
     intro H. dependent destruction H. reflexivity.
   Qed.
 
-  (** ** Determinism *)
+  (** *** Determinism *)
 
   Inductive pcoh : forall {i : position}, relation (play i) :=
     | pnil_ready_pcoh_l s : pcoh pnil_ready s
@@ -141,7 +143,7 @@ Section STRAT.
     intros H. dependent destruction H. auto.
   Qed.
 
-  (** ** Residuals *)
+  (** *** Residuals *)
 
   Section NEXT.
     Context {i j} (e : move i j).
@@ -221,7 +223,9 @@ Ltac determinism m m' :=
   assert (m' = m) by eauto 10 with determinism;
   subst m'.
 
-(** ** Compositional structure *)
+(** ** §3.2 Layered Composition *)
+
+(** *** Def 3.4 (Layered Composition of Strategies) *)
 
 Section ID.
   Context {E : esig}.
@@ -435,6 +439,8 @@ Section COMPOSE.
   Qed.
 End COMPOSE.
                                           
+(** *** Theorem 3.5 (Properties of Layered Composition) *)
+
 Section COMPOSE_ID.
   Context {E F : esig}.
 
@@ -472,7 +478,7 @@ Section COMPOSE_ID.
     dependent destruction m; cbn in *; eauto 10.
   Qed.
 
-  Lemma compose_id_has_l_lt {i} (s s' : @play E F i) (t : @play F F (id_pos_l i)) :
+  Lemma compose_id_has_l_lt {i} (s s': @play E F i) (t: @play F F (id_pos_l i)):
     id_has (id_idpos_l i) t ->
     comp_has (id_cpos_l i) t s s' ->
     s' [= s.
@@ -537,7 +543,7 @@ Section COMPOSE_ID.
     dependent destruction m; cbn in *; eauto 10.
   Qed.
 
-  Lemma compose_id_has_r_lt {i} (s s' : @play E F i) (t : @play E E (id_pos_r i)) :
+  Lemma compose_id_has_r_lt {i} (s s': @play E F i) (t: @play E E (id_pos_r i)):
     id_has (id_idpos_r i) t ->
     comp_has (id_cpos_r i) s t s' ->
     s' [= s.
@@ -571,6 +577,231 @@ Section COMPOSE_ID.
   Qed.
 End COMPOSE_ID.
 
+Section COMPOSE_COMPOSE.
+  Context {E F G H : esig}.
+
+  Variant ccpos :
+    forall {iσ iτ iυ iστ iτυ iστυ}, @cpos F G H iσ iτ iστ ->
+                                    @cpos E F G iτ iυ iτυ ->
+                                    @cpos E G H iσ iτυ iστυ ->
+                                    @cpos E F H iστ iυ iστυ -> Type :=
+    | ccpos_ready :
+        ccpos cpos_ready
+              cpos_ready
+              cpos_ready
+              cpos_ready
+    | ccpos_left q1 :
+        ccpos (cpos_left q1)
+              cpos_ready
+              (cpos_left q1)
+              (cpos_left q1)
+    | ccpos_mid q1 q2 :
+        ccpos (cpos_right q1 q2)
+              (cpos_left q2)
+              (cpos_right q1 q2)
+              (cpos_left q1)
+    | ccpos_right q1 q2 q3 :
+        ccpos (cpos_suspended q1 q2 q3)
+              (cpos_right q2 q3)
+              (cpos_right q1 q2)
+              (cpos_right q1 q3)
+    | ccpos_suspended q1 q2 q3 q4 :
+        ccpos (cpos_suspended q1 q2 q3)
+              (cpos_suspended q2 q3 q4)
+              (cpos_suspended q1 q2 q4)
+              (cpos_suspended q1 q3 q4).
+
+  Hint Constructors pref comp_has.
+
+  Ltac destruct_comp_has :=
+    repeat
+      match goal with
+      | H : comp_has _ (_ _) _ _ |- _ => dependent destruction H
+      | H : comp_has _ _ (_ _) _ |- _ => dependent destruction H
+      | H : comp_has _ _ _ (_ _) |- _ => dependent destruction H
+      | p : ccpos _ _ _ _ |- _ => dependent destruction p
+      end.
+
+  Lemma comp_has_assoc_1 {iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ} :
+    @ccpos iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ ->
+    forall s t st u stu,
+      comp_has pστ s t st ->
+      comp_has pστ_υ st u stu ->
+      exists s' t' u' tu,
+        s' [= s /\ t' [= t /\ u' [= u /\
+        comp_has pτυ t' u' tu /\
+        comp_has pσ_τυ s' tu stu.
+  Proof.
+    intros p s t st u stu Hst Hst_u. cbn.
+    revert iυ iτυ iστυ pτυ pσ_τυ pστ_υ p u stu Hst_u.
+    induction Hst; intros; cbn.
+    - (* ready *)
+      destruct_comp_has; eauto 10.
+    - (* environment question *)
+      destruct_comp_has; eauto 10.
+      rename t0 into u, w into st, w0 into stu.
+      edestruct (IHHst _ _ _ _ _ _ (ccpos_left q) u stu Hst_u)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu).
+      eauto 100.
+    - (* question of [σ] *)
+      destruct_comp_has; eauto 10.
+      rename w into st.
+      destruct (IHHst _ _ _ _ _ _ (ccpos_mid q m) u stu Hst_u)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu).
+      eauto 100.
+    - (* question of [τ] *)
+      destruct_comp_has; eauto 10.
+      rename u into x, w into st, t0 into u, w0 into stu.
+      destruct (IHHst _ _ _ _ _ _ (ccpos_right q m x) u stu Hst_u)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu).
+      eauto 100.
+    - (* [στ] suspended, note that [υ] may still do its thing for a while *)
+      rename u into x, u0 into u.
+      revert iτυ iστυ pτυ pστ_υ pσ_τυ p stu Hst_u.
+      induction u as [ | xx e | ? ? [ | ? e | ? e f | xx yy] u IHu]; intros;
+      dependent destruction p;
+      dependent destruction Hst_u;
+      eauto 100.
+      + (* question of [υ] *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_suspended q m x e))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+      + (* environment answer *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_right q m x))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+    - (* answer of [υ] -- note that as above, [u] could perform a series of
+        interaction with the environment before the answer which
+        synchronizes with [st] appears, hence we have to do the same
+        induction on [u] as we wait, but now an answer of [υ] is
+        possible and has us continue the top-level induction. *)
+      rename u into x, v into y, w into st, u0 into u.
+      revert iτυ iστυ pτυ pστ_υ pσ_τυ p stu Hst_u.
+      induction u as [ | xx e | ? ? [ | ? e | ? e f | xx yy] u IHu]; intros;
+      dependent destruction p;
+      dependent destruction Hst_u;
+      eauto 100.
+      + (* question of [υ] *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_suspended q m x e))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+      + (* environment answer *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_right q m x))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+      + (* answer of [υ] *)
+        rename xx into x, yy into y.
+        edestruct (IHHst _ _ _ _ _ _ (ccpos_mid q m))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+    - (* answer of [τ] *)
+      rename w into st.
+      dependent destruction p.
+      edestruct (IHHst _ _ _ _ _ _ (ccpos_left q))
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+    - (* answer of [σ] *)
+      rename w into st.
+      dependent destruction p.
+      dependent destruction Hst_u.
+      edestruct (IHHst _ _ _ _ _ _ ccpos_ready)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+  Qed.
+
+  Lemma comp_has_assoc_2 {iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ} :
+    @ccpos iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ ->
+    forall s t u tu stu,
+      comp_has pτυ t u tu ->
+      comp_has pσ_τυ s tu stu ->
+      exists s' t' u' st,
+        s' [= s /\ t' [= t /\ u' [= u /\
+        comp_has pστ s' t' st /\
+        comp_has pστ_υ st u' stu.
+  Proof.
+    intros p s t u tu stu Htu Hs_tu. cbn.
+    revert iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ p t u tu stu Htu Hs_tu.
+    induction s as [ | | _ _ [ | | | ] ]; intros.
+    - (* ready *)
+      destruct_comp_has; eauto 100.
+    - (* [σ] suspended *)
+      revert iστ iστυ pστ pσ_τυ pστ_υ p stu Hs_tu.
+      induction Htu; intros;
+      dependent destruction p;
+      dependent destruction Hs_tu;
+      eauto 100.
+      + (* question of [τ] *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* suspended *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_suspended _ _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* environment answer *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* answer of [υ] *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_mid _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* environment question *)
+      destruct_comp_has; eauto 100.
+      edestruct (IHs _ _ _ _ _ _ _ _ _ (ccpos_left _))
+        as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* question of [σ] *)
+      destruct_comp_has; eauto 100.
+      edestruct (IHs _ _ _ _ _ _ _ _ _ (ccpos_mid _ _))
+        as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* answer of [τ] -- after a while *)
+      revert iστ iστυ pστ pσ_τυ pστ_υ p stu Hs_tu.
+      induction Htu; intros.
+      + (* ready -- we'll be done before then *)
+        destruct_comp_has.
+      + (* question of [σ] -- we'll be done before then *)
+        destruct_comp_has.
+      + (* question of [τ] *)
+        dependent destruction p.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* question of [υ] *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_suspended _ _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* suspended *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        eauto 100.
+      + (* environment answer *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* answer of [υ] *)
+        dependent destruction p.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_mid _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* answer of [τ] *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        edestruct (IHs _ _ _ _ _ _ _ _ _ (ccpos_left _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* answer of [σ] *)
+      destruct_comp_has; eauto 100.
+      edestruct (IHs _ _ _ _ _ _ _ _ _ ccpos_ready)
+        as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+  Qed.
+
+  Lemma compose_assoc {iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ} :
+    @ccpos iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ ->
+    forall σ τ υ,
+      compose pστ_υ (compose pστ σ τ) υ = compose pσ_τυ σ (compose pτυ τ υ).
+  Proof.
+    intros p ? ? ?.
+    apply antisymmetry; cbn.
+    - intros stu (st & u & (s & t & Hs & Ht & Hst) & Hu & Hstu).
+      edestruct @comp_has_assoc_1 as (s'&t'&u'& tu & Hs'& Ht'& Hu'& Htu & Hs_tu);
+        eauto 100 using Downset.closed.
+    - intros stu (s & tu & Hs & (t & u & Ht & Hu & Htu) & Hstu).
+      edestruct @comp_has_assoc_2 as (s'&t'&u'& st & Hs'& Ht'& Hu'& Hst & Hst_u);
+        eauto 100 using Downset.closed.
+  Qed.
+End COMPOSE_COMPOSE.
 
 (** ** §3.3 Flat Composition *)
 
