@@ -1634,6 +1634,28 @@ Section RSVCOMP.
       rewrite rcnext_vcomp_at by auto.
       eapply (IHrsp _ _ _ _ rsv_ready); eauto with typeclass_instances.
   Qed.
+
+  Lemma rsq_vcomp {p1 p2 p3 p12 p23 p13} (p : @rsvpos p1 p2 p3 p12 p23 p13) :
+    forall (R : conv E1 E2) (R' : conv E2 E3) (S : conv F1 F2) (S' : conv F2 F3)
+           (σ1 : strat E1 F1 p1) (σ2 : strat E2 F2 p2) (σ3 : strat E3 F3 p3)
+           `{Hσ2 : !Deterministic σ2} `{Hσ3 : !Deterministic σ3},
+      rsq R S p12 σ1 σ2 ->
+      rsq R' S' p23 σ2 σ3 ->
+      match p with
+        | rsv_ready =>
+          rsq (vcomp R R') (vcomp S S') p13 σ1 σ3
+        | rsv_running q1 q2 q3 =>
+          rsq (vcomp R R') (inf r2, vcomp_at q2 r2 S S') p13 σ1 σ3
+        | rsv_suspended q1 q2 q3 m1 m2 m3 =>
+          Downset.has R (rcp_allow m1 m2) ->
+          Downset.has R' (rcp_allow m2 m3) ->
+          rsq (inf n2, vcomp_at m2 n2 R R') (inf r2, vcomp_at q2 r2 S S') p13 σ1 σ3
+      end.
+  Proof.
+    intros.
+    pose proof (rsp_vcomp p).
+    destruct p; cbn in *; intros; intro; eauto.
+  Qed.
 End RSVCOMP.
 
 
