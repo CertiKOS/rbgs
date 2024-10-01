@@ -1,3 +1,5 @@
+COQDOCEXTRAFLAGS := -g --parse-comments
+
 pre-all::
 	+make -C coqrel
 	+make -C compcert depend

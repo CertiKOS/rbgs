@@ -70,7 +70,7 @@ Section STRAT.
   Definition strat (p : position) :=
     downset (play_poset p).
 
-  (** ** Useful lemmas *)
+  (** *** Useful lemmas *)
 
   Lemma pcons_eq_inv_l {i j} (m1 m2 : move i j) (s1 s2 : play j) :
     pcons m1 s1 = pcons m2 s2 -> m1 = m2.
@@ -825,7 +825,7 @@ Section RC.
   Context {E1 E2 : esig}.
   Obligation Tactic := cbn.
 
-  (** *** Definition 4.1 *)
+  (** *** Definition 4.1 (Refinement convention) *)
 
   Inductive rcp :=
     | rcp_allow (m1 : op E1) (m2 : op E2)
@@ -954,7 +954,7 @@ Global Hint Immediate
 Section RSQ.
   Context {E1 E2 F1 F2 : esig}.
 
-  (** *** Definition 4.2 (Refinement Square) *)
+  (** *** Definition 4.2 (Refinement square) *)
 
   Variant rspos : @position E1 F1 -> @position E2 F2 -> Type :=
     | rs_ready : rspos ready ready
@@ -1412,7 +1412,7 @@ End RSQ_COMP.
 
 (** ** §4.4 Vertical Composition *)
 
-(** *** Definition 4.6 (Veritcal composition of refinement conventions) *)
+(** *** Definition 4.6 (Vertical composition of refinement conventions) *)
 
 Section VCOMP.
   Context {E1 E2 E3 : esig}.
@@ -1537,7 +1537,7 @@ Section VCOMP.
   Qed.
 End VCOMP.
 
-(** *** Theorem 4.7 (Veritcal composition of refinement squares) *)
+(** *** Theorem 4.7 (Vertical composition of refinement squares) *)
 
 Section RSVCOMP.
   Context {E1 F1 E2 F2 E3 F3 : esig}.
