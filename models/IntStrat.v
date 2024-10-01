@@ -1410,6 +1410,44 @@ Section RSQ_COMP.
   Qed.
 End RSQ_COMP.
 
+(** *** Definition 4.4 (Identity refinement convention) *)
+
+Section VID.
+  Context {E : esig}.
+
+  Fixpoint vid_has (s : rcp E E) : Prop :=
+    match s with
+      | rcp_allow m1 m2 => m1 = m2
+      | rcp_forbid m1 m2 n1 n2 => m1 = m2 /\ ~ JMeq n1 n2
+      | rcp_cont m1 m2 n1 n2 k => m1 = m2 /\ (JMeq n1 n2 -> vid_has k)
+    end.
+
+  Program Definition vid : conv E E :=
+    {| Downset.has := vid_has |}.
+  Next Obligation.
+    induction H; cbn in *; tauto.
+  Qed.
+
+  (** Properties *)
+
+  Lemma rcnext_vid m n :
+    rcnext m m n n vid = vid.
+  Proof.
+    apply Downset.has_eq_ext. cbn. firstorder.
+  Qed.
+End VID.
+
+(** *** Theorem 4.5 (Refinement ordering as refinement squares) *)
+
+Section ID_RSQ.
+  Context {E F : esig}.
+
+  (*
+    rsq vid vid p σ τ <-> σ [= τ
+    rsq R S p id id <-> S [= R
+  *)
+End ID_RSQ.
+
 (** ** §4.4 Vertical Composition *)
 
 (** *** Definition 4.6 (Vertical composition of refinement conventions) *)
@@ -1658,6 +1696,72 @@ Section RSVCOMP.
   Qed.
 End RSVCOMP.
 
+(** *** Other properties of vertical composition *)
+
+Section VCOMP_VID.
+  Context {E F : esig}.
+
+  Lemma vcomp_vid_l (R : conv E F) :
+    vcomp vid R = R.
+  Proof.
+    apply Downset.has_eq_ext. intro s.
+    revert R.
+    induction s; cbn; intros.
+    - firstorder congruence.
+    - split.
+      + intros (? & <- & Hm & Hn). firstorder.
+      + intros H. exists m1.
+        repeat (split; eauto using conv_has_forbid_allow).
+        intros n1'. destruct (classic (n1 ~= n1')) as [Hn1'|Hn1']; eauto.
+        apply JMeq_eq in Hn1'. subst. auto.
+    - split.
+      + intros (? & <- & Hm & Hn).
+        specialize (Hn n1) as [[_ Hn] | Hn]; try tauto.
+        destruct Hn as [Hn | Hn]; eauto.
+        rewrite rcnext_vid in Hn.
+        apply IHs in Hn.
+        assumption.
+      + intros Hn. exists m1.
+        repeat (split; eauto).
+        intros n1'. destruct (classic (n1 ~= n1')) as [Hn1'|Hn1']; eauto.
+        apply JMeq_eq in Hn1'. subst n1'. right. right.
+        rewrite rcnext_vid.
+        apply IHs; auto.
+  Qed.
+
+  Lemma vcomp_vid_r (R : conv E F) :
+    vcomp R vid = R.
+  Proof.
+    apply Downset.has_eq_ext. intro s.
+    revert R.
+    induction s; cbn; intros.
+    - firstorder congruence.
+    - split.
+      + intros (? & Hm & -> & Hn). firstorder.
+      + intros Hn. exists m2.
+        repeat (split; eauto using conv_has_forbid_allow).
+        intros n2'. destruct (classic (n2 ~= n2')) as [Hn2'|Hn2']; eauto.
+        apply JMeq_eq in Hn2'. subst. auto.
+    - split.
+      + intros (? & Hm & <- & Hn).
+        specialize (Hn n2) as [Hn | [[_ Hn] | Hn]]; try tauto; eauto.
+        rewrite rcnext_vid in Hn.
+        apply IHs in Hn.
+        assumption.
+      + intros Hn. exists m2.
+        repeat (split; eauto).
+        intros n2'. destruct (classic (n2 ~= n2')) as [Hn2'|Hn2']; eauto 10.
+        apply JMeq_eq in Hn2'. subst n2'. right. right.
+        rewrite rcnext_vid.
+        apply IHs; auto.
+  Qed.
+End VCOMP_VID.
+
+(** ** §4.5 Flat Composition *)
+
+(** *** Definition 4.8 (Flat composition of refinement conventions) *)
+
+(** *** Theorem 4.9 (Flat composition properties) *)
 
 (** * Spatial composition *)
 
