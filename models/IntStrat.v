@@ -1020,16 +1020,165 @@ Section COMPOSE_FCOMP.
   Qed.
 End COMPOSE_FCOMP.
 
+Section FCOMP_ID.
+  Context {E1 E2 : esig}.
+
+  Variant fcipos :
+    forall {i1 i2 i}, idpos i1 -> idpos i2 -> fcpos i1 i2 i -> idpos i -> Type :=
+    | fcipos_ready :
+        fcipos id_ready id_ready fcpos_ready
+               id_ready
+    | fcipos_suspended_l (q1 : E1) :
+        fcipos (id_suspended q1) id_ready (fcpos_suspended_l q1 q1)
+               (id_suspended (inl q1))
+    | fcipos_suspended_r (q2 : E2) :
+        fcipos id_ready (id_suspended q2) (fcpos_suspended_r q2 q2)
+               (id_suspended (inr q2)).
+
+  Lemma fcomp_id {i1 i2 i p1 p2 p12 q} (p : @fcipos i1 i2 i p1 p2 p12 q) :
+    fcomp_st p12 (id p1) (id p2) = id q.
+  Admitted.
+End FCOMP_ID.
+
 (** In addition to the bifunctor ⊕ we define the following structural maps.
   Some of them are discussed informally in the paper's §2.6. *)
 
 (** *** Monoidal structure *)
 
-(* flam, frho, falph *)
+Section FCOMP_UNIT.
+  Context {E : esig}.
+  Obligation Tactic := cbn.
 
-(** *** Braiding *)
+  (** **** Left unitor *)
 
-(* fgam *)
+  Variant flpos : @position (fcomp Empty_sig E) E -> Type :=
+    | flpos_ready : flpos ready
+    | flpos_suspended (q : E) : flpos (suspended q (inr q)).
+
+  Inductive flam_has : forall {i}, flpos i -> play i -> Prop :=
+    | flam_ready :
+        flam_has flpos_ready pnil_ready
+    | flam_question q s :
+        flam_has (flpos_suspended q) s ->
+        flam_has flpos_ready (oq q :: pq (inr q) :: s)
+    | flam_suspended q :
+        flam_has (flpos_suspended q) (pnil_suspended q (inr q))
+    | flam_answer q r s :
+        flam_has flpos_ready s ->
+        flam_has (flpos_suspended q) (oa (m:=inr q) r :: pa (q:=q) r :: s).
+
+  Program Definition flam {i} (p : flpos i) : strat (fcomp Empty_sig E) E i :=
+    {| Downset.has := flam_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Left unitor inverse *)
+
+  Variant flrpos : @position E (fcomp Empty_sig E) -> Type :=
+    | flrpos_ready : flrpos ready
+    | flrpos_suspended (q : E) : flrpos (suspended (inr q) q).
+
+  Inductive flamr_has : forall {i}, flrpos i -> play i -> Prop :=
+    | flamr_ready :
+        flamr_has flrpos_ready pnil_ready
+    | flamr_question q s :
+        flamr_has (flrpos_suspended q) s ->
+        flamr_has flrpos_ready (oq (inr q) :: pq q :: s)
+    | flamr_suspended q :
+        flamr_has (flrpos_suspended q) (pnil_suspended (inr q) q)
+    | flamr_answer q r s :
+        flamr_has flrpos_ready s ->
+        flamr_has (flrpos_suspended q) (oa (m:=q) r :: pa (q:=inr q) r :: s).
+
+  Program Definition flamr {i} (p : flrpos i) : strat E (fcomp Empty_sig E) i :=
+    {| Downset.has := flamr_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Left unitor properties *)
+
+  Global Instance flam_iso :
+    Isomorphism (flam flpos_ready) (flamr flrpos_ready).
+  Proof.
+  Admitted.
+
+  (** **** Right unitor *)
+
+  Variant frpos : @position (fcomp E Empty_sig) E -> Type :=
+    | frpos_ready : frpos ready
+    | frpos_suspended (q : E) : frpos (suspended q (inl q)).
+
+  Inductive frho_has : forall {i}, frpos i -> play i -> Prop :=
+    | frho_ready :
+        frho_has frpos_ready pnil_ready
+    | frho_question q s :
+        frho_has (frpos_suspended q) s ->
+        frho_has frpos_ready (oq q :: pq (inl q) :: s)
+    | frho_suspended q :
+        frho_has (frpos_suspended q) (pnil_suspended q (inl q))
+    | frho_answer q r s :
+        frho_has frpos_ready s ->
+        frho_has (frpos_suspended q) (oa (m:=inl q) r :: pa (q:=q) r :: s).
+
+  Program Definition frho {i} (p : frpos i) : strat (fcomp E Empty_sig) E i :=
+    {| Downset.has := frho_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Right unitor inverse *)
+
+  Variant frrpos : @position E (fcomp E Empty_sig) -> Type :=
+    | frrpos_ready : frrpos ready
+    | frrpos_suspended (q : E) : frrpos (suspended (inl q) q).
+
+  Inductive frhor_has : forall {i}, frrpos i -> play i -> Prop :=
+    | frhor_ready :
+        frhor_has frrpos_ready pnil_ready
+    | frhor_question q s :
+        frhor_has (frrpos_suspended q) s ->
+        frhor_has frrpos_ready (oq (inl q) :: pq q :: s)
+    | frhor_suspended q :
+        frhor_has (frrpos_suspended q) (pnil_suspended (inl q) q)
+    | frhor_answer q r s :
+        frhor_has frrpos_ready s ->
+        frhor_has (frrpos_suspended q) (oa (m:=q) r :: pa (q:=inl q) r :: s).
+
+  Program Definition frhor {i} (p : frrpos i) : strat E (fcomp E Empty_sig) i :=
+    {| Downset.has := frhor_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Right unitor properties *)
+
+  Global Instance frho_iso :
+    Isomorphism (frho frpos_ready) (frhor frrpos_ready).
+  Proof.
+  Admitted.
+End FCOMP_UNIT.
+
+(** **** Associator *)
+
+(** **** Braiding *)
 
 (** *** Projections and duplication *)
 
