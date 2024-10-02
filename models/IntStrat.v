@@ -6,9 +6,16 @@ Require Import Lattice.
 Require Import Downset.
 
 
-(** * Preliminaries *)
+(** * §2 COMPOSITIONAL SEMANTICS FOR VERIFICATION *)
 
-(** Effect signature *)
+(** This section introduces the basic definitions below. However, for
+  the most part it is a high-level overview of the framework which is
+  formally defined in the following section. We have formalized
+  examples separately; see [examples/CompCertStrat.v]. *)
+
+(** ** §2.2 Effect Signatures *)
+
+(** *** Definition 2.1 (Effect signature) *)
 
 Record esig :=
   {
@@ -17,6 +24,24 @@ Record esig :=
   }.
 
 Arguments ar {_}.
+
+(** ** §2.6 Combining Effect Signatures *)
+
+(** *** Definition 2.9 (Sum of signatures) *)
+
+(** We only formalize the binary and nullary cases. *)
+
+Canonical Structure fcomp E F :=
+  {|
+    op := op E + op F;
+    ar m := match m with inl m | inr m => ar m end;
+  |}.
+
+Canonical Structure Empty_sig :=
+  {|
+    op := Empty_set;
+    ar m := match m with end;
+  |}.
 
 
 (** * §3 STRATEGY MODEL *)
@@ -71,6 +96,28 @@ Section STRAT.
     downset (play_poset p).
 
   (** *** Useful lemmas *)
+
+  Lemma strat_closed {p} (σ : strat p) (s t : play p) :
+    Downset.has σ t ->
+    pref s t ->
+    Downset.has σ s.
+  Proof.
+    eauto using Downset.closed.
+  Qed.
+
+  Lemma strat_has_any_pnil_ready (σ : strat ready) (s : play ready) :
+    Downset.has σ s ->
+    Downset.has σ pnil_ready.
+  Proof.
+    eauto using strat_closed, pnil_ready_pref.
+  Qed.
+
+  Lemma strat_has_any_pnil_suspended {q m} (σ : strat (suspended q m)) s :
+    Downset.has σ s ->
+    Downset.has σ (pnil_suspended q m).
+  Proof.
+    eauto using strat_closed, pnil_suspended_pref.
+  Qed.
 
   Lemma pcons_eq_inv_l {i j} (m1 m2 : move i j) (s1 s2 : play j) :
     pcons m1 s1 = pcons m2 s2 -> m1 = m2.
@@ -805,16 +852,223 @@ End COMPOSE_COMPOSE.
 
 (** ** §3.3 Flat Composition *)
 
-Section FCOMP.
-  Context {E F : esig}.
+(** *** Definition 3.6 (Flat composition of strategies) *)
 
-  Definition fcomp E F :=
-    {|
-      op := op E + op F;
-      ar m := match m with inl m | inr m => ar m end;
-    |}.
+Section FCOMP_STRAT.
+  Context {E1 E2 F1 F2 : esig}.
+  Obligation Tactic := cbn.
 
-End FCOMP.
+  Variant fcpos : @position E1 F1 -> @position E2 F2 -> @position (fcomp E1 E2) (fcomp F1 F2) -> Type :=
+    | fcpos_ready :
+        fcpos ready ready ready
+    | fcpos_running_l q1 :
+        fcpos (running q1) ready (running (inl q1))
+    | fcpos_running_r q2 :
+        fcpos ready (running q2) (running (inr q2))
+    | fcpos_suspended_l q1 m1 :
+        fcpos (suspended q1 m1) ready (suspended (inl q1) (inl m1))
+    | fcpos_suspended_r q2 m2 :
+        fcpos ready (suspended q2 m2) (suspended (inr q2) (inr m2)).
+
+  Inductive fcomp_has : forall {i1 i2 i}, fcpos i1 i2 i -> play i1 -> play i2 -> play i -> Prop :=
+    | fcomp_ready :
+        fcomp_has fcpos_ready pnil_ready pnil_ready pnil_ready
+    | fcomp_oq_l q1 s1 s2 s :
+        fcomp_has (fcpos_running_l q1) s1 s2 s ->
+        fcomp_has fcpos_ready (oq q1 :: s1) s2 (oq (inl q1) :: s)
+    | fcomp_oq_r q2 s1 s2 s :
+        fcomp_has (fcpos_running_r q2) s1 s2 s ->
+        fcomp_has fcpos_ready s1 (oq q2 :: s2) (oq (inr q2) :: s)
+    | fcomp_pq_l {q1} m1 s1 s2 s :
+        fcomp_has (fcpos_suspended_l q1 m1) s1 s2 s ->
+        fcomp_has (fcpos_running_l q1) (pq m1 :: s1) s2 (pq (inl m1) :: s)
+    | fcomp_pq_r {q2} m2 s1 s2 s :
+        fcomp_has (fcpos_suspended_r q2 m2) s1 s2 s ->
+        fcomp_has (fcpos_running_r q2) s1 (pq m2 :: s2) (pq (inr m2) :: s)
+    | fcomp_suspended_l q1 m1 s2 :
+        fcomp_has (fcpos_suspended_l q1 m1) (pnil_suspended q1 m1) s2 (pnil_suspended (inl q1) (inl m1))
+    | fcomp_suspended_r q2 m2 s1 :
+        fcomp_has (fcpos_suspended_r q2 m2) s1 (pnil_suspended q2 m2) (pnil_suspended (inr q2) (inr m2))
+    | fcomp_oa_l {q1 m1} n1 s1 s2 s :
+        fcomp_has (fcpos_running_l q1) s1 s2 s ->
+        fcomp_has (fcpos_suspended_l q1 m1) (oa n1 :: s1) s2 (oa (m:=inl m1) n1 :: s)
+    | fcomp_oa_r {q2 m2} n2 s1 s2 s :
+        fcomp_has (fcpos_running_r q2) s1 s2 s ->
+        fcomp_has (fcpos_suspended_r q2 m2) s1 (oa n2 :: s2) (oa (m:=inr m2) n2 :: s)
+    | fcomp_pa_l {q1} r1 s1 s2 s :
+        fcomp_has fcpos_ready s1 s2 s ->
+        fcomp_has (fcpos_running_l q1) (pa r1 :: s1) s2 (pa (q:=inl q1) r1 :: s)
+    | fcomp_pa_r {q2} r2 s1 s2 s :
+        fcomp_has fcpos_ready s1 s2 s ->
+        fcomp_has (fcpos_running_r q2) s1 (pa r2 :: s2) (pa (q:=inr q2) r2 :: s).
+
+  Hint Constructors fcomp_has pref : core.
+
+  Lemma fcomp_has_closed {i1 i2 i} p t1 t2 t :
+    @fcomp_has i1 i2 i p t1 t2 t ->
+    forall s, s [= t ->
+    exists s1 s2, s1 [= t1 /\ s2 [= t2 /\ fcomp_has p s1 s2 s.
+  Proof.
+    intros Ht s Hst. revert i1 i2 p t1 t2 Ht. cbn in *.
+    induction Hst; intros.
+    - dependent destruction p; eauto.
+    - dependent destruction p; eauto.
+    - dependent destruction Ht; edestruct IHHst as (? & ? & ? & ? & ?); eauto 10.
+  Qed.
+
+  Program Definition fcomp_st {i1 i2 i} p (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2) : strat (fcomp E1 E2) (fcomp F1 F2) i :=
+    {| Downset.has s :=
+        exists s1 s2, Downset.has σ1 s1 /\ Downset.has σ2 s2 /\ fcomp_has p s1 s2 s |}.
+  Next Obligation.
+    intros i1 i2 i p σ1 σ2 s t Hst (t1 & t2 & Ht1 & Ht2 & Ht).
+    edestruct (fcomp_has_closed p) as (s1 & s2 & Hst1 & Hst2 & Hs); eauto.
+    eauto 10 using Downset.closed.
+  Qed.
+End FCOMP_STRAT.
+
+(** *** Theorem 3.7 (Properties of flat composition) *)
+
+Section COMPOSE_FCOMP.
+  Context {E1 E2 F1 F2 G1 G2 : esig}.
+
+  Variant fccpos :
+    forall {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12},
+      (* the left-hand side does ⊙ first then ⊕ *)
+      cpos i1 j1 ij1 -> cpos i2 j2 ij2 -> fcpos ij1 ij2 ij12 ->
+      (* the right-hand side does ⊕ first then ⊙ *)
+      fcpos i1 i2 i12 -> fcpos j1 j2 j12 -> cpos i12 j12 ij12 -> Type
+    :=
+    | fccpos_ready :
+        fccpos cpos_ready cpos_ready fcpos_ready
+               fcpos_ready fcpos_ready cpos_ready
+    (* running [σ1] *)
+    | fccpos_left_l (q1 : G1) :
+        fccpos (cpos_left q1) cpos_ready (fcpos_running_l q1)
+               (fcpos_running_l q1) fcpos_ready (cpos_left (inl q1))
+    (* running [σ2] *)
+    | fccpos_left_r (q2 : G2) :
+        fccpos cpos_ready (cpos_left q2) (fcpos_running_r q2)
+               (fcpos_running_r q2) fcpos_ready (cpos_left (inr q2))
+    (* running [τ] *)
+    | fccpos_right_l (q1 : G1) (m1 : F1) :
+        fccpos (cpos_right q1 m1) cpos_ready (fcpos_running_l q1)
+               (fcpos_suspended_l q1 m1) (fcpos_running_l m1) (cpos_right (inl q1) (inl m1))
+    | fccpos_right_r (q2 : G2) (m2 : F2) :
+        fccpos cpos_ready (cpos_right q2 m2) (fcpos_running_r q2)
+               (fcpos_suspended_r q2 m2) (fcpos_running_r m2) (cpos_right (inr q2) (inr m2))
+    (* [τ] suspended *)
+    | fccpos_suspended_l (q1 : G1) (m1 : F1) (u1 : E1) :
+        fccpos (cpos_suspended q1 m1 u1) cpos_ready (fcpos_suspended_l q1 u1)
+               (fcpos_suspended_l q1 m1) (fcpos_suspended_l m1 u1) (cpos_suspended (inl q1) (inl m1) (inl u1))
+    | fccpos_suspended_r (q2 : G2) (m2 : F2) (u2 : E2) :
+        fccpos cpos_ready (cpos_suspended q2 m2 u2) (fcpos_suspended_r q2 u2)
+               (fcpos_suspended_r q2 m2) (fcpos_suspended_r m2 u2) (cpos_suspended (inr q2) (inr m2) (inr u2)).
+
+  Hint Constructors comp_has fcomp_has : core.
+
+  Lemma fcomp_compose_has {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
+    @fccpos i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij ->
+    forall s1 s2 t1 t2 st,
+    (exists st1 st2,
+        comp_has p1 s1 t1 st1 /\
+        comp_has p2 s2 t2 st2 /\
+        fcomp_has p12 st1 st2 st) <->
+    (exists s12 t12,
+        fcomp_has qi s1 s2 s12 /\
+        fcomp_has qj t1 t2 t12 /\
+        comp_has qij s12 t12 st).
+  Proof.
+    intros p s1 s2 t1 t2 st. split.
+    - intros (st1 & st2 & Hst1 & Hst2 & Hst).
+  Admitted.
+
+  Lemma fcomp_compose {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
+    @fccpos i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij ->
+    forall σ1 σ2 τ1 τ2,
+      fcomp_st p12 (compose p1 σ1 τ1) (compose p2 σ2 τ2) =
+      compose qij (fcomp_st qi σ1 σ2) (fcomp_st qj τ1 τ2).
+  Proof.
+    intros p σ1 σ2 τ1 τ2.
+    pose proof (fcomp_compose_has p).
+    apply antisymmetry; cbn.
+    - intros s (st1 &st2 &(s1 &t1 &Hs1 &Ht1 &Hst1) &(s2 &t2 &Hs2 &Ht2 &Hst2) &Hs).
+      edestruct (proj1 (H s1 s2 t1 t2 s)) as (s12 & t12 & Hs12 & Ht12 & H'); eauto 100.
+    - intros s (s12 &t12 &(s1 &s2 &Hs1 &Hs2 &Hs12) &(t1 &t2 &Ht1 &Ht2 &Ht12) &Hs).
+      edestruct (proj2 (H s1 s2 t1 t2 s)) as (st1 & st2 & Hst1 & Hst2 & H'); eauto 100.
+  Qed.
+End COMPOSE_FCOMP.
+
+(** In addition to the bifunctor ⊕ we define the following structural maps.
+  Some of them are discussed informally in the paper's §2.6. *)
+
+(** *** Monoidal structure *)
+
+(* flam, frho, falph *)
+
+(** *** Braiding *)
+
+(* fgam *)
+
+(** *** Projections and duplication *)
+
+(** Although [fcomp] is not a cartesian product, it is possible to
+  duplicate an interface or drop an unused component of the signature. *)
+
+ (* pi1, pi2, delta *)
+
+Section FCOMP_PROJ.
+  Context {E1 E2 : esig}.
+
+  Variant ffpos : @position (fcomp E1 E2) E1 -> Type :=
+    | ffpos_ready : ffpos ready
+    | ffpos_suspended (q1 : E1) : ffpos (suspended q1 (inl q1)).
+
+  Inductive ffst_has : forall {i}, ffpos i -> play i -> Prop :=
+    | ffst_ready :
+        ffst_has ffpos_ready pnil_ready
+    | ffst_question q1 s :
+        ffst_has (ffpos_suspended q1) s -> 
+        ffst_has ffpos_ready (oq q1 :: pq (inl q1) :: s)
+    | ffst_suspended q1 :
+        ffst_has (ffpos_suspended q1) (pnil_suspended q1 (inl q1))
+    | ffst_answer q1 r1 s :
+        ffst_has ffpos_ready s ->
+        ffst_has (ffpos_suspended q1) (oa (m:=inl q1) r1 :: pa (q:=q1) r1 :: s).
+
+  Program Definition ffst {i} (p : ffpos i) : strat (fcomp E1 E2) E1 i :=
+    {| Downset.has := ffst_has p |}.
+  Next Obligation.
+    revert x H.
+    induction H0; intros;
+      dependent destruction H; try constructor; auto;
+      dependent destruction H; try constructor; auto.
+  Qed.
+
+  Variant fspos : @position (fcomp E1 E2) E2 -> Type :=
+    | fspos_ready : fspos ready
+    | fspos_suspended (q2 : E2) : fspos (suspended q2 (inr q2)).
+
+  Inductive fsnd_has : forall {i}, fspos i -> play i -> Prop :=
+    | fsnd_ready :
+        fsnd_has fspos_ready pnil_ready
+    | fsnd_question q2 s :
+        fsnd_has (fspos_suspended q2) s -> 
+        fsnd_has fspos_ready (oq q2 :: pq (inr q2) :: s)
+    | fsnd_suspended q2 :
+        fsnd_has (fspos_suspended q2) (pnil_suspended q2 (inr q2))
+    | fsnd_answer q2 r2 s :
+        fsnd_has fspos_ready s ->
+        fsnd_has (fspos_suspended q2) (oa (m:=inr q2) r2 :: pa (q:=q2) r2 :: s).
+
+  Program Definition fsnd {i} (p : fspos i) : strat (fcomp E1 E2) E2 i :=
+    {| Downset.has := fsnd_has p |}.
+  Next Obligation.
+    revert x H.
+    induction H0; intros;
+      dependent destruction H; try constructor; auto;
+      dependent destruction H; try constructor; auto.
+  Qed.
+End FCOMP_PROJ.
 
 
 (** * §4 REFINEMENT CONVENTIONS *)
@@ -1024,7 +1278,7 @@ Section RSQ.
     eapply H; eauto.
   Qed.
 
-  (** *** Determinism *)
+  (** *** Determinism hints *)
 
   Lemma rsp_ready_inv_nil R S s τ :
     rsp R S rs_ready s τ ->
