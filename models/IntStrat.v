@@ -849,6 +849,28 @@ Section COMPOSE_COMPOSE.
         eauto 100 using Downset.closed.
   Qed.
 End COMPOSE_COMPOSE.
+                                  
+(** *** Isomorphisms *)
+
+Class Retraction {E F} (f : strat E F ready) (g : strat F E ready) :=
+  {
+    retraction : compose cpos_ready f g = id id_ready;
+  }.
+
+Class Isomorphism {E F} (f : strat E F ready) (g : strat F E ready) :=
+  {
+    iso_fw :> Retraction f g;
+    iso_bw :> Retraction g f;
+  }.
+
+Lemma retract {E F G} `{Hfg : Retraction F G} (σ : strat E G ready) :
+  compose cpos_ready f (compose cpos_ready g σ) = σ.
+Proof.
+  rewrite <- (compose_assoc ccpos_ready).
+  rewrite retraction.
+  setoid_rewrite (compose_id_l (i := ready)).
+  reflexivity.
+Qed.
 
 (** ** §3.3 Flat Composition *)
 
