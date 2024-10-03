@@ -2054,101 +2054,70 @@ Section RSQ_COMP.
   (** Having enumerated them, we can formulate the compatibility of
     composition with refinement squares as follows. *)
 
-  Hint Constructors comp_has pref : core.
+  Hint Constructors comp_has pref rscpos : core.
+
+  Lemma rsp_comp {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
+    @rscpos i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk ->
+    forall (s : @play F1 G1 i1) (t : @play E1 F1 j1)
+      (σ : strat F2 G2 i2) (τ : strat E2 F2 j2) (w : @play E1 G1 k1),
+      comp_has p1 s t w ->
+      rsp S T pi s σ ->
+      rsp R S pj t τ ->
+      rsp R T pk w (compose_when p2 σ τ).
+  Proof.
+    intros p s t σ τ w Hw Hs Ht.
+    revert R S T i2 j2 k2 p2 pi pj pk p σ τ Hs Ht.
+    induction Hw; intros.
+    - (* ready *)
+      dependent destruction p. dependent destruction Hs. constructor; cbn.
+      exists pnil_ready, pnil_ready. repeat apply conj; eauto.
+      dependent destruction Ht; eauto.
+    - (* incoming question *)
+      dependent destruction p. dependent destruction Hs. constructor; cbn.
+      + exists pnil_ready, pnil_ready. repeat apply conj; eauto.
+        dependent destruction Ht; eauto.
+      + intros q2 Hq. rewrite <- (compose_next_oq q2). eauto.
+    - (* internal question *)
+      dependent destruction p. dependent destruction Hs. dependent destruction Ht.
+      rewrite <- (compose_next_lq m2). eauto.
+    - (* outgoing question *)
+      dependent destruction p. dependent destruction Ht. econstructor; eauto.
+      rewrite <- compose_next_rq. eauto.
+    - (* suspended *)
+      dependent destruction p. dependent destruction Ht. constructor. cbn.
+      exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
+      repeat apply conj; eauto.
+      dependent destruction Hs; eauto.
+    - (* environment answer *)
+      dependent destruction p. dependent destruction Ht. constructor.
+      + exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
+        repeat apply conj; eauto. dependent destruction Hs; eauto.
+      + intros n2 Hn. rewrite <- compose_next_oa. eauto.
+    - (* answer of τ *)
+      dependent destruction p. dependent destruction Hs. dependent destruction Ht.
+      rewrite <- (compose_next_ra r2). eauto.
+    - (* answer of σ *)
+      dependent destruction p. dependent destruction Hs. econstructor; eauto.
+      rewrite <- (compose_next_la r2). eauto.
+  Qed.
 
   Lemma rsq_comp_when {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
     @rscpos i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk ->
     forall (σ1 : strat F1 G1 i1) (τ1 : strat E1 F1 j1)
-           (σ2 : strat F2 G2 i2) (τ2 : strat E2 F2 j2)
-           `{Hσ2 : !Deterministic σ2} `{Hτ2 : !Deterministic τ2},
+           (σ2 : strat F2 G2 i2) (τ2 : strat E2 F2 j2),
       rsq_when S T pi σ1 σ2 ->
       rsq_when R S pj τ1 τ2 ->
       rsq_when R T pk (compose_when p1 σ1 τ1) (compose_when p2 σ2 τ2).
   Proof.
-    intros p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ w1 (s1 & t1 & Hs1 & Ht1 & Hst1).
-    revert R S T i2 j2 k2 p2 pi pj pk p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ Hs1 Ht1.
-    induction Hst1; intros; dependent destruction p.
-    - (* ready *)
-      constructor; cbn.
-      exists pnil_ready, pnil_ready.
-      eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-      specialize (Hσ _ Hs1). dependent destruction Hσ.
-      specialize (Hτ _ Ht1). dependent destruction Hτ.
-      eauto.
-    - (* incoming question *)
-      constructor.
-      + exists pnil_ready, pnil_ready.
-        eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-        specialize (Hσ _ Hs1). dependent destruction Hσ.
-        specialize (Hτ _ Ht1). dependent destruction Hτ.
-        eauto.
-      + intros q2 Hq.
-        rewrite <- (compose_next_oq q2).
-        eapply IHHst1 with (1 := rsc_left q q2)
-                           (σ1 := next (oq q) σ1); cbn; eauto with typeclass_instances.
-        apply rsq_next_oq; auto.
-    - (* internal question *)
-      edestruct @rsq_next_pq as (m2 & Hm & Hm2 & ?); eauto.
-      { eapply Downset.closed; cbn; eauto. constructor. constructor. }
-      rewrite <- (compose_next_lq m2).
-      eapply IHHst1 with (1 := rsc_right q q2 m m2)
-                         (σ1 := next (pq m) σ1)
-                         (τ1 := next (oq m) τ1); eauto with typeclass_instances.
-      apply rsq_next_oq; auto.
-    - (* outgoing question *)
-      edestruct @rsq_next_pq as (u2 & Hu & Hu2 & ?); eauto.
-      { eapply Downset.closed; cbn; eauto. constructor. constructor. }
-      econstructor; eauto.
-      rewrite <- compose_next_rq.
-      eapply IHHst1 with (1 := rsc_suspended q q2 m m2 u u2)
-                         (σ1 := σ1)
-                         (τ1 := next (pq u) τ1); eauto with typeclass_instances.
-    - (* suspended *)
-      constructor; cbn.
-      exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
-      eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
-      specialize (Hσ _ Hs1). dependent destruction Hσ.
-      specialize (Hτ _ Ht1). dependent destruction Hτ.
-      eauto.
-    - (* environment answer *)
-      constructor.
-      + exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
-        eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
-        specialize (Hσ _ Hs1). dependent destruction Hσ.
-        specialize (Hτ _ Ht1). dependent destruction Hτ.
-        eauto.
-      + intros n2 Hn.
-        rewrite <- compose_next_oa.
-        eapply IHHst1 with (1 := rsc_right q q2 m m2)
-                           (σ1 := σ1)
-                           (τ1 := next (oa v) τ1); eauto with typeclass_instances.
-        apply rsq_next_oa; auto.
-    - (* answer of τ *)
-      edestruct @rsq_next_pa as (n2 & Hn & Hn2 & H); eauto.
-      { eapply Downset.closed; eauto. cbn. constructor. constructor. }
-      rewrite <- (compose_next_ra n2).
-      eapply IHHst1 with (1 := rsc_left q q2)
-                         (σ1 := next (oa n) σ1)
-                         (τ1 := next (pa n) τ1); eauto with typeclass_instances.
-      apply rsq_next_oa; auto.
-    - (* answer of σ *)
-      edestruct @rsq_next_pa as (r2 & Hr & Hr2 & H); eauto.
-      { eapply Downset.closed; eauto. cbn. constructor. constructor. }
-      econstructor; eauto.
-      rewrite <- (compose_next_la r2).
-      eapply IHHst1 with (1 := rsc_ready)
-                         (σ1 := next (pa r) σ1)
-                         (τ1 := τ1); eauto with typeclass_instances.
+    intros p σ1 τ1 σ2 τ2 Hσ Hτ w1 (s1 & t1 & Hs1 & Ht1 & Hst1).
+    eauto using rsp_comp.
   Qed.
 
   Lemma rsq_comp σ1 τ1 σ2 τ2 `{Hσ2: !Deterministic σ2} `{Hτ2: !Deterministic τ2}:
     rsq S T σ1 σ2 ->
     rsq R S τ1 τ2 ->
     rsq R T (σ1 ⊙ τ1) (σ2 ⊙ τ2).
-  Proof.
-    apply rsq_comp_when; auto.
-    constructor.
-  Qed.
+  Proof. apply rsq_comp_when; auto. Qed.
 End RSQ_COMP.
 
 (** *** Definition 4.4 (Identity refinement convention) *)
