@@ -131,6 +131,64 @@ Definition L_rb : strat empty_sig (E_rb @ S_rb) ready := closure (join (join L_i
 Local Instance L_rb_regular : Regular L_rb. Admitted.
 
 Local Transparent join.
+Local Hint Constructors non_recur_play pcoh : core.
+Local Opaque N.
+
+Lemma non_recur_play_ref {E F i} (p1 p2: @play E F i):
+  p2 [= p1 -> non_recur_play p1 -> non_recur_play p2.
+Proof.
+  intros Hp Hp1. revert p2 Hp. induction Hp1; intros; cbn in Hp; try solve [ xinv Hp; eauto ].
+  - dependent destruction Hp. dependent destruction Hp. eauto.
+  - dependent destruction Hp; eauto.
+  - dependent destruction Hp; eauto.
+  - dependent destruction Hp; eauto.
+Qed.
+
+Lemma pcoh_ref {E F i} (s1 s2 t1 t2: @play E F i):
+  s1 [= s2 -> t1 [= t2 -> pcoh s2 t2 -> pcoh s1 t1.
+Proof.
+  intros Hs Ht Hpcoh. revert s1 t1 Hs Ht. induction Hpcoh; intros; cbn in *.
+  - dependent destruction Hs; eauto.
+  - dependent destruction Ht; eauto.
+  - dependent destruction Hs; eauto.
+  - dependent destruction Ht; eauto.
+  - dependent destruction Hs; dependent destruction Ht; eauto.
+  - dependent destruction Hs; dependent destruction Ht; eauto.
+  - dependent destruction Hs; dependent destruction Ht; eauto.
+Qed.
+
+Local Instance L_rb_deterministic: Deterministic L_rb.
+Proof.
+  Ltac solve_different_play :=
+    match goal with
+    | [ H1: pref _ _, H2: pref _ _ |- _ ] =>
+        dependent destruction H0; eauto;
+        dependent destruction H; eauto; apply pcons_pcoh_oq; easy
+    end.
+  Ltac solve_same_play :=
+    match goal with
+    | [ |- pcoh (oq ?x :: _) (oq ?y :: _) ] =>
+        let H := fresh "H" in
+        destruct (classic (x = y)); [ inv H | ]; eauto
+    end.
+  apply closure_determ.
+  - split. intros * Hs Ht.
+    destruct Hs as [[|] [[|] Hs]]; destruct Ht as [[|] [[|] Ht]]; cbn in *; eprod_crush;
+      try solve [solve_different_play].
+    + eapply pcoh_ref; eauto. unfold L_inc1_play. solve_same_play.
+    + eapply pcoh_ref; eauto. unfold L_inc2_play. solve_same_play.
+    + eapply pcoh_ref; eauto. unfold L_get_play. solve_same_play.
+    + eapply pcoh_ref; eauto. unfold L_set_play. solve_same_play.
+  - split. intros s Hs. destruct Hs as [[|] [[|] Hs]].
+    + cbn in Hs. destruct Hs as (f & c1 & c2 & Hs).
+      eapply non_recur_play_ref; eauto. unfold L_inc1_play. eauto.
+    + cbn in Hs. destruct Hs as (f & c1 & c2 & Hs).
+      eapply non_recur_play_ref; eauto. unfold L_inc2_play. eauto.
+    + cbn in Hs. destruct Hs as ((f & Hf) & c1 & c2 & i & Hs).
+      eapply non_recur_play_ref; eauto. unfold L_get_play. eauto.
+    + cbn in Hs. destruct Hs as (f & c1 & c2 & i & v & Hs).
+      eapply non_recur_play_ref; eauto. unfold L_set_play. eauto.
+Qed.
 
 (* L_bq ⊑ (M_bq @ S_rb) ∘ L_rb *)
 Lemma ϕ1 :
@@ -244,6 +302,7 @@ Proof.
   apply ϕ1.
 Admitted.
 
+
 (** * Proving strategies are implemented by Clight programs *)
 
 Import Maps Clight Ctypes AST Linking.
@@ -291,6 +350,66 @@ Lemma se_valid2_in_penv_agree se1 se2 id:
 Proof.
   intros (A & B & C) (D & E & F) [H1|[H1|H1]]; congruence.
 Qed.
+
+(** ** Deterministic property  *)
+
+Local Hint Constructors Events.match_traces : core.
+Local Transparent Int.repr.
+Lemma int_repr_of_nat_inj i j:
+  (i < N)%nat -> (j < N)%nat ->
+  Vint (Int.repr (Z.of_nat i)) = Vint (Int.repr (Z.of_nat j)) -> i = j.
+Proof.
+  intros Hi Hj Hij.
+  assert (Int.repr (Z.of_nat i) = Int.repr (Z.of_nat j)).
+  { congruence. }
+  unfold Int.repr in H. inv H.
+  rewrite !Int.Z_mod_modulus_eq in H1.
+  rewrite !Zmod_small in H1.
+  2: { unfold N, Example.N in *. unfold Int.modulus. unfold Int.wordsize.
+       unfold Wordsize_32.wordsize. unfold two_power_nat. cbn. lia. }
+  2: { unfold N, Example.N in *. unfold Int.modulus. unfold Int.wordsize.
+       unfold Wordsize_32.wordsize. unfold two_power_nat. cbn. lia. }
+  apply Nat2Z.inj; eauto.
+Qed.
+
+Local Instance rb_spec_deterministic: Deterministic rb_spec.
+Proof.
+  apply lts_strat_determ. intros se. split.
+  - intros * Hs1 Hs2. inv Hs1; inv Hs2; split; eauto; try easy.
+    + apply int_repr_of_nat_inj in H7; eauto. congruence.
+    + apply int_repr_of_nat_inj in H9; eauto. subst. easy.
+  - intros s t s' H. inv H; cbn; lia.
+  - intros * Hq1 Hq2. inv Hq1; inv Hq2; try easy.
+    + inv H5. exploit Genv.find_symbol_injective. apply H0. apply H7. easy.
+    + inv H5. exploit Genv.find_symbol_injective. apply H0. apply H7. easy.
+  - intros * Hq s t Hs. inv Hq; inv Hs.
+  - intros * Ha1 Ha2. inv Ha1; inv Ha2.
+  - intros * Ha1 Ha2. inv Ha1; inv Ha2.
+  - intros * Ha1 s t Hs. inv Ha1; inv Hs.
+  - intros * Hf He. inv Hf; inv He.
+  - intros * Hf1 Hf2. inv Hf1; inv Hf2. easy.
+Qed.
+
+Local Instance bq_spec_deterministic: Deterministic bq_spec.
+  apply lts_strat_determ. intros se. split.
+  - intros * Hs1 Hs2. inv Hs1; inv Hs2; split; eauto; easy.
+  - intros s t s' H. inv H; cbn; lia.
+  - intros * Hq1 Hq2. inv Hq1; inv Hq2; easy.
+  - intros * Hq s t Hs. inv Hq; inv Hs.
+  - intros * Ha1 Ha2. inv Ha1; inv Ha2; try congruence.
+  - intros * Ha1 Ha2. inv Ha1; inv Ha2; easy.
+  - intros * Ha1 s t Hs. inv Ha1; inv Hs.
+  - intros * Hf He. inv Hf; inv He.
+  - intros * Hf1 Hf2. inv Hf1; inv Hf2. easy.
+Qed.
+
+Local Instance clightp_deterministic sk p:
+  Deterministic (lts_strat_sk sk (ClightP.ClightP.clightp2 p)).
+Proof. apply lts_strat_determ. apply clightp_determinate. Qed.
+
+Local Instance clight_deterministic sk p:
+ Deterministic (lts_strat_sk sk (semantics2 p)).
+Proof. apply lts_strat_determ. apply clight_determinate. Qed.
 
 (** ** Bq correctness *)
 
@@ -468,21 +587,43 @@ Definition ϕ_bq_conv_1 :=
 Definition ϕ_bq_conv_2 :=
   vcomp (vcomp (deencap m0 E_bq_conv) (lift_convert_rel li_c mem)) join_cc.
 
+Global Instance tstrat_deterministic {E1 E2 F1 F2 i j k} (tp: tpos i j k) (σ: strat E1 F1 i) (τ: strat E2 F2 j):
+  Deterministic σ ->
+  Deterministic τ ->
+  Deterministic (tstrat tp σ τ).
+Admitted.
+
+Global Instance slens_deterministic {U V} (l: slens U V):
+  Deterministic l.
+Admitted.
+
+Lemma lifting_determinate {liA liB U} (L: semantics liA liB):
+  determinate L -> determinate (Lifting.lifted_semantics U L).
+Admitted.
+
 Lemma ϕ_bq_with_internals : rsq ϕ_bq_conv_1 ϕ_bq_conv_2 rs_ready M_bq (Clight.semantics2 BQ.bq_program).
 Proof.
-  eapply rsq_vcomp. constructor. 1-2: admit.
-  2: { apply fsim_rsq_sk. admit. apply fp. apply linkorder_bq. }
-  eapply rsq_vcomp. constructor. 1-2: admit.
-  2: { apply rsq_lift_convert. }
-  eapply rsq_vcomp. constructor. 1-2: admit.
-  2: apply rsq_de.
+  eapply rsq_vcomp. constructor. 
+  4: { apply fsim_rsq_sk. apply clight_determinate. apply fp. apply linkorder_bq. }
+  2: typeclasses eauto. apply lts_strat_determ. apply lifting_determinate. apply clight_determinate.
+
+  eapply rsq_vcomp. constructor.
+  4: { apply rsq_lift_convert. }
+  typeclasses eauto. apply lts_strat_determ. apply lifting_determinate. apply clight_determinate.
+
+  eapply rsq_vcomp. constructor.
+  4: apply rsq_de.
+  1-2: typeclasses eauto.
+
   rewrite <- (vcomp_right_id E_rb_conv).
   rewrite <- (vcomp_right_id E_bq_conv).
-  eapply rsq_vcomp. constructor. 1-2: admit.
-  apply ϕ_bq0. rewrite <- !cc_conv_id.
-  apply fsim_rsq_sk. admit.
+  eapply rsq_vcomp. constructor.
+  3: apply ϕ_bq0. 1-2: typeclasses eauto.
+
+  rewrite <- !cc_conv_id.
+  apply fsim_rsq_sk. apply clight_determinate.
   apply BQ.bq_correct0. apply linkorder_bq.
-Admitted.
+Qed.
 
 (** ** Rb correctness *)
 
@@ -641,26 +782,30 @@ Proof.
   rewrite de_vcomp_ref.
   rewrite vcomp_assoc.
   rewrite <- (vcomp_left_id (@E0_conv li_c)).
-  eapply rsq_vcomp. constructor. admit. admit.
-  apply deencap_rsq. apply ϕ_rb0.
-Admitted.
+  eapply rsq_vcomp. constructor.
+  3: apply deencap_rsq. 3: apply ϕ_rb0.
+  1-2: typeclasses eauto.
+Qed.
 
 Definition ϕ_rb_conv := vcomp (vcomp E_rb_rb0_conv' rb_cc) (ClightP.pin ce).
 
 Lemma ϕ_rb_with_internals : rsq E0_conv ϕ_rb_conv rs_ready Π_rb (Clight.semantics2 rbc).
 Proof.
   unfold ϕ_rb_conv. erewrite E0_conv_vcomp.
-  eapply rsq_vcomp. constructor. admit. admit.
-  2: { eapply fsim_rsq_sk. admit.
+  eapply rsq_vcomp. constructor. 
+  4: { eapply fsim_rsq_sk. apply clight_determinate.
        apply ClightP.transl_program_correct. apply HT2.
        cbn. erewrite ClightP.clightp_skel_correct.
        apply linkorder_rb. apply HT2. }
-  erewrite E0_conv_vcomp. eapply rsq_vcomp. constructor. admit. admit.
-  2: { eapply fsim_rsq_sk. admit. apply rb_correct2.
+  1-2: typeclasses eauto.
+  erewrite E0_conv_vcomp. eapply rsq_vcomp. constructor.
+  4: { eapply fsim_rsq_sk. apply clightp_determinate.
+       apply rb_correct2.
        cbn. erewrite ClightP.clightp_skel_correct.
        apply linkorder_rb. apply HT2. }
+  1-2: typeclasses eauto.
   apply ϕ_rb1.
-Admitted.
+Qed.
 
 (** ** Putting things together *)
 
