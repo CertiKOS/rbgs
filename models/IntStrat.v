@@ -849,7 +849,7 @@ Section COMPOSE_COMPOSE.
         eauto 100 using Downset.closed.
   Qed.
 End COMPOSE_COMPOSE.
-                                  
+
 (** *** Isomorphisms *)
 
 Class Retraction {E F} (f : strat E F ready) (g : strat F E ready) :=
@@ -1176,16 +1176,214 @@ Section FCOMP_UNIT.
   Admitted.
 End FCOMP_UNIT.
 
-(** **** Associator *)
+Section FCOMP_ASSOC.
+  Context {E F G : esig}.
+  Obligation Tactic := cbn.
+  Infix "+" := fcomp.
+
+  (** **** Associator *)
+
+  Variant fapos : @position ((E + F) + G) (E + (F + G)) -> Type :=
+    | fapos_ready : fapos ready
+    | fapos_left q : fapos (suspended (inl q) (inl (inl q)))
+    | fapos_mid q : fapos (suspended (inr (inl q)) (inl (inr q)))
+    | fapos_right q : fapos (suspended (inr (inr q)) (inr q)).
+
+  Inductive falph_has : forall {i}, fapos i -> play i -> Prop :=
+    | falph_ready :
+        falph_has fapos_ready pnil_ready
+    | falph_question_l q s :
+        falph_has (fapos_left q) s ->
+        falph_has fapos_ready (oq (inl q) :: pq (inl (inl q)) :: s)
+    | falph_question_m q s :
+        falph_has (fapos_mid q) s ->
+        falph_has fapos_ready (oq (inr (inl q)) :: pq (inl (inr q)) :: s)
+    | falph_question_r q s :
+        falph_has (fapos_right q) s ->
+        falph_has fapos_ready (oq (inr (inr q)) :: pq (inr q) :: s)
+    | falph_suspended_l q :
+        falph_has (fapos_left q) (pnil_suspended _ _)
+    | falph_suspended_m q :
+        falph_has (fapos_mid q) (pnil_suspended _ _)
+    | falph_suspended_r q :
+        falph_has (fapos_right q) (pnil_suspended _ _)
+    | falph_answer_l q r s :
+        falph_has fapos_ready s ->
+        falph_has (fapos_left q) (oa (m := inl (inl q)) r :: pa (q := inl q) r :: s)
+    | falph_answer_m q r s :
+        falph_has fapos_ready s ->
+        falph_has (fapos_mid q) (oa (m := inl (inr q)) r :: pa (q := inr (inl q)) r :: s)
+    | falph_answer_r (q : G) (r : ar q) s :
+        falph_has fapos_ready s ->
+        falph_has (fapos_right q) (oa (m := inr q) r :: pa (q := inr (inr q)) r :: s).
+
+  Program Definition falph {i} (p : fapos i) : strat _ _ i :=
+    {| Downset.has := falph_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+
+  (** **** Associator inverse *)
+
+  Variant farpos : @position (E + (F + G)) ((E + F) + G) -> Type :=
+    | farpos_ready : farpos ready
+    | farpos_left q : farpos (suspended (inl (inl q)) (inl q))
+    | farpos_mid q : farpos (suspended (inl (inr q)) (inr (inl q)))
+    | farpos_right q : farpos (suspended (inr q) (inr (inr q))).
+
+  Inductive falphr_has : forall {i}, farpos i -> play i -> Prop :=
+    | falphr_ready :
+        falphr_has farpos_ready pnil_ready
+    | falphr_question_l q s :
+        falphr_has (farpos_left q) s ->
+        falphr_has farpos_ready (oq (inl (inl q)) :: pq (inl q) :: s)
+    | falphr_question_m q s :
+        falphr_has (farpos_mid q) s ->
+        falphr_has farpos_ready (oq (inl (inr q)) :: pq (inr (inl q)) :: s)
+    | falphr_question_r q s :
+        falphr_has (farpos_right q) s ->
+        falphr_has farpos_ready (oq (inr q) :: pq (inr (inr q)) :: s)
+    | falphr_suspended_l q :
+        falphr_has (farpos_left q) (pnil_suspended _ _)
+    | falphr_suspended_m q :
+        falphr_has (farpos_mid q) (pnil_suspended _ _)
+    | falphr_suspended_r q :
+        falphr_has (farpos_right q) (pnil_suspended _ _)
+    | falphr_answer_l (q : E) (r : ar q) s :
+        falphr_has farpos_ready s ->
+        falphr_has (farpos_left q) (oa (m := inl q) r :: pa (q := inl (inl q)) r :: s)
+    | falphr_answer_m q r s :
+        falphr_has farpos_ready s ->
+        falphr_has (farpos_mid q) (oa (m := inr (inl q)) r :: pa (q := inl (inr q)) r :: s)
+    | falphr_answer_r (q : G) (r : ar q) s :
+        falphr_has farpos_ready s ->
+        falphr_has (farpos_right q) (oa (m := inr (inr q)) r :: pa (q := inr q) r :: s).
+
+  Program Definition falphr {i} (p : farpos i) : strat _ _ i :=
+    {| Downset.has := falphr_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+
+  (** **** Associator properties *)
+
+  Global Instance falph_iso :
+    Isomorphism (falph fapos_ready) (falphr farpos_ready).
+  Proof.
+  Admitted.
+End FCOMP_ASSOC.
+
+(** **** Triangle diagram *)
+
+(** **** Pentagon diagram *)
+
+(** *** Symmetric monoidal structure *)
 
 (** **** Braiding *)
 
-(** *** Projections and duplication *)
+Section FCOMP_SYMM.
+  Context {E F : esig}.
+  Obligation Tactic := cbn.
+  Infix "+" := fcomp.
+
+  Variant fgpos : @position (F + E) (E + F) -> Type :=
+    | fgpos_ready : fgpos ready
+    | fgpos_left q : fgpos (suspended (inl q) (inr q))
+    | fgpos_right q : fgpos (suspended (inr q) (inl q)).
+
+  Inductive fgam_has : forall {i}, fgpos i -> play i -> Prop :=
+    | fgam_ready :
+        fgam_has fgpos_ready pnil_ready
+    | fgam_question_l q s :
+        fgam_has (fgpos_left q) s ->
+        fgam_has fgpos_ready (oq (inl q) :: pq (inr q) :: s)
+    | fgam_question_r q s :
+        fgam_has (fgpos_right q) s ->
+        fgam_has fgpos_ready (oq (inr q) :: pq (inl q) :: s)
+    | fgam_suspended_l q :
+        fgam_has (fgpos_left q) (pnil_suspended _ _)
+    | fgam_suspended_r q :
+        fgam_has (fgpos_right q) (pnil_suspended _ _)
+    | fgam_answer_l q r s :
+        fgam_has fgpos_ready s ->
+        fgam_has (fgpos_left q) (oa (m:=inr q) r :: pa (q:=inl q) r :: s)
+    | fgam_answer_r q r s :
+        fgam_has fgpos_ready s ->
+        fgam_has (fgpos_right q) (oa (m:=inl q) r :: pa (q:=inr q) r :: s).
+
+  Program Definition fgam {i} (p : fgpos i) : strat (F + E) (E + F) i :=
+    {| Downset.has := fgam_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+End FCOMP_SYMM.
+
+(** **** Hexagon identity *)
+
+(** **** Braiding is its own inverse *)
+
+Global Instance fgam_iso {E F} :
+  Isomorphism (@fgam E F _ fgpos_ready) (@fgam F E _ fgpos_ready).
+Proof.
+Admitted.
+
+(** *** Duplication and projections *)
 
 (** Although [fcomp] is not a cartesian product, it is possible to
   duplicate an interface or drop an unused component of the signature. *)
 
- (* pi1, pi2, delta *)
+(** **** Duplication *)
+
+Section FCOMP_DELTA.
+  Context {E : esig}.
+  Obligation Tactic := cbn.
+  Infix "+" := fcomp.
+
+  Variant fdpos : @position E (E + E) -> Type :=
+    | fdpos_ready : fdpos ready
+    | fdpos_left q : fdpos (suspended (inl q) q)
+    | fdpos_right q : fdpos (suspended (inr q) q).
+
+  Inductive fdel_has : forall {i}, fdpos i -> play i -> Prop :=
+    | fdel_ready :
+        fdel_has fdpos_ready pnil_ready
+    | fdel_question_l q s :
+        fdel_has (fdpos_left q) s ->
+        fdel_has fdpos_ready (oq (inl q) :: pq q :: s)
+    | fdel_question_r q s :
+        fdel_has (fdpos_right q) s ->
+        fdel_has fdpos_ready (oq (inr q) :: pq q :: s)
+    | fdel_suspended_l q :
+        fdel_has (fdpos_left q) (pnil_suspended _ _)
+    | fdel_suspended_r q :
+        fdel_has (fdpos_right q) (pnil_suspended _ _)
+    | fdel_answer_l q r s :
+        fdel_has fdpos_ready s ->
+        fdel_has (fdpos_left q) (oa (m:=q) r :: pa (q:=inl q) r :: s)
+    | fdel_answer_r q r s :
+        fdel_has fdpos_ready s ->
+        fdel_has (fdpos_right q) (oa (m:=q) r :: pa (q:=inr q) r :: s).
+
+  Program Definition fdel {i} (p : fdpos i) : strat E (E + E) i :=
+    {| Downset.has := fdel_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+End FCOMP_DELTA.
+
+(** **** Projections *)
 
 Section FCOMP_PROJ.
   Context {E1 E2 : esig}.
@@ -1198,7 +1396,7 @@ Section FCOMP_PROJ.
     | ffst_ready :
         ffst_has ffpos_ready pnil_ready
     | ffst_question q1 s :
-        ffst_has (ffpos_suspended q1) s -> 
+        ffst_has (ffpos_suspended q1) s ->
         ffst_has ffpos_ready (oq q1 :: pq (inl q1) :: s)
     | ffst_suspended q1 :
         ffst_has (ffpos_suspended q1) (pnil_suspended q1 (inl q1))
@@ -1223,7 +1421,7 @@ Section FCOMP_PROJ.
     | fsnd_ready :
         fsnd_has fspos_ready pnil_ready
     | fsnd_question q2 s :
-        fsnd_has (fspos_suspended q2) s -> 
+        fsnd_has (fspos_suspended q2) s ->
         fsnd_has fspos_ready (oq q2 :: pq (inr q2) :: s)
     | fsnd_suspended q2 :
         fsnd_has (fspos_suspended q2) (pnil_suspended q2 (inr q2))
@@ -1240,6 +1438,18 @@ Section FCOMP_PROJ.
       dependent destruction H; try constructor; auto.
   Qed.
 End FCOMP_PROJ.
+
+(** **** Properties *)
+
+Global Instance ffst_fdelta {E : esig} :
+  Retraction (ffst ffpos_ready) (fdel (E:=E) fdpos_ready).
+Proof.
+Admitted.
+
+Global Instance fsnd_fdelta {E : esig} :
+  Retraction (fsnd fspos_ready) (fdel (E:=E) fdpos_ready).
+Proof.
+Admitted.
 
 
 (** * §4 REFINEMENT CONVENTIONS *)
