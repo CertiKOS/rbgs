@@ -1,9 +1,20 @@
 Require Import Classical.
+Require Import FunctionalExtensionality.
 Require Import Program.Equality.
 Require Import LogicalRelations.
 Require Import Poset.
 Require Import Lattice.
 Require Import Downset.
+
+(** * Preliminaries *)
+
+(** This instance is needed for rewrites under [sup] and [inf] to work. *)
+
+Instance funext_subrel {A B} :
+  subrelation (pointwise_relation _ eq) (@eq (A -> B)).
+Proof.
+  exact (@functional_extensionality A B).
+Qed.
 
 
 (** * §2 COMPOSITIONAL SEMANTICS FOR VERIFICATION *)
@@ -2482,7 +2493,131 @@ End VCOMP_VID.
 
 (** *** Definition 4.8 (Flat composition of refinement conventions) *)
 
+Section FCOMP_RC.
+  Context {E1 E2 F1 F2 : esig}.
+  Obligation Tactic := cbn.
+
+  Fixpoint fcomp_rc_has (R S : conv _ _) (s: rcp (E1 + F1) (E2 + F2)) : Prop :=
+    match s with
+      | rcp_allow (inl q1) (inl q2) => Downset.has R (rcp_allow q1 q2)
+      | rcp_allow (inr q1) (inr q2) => Downset.has S (rcp_allow q1 q2)
+      | rcp_allow _ _ => False
+      | rcp_forbid (inl q1) (inl q2) r1 r2 => Downset.has R (rcp_forbid q1 q2 r1 r2)
+      | rcp_forbid (inr q1) (inr q2) r1 r2 => Downset.has S (rcp_forbid q1 q2 r1 r2)
+      | rcp_forbid _ _ _ _ => False
+      | rcp_cont (inl q1) (inl q2) r1 r2 k =>
+          Downset.has R (rcp_forbid q1 q2 r1 r2) \/
+          Downset.has R (rcp_allow q1 q2) /\ fcomp_rc_has (rcnext q1 q2 r1 r2 R) S k
+      | rcp_cont (inr q1) (inr q2) r1 r2 k =>
+          Downset.has S (rcp_forbid q1 q2 r1 r2) \/
+          Downset.has S (rcp_allow q1 q2) /\ fcomp_rc_has R (rcnext q1 q2 r1 r2 S) k
+      | rcp_cont _ _ _ _ _ => False
+    end.
+
+  Program Definition fcomp_rc R S : conv (E1 + F1) (E2 + F2) :=
+    {| Downset.has := fcomp_rc_has R S |}.
+  Next Obligation.
+    intros R S s t Hst Ht. revert R S s Ht Hst.
+    induction t as [[q1|q1] [q2|q2] |
+                    [q1|q1] [q2|q2] r1 r2 |
+                    [q1|q1] [q2|q2] r1 r2 k]; intros; cbn in *;
+    dependent destruction Hst; cbn; eauto.
+    - destruct Ht as [ | [? ?]]; eauto.
+    - destruct Ht as [ | [? ?]]; eauto.
+    - destruct Ht as [ | [? ?]]; eauto.
+    - destruct Ht as [ | [? ?]]; eauto.
+  Qed.
+End FCOMP_RC.
+
+Infix "+" := fcomp_rc : conv_scope.
+
 (** *** Theorem 4.9 (Flat composition properties) *)
+
+(** **** Functoriality of ⊕ *)
+
+Section FCOMP_VID.
+  Context {E F : esig}.
+
+  Lemma fcomp_vid :
+    (@vid E) + (@vid F) = @vid (E + F).
+  Proof.
+    apply Downset.has_eq_ext. intros s.
+    induction s as [[q1|q1] [q2|q2] |
+                    [q1|q1] [q2|q2] r1 r2 |
+                    [q1|q1] [q2|q2] r1 r2 k]; cbn in *;
+    try firstorder congruence.
+    - firstorder; try congruence.
+      + subst. dependent destruction H2.
+        rewrite rcnext_vid in H3. auto.
+      + dependent destruction H1.
+        destruct (classic (r1 ~= r2)); auto.
+        dependent destruction H1.
+        rewrite rcnext_vid. auto.
+    - firstorder; try congruence.
+      + subst. dependent destruction H2.
+        rewrite rcnext_vid in H3. auto.
+      + dependent destruction H1.
+        destruct (classic (r1 ~= r2)); auto.
+        dependent destruction H1.
+        rewrite rcnext_vid. auto.
+  Qed.
+End FCOMP_VID.
+
+Section FCOMP_VCOMP.
+  Context {E1 E2 F1 F2 G1 G2 : esig}.
+
+  Lemma fcomp_vcomp (R1: conv E1 F1) (R2: conv E2 F2) (S1: conv F1 G1) (S2: conv F2 G2):
+    (R1 ;; S1) + (R2 ;; S2) = (R1 + R2) ;; (S1 + S2).
+  Proof.
+    assert (Hex: forall A B (P: A+B -> Prop),
+               ex P <-> (exists a, P (inl a)) \/ (exists b, P (inr b))).
+    {
+      firstorder. destruct x; eauto.
+    }
+    apply Downset.has_eq_ext. intro s. revert R1 R2 S1 S2.
+    induction s as [[q1|q1] [q2|q2] | [q1|q1] [q2|q2] r1 r2 | [q1|q1] [q2|q2] r1 r2 k];
+    intros; [ cbn in *; rewrite Hex; firstorder .. | | | | ].
+    - split.
+      + cbn; rewrite Hex.
+        intros H. left.
+        destruct H as [(qi & Hq1 & Hq2 & Hr) | ((qi & Hq1 & Hq2) & Hk)].
+        * exists qi; repeat (split; auto). intro ri. destruct (Hr ri); auto.
+        * exists qi; repeat (split; auto). intro ri. right. right.
+          (** will need rcnext/sup/inf properties for fcomp_rc *)
+  Admitted.
+End FCOMP_VCOMP.
+
+(** **** Flat composition of refinement squares *)
+
+Section FCOMP_RSQ.
+  Context {E1 E2 F1 F2 E1' E2' F1' F2' : esig}.
+
+  (*
+  Variant fcrspos :
+    forall {i1 i2 i j1 j2 j}, fcpos i1 i2 i -> fcpos j1 j2 j ->
+                              rspos i1 j1 -> rspos i2 j2 -> rspos i j -> Type :=
+    | fcrs_ready :
+        fcrspos fcpos_ready fcpos_ready
+                rs_ready rs_ready rs_ready
+    | fcrs_running_l (q1 : F1) (q2 : F2) :
+        fcrspos (fcpos_running_l q1) (fcpos_running_l q2)
+                (rs_running q1 q2) rs_ready (rs_running (inl q1) (inl q2))
+    | fcrs_running_r (q1 : F2) (q2 : F2') :
+        fcrspos (fcpos_running_r q1) (fcpos_running_r q2)
+                rs_ready (rs_running q1 q2) (rs_running (inr q1) (inr q2)).
+   *)
+
+  Lemma fcomp_rsq :
+    forall (R1 : conv E1 E1') (S1 : conv F1 F1') (σ1 : E1 ->> F1) (τ1 : E1' ->> F1')
+           (R2 : conv E2 E2') (S2 : conv F2 F2') (σ2 : E2 ->> F2) (τ2 : E2' ->> F2'),
+      rsq R1 S1 σ1 τ1 ->
+      rsq R2 S2 σ2 τ2 ->
+      rsq (R1 + R2) (S1 + S2) (σ1 + σ2)%strat (τ1 + τ2)%strat.
+  Proof.
+  Admitted.
+End FCOMP_RSQ.
+
+(** *** Monoidal structure *)
 
 (** * Spatial composition *)
 
