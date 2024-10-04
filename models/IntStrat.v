@@ -6,9 +6,16 @@ Require Import Lattice.
 Require Import Downset.
 
 
-(** * Preliminaries *)
+(** * §2 COMPOSITIONAL SEMANTICS FOR VERIFICATION *)
 
-(** Effect signature *)
+(** This section introduces the basic definitions below. However, for
+  the most part it is a high-level overview of the framework which is
+  formally defined in the following section. We have formalized
+  examples separately; see [examples/CompCertStrat.v]. *)
+
+(** ** §2.2 Effect Signatures *)
+
+(** *** Definition 2.1 (Effect signature) *)
 
 Record esig :=
   {
@@ -17,14 +24,41 @@ Record esig :=
   }.
 
 Arguments ar {_}.
+Declare Scope esig_scope.
+Delimit Scope esig_scope with esig.
+Bind Scope esig_scope with esig.
+
+(** ** §2.6 Combining Effect Signatures *)
+
+(** *** Definition 2.9 (Sum of signatures) *)
+
+(** We only formalize the binary and nullary cases. *)
+
+Canonical Structure fcomp E F :=
+  {|
+    op := op E + op F;
+    ar m := match m with inl m | inr m => ar m end;
+  |}.
+
+Infix "+" := fcomp : esig_scope.
+
+Canonical Structure Empty_sig :=
+  {|
+    op := Empty_set;
+    ar m := match m with end;
+  |}.
+
+Notation "0" := Empty_sig : esig_scope.
 
 
-(** * Strategies *)
+(** * §3 STRATEGY MODEL *)
+
+(** ** §3.1 Strategies *)
 
 Section STRAT.
   Context {E F : esig}.
 
-  (** ** Moves *)
+  (** *** Def 3.1 (Strategy) *)
 
   Variant position :=
     | ready
@@ -68,7 +102,29 @@ Section STRAT.
   Definition strat (p : position) :=
     downset (play_poset p).
 
-  (** ** Useful lemmas *)
+  (** *** Useful lemmas *)
+
+  Lemma strat_closed {p} (σ : strat p) (s t : play p) :
+    Downset.has σ t ->
+    pref s t ->
+    Downset.has σ s.
+  Proof.
+    eauto using Downset.closed.
+  Qed.
+
+  Lemma strat_has_any_pnil_ready (σ : strat ready) (s : play ready) :
+    Downset.has σ s ->
+    Downset.has σ pnil_ready.
+  Proof.
+    eauto using strat_closed, pnil_ready_pref.
+  Qed.
+
+  Lemma strat_has_any_pnil_suspended {q m} (σ : strat (suspended q m)) s :
+    Downset.has σ s ->
+    Downset.has σ (pnil_suspended q m).
+  Proof.
+    eauto using strat_closed, pnil_suspended_pref.
+  Qed.
 
   Lemma pcons_eq_inv_l {i j} (m1 m2 : move i j) (s1 s2 : play j) :
     pcons m1 s1 = pcons m2 s2 -> m1 = m2.
@@ -94,7 +150,7 @@ Section STRAT.
     intro H. dependent destruction H. reflexivity.
   Qed.
 
-  (** ** Determinism *)
+  (** *** Determinism *)
 
   Inductive pcoh : forall {i : position}, relation (play i) :=
     | pnil_ready_pcoh_l s : pcoh pnil_ready s
@@ -141,7 +197,7 @@ Section STRAT.
     intros H. dependent destruction H. auto.
   Qed.
 
-  (** ** Residuals *)
+  (** *** Residuals *)
 
   Section NEXT.
     Context {i j} (e : move i j).
@@ -207,43 +263,59 @@ End STRAT.
 Arguments strat : clear implicits.
 Infix "::" := pcons.
 
+Notation "E ->> F" := (strat E F ready) (at level 55, right associativity).
+Declare Scope strat_scope.
+Delimit Scope strat_scope with strat.
+Bind Scope strat_scope with strat.
+Open Scope strat_scope.
+
 (** To make using determinism properties easier, we provide the
   [determinism] tactic below. Additional hints in the [determinism]
   database can used to establish that the strategy makes particular
   moves. *)
 
-Hint Resolve determinism pcoh_inv_pq pcoh_inv_pa : determinism.
+Global Hint Resolve determinism pcoh_inv_pq pcoh_inv_pa : determinism.
 
-Hint Extern 1 (Downset.has ?σ (?e :: ?s)) =>
+Global Hint Extern 1 (Downset.has ?σ (?e :: ?s)) =>
        change (Downset.has (next e σ) s) : determinism.
 
 Ltac determinism m m' :=
   assert (m' = m) by eauto 10 with determinism;
   subst m'.
 
-(** ** Compositional structure *)
+(** ** §3.2 Layered Composition *)
+
+(** *** Def 3.4 (Layered Composition of Strategies) *)
 
 Section ID.
   Context {E : esig}.
   Obligation Tactic := cbn.
 
-  Inductive id_has : forall {p}, @play E E p -> Prop :=
-    | id_has_pnil_ready :
-        id_has pnil_ready
-    | id_has_q m s :
-        id_has s ->
-        id_has (oq m :: pq m :: s)
-    | id_has_pnil_suspended m :
-        id_has (@pnil_suspended E E m m)
-    | id_has_a {m} (n : ar m) s :
-        id_has s ->
-        id_has (oa n :: pa n :: s).
+  Variant idpos : @position E E -> Type :=
+    | id_ready : idpos ready
+    | id_suspended m : idpos (suspended m m).
 
-  Program Definition id : strat E E ready :=
-    {| Downset.has := id_has |}.
+  Inductive id_has : forall {i}, idpos i -> @play E E i -> Prop :=
+    | id_has_pnil_ready :
+        id_has id_ready pnil_ready
+    | id_has_q m s :
+        id_has (id_suspended m) s ->
+        id_has id_ready (oq m :: pq m :: s)
+    | id_has_pnil_suspended m :
+        id_has (id_suspended m) (@pnil_suspended E E m m)
+    | id_has_a {m} (n : ar m) s :
+        id_has id_ready s ->
+        id_has (id_suspended m) (oa n :: pa n :: s).
+
+  Program Definition id_when {i} (p : idpos i) : strat E E i :=
+    {| Downset.has := id_has p |}.
   Next Obligation.
-  Admitted.
+    intros i p s t Hst Ht.
+    induction Ht; repeat (dependent destruction Hst; try constructor; eauto).
+  Qed.
 End ID.
+
+Notation id E := (id_when (E:=E) id_ready).
 
 Section COMPOSE.
   Context {E F G : esig}.
@@ -284,9 +356,9 @@ Section COMPOSE.
         comp_has cpos_ready s t w ->
         comp_has (cpos_left q) (pa r :: s) t (pa r :: w).
 
-  Hint Constructors comp_has.
-  Hint Constructors pref.
-  Hint Resolve (fun E F i => reflexivity (R := @pref E F i)).
+  Hint Constructors comp_has : core.
+  Hint Constructors pref : core.
+  Hint Resolve (fun E F i => reflexivity (R := @pref E F i)) : core.
 
   Lemma comp_has_pref {i j k} (p : cpos i j k) s t w :
     comp_has p s t w ->
@@ -328,7 +400,7 @@ Section COMPOSE.
       edestruct IHcomp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
   Qed.
 
-  Program Definition compose {i j k} p (σ : strat F G i) (τ : strat E F j) : strat E G k :=
+  Program Definition compose_when {i j k} p (σ : strat F G i) (τ : strat E F j) : strat E G k :=
     {| Downset.has w :=
          exists s t, Downset.has σ s /\ Downset.has τ t /\ comp_has p s t w |}.
   Next Obligation.
@@ -340,7 +412,7 @@ Section COMPOSE.
   Global Instance compose_deterministic {i j k} p σ τ :
     Deterministic σ ->
     Deterministic τ ->
-    Deterministic (@compose i j k p σ τ).
+    Deterministic (@compose_when i j k p σ τ).
   Proof.
     intros Hσ Hτ. constructor.
     intros w1 w2 (s1 & t1 & Hs1 & Ht1 & H1) (s2 & t2 & Hs2 & Ht2 & H2).
@@ -375,8 +447,8 @@ Section COMPOSE.
   (** Properties of [compose] vs. [next] *)
 
   Lemma compose_next_oq q σ τ :
-    compose (cpos_left q) (next (oq q) σ) τ =
-    next (oq q) (compose cpos_ready σ τ).
+    compose_when (cpos_left q) (next (oq q) σ) τ =
+    next (oq q) (compose_when cpos_ready σ τ).
   Proof.
     apply antisymmetry; cbn.
     - intros w' (s & t & Hs & Ht & Hstw').
@@ -386,24 +458,24 @@ Section COMPOSE.
   Qed.
 
   Lemma compose_next_lq {q} m σ τ :
-    compose (cpos_right q m) (next (pq m) σ) (next (oq m) τ) [=
-    compose (cpos_left q) σ τ.
+    compose_when (cpos_right q m) (next (pq m) σ) (next (oq m) τ) [=
+    compose_when (cpos_left q) σ τ.
   Proof.
     intros w (s & t & Hs & Ht & Hw). cbn in Hs, Ht.
     econstructor; eauto.
   Qed.
 
   Lemma compose_next_rq {q m} u σ τ :
-    compose (cpos_suspended q m u) σ (next (pq u) τ) [=
-    next (pq u) (compose (cpos_right q m) σ τ).
+    compose_when (cpos_suspended q m u) σ (next (pq u) τ) [=
+    next (pq u) (compose_when (cpos_right q m) σ τ).
   Proof.
     intros w' (s & t & Hs & Ht & Hw). cbn in Ht.
     econstructor; eauto.
   Qed.
 
   Lemma compose_next_oa {q m u} v σ τ :
-    compose (cpos_right q m) σ (next (oa v) τ) =
-    next (oa v) (compose (cpos_suspended q m u) σ τ).
+    compose_when (cpos_right q m) σ (next (oa v) τ) =
+    next (oa v) (compose_when (cpos_suspended q m u) σ τ).
   Proof.
     apply antisymmetry.
     - intros w' (s & t & Hs & Ht & Hw'). cbn in Ht |- *.
@@ -413,34 +485,1051 @@ Section COMPOSE.
   Qed.
 
   Lemma compose_next_ra {q m} n σ τ :
-    compose (cpos_left q) (next (oa n) σ) (next (pa n) τ) [=
-    compose (cpos_right q m) σ τ.
+    compose_when (cpos_left q) (next (oa n) σ) (next (pa n) τ) [=
+    compose_when (cpos_right q m) σ τ.
   Proof.
     intros w' (s & t & Hs & Ht & Hw'). cbn in Hs, Ht |- *.
     eauto 10.
   Qed.
 
   Lemma compose_next_la {q} r σ τ :
-    compose cpos_ready (next (pa r) σ) τ [=
-    next (pa r) (compose (cpos_left q) σ τ).
+    compose_when cpos_ready (next (pa r) σ) τ [=
+    next (pa r) (compose_when (cpos_left q) σ τ).
   Proof.
     intros w' (s & t & Hs & Ht & Hw'). cbn in Hs |- *.
     eauto 10.
   Qed.
 End COMPOSE.
 
-(** ** §3.3 Flat Composition *)
+Notation compose := (compose_when cpos_ready).
+Infix "⊙" := compose (at level 45, right associativity) : strat_scope.
 
-Section FCOMP.
+(** *** Theorem 3.5 (Properties of Layered Composition) *)
+
+Section COMPOSE_ID.
   Context {E F : esig}.
 
-  Definition fcomp E F :=
-    {|
-      op := op E + op F;
-      ar m := match m with inl m | inr m => ar m end;
-    |}.
+  Hint Constructors id_has comp_has : core.
 
-End FCOMP.
+  (** When the identity is composed on the left,
+    it passes through incoming interactions unchanged. *)
+
+  Definition id_pos_l (i : @position E F) : @position F F :=
+    match i with
+      | ready => ready
+      | running q => suspended q q
+      | suspended q m => suspended q q
+    end.
+
+  Definition id_idpos_l i : idpos (id_pos_l i) :=
+    match i with
+      | ready => id_ready
+      | running q => id_suspended q
+      | suspended q m => id_suspended q
+    end.
+
+  Definition id_cpos_l i : cpos (id_pos_l i) i i :=
+    match i with
+      | ready => cpos_ready
+      | running q => cpos_right q q
+      | suspended q m => cpos_suspended q q m
+    end.
+
+  Lemma compose_id_has_l_gt {i} (s : @play E F i) :
+    exists t, id_has (id_idpos_l i) t /\ comp_has (id_cpos_l i) t s s.
+  Proof.
+    induction s; cbn; eauto 10.
+    destruct IHs as (t & Ht & Hst).
+    dependent destruction m; cbn in *; eauto 10.
+  Qed.
+
+  Lemma compose_id_has_l_lt {i} (s s': @play E F i) (t: @play F F (id_pos_l i)):
+    id_has (id_idpos_l i) t ->
+    comp_has (id_cpos_l i) t s s' ->
+    s' [= s.
+  Proof.
+    revert t s'.
+    induction s; cbn; intros t s' Ht Hs'.
+    - dependent destruction Hs'. { constructor. }
+      dependent destruction Ht.
+      dependent destruction Hs'.
+    - dependent destruction Hs'. constructor.
+    - dependent destruction Hs'; cbn in *.
+      + constructor.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+      + constructor; eauto.
+      + constructor; eauto.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+  Qed.
+
+  Lemma compose_id_l_when i (σ : strat E F i) :
+    compose_when (id_cpos_l i) (id_when (id_idpos_l i)) σ = σ.
+  Proof.
+    apply antisymmetry; cbn.
+    - intros w (s & t & Hs & Ht & Hw).
+      eapply Downset.closed; eauto using compose_id_has_l_lt.
+    - intros s Hs.
+      edestruct (compose_id_has_l_gt s) as (t & Ht & Hst); eauto.
+  Qed.
+
+  Lemma compose_id_l (σ : E ->> F) :
+    id F ⊙ σ = σ.
+  Proof.
+    apply compose_id_l_when.
+  Qed.
+
+  (** Likewise, when the identity is composed on the right,
+    it passes through outgoing interactions unchanged. *)
+
+  Definition id_pos_r (i : @position E F) : @position E E :=
+    match i with
+      | ready => ready
+      | running q => ready
+      | suspended q m => suspended m m
+    end.
+
+  Definition id_idpos_r i : idpos (id_pos_r i) :=
+    match i with
+      | ready => id_ready
+      | running q => id_ready
+      | suspended q m => id_suspended m
+    end.
+
+  Definition id_cpos_r i : cpos i (id_pos_r i) i :=
+    match i with
+      | ready => cpos_ready
+      | running q => cpos_left q
+      | suspended q m => cpos_suspended q m m
+    end.
+
+  Lemma compose_id_has_r_gt {i} (s : @play E F i) :
+    exists t, id_has (id_idpos_r i) t /\ comp_has (id_cpos_r i) s t s.
+  Proof.
+    induction s; cbn; eauto 10.
+    destruct IHs as (t & Ht & Hst).
+    dependent destruction m; cbn in *; eauto 10.
+  Qed.
+
+  Lemma compose_id_has_r_lt {i} (s s': @play E F i) (t: @play E E (id_pos_r i)):
+    id_has (id_idpos_r i) t ->
+    comp_has (id_cpos_r i) s t s' ->
+    s' [= s.
+  Proof.
+    revert t s'.
+    induction s; cbn; intros t s' Ht Hs'.
+    - dependent destruction Hs'. constructor.
+    - dependent destruction Hs'. { constructor. }
+      dependent destruction Ht.
+      dependent destruction Hs'.
+    - dependent destruction Hs'; cbn in *.
+      + constructor; eauto.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+      + constructor; eauto.
+      + dependent destruction Ht.
+        dependent destruction Hs'.
+        constructor; eauto.
+      + constructor; eauto.
+  Qed.
+
+  Lemma compose_id_r_when i (σ : strat E F i) :
+    compose_when (id_cpos_r i) σ (id_when (id_idpos_r i)) = σ.
+  Proof.
+    apply antisymmetry; cbn.
+    - intros w (s & t & Hs & Ht & Hw).
+      eapply Downset.closed; eauto using compose_id_has_r_lt.
+    - intros s Hs.
+      edestruct (compose_id_has_r_gt s) as (t & Ht & Hst); eauto.
+  Qed.
+
+  Lemma compose_id_r (σ : E ->> F) :
+    σ ⊙ id E = σ.
+  Proof.
+    apply compose_id_r_when.
+  Qed.
+End COMPOSE_ID.
+
+Section COMPOSE_COMPOSE.
+  Context {E F G H : esig}.
+
+  Variant ccpos :
+    forall {iσ iτ iυ iστ iτυ iστυ}, @cpos F G H iσ iτ iστ ->
+                                    @cpos E F G iτ iυ iτυ ->
+                                    @cpos E G H iσ iτυ iστυ ->
+                                    @cpos E F H iστ iυ iστυ -> Type :=
+    | ccpos_ready :
+        ccpos cpos_ready
+              cpos_ready
+              cpos_ready
+              cpos_ready
+    | ccpos_left q1 :
+        ccpos (cpos_left q1)
+              cpos_ready
+              (cpos_left q1)
+              (cpos_left q1)
+    | ccpos_mid q1 q2 :
+        ccpos (cpos_right q1 q2)
+              (cpos_left q2)
+              (cpos_right q1 q2)
+              (cpos_left q1)
+    | ccpos_right q1 q2 q3 :
+        ccpos (cpos_suspended q1 q2 q3)
+              (cpos_right q2 q3)
+              (cpos_right q1 q2)
+              (cpos_right q1 q3)
+    | ccpos_suspended q1 q2 q3 q4 :
+        ccpos (cpos_suspended q1 q2 q3)
+              (cpos_suspended q2 q3 q4)
+              (cpos_suspended q1 q2 q4)
+              (cpos_suspended q1 q3 q4).
+
+  Hint Constructors pref comp_has : core.
+
+  Ltac destruct_comp_has :=
+    repeat
+      match goal with
+      | H : comp_has _ (_ _) _ _ |- _ => dependent destruction H
+      | H : comp_has _ _ (_ _) _ |- _ => dependent destruction H
+      | H : comp_has _ _ _ (_ _) |- _ => dependent destruction H
+      | p : ccpos _ _ _ _ |- _ => dependent destruction p
+      end.
+
+  Lemma comp_has_assoc_1 {iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ} :
+    @ccpos iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ ->
+    forall s t st u stu,
+      comp_has pστ s t st ->
+      comp_has pστ_υ st u stu ->
+      exists s' t' u' tu,
+        s' [= s /\ t' [= t /\ u' [= u /\
+        comp_has pτυ t' u' tu /\
+        comp_has pσ_τυ s' tu stu.
+  Proof.
+    intros p s t st u stu Hst Hst_u. cbn.
+    revert iυ iτυ iστυ pτυ pσ_τυ pστ_υ p u stu Hst_u.
+    induction Hst; intros; cbn.
+    - (* ready *)
+      destruct_comp_has; eauto 10.
+    - (* environment question *)
+      destruct_comp_has; eauto 10.
+      rename t0 into u, w into st, w0 into stu.
+      edestruct (IHHst _ _ _ _ _ _ (ccpos_left q) u stu Hst_u)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu).
+      eauto 100.
+    - (* question of [σ] *)
+      destruct_comp_has; eauto 10.
+      rename w into st.
+      destruct (IHHst _ _ _ _ _ _ (ccpos_mid q m) u stu Hst_u)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu).
+      eauto 100.
+    - (* question of [τ] *)
+      destruct_comp_has; eauto 10.
+      rename u into x, w into st, t0 into u, w0 into stu.
+      destruct (IHHst _ _ _ _ _ _ (ccpos_right q m x) u stu Hst_u)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu).
+      eauto 100.
+    - (* [στ] suspended, note that [υ] may still do its thing for a while *)
+      rename u into x, u0 into u.
+      revert iτυ iστυ pτυ pστ_υ pσ_τυ p stu Hst_u.
+      induction u as [ | xx e | ? ? [ | ? e | ? e f | xx yy] u IHu]; intros;
+      dependent destruction p;
+      dependent destruction Hst_u;
+      eauto 100.
+      + (* question of [υ] *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_suspended q m x e))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+      + (* environment answer *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_right q m x))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+    - (* answer of [υ] -- note that as above, [u] could perform a series of
+        interaction with the environment before the answer which
+        synchronizes with [st] appears, hence we have to do the same
+        induction on [u] as we wait, but now an answer of [υ] is
+        possible and has us continue the top-level induction. *)
+      rename u into x, v into y, w into st, u0 into u.
+      revert iτυ iστυ pτυ pστ_υ pσ_τυ p stu Hst_u.
+      induction u as [ | xx e | ? ? [ | ? e | ? e f | xx yy] u IHu]; intros;
+      dependent destruction p;
+      dependent destruction Hst_u;
+      eauto 100.
+      + (* question of [υ] *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_suspended q m x e))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+      + (* environment answer *)
+        rename q0 into x.
+        edestruct (IHu _ _ _ _ _ (ccpos_right q m x))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+      + (* answer of [υ] *)
+        rename xx into x, yy into y.
+        edestruct (IHHst _ _ _ _ _ _ (ccpos_mid q m))
+          as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+    - (* answer of [τ] *)
+      rename w into st.
+      dependent destruction p.
+      edestruct (IHHst _ _ _ _ _ _ (ccpos_left q))
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+    - (* answer of [σ] *)
+      rename w into st.
+      dependent destruction p.
+      dependent destruction Hst_u.
+      edestruct (IHHst _ _ _ _ _ _ ccpos_ready)
+        as (s' & t' & u' & tu & Hs' & Ht' & Hu' & Htu & Hs_tu); eauto 100.
+  Qed.
+
+  Lemma comp_has_assoc_2 {iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ} :
+    @ccpos iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ ->
+    forall s t u tu stu,
+      comp_has pτυ t u tu ->
+      comp_has pσ_τυ s tu stu ->
+      exists s' t' u' st,
+        s' [= s /\ t' [= t /\ u' [= u /\
+        comp_has pστ s' t' st /\
+        comp_has pστ_υ st u' stu.
+  Proof.
+    intros p s t u tu stu Htu Hs_tu. cbn.
+    revert iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ p t u tu stu Htu Hs_tu.
+    induction s as [ | | _ _ [ | | | ] ]; intros.
+    - (* ready *)
+      destruct_comp_has; eauto 100.
+    - (* [σ] suspended *)
+      revert iστ iστυ pστ pσ_τυ pστ_υ p stu Hs_tu.
+      induction Htu; intros;
+      dependent destruction p;
+      dependent destruction Hs_tu;
+      eauto 100.
+      + (* question of [τ] *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* suspended *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_suspended _ _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* environment answer *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* answer of [υ] *)
+        edestruct (IHHtu _ _ _ _ _ (ccpos_mid _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* environment question *)
+      destruct_comp_has; eauto 100.
+      edestruct (IHs _ _ _ _ _ _ _ _ _ (ccpos_left _))
+        as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* question of [σ] *)
+      destruct_comp_has; eauto 100.
+      edestruct (IHs _ _ _ _ _ _ _ _ _ (ccpos_mid _ _))
+        as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* answer of [τ] -- after a while *)
+      revert iστ iστυ pστ pσ_τυ pστ_υ p stu Hs_tu.
+      induction Htu; intros.
+      + (* ready -- we'll be done before then *)
+        destruct_comp_has.
+      + (* question of [σ] -- we'll be done before then *)
+        destruct_comp_has.
+      + (* question of [τ] *)
+        dependent destruction p.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* question of [υ] *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_suspended _ _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* suspended *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        eauto 100.
+      + (* environment answer *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_right _ _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* answer of [υ] *)
+        dependent destruction p.
+        edestruct (IHHtu _ _ _ _ _ (ccpos_mid _ _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+      + (* answer of [τ] *)
+        dependent destruction p.
+        dependent destruction Hs_tu.
+        edestruct (IHs _ _ _ _ _ _ _ _ _ (ccpos_left _))
+          as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+    - (* answer of [σ] *)
+      destruct_comp_has; eauto 100.
+      edestruct (IHs _ _ _ _ _ _ _ _ _ ccpos_ready)
+        as (s' & t' & u' & st & Hs' & Ht' & Hu' & Hst & Hstu); eauto 100.
+  Qed.
+
+  Lemma compose_assoc_when {iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ} :
+    @ccpos iσ iτ iυ iστ iτυ iστυ pστ pτυ pσ_τυ pστ_υ ->
+    forall σ τ υ,
+      compose_when pστ_υ (compose_when pστ σ τ) υ =
+      compose_when pσ_τυ σ (compose_when pτυ τ υ).
+  Proof.
+    intros p ? ? ?.
+    apply antisymmetry; cbn.
+    - intros stu (st & u & (s & t & Hs & Ht & Hst) & Hu & Hstu).
+      edestruct @comp_has_assoc_1 as (s'&t'&u'& tu & Hs'& Ht'& Hu'& Htu & Hs_tu);
+        eauto 100 using Downset.closed.
+    - intros stu (s & tu & Hs & (t & u & Ht & Hu & Htu) & Hstu).
+      edestruct @comp_has_assoc_2 as (s'&t'&u'& st & Hs'& Ht'& Hu'& Hst & Hst_u);
+        eauto 100 using Downset.closed.
+  Qed.
+
+  Lemma compose_assoc (σ : G ->> H) (τ : F ->> G) (υ : E ->> F) :
+    (σ ⊙ τ) ⊙ υ = σ ⊙ τ ⊙ υ.
+  Proof.
+    apply compose_assoc_when.
+    constructor.
+  Qed.
+End COMPOSE_COMPOSE.
+
+(** *** Isomorphisms *)
+
+Class Retraction {E F} (f : E ->> F) (g : F ->> E) :=
+  {
+    retraction : f ⊙ g = id F;
+  }.
+
+Class Isomorphism {E F} (f : E ->> F) (g : F ->> E) :=
+  {
+    iso_fw :> Retraction f g;
+    iso_bw :> Retraction g f;
+  }.
+
+Lemma retract {E F G} `{Hfg : Retraction F G} (σ : strat E G ready) :
+  f ⊙ g ⊙ σ = σ.
+Proof.
+  rewrite <- compose_assoc.
+  rewrite retraction.
+  rewrite compose_id_l.
+  reflexivity.
+Qed.
+
+(** ** §3.3 Flat Composition *)
+
+(** *** Definition 3.6 (Flat composition of strategies) *)
+
+Section FCOMP_STRAT.
+  Context {E1 E2 F1 F2 : esig}.
+  Obligation Tactic := cbn.
+
+  Variant fcpos : @position E1 F1 -> @position E2 F2 -> @position (fcomp E1 E2) (fcomp F1 F2) -> Type :=
+    | fcpos_ready :
+        fcpos ready ready ready
+    | fcpos_running_l q1 :
+        fcpos (running q1) ready (running (inl q1))
+    | fcpos_running_r q2 :
+        fcpos ready (running q2) (running (inr q2))
+    | fcpos_suspended_l q1 m1 :
+        fcpos (suspended q1 m1) ready (suspended (inl q1) (inl m1))
+    | fcpos_suspended_r q2 m2 :
+        fcpos ready (suspended q2 m2) (suspended (inr q2) (inr m2)).
+
+  Inductive fcomp_has : forall {i1 i2 i}, fcpos i1 i2 i -> play i1 -> play i2 -> play i -> Prop :=
+    | fcomp_ready :
+        fcomp_has fcpos_ready pnil_ready pnil_ready pnil_ready
+    | fcomp_oq_l q1 s1 s2 s :
+        fcomp_has (fcpos_running_l q1) s1 s2 s ->
+        fcomp_has fcpos_ready (oq q1 :: s1) s2 (oq (inl q1) :: s)
+    | fcomp_oq_r q2 s1 s2 s :
+        fcomp_has (fcpos_running_r q2) s1 s2 s ->
+        fcomp_has fcpos_ready s1 (oq q2 :: s2) (oq (inr q2) :: s)
+    | fcomp_pq_l {q1} m1 s1 s2 s :
+        fcomp_has (fcpos_suspended_l q1 m1) s1 s2 s ->
+        fcomp_has (fcpos_running_l q1) (pq m1 :: s1) s2 (pq (inl m1) :: s)
+    | fcomp_pq_r {q2} m2 s1 s2 s :
+        fcomp_has (fcpos_suspended_r q2 m2) s1 s2 s ->
+        fcomp_has (fcpos_running_r q2) s1 (pq m2 :: s2) (pq (inr m2) :: s)
+    | fcomp_suspended_l q1 m1 s2 :
+        fcomp_has (fcpos_suspended_l q1 m1) (pnil_suspended q1 m1) s2 (pnil_suspended (inl q1) (inl m1))
+    | fcomp_suspended_r q2 m2 s1 :
+        fcomp_has (fcpos_suspended_r q2 m2) s1 (pnil_suspended q2 m2) (pnil_suspended (inr q2) (inr m2))
+    | fcomp_oa_l {q1 m1} n1 s1 s2 s :
+        fcomp_has (fcpos_running_l q1) s1 s2 s ->
+        fcomp_has (fcpos_suspended_l q1 m1) (oa n1 :: s1) s2 (oa (m:=inl m1) n1 :: s)
+    | fcomp_oa_r {q2 m2} n2 s1 s2 s :
+        fcomp_has (fcpos_running_r q2) s1 s2 s ->
+        fcomp_has (fcpos_suspended_r q2 m2) s1 (oa n2 :: s2) (oa (m:=inr m2) n2 :: s)
+    | fcomp_pa_l {q1} r1 s1 s2 s :
+        fcomp_has fcpos_ready s1 s2 s ->
+        fcomp_has (fcpos_running_l q1) (pa r1 :: s1) s2 (pa (q:=inl q1) r1 :: s)
+    | fcomp_pa_r {q2} r2 s1 s2 s :
+        fcomp_has fcpos_ready s1 s2 s ->
+        fcomp_has (fcpos_running_r q2) s1 (pa r2 :: s2) (pa (q:=inr q2) r2 :: s).
+
+  Hint Constructors fcomp_has pref : core.
+
+  Lemma fcomp_has_closed {i1 i2 i} p t1 t2 t :
+    @fcomp_has i1 i2 i p t1 t2 t ->
+    forall s, s [= t ->
+    exists s1 s2, s1 [= t1 /\ s2 [= t2 /\ fcomp_has p s1 s2 s.
+  Proof.
+    intros Ht s Hst. revert i1 i2 p t1 t2 Ht. cbn in *.
+    induction Hst; intros.
+    - dependent destruction p; eauto.
+    - dependent destruction p; eauto.
+    - dependent destruction Ht; edestruct IHHst as (? & ? & ? & ? & ?); eauto 10.
+  Qed.
+
+  Program Definition fcomp_when {i1 i2 i} p (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2) : strat (fcomp E1 E2) (fcomp F1 F2) i :=
+    {| Downset.has s :=
+        exists s1 s2, Downset.has σ1 s1 /\ Downset.has σ2 s2 /\ fcomp_has p s1 s2 s |}.
+  Next Obligation.
+    intros i1 i2 i p σ1 σ2 s t Hst (t1 & t2 & Ht1 & Ht2 & Ht).
+    edestruct (fcomp_has_closed p) as (s1 & s2 & Hst1 & Hst2 & Hs); eauto.
+    eauto 10 using Downset.closed.
+  Qed.
+End FCOMP_STRAT.
+
+Notation fcomp_st := (fcomp_when fcpos_ready).
+Infix "+" := fcomp_st : strat_scope.
+
+(** *** Theorem 3.7 (Properties of flat composition) *)
+
+Section COMPOSE_FCOMP.
+  Context {E1 E2 F1 F2 G1 G2 : esig}.
+
+  Variant fccpos :
+    forall {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12},
+      (* the left-hand side does ⊙ first then ⊕ *)
+      cpos i1 j1 ij1 -> cpos i2 j2 ij2 -> fcpos ij1 ij2 ij12 ->
+      (* the right-hand side does ⊕ first then ⊙ *)
+      fcpos i1 i2 i12 -> fcpos j1 j2 j12 -> cpos i12 j12 ij12 -> Type
+    :=
+    | fccpos_ready :
+        fccpos cpos_ready cpos_ready fcpos_ready
+               fcpos_ready fcpos_ready cpos_ready
+    (* running [σ1] *)
+    | fccpos_left_l (q1 : G1) :
+        fccpos (cpos_left q1) cpos_ready (fcpos_running_l q1)
+               (fcpos_running_l q1) fcpos_ready (cpos_left (inl q1))
+    (* running [σ2] *)
+    | fccpos_left_r (q2 : G2) :
+        fccpos cpos_ready (cpos_left q2) (fcpos_running_r q2)
+               (fcpos_running_r q2) fcpos_ready (cpos_left (inr q2))
+    (* running [τ] *)
+    | fccpos_right_l (q1 : G1) (m1 : F1) :
+        fccpos (cpos_right q1 m1) cpos_ready (fcpos_running_l q1)
+               (fcpos_suspended_l q1 m1) (fcpos_running_l m1) (cpos_right (inl q1) (inl m1))
+    | fccpos_right_r (q2 : G2) (m2 : F2) :
+        fccpos cpos_ready (cpos_right q2 m2) (fcpos_running_r q2)
+               (fcpos_suspended_r q2 m2) (fcpos_running_r m2) (cpos_right (inr q2) (inr m2))
+    (* [τ] suspended *)
+    | fccpos_suspended_l (q1 : G1) (m1 : F1) (u1 : E1) :
+        fccpos (cpos_suspended q1 m1 u1) cpos_ready (fcpos_suspended_l q1 u1)
+               (fcpos_suspended_l q1 m1) (fcpos_suspended_l m1 u1) (cpos_suspended (inl q1) (inl m1) (inl u1))
+    | fccpos_suspended_r (q2 : G2) (m2 : F2) (u2 : E2) :
+        fccpos cpos_ready (cpos_suspended q2 m2 u2) (fcpos_suspended_r q2 u2)
+               (fcpos_suspended_r q2 m2) (fcpos_suspended_r m2 u2) (cpos_suspended (inr q2) (inr m2) (inr u2)).
+
+  Hint Constructors comp_has fcomp_has : core.
+
+  Lemma fcomp_compose_has {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
+    @fccpos i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij ->
+    forall s1 s2 t1 t2 st,
+    (exists st1 st2,
+        comp_has p1 s1 t1 st1 /\
+        comp_has p2 s2 t2 st2 /\
+        fcomp_has p12 st1 st2 st) <->
+    (exists s12 t12,
+        fcomp_has qi s1 s2 s12 /\
+        fcomp_has qj t1 t2 t12 /\
+        comp_has qij s12 t12 st).
+  Proof.
+    intros p s1 s2 t1 t2 st. split.
+    - intros (st1 & st2 & Hst1 & Hst2 & Hst).
+  Admitted.
+
+  Lemma fcomp_compose_when {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
+    @fccpos i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij ->
+    forall σ1 σ2 τ1 τ2,
+      fcomp_when p12 (compose_when p1 σ1 τ1) (compose_when p2 σ2 τ2) =
+      compose_when qij (fcomp_when qi σ1 σ2) (fcomp_when qj τ1 τ2).
+  Proof.
+    intros p σ1 σ2 τ1 τ2.
+    pose proof (fcomp_compose_has p).
+    apply antisymmetry; cbn.
+    - intros s (st1 &st2 &(s1 &t1 &Hs1 &Ht1 &Hst1) &(s2 &t2 &Hs2 &Ht2 &Hst2) &Hs).
+      edestruct (proj1 (H s1 s2 t1 t2 s)) as (s12 & t12 & Hs12 & Ht12 & H'); eauto 100.
+    - intros s (s12 &t12 &(s1 &s2 &Hs1 &Hs2 &Hs12) &(t1 &t2 &Ht1 &Ht2 &Ht12) &Hs).
+      edestruct (proj2 (H s1 s2 t1 t2 s)) as (st1 & st2 & Hst1 & Hst2 & H'); eauto 100.
+  Qed.
+
+  Lemma fcomp_compose (σ1: F1->>G1) (σ2: F2->>G2) (τ1: E1->>F1) (τ2: E2->>F2) :
+    (σ1 ⊙ τ1) + (σ2 ⊙ τ2) = (σ1 + σ2) ⊙ (τ1 + τ2).
+  Proof.
+    apply fcomp_compose_when.
+    constructor.
+  Qed.
+End COMPOSE_FCOMP.
+
+Section FCOMP_ID.
+  Context {E1 E2 : esig}.
+
+  Variant fcipos :
+    forall {i1 i2 i}, idpos i1 -> idpos i2 -> fcpos i1 i2 i -> idpos i -> Type :=
+    | fcipos_ready :
+        fcipos id_ready id_ready fcpos_ready
+               id_ready
+    | fcipos_suspended_l (q1 : E1) :
+        fcipos (id_suspended q1) id_ready (fcpos_suspended_l q1 q1)
+               (id_suspended (inl q1))
+    | fcipos_suspended_r (q2 : E2) :
+        fcipos id_ready (id_suspended q2) (fcpos_suspended_r q2 q2)
+               (id_suspended (inr q2)).
+
+  Lemma fcomp_id_when {i1 i2 i p1 p2 p12 q} (p : @fcipos i1 i2 i p1 p2 p12 q) :
+    fcomp_when p12 (id_when p1) (id_when p2) = id_when q.
+  Admitted.
+
+  Lemma fcomp_id :
+    id E1 + id E2 = id (E1 + E2).
+  Proof.
+    apply fcomp_id_when.
+    constructor.
+  Qed.
+End FCOMP_ID.
+
+(** In addition to the bifunctor ⊕ we define the following structural maps.
+  Some of them are discussed informally in the paper's §2.6. *)
+
+(** *** Monoidal structure *)
+
+Section FCOMP_UNIT.
+  Context {E : esig}.
+  Obligation Tactic := cbn.
+
+  (** **** Left unitor *)
+
+  Variant flpos : @position (fcomp Empty_sig E) E -> Type :=
+    | flpos_ready : flpos ready
+    | flpos_suspended (q : E) : flpos (suspended q (inr q)).
+
+  Inductive flam_has : forall {i}, flpos i -> play i -> Prop :=
+    | flam_ready :
+        flam_has flpos_ready pnil_ready
+    | flam_question q s :
+        flam_has (flpos_suspended q) s ->
+        flam_has flpos_ready (oq q :: pq (inr q) :: s)
+    | flam_suspended q :
+        flam_has (flpos_suspended q) (pnil_suspended q (inr q))
+    | flam_answer q r s :
+        flam_has flpos_ready s ->
+        flam_has (flpos_suspended q) (oa (m:=inr q) r :: pa (q:=q) r :: s).
+
+  Program Definition flam_when {i} (p : flpos i) : strat (fcomp Empty_sig E) E i :=
+    {| Downset.has := flam_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Left unitor inverse *)
+
+  Variant flrpos : @position E (fcomp Empty_sig E) -> Type :=
+    | flrpos_ready : flrpos ready
+    | flrpos_suspended (q : E) : flrpos (suspended (inr q) q).
+
+  Inductive flamr_has : forall {i}, flrpos i -> play i -> Prop :=
+    | flamr_ready :
+        flamr_has flrpos_ready pnil_ready
+    | flamr_question q s :
+        flamr_has (flrpos_suspended q) s ->
+        flamr_has flrpos_ready (oq (inr q) :: pq q :: s)
+    | flamr_suspended q :
+        flamr_has (flrpos_suspended q) (pnil_suspended (inr q) q)
+    | flamr_answer q r s :
+        flamr_has flrpos_ready s ->
+        flamr_has (flrpos_suspended q) (oa (m:=q) r :: pa (q:=inr q) r :: s).
+
+  Program Definition flamr_when {i} (p : flrpos i) : strat E (fcomp Empty_sig E) i :=
+    {| Downset.has := flamr_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Left unitor properties *)
+
+  Global Instance flam_iso :
+    Isomorphism (flam_when flpos_ready) (flamr_when flrpos_ready).
+  Proof.
+  Admitted.
+
+  (** **** Right unitor *)
+
+  Variant frpos : @position (fcomp E Empty_sig) E -> Type :=
+    | frpos_ready : frpos ready
+    | frpos_suspended (q : E) : frpos (suspended q (inl q)).
+
+  Inductive frho_has : forall {i}, frpos i -> play i -> Prop :=
+    | frho_ready :
+        frho_has frpos_ready pnil_ready
+    | frho_question q s :
+        frho_has (frpos_suspended q) s ->
+        frho_has frpos_ready (oq q :: pq (inl q) :: s)
+    | frho_suspended q :
+        frho_has (frpos_suspended q) (pnil_suspended q (inl q))
+    | frho_answer q r s :
+        frho_has frpos_ready s ->
+        frho_has (frpos_suspended q) (oa (m:=inl q) r :: pa (q:=q) r :: s).
+
+  Program Definition frho_when {i} (p : frpos i) : strat (fcomp E Empty_sig) E i :=
+    {| Downset.has := frho_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Right unitor inverse *)
+
+  Variant frrpos : @position E (fcomp E Empty_sig) -> Type :=
+    | frrpos_ready : frrpos ready
+    | frrpos_suspended (q : E) : frrpos (suspended (inl q) q).
+
+  Inductive frhor_has : forall {i}, frrpos i -> play i -> Prop :=
+    | frhor_ready :
+        frhor_has frrpos_ready pnil_ready
+    | frhor_question q s :
+        frhor_has (frrpos_suspended q) s ->
+        frhor_has frrpos_ready (oq (inl q) :: pq q :: s)
+    | frhor_suspended q :
+        frhor_has (frrpos_suspended q) (pnil_suspended (inl q) q)
+    | frhor_answer q r s :
+        frhor_has frrpos_ready s ->
+        frhor_has (frrpos_suspended q) (oa (m:=q) r :: pa (q:=inl q) r :: s).
+
+  Program Definition frhor_when {i} (p : frrpos i) : strat E (fcomp E Empty_sig) i :=
+    {| Downset.has := frhor_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst;
+      try dependent destruction Hst;
+      constructor; auto.
+  Qed.
+
+  (** **** Right unitor properties *)
+
+  Global Instance frho_iso :
+    Isomorphism (frho_when frpos_ready) (frhor_when frrpos_ready).
+  Proof.
+  Admitted.
+End FCOMP_UNIT.
+
+Notation flam := (flam_when flpos_ready).
+Notation flamr := (flamr_when flrpos_ready).
+Notation frho := (frho_when frpos_ready).
+Notation frhor := (frhor_when frrpos_ready).
+
+Notation "λ+" := flam.
+Notation "λ'+" := flamr.
+Notation "ρ+" := frho.
+Notation "ρ'+" := frhor.
+
+Section FCOMP_ASSOC.
+  Context {E F G : esig}.
+  Obligation Tactic := cbn.
+
+  (** **** Associator *)
+
+  Variant fapos : @position ((E + F) + G) (E + (F + G)) -> Type :=
+    | fapos_ready : fapos ready
+    | fapos_left q : fapos (suspended (inl q) (inl (inl q)))
+    | fapos_mid q : fapos (suspended (inr (inl q)) (inl (inr q)))
+    | fapos_right q : fapos (suspended (inr (inr q)) (inr q)).
+
+  Inductive falph_has : forall {i}, fapos i -> play i -> Prop :=
+    | falph_ready :
+        falph_has fapos_ready pnil_ready
+    | falph_question_l q s :
+        falph_has (fapos_left q) s ->
+        falph_has fapos_ready (oq (inl q) :: pq (inl (inl q)) :: s)
+    | falph_question_m q s :
+        falph_has (fapos_mid q) s ->
+        falph_has fapos_ready (oq (inr (inl q)) :: pq (inl (inr q)) :: s)
+    | falph_question_r q s :
+        falph_has (fapos_right q) s ->
+        falph_has fapos_ready (oq (inr (inr q)) :: pq (inr q) :: s)
+    | falph_suspended_l q :
+        falph_has (fapos_left q) (pnil_suspended _ _)
+    | falph_suspended_m q :
+        falph_has (fapos_mid q) (pnil_suspended _ _)
+    | falph_suspended_r q :
+        falph_has (fapos_right q) (pnil_suspended _ _)
+    | falph_answer_l q r s :
+        falph_has fapos_ready s ->
+        falph_has (fapos_left q) (oa (m := inl (inl q)) r :: pa (q := inl q) r :: s)
+    | falph_answer_m q r s :
+        falph_has fapos_ready s ->
+        falph_has (fapos_mid q) (oa (m := inl (inr q)) r :: pa (q := inr (inl q)) r :: s)
+    | falph_answer_r (q : G) (r : ar q) s :
+        falph_has fapos_ready s ->
+        falph_has (fapos_right q) (oa (m := inr q) r :: pa (q := inr (inr q)) r :: s).
+
+  Program Definition falph_when {i} (p : fapos i) : strat _ _ i :=
+    {| Downset.has := falph_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+
+  (** **** Associator inverse *)
+
+  Variant farpos : @position (E + (F + G)) ((E + F) + G) -> Type :=
+    | farpos_ready : farpos ready
+    | farpos_left q : farpos (suspended (inl (inl q)) (inl q))
+    | farpos_mid q : farpos (suspended (inl (inr q)) (inr (inl q)))
+    | farpos_right q : farpos (suspended (inr q) (inr (inr q))).
+
+  Inductive falphr_has : forall {i}, farpos i -> play i -> Prop :=
+    | falphr_ready :
+        falphr_has farpos_ready pnil_ready
+    | falphr_question_l q s :
+        falphr_has (farpos_left q) s ->
+        falphr_has farpos_ready (oq (inl (inl q)) :: pq (inl q) :: s)
+    | falphr_question_m q s :
+        falphr_has (farpos_mid q) s ->
+        falphr_has farpos_ready (oq (inl (inr q)) :: pq (inr (inl q)) :: s)
+    | falphr_question_r q s :
+        falphr_has (farpos_right q) s ->
+        falphr_has farpos_ready (oq (inr q) :: pq (inr (inr q)) :: s)
+    | falphr_suspended_l q :
+        falphr_has (farpos_left q) (pnil_suspended _ _)
+    | falphr_suspended_m q :
+        falphr_has (farpos_mid q) (pnil_suspended _ _)
+    | falphr_suspended_r q :
+        falphr_has (farpos_right q) (pnil_suspended _ _)
+    | falphr_answer_l (q : E) (r : ar q) s :
+        falphr_has farpos_ready s ->
+        falphr_has (farpos_left q) (oa (m := inl q) r :: pa (q := inl (inl q)) r :: s)
+    | falphr_answer_m q r s :
+        falphr_has farpos_ready s ->
+        falphr_has (farpos_mid q) (oa (m := inr (inl q)) r :: pa (q := inl (inr q)) r :: s)
+    | falphr_answer_r (q : G) (r : ar q) s :
+        falphr_has farpos_ready s ->
+        falphr_has (farpos_right q) (oa (m := inr (inr q)) r :: pa (q := inr q) r :: s).
+
+  Program Definition falphr_when {i} (p : farpos i) : strat _ _ i :=
+    {| Downset.has := falphr_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+
+  (** **** Associator properties *)
+
+  Global Instance falph_iso :
+    Isomorphism (falph_when fapos_ready) (falphr_when farpos_ready).
+  Proof.
+  Admitted.
+End FCOMP_ASSOC.
+
+Notation falph := (falph_when fapos_ready).
+Notation falphr := (falphr_when farpos_ready).
+
+Notation "α+" := falph.
+Notation "α'+" := falphr.
+
+(** **** Triangle diagram *)
+
+(** **** Pentagon diagram *)
+
+(** *** Symmetric monoidal structure *)
+
+(** **** Braiding *)
+
+Section FCOMP_SYMM.
+  Context {E F : esig}.
+  Obligation Tactic := cbn.
+
+  Variant fgpos : @position (F + E) (E + F) -> Type :=
+    | fgpos_ready : fgpos ready
+    | fgpos_left q : fgpos (suspended (inl q) (inr q))
+    | fgpos_right q : fgpos (suspended (inr q) (inl q)).
+
+  Inductive fgam_has : forall {i}, fgpos i -> play i -> Prop :=
+    | fgam_ready :
+        fgam_has fgpos_ready pnil_ready
+    | fgam_question_l q s :
+        fgam_has (fgpos_left q) s ->
+        fgam_has fgpos_ready (oq (inl q) :: pq (inr q) :: s)
+    | fgam_question_r q s :
+        fgam_has (fgpos_right q) s ->
+        fgam_has fgpos_ready (oq (inr q) :: pq (inl q) :: s)
+    | fgam_suspended_l q :
+        fgam_has (fgpos_left q) (pnil_suspended _ _)
+    | fgam_suspended_r q :
+        fgam_has (fgpos_right q) (pnil_suspended _ _)
+    | fgam_answer_l q r s :
+        fgam_has fgpos_ready s ->
+        fgam_has (fgpos_left q) (oa (m:=inr q) r :: pa (q:=inl q) r :: s)
+    | fgam_answer_r q r s :
+        fgam_has fgpos_ready s ->
+        fgam_has (fgpos_right q) (oa (m:=inl q) r :: pa (q:=inr q) r :: s).
+
+  Program Definition fgam_when {i} (p : fgpos i) : strat (F + E) (E + F) i :=
+    {| Downset.has := fgam_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+End FCOMP_SYMM.
+
+Notation fgam := (fgam_when fgpos_ready).
+Notation "γ+" := fgam.
+
+(** **** Hexagon identity *)
+
+(** **** Braiding is its own inverse *)
+
+Global Instance fgam_iso {E F} :
+  Isomorphism (@fgam_when E F _ fgpos_ready) (@fgam_when F E _ fgpos_ready).
+Proof.
+Admitted.
+
+(** *** Duplication and projections *)
+
+(** Although [fcomp] is not a cartesian product, it is possible to
+  duplicate an interface or drop an unused component of the signature. *)
+
+(** **** Duplication *)
+
+Section FCOMP_DELTA.
+  Context {E : esig}.
+  Obligation Tactic := cbn.
+  Infix "+" := fcomp.
+
+  Variant fdpos : @position E (E + E) -> Type :=
+    | fdpos_ready : fdpos ready
+    | fdpos_left q : fdpos (suspended (inl q) q)
+    | fdpos_right q : fdpos (suspended (inr q) q).
+
+  Inductive fdel_has : forall {i}, fdpos i -> play i -> Prop :=
+    | fdel_ready :
+        fdel_has fdpos_ready pnil_ready
+    | fdel_question_l q s :
+        fdel_has (fdpos_left q) s ->
+        fdel_has fdpos_ready (oq (inl q) :: pq q :: s)
+    | fdel_question_r q s :
+        fdel_has (fdpos_right q) s ->
+        fdel_has fdpos_ready (oq (inr q) :: pq q :: s)
+    | fdel_suspended_l q :
+        fdel_has (fdpos_left q) (pnil_suspended _ _)
+    | fdel_suspended_r q :
+        fdel_has (fdpos_right q) (pnil_suspended _ _)
+    | fdel_answer_l q r s :
+        fdel_has fdpos_ready s ->
+        fdel_has (fdpos_left q) (oa (m:=q) r :: pa (q:=inl q) r :: s)
+    | fdel_answer_r q r s :
+        fdel_has fdpos_ready s ->
+        fdel_has (fdpos_right q) (oa (m:=q) r :: pa (q:=inr q) r :: s).
+
+  Program Definition fdel_when {i} (p : fdpos i) : strat E (E + E) i :=
+    {| Downset.has := fdel_has p |}.
+  Next Obligation.
+    intros i p s t Hst Ht. revert s Hst.
+    induction Ht; intros;
+      dependent destruction Hst; try solve [constructor; auto];
+      dependent destruction Hst; try solve [constructor; auto].
+  Qed.
+End FCOMP_DELTA.
+
+Notation fdel := (fdel_when fdpos_ready).
+Notation "Δ+" := fdel.
+
+(** **** Projections *)
+
+Section FCOMP_PROJ.
+  Context {E1 E2 : esig}.
+
+  Variant ffpos : @position (fcomp E1 E2) E1 -> Type :=
+    | ffpos_ready : ffpos ready
+    | ffpos_suspended (q1 : E1) : ffpos (suspended q1 (inl q1)).
+
+  Inductive ffst_has : forall {i}, ffpos i -> play i -> Prop :=
+    | ffst_ready :
+        ffst_has ffpos_ready pnil_ready
+    | ffst_question q1 s :
+        ffst_has (ffpos_suspended q1) s ->
+        ffst_has ffpos_ready (oq q1 :: pq (inl q1) :: s)
+    | ffst_suspended q1 :
+        ffst_has (ffpos_suspended q1) (pnil_suspended q1 (inl q1))
+    | ffst_answer q1 r1 s :
+        ffst_has ffpos_ready s ->
+        ffst_has (ffpos_suspended q1) (oa (m:=inl q1) r1 :: pa (q:=q1) r1 :: s).
+
+  Program Definition ffst_when {i} (p : ffpos i) : strat (fcomp E1 E2) E1 i :=
+    {| Downset.has := ffst_has p |}.
+  Next Obligation.
+    revert x H.
+    induction H0; intros;
+      dependent destruction H; try constructor; auto;
+      dependent destruction H; try constructor; auto.
+  Qed.
+
+  Variant fspos : @position (fcomp E1 E2) E2 -> Type :=
+    | fspos_ready : fspos ready
+    | fspos_suspended (q2 : E2) : fspos (suspended q2 (inr q2)).
+
+  Inductive fsnd_has : forall {i}, fspos i -> play i -> Prop :=
+    | fsnd_ready :
+        fsnd_has fspos_ready pnil_ready
+    | fsnd_question q2 s :
+        fsnd_has (fspos_suspended q2) s ->
+        fsnd_has fspos_ready (oq q2 :: pq (inr q2) :: s)
+    | fsnd_suspended q2 :
+        fsnd_has (fspos_suspended q2) (pnil_suspended q2 (inr q2))
+    | fsnd_answer q2 r2 s :
+        fsnd_has fspos_ready s ->
+        fsnd_has (fspos_suspended q2) (oa (m:=inr q2) r2 :: pa (q:=q2) r2 :: s).
+
+  Program Definition fsnd_when {i} (p : fspos i) : strat (fcomp E1 E2) E2 i :=
+    {| Downset.has := fsnd_has p |}.
+  Next Obligation.
+    revert x H.
+    induction H0; intros;
+      dependent destruction H; try constructor; auto;
+      dependent destruction H; try constructor; auto.
+  Qed.
+End FCOMP_PROJ.
+
+Notation ffst := (ffst_when ffpos_ready).
+Notation fsnd := (fsnd_when fspos_ready).
+Notation "π₁+" := ffst.
+Notation "π₂+" := fsnd.
+
+(** **** Properties *)
+
+Global Instance ffst_fdelta {E : esig} :
+  Retraction (F:=E) ffst fdel.
+Proof.
+Admitted.
+
+Global Instance fsnd_fdelta {E : esig} :
+  Retraction (F:=E) fsnd fdel.
+Proof.
+Admitted.
 
 
 (** * §4 REFINEMENT CONVENTIONS *)
@@ -451,7 +1540,7 @@ Section RC.
   Context {E1 E2 : esig}.
   Obligation Tactic := cbn.
 
-  (** *** Definition 4.1 *)
+  (** *** Definition 4.1 (Refinement convention) *)
 
   Inductive rcp :=
     | rcp_allow (m1 : op E1) (m2 : op E2)
@@ -505,7 +1594,7 @@ Section RC.
 
   (** *** Miscellaneous useful things *)
 
-  Hint Constructors rcp_ref.
+  Hint Constructors rcp_ref : core.
 
   Global Instance rcnext_ref :
     Monotonic rcnext (forallr -, forallr -, - ==> - ==> ref ++> ref).
@@ -575,12 +1664,17 @@ Global Hint Immediate
   conv_has_forbid_allow
   conv_has_forbid_cont : core.
 
+Declare Scope conv_scope.
+Delimit Scope conv_scope with conv.
+Bind Scope conv_scope with conv.
+Open Scope conv_scope.
+
 (** ** §4.3 Refinement Squares *)
 
 Section RSQ.
   Context {E1 E2 F1 F2 : esig}.
 
-  (** *** Definition 4.2 (Refinement Square) *)
+  (** *** Definition 4.2 (Refinement square) *)
 
   Variant rspos : @position E1 F1 -> @position E2 F2 -> Type :=
     | rs_ready : rspos ready ready
@@ -615,8 +1709,11 @@ Section RSQ.
         rsp R (rcnext q1 q2 r1 r2 S) rs_ready s (next (pa r2) τ) ->
         rsp R S (rs_running q1 q2) (pa r1 :: s) τ.
 
-  Definition rsq R S {i1 i2} p (σ : strat E1 F1 i1) (τ : strat E2 F2 i2) : Prop :=
+  Definition rsq_when R S {i1 i2} p (σ : strat E1 F1 i1) (τ : strat E2 F2 i2) : Prop :=
     forall s, Downset.has σ s -> rsp R S p s τ.
+
+  Definition rsq R S σ τ :=
+    rsq_when R S rs_ready σ τ.
 
   (** *** Monotonicity properties *)
 
@@ -642,15 +1739,22 @@ Section RSQ.
       eapply IHrsp; cbn; eauto.
   Qed.
 
-  Global Instance rsq_ref :
-    Monotonic rsq (ref ++> ref --> forallr -, forallr -, - ==> ref --> ref ++> impl).
+  Global Instance rsq_when_ref :
+    Monotonic rsq_when
+      (ref ++> ref --> forallr -, forallr -, - ==> ref --> ref ++> impl).
   Proof.
     intros R R' HR S S' HS i1 i2 p σ1 σ2 Hσ τ1 τ2 Hτ H s2 Hs2.
     rewrite <- HR, <- HS, <- Hτ.
     eapply H; eauto.
   Qed.
 
-  (** *** Determinism *)
+  Global Instance rsq_ref :
+    Monotonic rsq (ref ++> ref --> ref --> ref ++> impl).
+  Proof.
+    unfold rsq. rauto.
+  Qed.
+
+  (** *** Determinism hints *)
 
   Lemma rsp_ready_inv_nil R S s τ :
     rsp R S rs_ready s τ ->
@@ -671,9 +1775,9 @@ Section RSQ.
   (** *** Operational behavior *)
 
   Lemma rsq_next_oq {R S σ τ} q1 q2 :
-    rsq R S rs_ready σ τ ->
+    rsq_when R S rs_ready σ τ ->
     Downset.has S (rcp_allow q1 q2) ->
-    rsq R S (rs_running q1 q2) (next (oq q1) σ) (next (oq q2) τ).
+    rsq_when R S (rs_running q1 q2) (next (oq q1) σ) (next (oq q2) τ).
   Proof.
     intros Hστ Hq s Hs. cbn in *.
     specialize (Hστ _ Hs).
@@ -682,12 +1786,12 @@ Section RSQ.
   Qed.
 
   Lemma rsq_next_pq {R S q1 q2 σ τ} `{!Deterministic τ} m1 :
-    rsq R S (rs_running q1 q2) σ τ ->
+    rsq_when R S (rs_running q1 q2) σ τ ->
     Downset.has σ (pq m1 :: pnil_suspended q1 m1) ->
     exists m2,
       Downset.has R (rcp_allow m1 m2) /\
       Downset.has τ (pq m2 :: pnil_suspended q2 m2) /\
-      rsq R S (rs_suspended q1 q2 m1 m2) (next (pq m1) σ) (next (pq m2) τ).
+      rsq_when R S (rs_suspended q1 q2 m1 m2) (next (pq m1) σ) (next (pq m2) τ).
   Proof.
     intros Hστ H.
     apply Hστ in H.
@@ -701,9 +1805,9 @@ Section RSQ.
   Qed.
 
   Lemma rsq_next_oa {R S q1 q2 m1 m2 σ τ} n1 n2 :
-    rsq R S (rs_suspended q1 q2 m1 m2) σ τ ->
+    rsq_when R S (rs_suspended q1 q2 m1 m2) σ τ ->
     ~ Downset.has R (rcp_forbid m1 m2 n1 n2) ->
-    rsq (rcnext m1 m2 n1 n2 R) S (rs_running q1 q2) (next (oa n1) σ) (next (oa n2) τ).
+    rsq_when (rcnext m1 m2 n1 n2 R) S (rs_running q1 q2) (next (oa n1) σ) (next (oa n2) τ).
   Proof.
     intros Hστ Hn s Hs.
     specialize (Hστ _ Hs).
@@ -712,12 +1816,12 @@ Section RSQ.
   Qed.
 
   Lemma rsq_next_pa {R S q1 q2 σ τ} `{!Deterministic τ} r1 :
-    rsq R S (rs_running q1 q2) σ τ ->
+    rsq_when R S (rs_running q1 q2) σ τ ->
     Downset.has σ (pa r1 :: pnil_ready) ->
     exists r2,
       ~ Downset.has S (rcp_forbid q1 q2 r1 r2) /\
       Downset.has τ (pa r2 :: pnil_ready) /\
-      rsq R (rcnext q1 q2 r1 r2 S) rs_ready (next (pa r1) σ) (next (pa r2) τ).
+      rsq_when R (rcnext q1 q2 r1 r2 S) rs_ready (next (pa r1) σ) (next (pa r2) τ).
   Proof.
     intros Hστ H.
     apply Hστ in H.
@@ -831,8 +1935,8 @@ Section RSQ.
 
   Lemma rsq_sup {I} R S σ τ `{Hτ : !Deterministic τ} :
     inhabited I ->
-    (forall i:I, rsq R (S i) rs_ready σ τ) ->
-    rsq R (lsup S) rs_ready σ τ.
+    (forall i:I, rsq R (S i) σ τ) ->
+    rsq R (lsup S) σ τ.
   Proof.
     intros HI H s Hs.
     apply rsp_sup; auto.
@@ -914,10 +2018,12 @@ Section RSQ.
   Qed.
 End RSQ.
 
-Hint Resolve rsp_ready_inv_nil rsp_suspended_inv_nil : determinism.
+Global Hint Resolve rsp_ready_inv_nil rsp_suspended_inv_nil : determinism.
+Global Hint Unfold rsq.
 
 Global Instance rsp_params : Params (@rsp) 7 := { }.
-Global Instance rsq_params : Params (@rsq) 7 := { }.
+Global Instance rsq_when_params : Params (@rsq_when) 7 := { }.
+Global Instance rsq_params : Params (@rsq) 4 := { }.
 
 Section RSQ_COMP.
   Context {E1 E2} (R : conv E1 E2).
@@ -948,97 +2054,113 @@ Section RSQ_COMP.
   (** Having enumerated them, we can formulate the compatibility of
     composition with refinement squares as follows. *)
 
-  Hint Constructors comp_has pref.
+  Hint Constructors comp_has pref rscpos : core.
 
-  Lemma rsq_comp {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
+  Lemma rsp_comp {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
+    @rscpos i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk ->
+    forall (s : @play F1 G1 i1) (t : @play E1 F1 j1)
+      (σ : strat F2 G2 i2) (τ : strat E2 F2 j2) (w : @play E1 G1 k1),
+      comp_has p1 s t w ->
+      rsp S T pi s σ ->
+      rsp R S pj t τ ->
+      rsp R T pk w (compose_when p2 σ τ).
+  Proof.
+    intros p s t σ τ w Hw Hs Ht.
+    revert R S T i2 j2 k2 p2 pi pj pk p σ τ Hs Ht.
+    induction Hw; intros.
+    - (* ready *)
+      dependent destruction p. dependent destruction Hs. constructor; cbn.
+      exists pnil_ready, pnil_ready. repeat apply conj; eauto.
+      dependent destruction Ht; eauto.
+    - (* incoming question *)
+      dependent destruction p. dependent destruction Hs. constructor; cbn.
+      + exists pnil_ready, pnil_ready. repeat apply conj; eauto.
+        dependent destruction Ht; eauto.
+      + intros q2 Hq. rewrite <- (compose_next_oq q2). eauto.
+    - (* internal question *)
+      dependent destruction p. dependent destruction Hs. dependent destruction Ht.
+      rewrite <- (compose_next_lq m2). eauto.
+    - (* outgoing question *)
+      dependent destruction p. dependent destruction Ht. econstructor; eauto.
+      rewrite <- compose_next_rq. eauto.
+    - (* suspended *)
+      dependent destruction p. dependent destruction Ht. constructor. cbn.
+      exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
+      repeat apply conj; eauto.
+      dependent destruction Hs; eauto.
+    - (* environment answer *)
+      dependent destruction p. dependent destruction Ht. constructor.
+      + exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
+        repeat apply conj; eauto. dependent destruction Hs; eauto.
+      + intros n2 Hn. rewrite <- compose_next_oa. eauto.
+    - (* answer of τ *)
+      dependent destruction p. dependent destruction Hs. dependent destruction Ht.
+      rewrite <- (compose_next_ra r2). eauto.
+    - (* answer of σ *)
+      dependent destruction p. dependent destruction Hs. econstructor; eauto.
+      rewrite <- (compose_next_la r2). eauto.
+  Qed.
+
+  Lemma rsq_comp_when {i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk} :
     @rscpos i1 j1 k1 i2 j2 k2 p1 p2 pi pj pk ->
     forall (σ1 : strat F1 G1 i1) (τ1 : strat E1 F1 j1)
-           (σ2 : strat F2 G2 i2) (τ2 : strat E2 F2 j2)
-           `{Hσ2 : !Deterministic σ2} `{Hτ2 : !Deterministic τ2},
-      rsq S T pi σ1 σ2 ->
-      rsq R S pj τ1 τ2 ->
-      rsq R T pk (compose p1 σ1 τ1) (compose p2 σ2 τ2).
+           (σ2 : strat F2 G2 i2) (τ2 : strat E2 F2 j2),
+      rsq_when S T pi σ1 σ2 ->
+      rsq_when R S pj τ1 τ2 ->
+      rsq_when R T pk (compose_when p1 σ1 τ1) (compose_when p2 σ2 τ2).
   Proof.
-    intros p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ w1 (s1 & t1 & Hs1 & Ht1 & Hst1).
-    revert R S T i2 j2 k2 p2 pi pj pk p σ1 τ1 σ2 τ2 Hσ2 Hτ2 Hσ Hτ Hs1 Ht1.
-    induction Hst1; intros; dependent destruction p.
-    - (* ready *)
-      constructor; cbn.
-      exists pnil_ready, pnil_ready.
-      eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-      specialize (Hσ _ Hs1). dependent destruction Hσ.
-      specialize (Hτ _ Ht1). dependent destruction Hτ.
-      eauto.
-    - (* incoming question *)
-      constructor.
-      + exists pnil_ready, pnil_ready.
-        eapply Downset.closed in Ht1; cbn; auto using pnil_ready_pref.
-        specialize (Hσ _ Hs1). dependent destruction Hσ.
-        specialize (Hτ _ Ht1). dependent destruction Hτ.
-        eauto.
-      + intros q2 Hq.
-        rewrite <- (compose_next_oq q2).
-        eapply IHHst1 with (1 := rsc_left q q2)
-                           (σ1 := next (oq q) σ1); cbn; eauto with typeclass_instances.
-        apply rsq_next_oq; auto.
-    - (* internal question *)
-      edestruct @rsq_next_pq as (m2 & Hm & Hm2 & ?); eauto.
-      { eapply Downset.closed; cbn; eauto. constructor. constructor. }
-      rewrite <- (compose_next_lq m2).
-      eapply IHHst1 with (1 := rsc_right q q2 m m2)
-                         (σ1 := next (pq m) σ1)
-                         (τ1 := next (oq m) τ1); eauto with typeclass_instances.
-      apply rsq_next_oq; auto.
-    - (* outgoing question *)
-      edestruct @rsq_next_pq as (u2 & Hu & Hu2 & ?); eauto.
-      { eapply Downset.closed; cbn; eauto. constructor. constructor. }
-      econstructor; eauto.
-      rewrite <- compose_next_rq.
-      eapply IHHst1 with (1 := rsc_suspended q q2 m m2 u u2)
-                         (σ1 := σ1)
-                         (τ1 := next (pq u) τ1); eauto with typeclass_instances.
-    - (* suspended *)
-      constructor; cbn.
-      exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
-      eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
-      specialize (Hσ _ Hs1). dependent destruction Hσ.
-      specialize (Hτ _ Ht1). dependent destruction Hτ.
-      eauto.
-    - (* environment answer *)
-      constructor.
-      + exists (pnil_suspended q2 m2), (pnil_suspended m2 u2).
-        eapply Downset.closed in Hs1; cbn; auto using pnil_suspended_pref.
-        specialize (Hσ _ Hs1). dependent destruction Hσ.
-        specialize (Hτ _ Ht1). dependent destruction Hτ.
-        eauto.
-      + intros n2 Hn.
-        rewrite <- compose_next_oa.
-        eapply IHHst1 with (1 := rsc_right q q2 m m2)
-                           (σ1 := σ1)
-                           (τ1 := next (oa v) τ1); eauto with typeclass_instances.
-        apply rsq_next_oa; auto.
-    - (* answer of τ *)
-      edestruct @rsq_next_pa as (n2 & Hn & Hn2 & H); eauto.
-      { eapply Downset.closed; eauto. cbn. constructor. constructor. }
-      rewrite <- (compose_next_ra n2).
-      eapply IHHst1 with (1 := rsc_left q q2)
-                         (σ1 := next (oa n) σ1)
-                         (τ1 := next (pa n) τ1); eauto with typeclass_instances.
-      apply rsq_next_oa; auto.
-    - (* answer of σ *)
-      edestruct @rsq_next_pa as (r2 & Hr & Hr2 & H); eauto.
-      { eapply Downset.closed; eauto. cbn. constructor. constructor. }
-      econstructor; eauto.
-      rewrite <- (compose_next_la r2).
-      eapply IHHst1 with (1 := rsc_ready)
-                         (σ1 := next (pa r) σ1)
-                         (τ1 := τ1); eauto with typeclass_instances.
+    intros p σ1 τ1 σ2 τ2 Hσ Hτ w1 (s1 & t1 & Hs1 & Ht1 & Hst1).
+    eauto using rsp_comp.
   Qed.
+
+  Lemma rsq_comp σ1 τ1 σ2 τ2 `{Hσ2: !Deterministic σ2} `{Hτ2: !Deterministic τ2}:
+    rsq S T σ1 σ2 ->
+    rsq R S τ1 τ2 ->
+    rsq R T (σ1 ⊙ τ1) (σ2 ⊙ τ2).
+  Proof. apply rsq_comp_when; auto. Qed.
 End RSQ_COMP.
+
+(** *** Definition 4.4 (Identity refinement convention) *)
+
+Section VID.
+  Context {E : esig}.
+
+  Fixpoint vid_has (s : rcp E E) : Prop :=
+    match s with
+      | rcp_allow m1 m2 => m1 = m2
+      | rcp_forbid m1 m2 n1 n2 => m1 = m2 /\ ~ JMeq n1 n2
+      | rcp_cont m1 m2 n1 n2 k => m1 = m2 /\ (JMeq n1 n2 -> vid_has k)
+    end.
+
+  Program Definition vid : conv E E :=
+    {| Downset.has := vid_has |}.
+  Next Obligation.
+    induction H; cbn in *; tauto.
+  Qed.
+
+  (** Properties *)
+
+  Lemma rcnext_vid m n :
+    rcnext m m n n vid = vid.
+  Proof.
+    apply Downset.has_eq_ext. cbn. firstorder.
+  Qed.
+End VID.
+
+(** *** Theorem 4.5 (Refinement ordering as refinement squares) *)
+
+Section ID_RSQ.
+  Context {E F : esig}.
+
+  (*
+    rsq vid vid p σ τ <-> σ [= τ
+    rsq R S p id id <-> S [= R
+  *)
+End ID_RSQ.
 
 (** ** §4.4 Vertical Composition *)
 
-(** *** Definition 4.6 (Veritcal composition of refinement conventions) *)
+(** *** Definition 4.6 (Vertical composition of refinement conventions) *)
 
 Section VCOMP.
   Context {E1 E2 E3 : esig}.
@@ -1163,7 +2285,9 @@ Section VCOMP.
   Qed.
 End VCOMP.
 
-(** *** Theorem 4.7 (Veritcal composition of refinement squares) *)
+Notation "R  ;; S" := (vcomp R S) (at level 45, right associativity) : conv_scope.
+
+(** *** Theorem 4.7 (Vertical composition of refinement squares) *)
 
 Section RSVCOMP.
   Context {E1 F1 E2 F2 E3 F3 : esig}.
@@ -1189,7 +2313,7 @@ Section RSVCOMP.
            (s1 : @play E1 F1 p1) (σ2 : strat E2 F2 p2) (σ3 : strat E3 F3 p3)
            `{Hσ2 : !Deterministic σ2} `{Hσ3 : !Deterministic σ3},
       rsp R S p12 s1 σ2 ->
-      rsq R' S' p23 σ2 σ3 ->
+      rsq_when R' S' p23 σ2 σ3 ->
       match p with
         | rsv_ready =>
           rsp (vcomp R R') (vcomp S S') p13 s1 σ3
@@ -1260,8 +2384,105 @@ Section RSVCOMP.
       rewrite rcnext_vcomp_at by auto.
       eapply (IHrsp _ _ _ _ rsv_ready); eauto with typeclass_instances.
   Qed.
+
+  Lemma rsq_vcomp_when {p1 p2 p3 p12 p23 p13} (p : @rsvpos p1 p2 p3 p12 p23 p13) :
+    forall (R : conv E1 E2) (R' : conv E2 E3) (S : conv F1 F2) (S' : conv F2 F3)
+           (σ1 : strat E1 F1 p1) (σ2 : strat E2 F2 p2) (σ3 : strat E3 F3 p3)
+           `{Hσ2 : !Deterministic σ2} `{Hσ3 : !Deterministic σ3},
+      rsq_when R S p12 σ1 σ2 ->
+      rsq_when R' S' p23 σ2 σ3 ->
+      match p with
+        | rsv_ready =>
+          rsq_when (vcomp R R') (vcomp S S') p13 σ1 σ3
+        | rsv_running q1 q2 q3 =>
+          rsq_when (vcomp R R') (inf r2, vcomp_at q2 r2 S S') p13 σ1 σ3
+        | rsv_suspended q1 q2 q3 m1 m2 m3 =>
+          Downset.has R (rcp_allow m1 m2) ->
+          Downset.has R' (rcp_allow m2 m3) ->
+          rsq_when (inf n2, vcomp_at m2 n2 R R') (inf r2, vcomp_at q2 r2 S S') p13 σ1 σ3
+      end.
+  Proof.
+    intros.
+    pose proof (rsp_vcomp p).
+    destruct p; cbn in *; intros; intro; eauto.
+  Qed.
+
+  Lemma rsq_vcomp R R' S S' (σ1 : E1 ->> F1) (σ2 : E2 ->> F2) (σ3 : E3 ->> F3)
+        `{Hσ2 : !Deterministic σ2} `{Hσ3 : !Deterministic σ3} :
+    rsq R S σ1 σ2 ->
+    rsq R' S' σ2 σ3 ->
+    rsq (R ;; R') (S ;; S') σ1 σ3.
+  Proof.
+    apply (rsq_vcomp_when rsv_ready); auto.
+  Qed.
 End RSVCOMP.
 
+(** *** Other properties of vertical composition *)
+
+Section VCOMP_VID.
+  Context {E F : esig}.
+
+  Lemma vcomp_vid_l (R : conv E F) :
+    vcomp vid R = R.
+  Proof.
+    apply Downset.has_eq_ext. intro s.
+    revert R.
+    induction s; cbn; intros.
+    - firstorder congruence.
+    - split.
+      + intros (? & <- & Hm & Hn). firstorder.
+      + intros H. exists m1.
+        repeat (split; eauto using conv_has_forbid_allow).
+        intros n1'. destruct (classic (n1 ~= n1')) as [Hn1'|Hn1']; eauto.
+        apply JMeq_eq in Hn1'. subst. auto.
+    - split.
+      + intros (? & <- & Hm & Hn).
+        specialize (Hn n1) as [[_ Hn] | Hn]; try tauto.
+        destruct Hn as [Hn | Hn]; eauto.
+        rewrite rcnext_vid in Hn.
+        apply IHs in Hn.
+        assumption.
+      + intros Hn. exists m1.
+        repeat (split; eauto).
+        intros n1'. destruct (classic (n1 ~= n1')) as [Hn1'|Hn1']; eauto.
+        apply JMeq_eq in Hn1'. subst n1'. right. right.
+        rewrite rcnext_vid.
+        apply IHs; auto.
+  Qed.
+
+  Lemma vcomp_vid_r (R : conv E F) :
+    vcomp R vid = R.
+  Proof.
+    apply Downset.has_eq_ext. intro s.
+    revert R.
+    induction s; cbn; intros.
+    - firstorder congruence.
+    - split.
+      + intros (? & Hm & -> & Hn). firstorder.
+      + intros Hn. exists m2.
+        repeat (split; eauto using conv_has_forbid_allow).
+        intros n2'. destruct (classic (n2 ~= n2')) as [Hn2'|Hn2']; eauto.
+        apply JMeq_eq in Hn2'. subst. auto.
+    - split.
+      + intros (? & Hm & <- & Hn).
+        specialize (Hn n2) as [Hn | [[_ Hn] | Hn]]; try tauto; eauto.
+        rewrite rcnext_vid in Hn.
+        apply IHs in Hn.
+        assumption.
+      + intros Hn. exists m2.
+        repeat (split; eauto).
+        intros n2'. destruct (classic (n2 ~= n2')) as [Hn2'|Hn2']; eauto 10.
+        apply JMeq_eq in Hn2'. subst n2'. right. right.
+        rewrite rcnext_vid.
+        apply IHs; auto.
+  Qed.
+End VCOMP_VID.
+
+(** ** §4.5 Flat Composition *)
+
+(** *** Definition 4.8 (Flat composition of refinement conventions) *)
+
+(** *** Theorem 4.9 (Flat composition properties) *)
 
 (** * Spatial composition *)
 
@@ -1331,7 +2552,7 @@ Section TSTRAT.
                  (pa (q:=(q1,q2)) (r1,r2) :: s).
 
   Obligation Tactic := cbn.
-  Hint Constructors pref tstrat_has.
+  Hint Constructors pref tstrat_has : core.
 
   Program Definition tstrat {i1 i2 i} (p : tpos i1 i2 i)
     (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2) : strat (tens E1 E2) (tens F1 F2) i :=
@@ -1759,7 +2980,7 @@ Section TRSQ.
                (tp_suspended q1 q2 m1 m2)
                (tp_suspended q1' q2' m1' m2').
 
-  Hint Constructors tstrat_has.
+  Hint Constructors tstrat_has : core.
 
   Lemma trsp :
     forall {i1 i2 j1 j2 i j u1 u2 u v v'} {p : @trspos i1 i2 j1 j2 i j u1 u2 u v v'}
