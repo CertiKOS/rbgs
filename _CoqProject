@@ -37,6 +37,7 @@ models/IntStrat.v
 examples/CAL.v
 examples/CompCertSem.v
 examples/CompCertStrat.v
+examples/Determ.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v

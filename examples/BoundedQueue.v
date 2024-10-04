@@ -7,6 +7,7 @@ Require Import Downset.
 Require Import IntStrat.
 Require Import Classical_Prop.
 Require Import Coqlib.
+Require Import Determ.
 
 From compcert.common Require Import LanguageInterface Smallstep Globalenvs.
 From compcert.clightp Require Import Example.
@@ -15,7 +16,7 @@ Require Import CompCertStrat.
 Close Scope list.
 
 Lemma rsq_de {E F U} (τ: strat E F ready) (u0: U):
-  rsq (de u0) (de u0) rs_ready τ (tstrat tp_ready τ slens_id).
+  rsq (de u0) (de u0) τ (tstrat tp_ready τ slens_id).
 Proof.
 Admitted.
 
@@ -52,12 +53,12 @@ End LIFT_CONVERT.
 
 Lemma rsq_lift_convert sk {li S} L:
   rsq (lift_convert_rel li S) (lift_convert_rel li S)
-      rs_ready ((lts_strat_sk sk L) @ S)%strat
+      ((lts_strat_sk sk L) @ S)
       (lts_strat_sk sk (Lifting.lifted_semantics S L)).
 Admitted.
 
 Definition join_conv : conv (li_c @ Mem.mem) li_c :=
-  vcomp (lift_convert_rel li_c Mem.mem) join_cc.
+  lift_convert_rel li_c Mem.mem ;; join_cc.
 
 (** * Strategy-level definitions *)
 
@@ -112,7 +113,7 @@ Definition L_enq_strat: strat 0 (E_bq @ S_bq) ready :=
   sup {v | Cop.val_casted v tint}, sup {q | (List.length q < N)%nat}, down (L_enq_play v q).
 Definition L_deq_strat: strat 0 (E_bq @ S_bq) ready :=
   sup {v | Cop.val_casted v tint}, sup q, down (L_deq_play v q).
-Definition L_bq : strat empty_sig (E_bq @ S_bq) ready := closure (join L_enq_strat L_deq_strat).
+Definition L_bq : strat 0 (E_bq @ S_bq) ready := closure (join L_enq_strat L_deq_strat).
 
 Definition L_inc1_play (f: nat -> val) (c1 c2: nat): @play 0 (E_rb @ S_rb) ready :=
   oq (inc1, (f, c1, c2)) :: @pa _ _ (inc1, (f, c1, c2)) (c1, (f, ((S c1) mod N)%nat, c2)) :: pnil_ready.
@@ -126,7 +127,7 @@ Definition L_inc1_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, d
 Definition L_inc2_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, down (L_inc2_play f c1 c2).
 Definition L_get_strat: strat 0 (E_rb @ S_rb) ready := sup { f | forall n, Cop.val_casted (f n) tint }, sup c1, sup c2, sup i, down (L_get_play f c1 c2 i).
 Definition L_set_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, sup i, sup v, down (L_set_play f c1 c2 i v).
-Definition L_rb : strat empty_sig (E_rb @ S_rb) ready := closure (join (join L_inc1_strat L_inc2_strat) (join L_get_strat L_set_strat)).
+Definition L_rb : strat 0 (E_rb @ S_rb) ready := closure (join (join L_inc1_strat L_inc2_strat) (join L_get_strat L_set_strat)).
 
 Local Instance L_rb_regular : Regular L_rb. Admitted.
 
@@ -192,8 +193,7 @@ Qed.
 
 (* L_bq ⊑ (M_bq @ S_rb) ∘ L_rb *)
 Lemma ϕ1 :
-  rsq conv_id (tconv conv_id bq_rb_rel) rs_ready
-    L_bq (compose cpos_ready (M_bq @ S_rb)%strat L_rb).
+  rsq vid (tconv vid bq_rb_rel) L_bq ((M_bq @ S_rb) ⊙ L_rb).
 Proof.
   unfold M_bq. rewrite <- closure_lift.
   rewrite <- @closure_comp_ref2. 2: typeclasses eauto.
@@ -214,7 +214,7 @@ Proof.
     { (* match reply *)
       intros HX. Local Opaque N. cbn in HX.
       destruct HX as (? & ? & HX). clear - HX Hv Hbq. destruct HX as [HX|HX].
-      - dependent destruction HX. congruence.
+      - destruct HX. apply H0. apply JMeq_refl.
       - dependent destruction HX. apply HA.
         apply refine_correct2; eauto. }
     apply rsp_ready.
@@ -251,7 +251,7 @@ Proof.
       intros HX. cbn in HX.
       destruct HX as (? & ? & HX). apply refine_correct1 in HQ.
       destruct HX as [HX|HX].
-      - dependent destruction HX. destruct HQ. congruence.
+      - destruct HX. destruct HQ. apply H2. rewrite H3. apply JMeq_refl.
       - dependent destruction HX. apply HA. apply HQ. }
     apply rsp_ready.
     cbn - [compose tstrat M_enq_strat].
@@ -285,22 +285,20 @@ Definition Π_rb := encap rb0 L_rb.
 Definition Π_bq := encap bq0 L_bq.
 
 (* Π_bq ⊑ M_bq ∘ Π_rb *)
-Lemma ϕ1' : Π_bq [= compose cpos_ready M_bq Π_rb.
+Lemma ϕ1' : Π_bq [= M_bq ⊙ Π_rb.
 Proof.
   unfold Π_bq, Π_rb. unfold encap.
-  rewrite <- compose_assoc with (p1 := cpos_ready) (p2 := cpos_ready).
+  rewrite <- compose_assoc.
   rewrite <- encap_lift.
-  rewrite compose_assoc with (p3 := cpos_ready) (p4 := cpos_ready).
+  rewrite compose_assoc.
   apply rsq_id_conv with (p := rs_ready).
-  eapply rsq_comp. constructor.
-  (* deterministic *) admit.
-  (* deterministic *) admit.
+  eapply rsq_comp_when. constructor.
   apply representation_independence with (R := rb_bq).
   { eapply bq_rb_intro with (n := 0%nat).
     Local Transparent N.
     all: eauto; unfold N, Example.N; try lia. }
   apply ϕ1.
-Admitted.
+Qed.
 
 
 (** * Proving strategies are implemented by Clight programs *)
@@ -484,7 +482,7 @@ Definition E_rb_conv : esig_rel E_rb li_c :=
 Local Hint Constructors E_rb_conv_mq E_rb_conv_mr : core.
 Local Hint Constructors bq_initial_state bq_at_external bq_final_state bq_step bq_after_external : core.
 
-Lemma ϕ_bq0 : rsq E_rb_conv E_bq_conv rs_ready M_bq bq_spec.
+Lemma ϕ_bq0 : rsq E_rb_conv E_bq_conv M_bq bq_spec.
 Proof.
   apply rsq_closure; eauto with typeclass_instances.
   intros s (i & Hs). destruct i.
@@ -579,13 +577,13 @@ Qed.
 Definition E_rb_m0_conv_explicit : conv E_rb (li_c @ Mem.mem) := deencap m0 E_rb_conv.
 Definition E_bq_m0_conv_explicit : conv E_bq (li_c @ Mem.mem) := deencap m0 E_bq_conv.
 
-Definition E_rb_m0_conv : conv E_rb li_c := vcomp E_rb_m0_conv_explicit join_conv.
-Definition E_bq_m0_conv : conv E_bq li_c := vcomp E_bq_m0_conv_explicit join_conv.
+Definition E_rb_m0_conv : conv E_rb li_c := E_rb_m0_conv_explicit ;; join_conv.
+Definition E_bq_m0_conv : conv E_bq li_c := E_bq_m0_conv_explicit ;; join_conv.
 
 Definition ϕ_bq_conv_1 :=
-  vcomp (vcomp (deencap m0 E_rb_conv) (lift_convert_rel li_c mem)) join_cc.
+  (deencap m0 E_rb_conv ;; lift_convert_rel li_c mem) ;; join_cc.
 Definition ϕ_bq_conv_2 :=
-  vcomp (vcomp (deencap m0 E_bq_conv) (lift_convert_rel li_c mem)) join_cc.
+  (deencap m0 E_bq_conv ;; lift_convert_rel li_c mem) ;; join_cc.
 
 Global Instance tstrat_deterministic {E1 E2 F1 F2 i j k} (tp: tpos i j k) (σ: strat E1 F1 i) (τ: strat E2 F2 j):
   Deterministic σ ->
@@ -601,23 +599,23 @@ Lemma lifting_determinate {liA liB U} (L: semantics liA liB):
   determinate L -> determinate (Lifting.lifted_semantics U L).
 Admitted.
 
-Lemma ϕ_bq_with_internals : rsq ϕ_bq_conv_1 ϕ_bq_conv_2 rs_ready M_bq (Clight.semantics2 BQ.bq_program).
+Lemma ϕ_bq_with_internals : rsq ϕ_bq_conv_1 ϕ_bq_conv_2 M_bq (Clight.semantics2 BQ.bq_program).
 Proof.
   eapply rsq_vcomp. constructor. 
   4: { apply fsim_rsq_sk. apply clight_determinate. apply fp. apply linkorder_bq. }
   2: typeclasses eauto. apply lts_strat_determ. apply lifting_determinate. apply clight_determinate.
 
-  eapply rsq_vcomp. constructor.
+  eapply rsq_vcomp. 
   4: { apply rsq_lift_convert. }
   typeclasses eauto. apply lts_strat_determ. apply lifting_determinate. apply clight_determinate.
 
-  eapply rsq_vcomp. constructor.
+  eapply rsq_vcomp. 
   4: apply rsq_de.
   1-2: typeclasses eauto.
 
-  rewrite <- (vcomp_right_id E_rb_conv).
-  rewrite <- (vcomp_right_id E_bq_conv).
-  eapply rsq_vcomp. constructor.
+  rewrite <- (vcomp_vid_r E_rb_conv).
+  rewrite <- (vcomp_vid_r E_bq_conv).
+  eapply rsq_vcomp. 
   3: apply ϕ_bq0. 1-2: typeclasses eauto.
 
   rewrite <- !cc_conv_id.
@@ -628,7 +626,7 @@ Qed.
 (** ** Rb correctness *)
 
 Definition E_rb_S_rb_conv : conv (E_rb @ S_rb) (Lifting.lifted_li rb_state li_c) :=
-  vcomp (tconv E_rb_conv conv_id) (lift_convert_rel li_c rb_state).
+  tconv E_rb_conv vid ;; lift_convert_rel li_c rb_state.
 
 Global Instance E0_conv_regular {E}:
   RegularConv (@E0_conv E).
@@ -638,7 +636,7 @@ Local Opaque N.
 
 Local Hint Constructors rb_final_state rb_step rb_initial_state : core.
 
-Lemma ϕ_rb0 : rsq E0_conv E_rb_S_rb_conv rs_ready L_rb rb_spec.
+Lemma ϕ_rb0 : rsq E0_conv E_rb_S_rb_conv L_rb rb_spec.
 Proof.
   apply rsq_closure; eauto with typeclass_instances.
   intros s (i & Hs). destruct i; destruct Hs as [[|] Hs].
@@ -646,13 +644,13 @@ Proof.
     cbn in Hs. destruct Hs as (f & c1 & c2 & Hs). rewrite Hs. clear Hs.
     unfold L_inc1_play. apply rsp_oq.
     { repeat econstructor. }
-    intros (se & cq & rb) ((se' & cq' & rb') & (Hq1 & Hq2) & Hq3).
+    intros (se & cq & rb) (((se' & cq') & rb') & (Hq1 & Hq2) & Hq3).
     cbn in *. dependent destruction Hq1. inv HM.
-    dependent destruction Hq2. dependent destruction Hq3. inv HM.
+    dependent destruction Hq3. inv HM.
     set (c1_i := Vint (Int.repr (Z.of_nat c1))).
     eapply rsp_pa with ((cr c1_i m), (f, (S c1 mod N)%nat, c2)).
-    { intros ((se' & cq' & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
-      dependent destruction Hr2. dependent destruction Hr3. inv HM.
+    { intros (((se' & cq') & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
+      dependent destruction Hr3. inv HM.
       specialize (Hr4 ((cr c1_i m), (f, (S c1 mod N)%nat, c2))).
       cbn in Hr4. destruct Hr4 as [(Hra & Hrb & [Hrc | Hrc])|Hr4].
       - xinv Hrc. apply HA. econstructor; eauto.
@@ -666,13 +664,13 @@ Proof.
     cbn in Hs. destruct Hs as (f & c1 & c2 & Hs). rewrite Hs. clear Hs.
     unfold L_inc1_play. apply rsp_oq.
     { repeat econstructor. }
-    intros (se & cq & rb) ((se' & cq' & rb') & (Hq1 & Hq2) & Hq3).
+    intros (se & cq & rb) (((se' & cq') & rb') & (Hq1 & Hq2) & Hq3).
     cbn in *. dependent destruction Hq1. inv HM.
-    dependent destruction Hq2. dependent destruction Hq3. inv HM.
+    dependent destruction Hq3. inv HM.
     set (c2_i := Vint (Int.repr (Z.of_nat c2))).
     eapply rsp_pa with ((cr c2_i m), (f, c1, (S c2 mod N)%nat)).
-    { intros ((se' & cq' & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
-      dependent destruction Hr2. dependent destruction Hr3. inv HM.
+    { intros (((se' & cq') & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
+      dependent destruction Hr3. inv HM.
       specialize (Hr4 ((cr c2_i m), (f, c1, (S c2 mod N)%nat))).
       cbn in Hr4. destruct Hr4 as [(Hra & Hrb & [Hrc | Hrc])|Hr4].
       - xinv Hrc. apply HA. econstructor; eauto.
@@ -686,11 +684,11 @@ Proof.
     cbn in Hs. destruct Hs as ((f & Hf) & c1 & c2 & i & Hs). rewrite Hs. clear Hs.
     cbn. unfold L_get_play. apply rsp_oq.
     { repeat econstructor. }
-    intros (se & cq & rb) ((se' & cq' & rb') & (Hq1 & Hq2) & Hq3).
+    intros (se & cq & rb) (((se' & cq') & rb') & (Hq1 & Hq2) & Hq3).
     cbn in *. dependent destruction Hq1. inv HM.
-    dependent destruction Hq2. dependent destruction Hq3. inv HM.
+    dependent destruction Hq3. inv HM.
     eapply rsp_pa with ((cr (f i) m), (f, c1, c2)).
-    { intros ((se' & cq' & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
+    { intros (((se' & cq') & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
       dependent destruction Hr2. dependent destruction Hr3. inv HM.
       specialize (Hr4 ((cr (f i) m), (f, c1, c2))).
       cbn in Hr4. destruct Hr4 as [(Hra & Hrb & [Hrc | Hrc])|Hr4].
@@ -705,12 +703,12 @@ Proof.
     cbn in Hs. destruct Hs as (f & c1 & c2 & i & v & Hs). rewrite Hs. clear Hs.
     cbn. unfold L_set_play. apply rsp_oq.
     { repeat econstructor. }
-    intros (se & cq & rb) ((se' & cq' & rb') & (Hq1 & Hq2) & Hq3).
+    intros (se & cq & rb) (((se' & cq') & rb') & (Hq1 & Hq2) & Hq3).
     cbn in *. dependent destruction Hq1. inv HM.
-    dependent destruction Hq2. dependent destruction Hq3. inv HM.
+    dependent destruction Hq3. inv HM.
     set (g := fun j => if Nat.eq_dec i j then v else f j).
     eapply rsp_pa with ((cr Vundef m), (g, c1, c2)).
-    { intros ((se' & cq' & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
+    { intros (((se' & cq') & rb') & (Hr1 & Hr2) & Hr3 & Hr4). cbn in *.
       dependent destruction Hr2. dependent destruction Hr3. inv HM.
       specialize (Hr4 ((cr Vundef m), (g, c1, c2))).
       cbn in Hr4. destruct Hr4 as [(Hra & Hrb & [Hrc | Hrc])|Hr4].
@@ -725,7 +723,7 @@ Qed.
 
 Definition E_rb_rb0_conv : conv E_rb (li_c @ S_rb) := deencap rb0 E_rb_conv.
 Definition E_rb_rb0_conv' : conv E_rb (Lifting.lifted_li S_rb li_c) :=
-  vcomp E_rb_rb0_conv (lift_convert_rel li_c S_rb).
+  E_rb_rb0_conv ;; (lift_convert_rel li_c S_rb).
 
 Lemma de_rcnext {E U} (m: op E) n (u u': U):
   rcnext m (m, u) n (n, u') (de u) = de u'.
@@ -738,7 +736,7 @@ Proof.
 Qed.
 
 Lemma de_vcomp_ref {E F U} (R: conv E F) (u0: U):
-  deencap u0 R [= vcomp (de u0) (tconv R conv_id).
+  deencap u0 R [= de u0 ;; (tconv R vid).
 Proof.
   intros c Hc. revert R u0 Hc. induction c.
   - intros; cbn in *.
@@ -751,7 +749,7 @@ Proof.
     cbn. intros [x y]. apply not_imply_or. intros Hr.
     repeat apply conj; eauto.
     apply not_imply_or. intros Hr1.
-    econstructor. intros <-. specialize (Hf3 a) as [Hf3|Hf3].
+    split; eauto. intros Hy. specialize (Hf3 a) as [Hf3|Hf3].
     + apply Hr. constructor. congruence.
     + simple inversion Hf3; try congruence.
       apply rcp_forbid_inv in H1. eprod_crush. xsubst. inv H0. easy.
@@ -765,40 +763,41 @@ Proof.
     apply not_and_or in Hr1 as [Hr1|Hr1]. exfalso. apply Hr1. constructor.
     apply not_or_and in Hr1 as [Hr1 Hr2].
     rewrite @rcnext_tconv; eauto.
-    rewrite (regular_conv (R := conv_id)); eauto. 2: constructor.
+    rewrite (regular_conv (R := vid)); eauto. 2: constructor.
     assert (x = n1). { apply NNPP. intros Hx. apply Hr. constructor. congruence. }
     subst.
     specialize (Hf3 a) as [A|[A|A]]; try easy.
     + exfalso. simple inversion A; try congruence.
       apply rcp_forbid_inv in H1. eprod_crush. xsubst. inv H0. easy.
     + rewrite de_rcnext in A. rewrite de_rcnext. apply IHc.
-      assert (y = u0). apply NNPP. intros Hx. apply Hr2. constructor. eauto.
+      assert (y = u0). apply NNPP. intros Hx. apply Hr2.
+      split; eauto. intros Hc. apply Hx. apply JMeq_eq; eauto.
       subst. eauto.
 Qed.
 
-Lemma ϕ_rb1 : rsq E0_conv E_rb_rb0_conv' rs_ready Π_rb rb_spec.
+Lemma ϕ_rb1 : rsq E0_conv E_rb_rb0_conv' Π_rb rb_spec.
 Proof.
   unfold E_rb_rb0_conv', E_rb_rb0_conv, E_rb_S_rb_conv.
   rewrite de_vcomp_ref.
   rewrite vcomp_assoc.
-  rewrite <- (vcomp_left_id (@E0_conv li_c)).
-  eapply rsq_vcomp. constructor.
+  rewrite <- (vcomp_vid_l (@E0_conv li_c)).
+  eapply rsq_vcomp.
   3: apply deencap_rsq. 3: apply ϕ_rb0.
   1-2: typeclasses eauto.
 Qed.
 
-Definition ϕ_rb_conv := vcomp (vcomp E_rb_rb0_conv' rb_cc) (ClightP.pin ce).
+Definition ϕ_rb_conv := (E_rb_rb0_conv' ;; rb_cc) ;; ClightP.pin ce.
 
-Lemma ϕ_rb_with_internals : rsq E0_conv ϕ_rb_conv rs_ready Π_rb (Clight.semantics2 rbc).
+Lemma ϕ_rb_with_internals : rsq E0_conv ϕ_rb_conv Π_rb (Clight.semantics2 rbc).
 Proof.
   unfold ϕ_rb_conv. erewrite E0_conv_vcomp.
-  eapply rsq_vcomp. constructor. 
+  eapply rsq_vcomp.
   4: { eapply fsim_rsq_sk. apply clight_determinate.
        apply ClightP.transl_program_correct. apply HT2.
        cbn. erewrite ClightP.clightp_skel_correct.
        apply linkorder_rb. apply HT2. }
   1-2: typeclasses eauto.
-  erewrite E0_conv_vcomp. eapply rsq_vcomp. constructor.
+  erewrite E0_conv_vcomp. eapply rsq_vcomp. 
   4: { eapply fsim_rsq_sk. apply clightp_determinate.
        apply rb_correct2.
        cbn. erewrite ClightP.clightp_skel_correct.
@@ -822,7 +821,7 @@ Definition rb_m_esig_rel : esig_rel (li_c @ S_rb) (li_c @ mem) :=
   {| match_query := rb_m_mq; match_reply := rb_m_mr |}.
 
 Definition m_rb_ref:
-  vcomp E_rb_conv (de m0) [= vcomp (vcomp E_rb_conv (de rb0)) rb_m_esig_rel.
+  E_rb_conv ;; (de m0) [= (E_rb_conv ;; (de rb0)) ;; rb_m_esig_rel.
 Proof.
   cbn. intros c.
   assert (rb_penv_rel rb0 penv0 /\
@@ -950,7 +949,7 @@ End PIN_NO_JOIN.
 Local Opaque ce.
 
 Lemma pin_join_ref :
-  vcomp (pin_no_join ce) join_cc [= ClightP.pin ce.
+  pin_no_join ce ;; join_cc [= ClightP.pin ce.
 Proof.
   intros c Hc. induction c.
   - cbn in *. eprod_crush. xinv H. xinv H0.
@@ -1082,26 +1081,25 @@ Qed.
 Import CategoricalComp.
 
 Lemma ϕ_bq_rb:
-  rsq E0_conv E_bq_m0_conv rs_ready Π_bq
+  rsq E0_conv E_bq_m0_conv Π_bq
     (comp_semantics' (Clight.semantics2 bqc) (Clight.semantics2 rbc) sk).
 Proof.
   rewrite <- ϕ_bq_conv_ref1.
   unfold embed_lts_with_sk.
   setoid_rewrite <- cc_comp_ref. rewrite ϕ1'.
-  eapply rsq_comp. constructor.
-  1-2: admit.
+  eapply rsq_comp_when. constructor.
   - apply ϕ_bq_with_internals.
   - rewrite ϕ_rb_conv_ref1.
     apply ϕ_rb_with_internals.
-Admitted.
+Qed.
 
 (* --------------------------------------- *)
 
-Lemma ϕ_bq : rsq E_rb_m0_conv E_bq_m0_conv rs_ready M_bq (Clight.semantics2 BQ.bq_program).
+Lemma ϕ_bq : rsq E_rb_m0_conv E_bq_m0_conv M_bq (Clight.semantics2 BQ.bq_program).
 Proof.
-  pose proof BQ.bq_correct0 as HA.
-  apply fsim_rsq in HA. 2: admit.
-  eapply @rsq_vcomp in HA. 5: apply ϕ_bq0. 2: constructor. 2-3: admit.
+  (* pose proof BQ.bq_correct0 as HA. *)
+  (* apply fsim_rsq in HA. 2: admit. *)
+  (* eapply @rsq_vcomp in HA. 5: apply ϕ_bq0. 2: constructor. 2-3: admit. *)
 
   (* pose proof (ClightP.transl_program_correct _ _ HT1). *)
   (* assert (rsq (vcomp (vcomp E_rb_conv flag_cc) ClightP.pout) *)
@@ -1112,14 +1110,14 @@ Proof.
   (*   eapply rsq_vcomp. constructor. admit. admit. apply ϕ_bq0. *)
   (*   apply fsim_rsq; eauto. admit. *)
   (* } *)
-  eapply (rsq_deencap_target _ _ _ _ m0) in HA.
-  pose proof (@rsq_lift_convert _ mem (Clight.semantics2 BQ.bq_program)) as HB.
-  eapply @rsq_vcomp in HB. 5: apply HA. 2: constructor. 2-3: admit.
-  pose proof (fp BQ.bq_program) as HC. apply fsim_rsq in HC. 2: admit.
-  eapply @rsq_vcomp in HC. 5: apply HB. 2: constructor. 2-3: admit.
+  (* eapply (rsq_deencap_target _ _ _ _ m0) in HA. *)
+  (* pose proof (@rsq_lift_convert _ mem (Clight.semantics2 BQ.bq_program)) as HB. *)
+  (* eapply @rsq_vcomp in HB. 5: apply HA. 2: constructor. 2-3: admit. *)
+  (* pose proof (fp BQ.bq_program) as HC. apply fsim_rsq in HC. 2: admit. *)
+  (* eapply @rsq_vcomp in HC. 5: apply HB. 2: constructor. 2-3: admit. *)
   (* rewrite ϕ_rb_conv_ref. *)
   (* rewrite <- !E0_conv_vcomp in HX. apply HX. *)
-Admitted.
+Abort.
 
 Lemma ϕ_rb_conv_ref:
   E_rb_m0_conv [= (vcomp (vcomp E_rb_rb0_conv' rb_cc) (ClightP.pin ce)).
@@ -1229,21 +1227,20 @@ Proof.
   (* - *)
 
 
-Admitted.
+Abort.
 
-Lemma ϕ_rb : rsq E0_conv E_rb_m0_conv rs_ready Π_rb (Clight.semantics2 trb).
+Lemma ϕ_rb : rsq E0_conv E_rb_m0_conv Π_rb (Clight.semantics2 rbc).
 Proof.
-  pose proof rb_correct2.
-  pose proof (ClightP.transl_program_correct _ _ HT2).
-  assert (rsq (vcomp (vcomp E0_conv 1%cc) ClightP.pout)
-              (vcomp (vcomp E_rb_rb0_conv' rb_cc) (ClightP.pin ce))
-              rs_ready Π_rb (Clight.semantics2 trb)) as HX.
-  {
-    eapply rsq_vcomp. constructor. admit. admit. 2: apply fsim_rsq; eauto. 2: admit.
-    eapply rsq_vcomp. constructor. admit. admit. apply ϕ_rb1.
-    apply fsim_rsq; eauto. admit.
-  }
+  (* pose proof rb_correct2. *)
+  (* pose proof (ClightP.transl_program_correct _ _ HT2). *)
+  (* assert (rsq (vcomp (vcomp E0_conv 1%cc) ClightP.pout) *)
+  (*             (vcomp (vcomp E_rb_rb0_conv' rb_cc) (ClightP.pin ce)) *)
+  (*             Π_rb (Clight.semantics2 rbc)) as HX. *)
+  (* { *)
+  (*   eapply rsq_vcomp. admit. admit. 2: apply fsim_rsq; eauto. 2: admit. *)
+  (*   eapply rsq_vcomp. admit. admit. apply ϕ_rb1. *)
+  (*   apply fsim_rsq; eauto. admit. *)
+  (* } *)
   (* rewrite ϕ_rb_conv_ref. *)
   (* rewrite <- !E0_conv_vcomp in HX. apply HX. *)
-Admitted.
-
+Abort.
