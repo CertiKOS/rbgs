@@ -55,7 +55,56 @@ Lemma rsq_lift_convert sk {li S} L:
   rsq (lift_convert_rel li S) (lift_convert_rel li S)
       ((lts_strat_sk sk L) @ S)
       (lts_strat_sk sk (Lifting.lifted_semantics S L)).
-Admitted.
+Proof.
+  Ltac split_evar := instantiate (1 := (_, _)).
+  setoid_rewrite <- closure_lift.
+  apply rsq_closure; eauto with typeclass_instances.
+  intros p (s & t & Hs & Ht & Hst). cbn - [slens_id] in *. 
+  dependent destruction Ht. { xinv Hs. apply rsp_ready. constructor. }
+  dependent destruction Hs. apply rsp_oq. { constructor. }
+  intros qx Hq. xinv Hq. inv HM. rename q2 into d1.
+  simple inversion Hst; try congruence. xsubst; congruence.
+  clear Hst. xsubst. inv H2. inv H3. xsubst. intros Hst Hu.
+  eapply rsp_ref. 1-3: reflexivity.
+  { instantiate (1 := state_strat _ _ _ _ _).
+    cbn. intros. econstructor; eauto.
+    split. split_evar.
+    instantiate (1 := u).
+    all: cbn; eauto. } clear Hu.
+  (* assert ((IntStrat.get slens_id (d1, tt)) = d1). reflexivity. *)
+  (* setoid_rewrite H in Hst. clear H. *)
+  clear HVF INIT. revert d1 u s2 s Hs Hst.
+  dependent induction HS; intros.
+  - dependent destruction Hs. eapply rsp_pq. { repeat constructor. }
+    dependent destruction Hs. apply rsp_suspended.
+    econstructor. split; cbn; eauto.
+    xinv Hst. easy.
+  - dependent destruction Hs. eapply rsp_pq. { repeat constructor. }
+    dependent destruction Hs. apply rsp_oa.
+    { econstructor. split; cbn; eauto. xinv Hst. easy. }
+    cbn. intros [r xs] Hr. eapply esig_rel_mr_elim in Hr.
+    2: { constructor. } inv Hr. xinv Hst. 
+    rewrite regular_conv.
+    2: { repeat constructor. }
+    2: { intros Hr. xinv Hr. apply HA. inv HM. constructor. }
+    dependent destruction H1.
+    eapply rsp_ref. 1-3: reflexivity.
+    2: { eapply IHHS; eauto. }
+    intros p Hp. cbn. econstructor 2.
+    { split; eauto. }
+    { split. split_evar. all: cbn; eauto. }
+    apply Hp.
+  - dependent destruction Hs. dependent destruction Hs.
+    dependent destruction Hst.
+    eapply rsp_pa.
+    { intros Hr. xinv Hr. apply HA. constructor. }
+    apply rsp_ready. cbn.
+    econstructor 3. split; eauto.
+  - eapply rsp_ref. 1-3: reflexivity.
+    2: { eapply IHHS; eauto. }
+    intros p Hp. econstructor 4. split_evar. 2: apply Hp.
+    apply Lifting.lifting_step_star; eauto.
+Qed.
 
 Definition join_conv : conv (li_c @ Mem.mem) li_c :=
   lift_convert_rel li_c Mem.mem ;; join_cc.

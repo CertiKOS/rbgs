@@ -228,6 +228,7 @@ Section CLOSURE.
   Qed.
 
 End CLOSURE.
+Arguments closure {E F} _%strat_scope.
 
 Global Hint Constructors closure_has : core.
 
@@ -1354,14 +1355,123 @@ Lemma representation_independence {E} {S T: Type} (R: rel S T) s0 t0:
 Proof.
 Admitted.
 
-Lemma closure_lift {E F U} (σ: strat E F ready):
-  closure (σ@U)%strat [= ((closure σ)@U)%strat.
+Global Hint Constructors sls_has tstrat_has : core.
+
+Lemma seq_comp_tstrat {E1 F1 E2 F2 i j k} (tp: tpos i j k)
+  (s1: @play (tens E1 F1) (tens E2 F2) k) s2 s
+  (es1: @play E1 E2 i) (fs1: @play F1 F2 j) es2 fs2:
+  seq_comp_has s1 s2 s -> tstrat_has tp es1 fs1 s1 -> tstrat_has tp_ready es2 fs2 s2 ->
+  exists e f,
+    seq_comp_has es1 es2 e /\ seq_comp_has fs1 fs2 f /\ tstrat_has tp e f s.
 Proof.
-  intros s Hs. cbn in *. dependent induction Hs.
-  - exists pnil_ready, pnil_ready. firstorder eauto. constructor. constructor.
-  - edestruct IHHs as (t1 & t2 & Ht1 & Ht2 & Ht3); eauto.
-    cbn in H. destruct H as (s1 & s2 & Hs1 & Hs2 & Hs3).
-Admitted.
+  intros Hs Ht1 Ht2. revert s2 s Hs es2 fs2 Ht2.
+  Ltac tstrat_seq_comp_solve1 :=
+    dependent destruction Hs; eexists _, _; repeat apply conj; eauto.
+  Ltac tstrat_seq_comp_solve2 IHHt1 :=
+    dependent destruction Hs;
+    edestruct IHHt1 as (e & f & He & Hf & Hef); eauto;
+    eexists _, _; repeat apply conj; eauto.
+  induction Ht1; intros; try solve [ tstrat_seq_comp_solve1 | tstrat_seq_comp_solve2 IHHt1 ].
+Qed.
+
+(* This could be generalized to any (stateful?) lens *)
+Lemma tstrat_has_exists {E F U i} (s: @play E F i):
+  inhabited U ->
+  exists j sp k (tp: tpos i j k) t st,
+    sls_has (@slens_id U) sp t /\ tstrat_has tp s t st /\
+      (match sp with
+      | sls_ready _ => True
+      | sls_suspended _ v u | sls_running _ v u => v = u
+       end).
+Proof.
+  intros [u]. dependent induction s.
+  - eexists _, _, _, tp_ready, _, _. split; eauto.
+  - eexists _, _, _, _, _, _. split; eauto.
+  - dependent destruction m;
+      destruct (IHs u) as (j & sp & k & tp & t & ts & HA & HB & HC);
+      dependent destruction tp; dependent destruction sp; destruct p; subst.
+    + eexists _, _, _, _, (oq u0 :: _), _. eauto.
+    + eexists _, _, _, _, (pq m2 :: _), _. eauto. 
+    + eexists _, _, _, _, (oa _ :: _), _. eauto.
+    + eexists _, _, _, _, (pa _ :: _), _.
+      split. apply sls_has_pa with (p := tt) (p' := tt). eauto. 
+      cbn. reflexivity. split; eauto.
+      Unshelve. 1,3: exact tt. all: exact u.
+Qed.
+
+Lemma tstrat_seq_comp {E1 E2 U i j k} (tp: tpos i j k)
+  es fs es1 es2 (s: @play (E1@U) (E2@U) _) st1:
+  tstrat_has tp es fs s -> seq_comp_has es1 es2 es -> sls_has (@slens_id U) st1 fs ->
+  exists s1 s2 st2 fs1 fs2,
+    sls_has slens_id st1 fs1 /\ sls_has slens_id st2 fs2 /\
+    tstrat_has tp es1 fs1 s1 /\ tstrat_has tp_ready es2 fs2 s2 /\
+    seq_comp_has s1 s2 s.
+Proof.
+  intros Ht Hs Hf. revert es1 es2 Hs st1 Hf.
+  induction Ht; intros.
+  - dependent destruction Hs. 
+    eexists _, _, _, _, _; eauto.
+  - dependent destruction Hs; dependent destruction Hf.
+    + eexists pnil_ready, _, _, pnil_ready, (oq _ :: _); repeat apply conj; eauto.
+    + edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
+      eexists _, _, _, (oq _ :: _), _; repeat apply conj; eauto.
+  - dependent destruction Hs; dependent destruction Hf.
+    edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
+    eexists _, _, _, _, _; repeat apply conj; eauto.
+  - dependent destruction Hs. 
+    edestruct (tstrat_has_exists (U:=U) t) as (j & sp & k & tp & xt & ts & HA & HB & HC).
+    split. exact q2. dependent destruction tp.
+    eexists _, _, _, _, xt; repeat apply conj; eauto.
+  - dependent destruction Hs; dependent destruction Hf.
+    edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
+    eexists _, _, _, (oa _ :: _), _; repeat apply conj; eauto.
+  - dependent destruction Hs; dependent destruction Hf.
+    edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
+    eexists _, _, _, (pa _ :: _), _; repeat apply conj; eauto.
+Qed.
+
+Lemma lens_seq_comp {U V i} (l: lens U V) (sp: sls_state i) tp s t st:
+  seq_comp_has s t st ->
+  sls_has (embed_lens l) sp s ->
+  sls_has (embed_lens l) tp t ->
+  sls_has (embed_lens l) sp st.
+Proof.
+  intros Hst Hs Ht. revert sp tp Hs Ht. dependent induction Hst.
+  - intros. dependent destruction sp. dependent destruction tp.
+    destruct p, p0. eauto.
+  - intros. dependent destruction Hs. eauto.
+  - intros. dependent destruction Hs. eauto.
+  - intros. eauto.
+  - intros. dependent destruction Hs. eauto.
+  - intros. dependent destruction Hs. eauto.
+Qed.
+
+Lemma closure_lift {E F U} (σ: strat E F ready):
+  closure (σ@U) = (closure σ)@U.
+Proof.
+  apply antisymmetry.
+  - intros s Hs. cbn - [slens_id] in *.
+    dependent induction Hs.
+    + exists pnil_ready, pnil_ready. firstorder eauto.
+    + edestruct IHHs as (t1 & t2 & Ht1 & Ht2 & Ht3); eauto.
+      cbn - [slens_id] in H. destruct H as (s1 & s2 & Hs1 & Hs2 & Hs3).
+      exploit @seq_comp_tstrat; eauto.
+      intros (st1 & st2 & Hst1 & Hst2 & Hst3).
+      exists st1, st2. split; eauto. split; eauto.
+      eapply lens_seq_comp; eauto.
+  - intros s Hs. cbn - [slens_id] in *.
+    edestruct Hs as (s1 & s2 & Hs1 & Hs2 & Hs3); eauto. clear Hs.
+    revert s2 s Hs1 Hs3.
+    (* Set Printing Implicit. cbn. *)
+    generalize (@sls_ready U U (@slens_state U U (@slens_id U)) (@slens_init U U (@slens_id U))) as st.
+    dependent induction Hs2; intros.
+    + dependent destruction Hs1. eauto.
+    + edestruct @tstrat_seq_comp as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
+      exploit IHHs2; eauto. intros Hc.
+      eapply closure_has_cons; eauto.
+      exists s, fs1. repeat apply conj; eauto. cbn - [slens_id] in *.
+      dependent destruction st. cbn in *. destruct p. eauto.
+Qed.
 
 (* XXX: move to IntStrat.v *)
 Global Instance compose_when_monotonic {E F G i j k p}:
