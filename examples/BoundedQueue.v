@@ -178,7 +178,17 @@ Definition L_get_strat: strat 0 (E_rb @ S_rb) ready := sup { f | forall n, Cop.v
 Definition L_set_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, sup i, sup v, down (L_set_play f c1 c2 i v).
 Definition L_rb : strat 0 (E_rb @ S_rb) ready := closure (join (join L_inc1_strat L_inc2_strat) (join L_get_strat L_set_strat)).
 
-Local Instance L_rb_regular : Regular L_rb. Admitted.
+Local Hint Constructors no_reentrancy_play : core.
+
+Local Instance L_rb_regular : Regular L_rb.
+Proof.
+  split. eexists. split. reflexivity.
+  intros s Hs. destruct Hs as [[|] [[|] Hs]];
+    cbn in Hs; eprod_crush; eapply no_reentrancy_play_ref;
+    eauto;
+    unfold L_inc1_play, L_inc2_play, L_get_play, L_set_play;
+    eauto.
+Qed.
 
 Local Transparent join.
 Local Hint Constructors non_recur_play pcoh : core.
@@ -245,7 +255,7 @@ Lemma ϕ1 :
   rsq vid (tconv vid bq_rb_rel) L_bq ((M_bq @ S_rb) ⊙ L_rb).
 Proof.
   unfold M_bq. rewrite <- closure_lift.
-  rewrite <- @closure_comp_ref2. 2: typeclasses eauto.
+  rewrite closure_comp. 2: typeclasses eauto.
   apply rsq_closure; eauto with typeclass_instances.
   intros s (i & Hs). destruct i.
   - (* enq *)
