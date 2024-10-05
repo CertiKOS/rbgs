@@ -644,10 +644,6 @@ Global Instance slens_deterministic {U V} (l: slens U V):
   Deterministic l.
 Admitted.
 
-Lemma lifting_determinate {liA liB U} (L: semantics liA liB):
-  determinate L -> determinate (Lifting.lifted_semantics U L).
-Admitted.
-
 Lemma ϕ_bq_with_internals : rsq ϕ_bq_conv_1 ϕ_bq_conv_2 M_bq (Clight.semantics2 BQ.bq_program).
 Proof.
   eapply rsq_vcomp. constructor. 
