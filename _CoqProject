@@ -11,6 +11,7 @@
 -R compcert/flocq Flocq
 -R compcert/MenhirLib MenhirLib
 -R compcert/clightp compcert.clightp
+-R compcert/process compcert.process
 
 -R coqrel coqrel
 -R structures structures
