@@ -3627,29 +3627,398 @@ End TRSQ.
 
 (** ** §5.3 Transforming State *)
 
-Section LENS.
+(** *** Lenses *)
 
-  Record lens {U V} :=
-    {
-      get : U -> V;
-      set : U -> V -> U;
-      get_set u v : get (set u v) = v;
-      set_get u : set u (get u) = u;
-      set_set u v v' : set (set u v) v' = set u v';
-    }.
+(** Note that in order to match the orientation of the strategies that
+  we combine them with, our definition of lens is flipped compared
+  with the traditional one. *)
 
-  Global Arguments lens : clear implicits.
+Record lens {U V} :=
+  {
+    get : V -> U;
+    set : V -> U -> V;
+    get_set v u : get (set u v) = v;
+    set_get v : set v (get v) = v;
+    set_set v u u' : set (set v u) u' = set v u';
+  }.
 
-  Record slens {U V} :=
-    {
-      slens_state : Type;
-      slens_init : slens_state;
-      slens_lens :> lens (V * slens_state) U;
-    }.
+Global Arguments lens : clear implicits.
 
-  Global Arguments slens : clear implicits.
+Declare Scope lens_scope.
+Delimit Scope lens_scope with lens.
+Bind Scope lens_scope with lens.
+Open Scope lens_scope.
 
-  (** Promoting a stateful lens to a strategy *)
+Lemma lens_eq_ext {U V} (f g : lens U V) :
+  (forall v, get f v = get g v) ->
+  (forall v u, set f v u = set g v u) ->
+  f = g.
+Proof.
+  destruct f as [fget fset Hf_gs Hf_sg Hf_ss],
+           g as [gget gset Hg_gs Hg_sg Hg_ss]; cbn.
+  intros Hget Hset.
+  assert (fget = gget) by eauto using functional_extensionality; subst.
+  assert (fset = gset) by eauto using functional_extensionality; subst.
+  f_equal; eauto using proof_irrelevance.
+Qed.
+
+(** **** Composition *)
+
+Program Definition lid {U} : lens U U :=
+  {|
+    get u := u;
+    set _ u := u;
+  |}.
+
+Program Definition lcomp {U V W} (g : lens V W) (f : lens U V) : lens U W :=
+  {|
+    get w := get f (get g w);
+    set w u := set g w (set f (get g w) u);
+  |}.
+Solve Obligations with
+  cbn; intros; rewrite ?get_set, ?set_get, ?set_set; reflexivity.
+
+Infix "∘" := lcomp : lens_scope.
+
+Lemma lcomp_lid_l {U V} (f : lens U V) :
+  lid ∘ f = f.
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+Lemma lcomp_lid_r {U V} (f : lens U V) :
+  f ∘ lid = f.
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+Lemma lcomp_lcomp {U V W X} :
+  forall (h : lens W X) (g : lens V W) (f : lens U V),
+    (h ∘ g) ∘ f = h ∘ (g ∘ f).
+Proof.
+  auto using lens_eq_ext.
+Qed.
+
+(** **** Tensor product *)
+
+Program Definition prod_lens {U1 U2 V1 V2} (f1 : lens U1 V1) (f2 : lens U2 V2) :=
+  {|
+    get v := (get f1 (fst v), get f2 (snd v));
+    set v u := (set f1 (fst v) (fst u), set f2 (snd v) (snd u));
+  |}.
+Solve Obligations with
+  cbn; intros ? ? ? ? ? ?; repeat intros [? ?]; cbn;
+  rewrite ?get_set, ?set_get, ?set_set; auto.
+
+Infix "*" := prod_lens : lens_scope.
+
+(** **** Injections *)
+
+Program Definition pinl {U V} : lens U (U * V) :=
+  {|
+    get := fst;
+    set uv u := (u, snd uv);
+  |}.
+
+Program Definition pinr {U V} : lens V (U * V) :=
+  {|
+    get := snd;
+    set uv v := (fst uv, v);
+  |}.
+
+(** **** Left unitor *)
+
+Program Definition plu {U} : lens (unit * U) U :=
+  {|
+    get := pair tt;
+    set _ := snd;
+  |}.
+Solve Obligations with
+  repeat (intros [[ ] ?] || intro); reflexivity.
+
+Program Definition plur {U} : lens U (unit * U) :=
+  {|
+    get := snd;
+    set _ := pair tt;
+  |}.
+Solve Obligations with
+  repeat (intros [[ ] ?] || intro); reflexivity.
+
+Lemma plur_plu {U} :
+  @plur U ∘ @plu U = @lid (unit * U).
+Proof.
+  apply lens_eq_ext; cbn; repeat intros [[ ] ?]; reflexivity.
+Qed.
+
+Lemma plu_plur {U} :
+  @plu U ∘ @plur U = @lid U.
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+(** **** Right unitor *)
+
+Program Definition pru {U} : lens (U * unit) U :=
+  {|
+    get u := (u, tt);
+    set _ := fst;
+  |}.
+Solve Obligations with
+  repeat (intros [? [ ]] || intro); reflexivity.
+
+Program Definition prur {U} : lens U (U * unit) :=
+  {|
+    get := fst;
+    set _ u := (u, tt);
+  |}.
+Solve Obligations with
+  repeat (intros [? [ ]] || intro); reflexivity.
+
+Lemma prur_pru {U} :
+  @prur U ∘ @pru U = @lid (U * unit).
+Proof.
+  apply lens_eq_ext; cbn; repeat intros [? [ ]]; reflexivity.
+Qed.
+
+Lemma pru_prur {U} :
+  @pru U ∘ @prur U = @lid U.
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+(** **** Associator *)
+
+Program Definition passoc {U V W} : lens ((U * V) * W) (U * (V * W)) :=
+  {|
+    get x := ((fst x, fst (snd x)), snd (snd x));
+    set _ x := (fst (fst x), (snd (fst x), snd x));
+  |}.
+
+Program Definition passocr {U V W} : lens (U * (V * W)) ((U * V) * W) :=
+  {|
+    get x := (fst (fst x), (snd (fst x), snd x));
+    set _ x := ((fst x, fst (snd x)), snd (snd x));
+  |}.
+
+Lemma passocr_passoc {U V W} :
+  @passocr U V W ∘ @passoc U V W = lid.
+Proof.
+  apply lens_eq_ext; repeat intros [[? ?] ?]; reflexivity.
+Qed.
+
+Lemma passoc_passocr {U V W} :
+  @passoc U V W ∘ @passocr U V W = lid.
+Proof.
+  apply lens_eq_ext; repeat intros [? [? ?]]; reflexivity.
+Qed.
+
+(** **** Braiding *)
+
+Program Definition pswap {U V} : lens (U * V) (V * U) :=
+  {|
+    get vu := (snd vu, fst vu);
+    set _ uv := (snd uv, fst uv);
+  |}.
+
+Lemma pswap_pswap {U V} :
+  @pswap U V ∘ @pswap V U = lid.
+Proof.
+  apply lens_eq_ext; repeat intros [? ?]; reflexivity.
+Qed.
+
+(** **** Triangle diagram *)
+
+Lemma plu_passoc {U V} :
+  (@lid U * @plu V) ∘ @passoc U unit V = @pru U * @lid V.
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+(** **** Pentagon diagram *)
+
+Lemma passoc_passoc {U V W X} :
+  @passoc U V (W * X) ∘ @passoc (U * V) W X =
+  (@lid U * @passoc V W X) ∘ @passoc U (V * W) X ∘ (@passoc U V W * @lid X).
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+(** **** Unit coherence for braiding *)
+
+Lemma plu_pswap {U} :
+  @plu U ∘ @pswap U unit = @pru U.
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+(** **** Hexagon *)
+
+Lemma passoc_pswap {U V W} :
+  @passoc V W U ∘  @pswap U (V * W) ∘  @passoc U V W =
+  (@lid V * @pswap U W) ∘ @passoc V U W ∘ (@pswap U V * @lid W).
+Proof.
+  apply lens_eq_ext; reflexivity.
+Qed.
+
+(** *** Lenses with state *)
+
+Record slens {U V} :=
+  {
+    slens_state : Type;
+    slens_init : slens_state;
+    slens_lens : lens U (V * slens_state);
+  }.
+
+Global Arguments slens : clear implicits.
+
+Declare Scope slens_scope.
+Delimit Scope slens_scope with slens.
+Bind Scope slens_scope with slens.
+
+(** **** Equivalence *)
+
+(** Unfortunately the use of state means that equivalent lenses may
+  not be equal, so we need to reason up to the following notion of
+  equivalence. However, equivalent stateful lenses yield strategy
+  interpretations that are equal. *)
+
+Record lens_rel {U1 U2 V1 V2} (R : rel U1 U2) (S : rel V1 V2) f g : Prop :=
+  {
+    lens_rel_get : Related (get f) (get g) (S ++> R);
+    lens_rel_set : Related (set f) (set g) (S ++> R ++> S);
+  }.
+
+Record slens_eqv {U V} (f g : slens U V) : Prop :=
+  {
+    slens_eqv_state :
+      rel (slens_state f) (slens_state g);
+    slens_eqv_init :
+      slens_eqv_state (slens_init f) (slens_init g);
+    slens_eqv_lens :
+      lens_rel eq (eq * slens_eqv_state) (slens_lens f) (slens_lens g);
+  }.
+
+Global Instance slens_eqv_equiv {U V} :
+  Equivalence (@slens_eqv U V).
+Proof.
+  split.
+  - intros f.
+    exists eq; auto.
+    split; rauto.
+  - intros f g [R Hinit Hlens].
+    exists (flip R); auto.
+    split.
+    + intros [xv q2] [v q1] [Hv Hq]; cbn in *; subst.
+      symmetry. apply Hlens. rauto.
+    + intros [xv q2] [v q1] [Hv Hq] u2 u1 Hu; cbn in *; subst.
+      split.
+      * symmetry; apply Hlens; rauto.
+      * red. apply Hlens; rauto.
+  - intros f g h [R Hinit_fg Hlens_fg] [S Hinit_gh Hlens_gh].
+    exists (rel_compose R S); eauto.
+    split.
+    + intros [xv q1] [v q3] (Hv & q2 & Hq12 & Hq23). cbn in *. subst.
+      etransitivity. apply Hlens_fg; rauto. apply Hlens_gh; rauto.
+    + intros [xv q1] [v q3] (Hv & q2 & Hq12 & Hq23) xu u Hu. cbn in *. subst.
+      destruct Hlens_fg as [_ Hfg], Hlens_gh as [_ Hgh].
+      edestruct (Hfg (v, q1) (v, q2) rauto u u rauto).
+      edestruct (Hgh (v, q2) (v, q3) rauto u u rauto).
+      split; try rauto.
+      eexists; eauto.
+Qed.
+
+Infix "==" := slens_eqv (at level 70, right associativity).
+
+(** **** Embedding lenses *)
+
+(** Normal lenses are trivially a special case of stateful lenses.
+  This allows us to lift much of the structure above to act on
+  stateful lenses as well. *)
+
+Definition lens_slens {U V} (f : lens U V) : slens U V :=
+  {|
+    slens_state := unit;
+    slens_init := tt;
+    slens_lens := prur ∘ f;
+  |}.
+
+Coercion lens_slens : lens >-> slens.
+
+(** **** Composition *)
+
+Definition slcomp {U V W} (g : slens V W) (f : slens U V) : slens U W :=
+  {|
+    slens_state := slens_state g * slens_state f;
+    slens_init := (slens_init g, slens_init f);
+    slens_lens := passoc ∘ (slens_lens g * lid) ∘ slens_lens f;
+  |}.
+
+Infix "∘" := slcomp : slens_scope.
+
+Lemma slcomp_id_l {U V} (f : slens U V) :
+  slcomp lid f == f.
+Proof.
+  exists (fun x y => snd x = y); auto.
+  split.
+  - intros [xv [[ ] xq]] [v q] [Hu Hq]. cbn in *. subst. 
+    reflexivity.
+  - intros [xv [[ ] xq]] [v q] [Hu Hq] ? ? ?. cbn in *. subst. 
+    split; cbn; auto.
+Qed.
+
+Lemma slcomp_id_r {U V} (f : slens U V) :
+  slcomp f lid == f.
+Proof.
+  exists (fun x y => fst x = y); auto.
+  split.
+  - intros [xv [xq [ ]]] [v q] [Hu Hq]. cbn in *. subst. 
+    reflexivity.
+  - intros [xv [xq [ ]]] [v q] [Hu Hq] ? ? ?. cbn in *. subst. 
+    split; cbn; auto.
+Qed.
+
+Lemma slcomp_slcomp {U V W X} (f : slens U V) (g : slens V W) (h : slens W X) :
+  (h ∘ g) ∘ f == h ∘ (g ∘ f).
+Proof.
+  exists (fun '((x, y), z) => eq (x, (y, z))); cbn; auto.
+Admitted. (* not a problem *)
+
+(** Adding a trivial state to lenses preserves composition *)
+
+Lemma lens_slens_lcomp {U V W} (g : lens V W) (f : lens U V) :
+  lens_slens (g ∘ f) == lens_slens g ∘ lens_slens f.
+Proof.
+  exists rel_top; cbn.
+  - constructor.
+  - split.
+    + intros [? ?] [? ?] [? ?]. cbn in *. subst. reflexivity.
+    + intros [? [ ]] [? [[ ] [ ]]] [? _] ? ? ?. cbn in *. subst.
+      split. reflexivity. constructor.
+Qed.
+
+(** **** Tensor product *)
+
+(** **** Encapsulation primitive *)
+
+(** This allows to hide part of the global state. All stateful lenses
+  can be obtained as normal lense plus state encapsulation. *)
+
+Definition encap {U} (u : U) : slens U unit :=
+  {|
+    slens_state := U;
+    slens_init := u;
+    slens_lens := plur;
+  |}.
+
+(*
+Lemma encap_prod {U V} (u : U) (v : V) :
+  encap u * encap v == encap (u, v).
+*)
+
+
+(** **** Promoting a stateful lens to a strategy *)
+
+Section SLENS_STRAT.
 
   Context {U V : Type}.
 
@@ -3667,7 +4036,7 @@ Section LENS.
     | sls_running (p : P) v (u : U) : sls_state (running v)
     | sls_suspended (p : P) v u : sls_state (suspended v u).
 
-  Inductive sls_has {P} (f: lens (V*P) U): forall {i}, _ i -> play i -> Prop :=
+  Inductive sls_has {P} (f: lens U (V*P)): forall {i}, _ i -> play i -> Prop :=
     | sls_has_ready p :
         sls_has f (sls_ready p) pnil_ready
     | sls_has_oq p v u s :
@@ -3700,4 +4069,4 @@ Section LENS.
       try dependent destruction Hy;
       econstructor; eauto.
   Qed.
-End LENS.
+End SLENS_STRAT.
