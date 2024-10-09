@@ -2873,9 +2873,24 @@ End FCOMP_RSQ.
 Coercion emor_rc : emor >-> conv.
 
 
-(** * Spatial composition *)
+(** * §5 SPATIAL COMPOSITION *)
 
-(** ** Tensor product of effect signatures *)
+(** ** §5.1 Explicit State *)
+
+(** *** Tensor product of effect signatures *)
+
+(** As with flat composition, we only formalize the nullary and binary cases.
+  The unit is a special case of {u : U | u ∈ U}, defined below. *)
+
+Definition glob U : esig :=
+  {|
+    op := U;
+    ar _ := U;
+  |}.
+
+Notation "1" := (glob unit) : esig_scope.
+
+(** The binary tensor product is defined as follows. *)
 
 Canonical Structure tens E1 E2 :=
   {|
@@ -2883,7 +2898,138 @@ Canonical Structure tens E1 E2 :=
     ar m := ar (fst m) * ar (snd m);
   |}%type.
 
-(** ** Tensor product of strategies *)
+Infix "*" := tens : esig_scope.
+
+(** *** Tensor product of signature homomorphisms *)
+
+(** As with flat composition, we first define the monoidal structure
+  in the simpler setting of signature homomorphisms. *)
+
+Section TENS_EMOR.
+  Context {E1 E2 F1 F2} (f1 : emor E1 F1) (f2 : emor E2 F2).
+
+  Definition tens_emor : emor (E1 * E2) (F1 * F2) :=
+    fun q => econs (operator (f1 (fst q)),
+                    operator (f2 (snd q)))
+                   (fun r => (operand (f1 (fst q)) (fst r),
+                              operand (f2 (snd q)) (snd r))).
+End TENS_EMOR.
+
+Infix "*" := tens_emor : emor_scope.
+
+(** **** Functoriality *)
+
+Lemma tens_eid {E F} :
+  @eid E * @eid F = @eid (E * F).
+Proof.
+  apply functional_extensionality_dep. intros [q1 q2].
+  unfold eid, tens_emor. cbn. f_equal.
+  apply functional_extensionality. intros [r1 r2].
+  reflexivity.
+Qed.
+
+Lemma tens_compose {E1 E2 F1 F2 G1 G2} :
+  forall (g1 : emor F1 G1) (g2 : emor F2 G2) (f1 : emor E1 F1) (f2 : emor E2 F2),
+    (g1 ∘ f1) * (g2 ∘ f2) = (g1 * g2) ∘ (f1 * f2).
+Proof.
+  intros.
+  apply functional_extensionality_dep. intros [q1 q2].
+  reflexivity.
+Qed.
+
+(** **** Left unitor *)
+
+Definition tlu {E} : emor (1 * E) E :=
+  fun q => econs (E := 1 * E) (tt, q) (fun r => snd r).
+
+Definition tlur {E} : emor E (1 * E) :=
+  fun q => econs (snd q) (fun r => (tt, r)).
+
+Lemma tlur_tlu {E} :
+  @tlur E ∘ @tlu E = eid.
+Proof.
+  apply functional_extensionality_dep. intros [[ ] q].
+  unfold eid, ecomp. cbn. f_equal.
+  apply functional_extensionality. intros [[ ] r].
+  reflexivity.
+Qed.
+
+Lemma tlu_tlur {E} :
+  @tlu E ∘ @tlur E = eid.
+Proof.
+  apply functional_extensionality_dep. intro q.
+  reflexivity.
+Qed.
+
+(** **** Right unitor *)
+
+Definition tru {E} : emor (E * 1) E :=
+  fun q => econs (E := E * 1) (q, tt) (fun r => fst r).
+
+Definition trur {E} : emor E (E * 1) :=
+  fun q => econs (fst q) (fun r => (r, tt)).
+
+Lemma trur_tru {E} :
+  @trur E ∘ @tru E = eid.
+Proof.
+  apply functional_extensionality_dep. intros [q [ ]].
+  unfold eid, ecomp. cbn. f_equal.
+  apply functional_extensionality. intros [r [ ]].
+  reflexivity.
+Qed.
+
+Lemma tru_trur {E} :
+  @tru E ∘ @trur E = eid.
+Proof.
+  apply functional_extensionality_dep. intro q.
+  reflexivity.
+Qed.
+
+(** **** Associator *)
+
+Definition tassoc {E F G} : emor ((E * F) * G) (E * (F * G)) :=
+  fun q => econs ((fst q, fst (snd q)), snd (snd q))
+                 (fun r => (fst (fst r), (snd (fst r), snd r))).
+
+Definition tassocr {E F G} : emor (E * (F * G)) ((E * F) * G) :=
+  fun q => econs (fst (fst q), (snd (fst q), snd q))
+                 (fun r => ((fst r, fst (snd r)), snd (snd r))).
+
+Lemma tassocr_tassoc {E F G} :
+  @tassocr E F G ∘ @tassoc E F G = eid.
+Proof.
+  apply functional_extensionality_dep. intros [[q1 q2] q3].
+  unfold eid, ecomp. cbn. f_equal.
+  apply functional_extensionality. intros [[r1 r2] r3].
+  reflexivity.
+Qed.
+
+Lemma tassoc_tassocr {E F G} :
+  @tassoc E F G ∘ @tassocr E F G = eid.
+Proof.
+  apply functional_extensionality_dep. intros [q1 [q2 q3]].
+  unfold eid, ecomp. cbn. f_equal.
+  apply functional_extensionality. intros [r1 [r2 r3]].
+  reflexivity.
+Qed.
+
+(** **** Braiding *)
+
+Definition tswap {E F} : emor (tens E F) (tens F E) :=
+  fun q => econs (snd q, fst q) (fun r => (snd r, fst r)).
+
+Lemma tswap_tswap {E F} :
+  @tswap E F ∘ @tswap F E = eid.
+Proof.
+  apply functional_extensionality_dep. intros [q1 q2].
+  unfold eid, ecomp. cbn. f_equal.
+  apply functional_extensionality. intros [r1 r2].
+  reflexivity.
+Qed.
+
+(** **** Coherence diagrams *)
+
+(** *** Tensor product of strategies *)
 
 (** We can define a form of tensor product for strategies, however
   note that it is not well-behaved in general. In partcular, if
@@ -2958,7 +3104,7 @@ Section TSTRAT.
       edestruct IHHs as (t1 & t2 & Ht & H1 & H2); eauto 10.
   Qed.
 
-  (** *** Residuals *)
+  (** **** Residuals *)
 
   Lemma tstrat_next_oq q1 q2 σ1 σ2 :
     next (oq (q1,q2)) (tstrat tp_ready σ1 σ2) =
@@ -3023,7 +3169,7 @@ Section TSTRAT.
   Qed.
 End TSTRAT.
 
-(** ** Tensor product of refinement conventions *)
+(** *** Tensor product of refinement conventions *)
 
 Section TCONV.
   Context {E1 E2 F1 F2 : esig}.
@@ -3060,7 +3206,7 @@ Section TCONV.
                       [e1 e2] [f1 f2] [n1 n2] [r1 r2]]; cbn; firstorder.
   Qed.
 
-  (** *** Residuals *)
+  (** **** Residuals *)
 
   Lemma rcnext_tconv m1 m2 m1' m2' n1 n2 n1' n2' R1 R2 :
     ~ Downset.has R1 (rcp_forbid m1 m1' n1 n1') ->
@@ -3079,7 +3225,7 @@ Section TCONV.
         cbn in Hs; repeat (destruct Hs as [? Hs]); eauto.
   Qed.
 
-  (** *** Preservation of [sup] and [inf]. *)
+  (** **** Preservation of [sup] and [inf]. *)
 
   Lemma tconv_sup_l {I} R1 R2 :
     tconv (sup i:I, R1 i) R2 = sup i:I, tconv (R1 i) R2.
@@ -3234,7 +3380,7 @@ Section TCONV.
   Qed.
 End TCONV.
 
-(** *** Functoriality vs vertical composition *)
+(** **** Functoriality vs vertical composition *)
 
 Section TCONV_VCOMP.
   Context {E1 F1 G1} (R1 : conv E1 F1) (S1 : conv F1 G1).
@@ -3339,7 +3485,7 @@ Section TCONV_VCOMP.
   Qed.
 End TCONV_VCOMP.
 
-(** ** Tensor product of refinement squares *)
+(** *** Tensor product of refinement squares *)
 
 Section TRSQ.
   Context {E1 E2 F1 F2 E1' E2' F1' F2' : esig}.
@@ -3445,7 +3591,9 @@ Section TRSQ.
   Qed.
 End TRSQ.
 
-(** ** Stateful lenses *)
+(** ** §5.2 Passing State Through *)
+
+(** ** §5.3 Transforming State *)
 
 Section LENS.
 
@@ -3470,8 +3618,6 @@ Section LENS.
   Global Arguments slens : clear implicits.
 
   (** Promoting a stateful lens to a strategy *)
-
-  Definition glob U : esig := {| op := U; ar _ := U |}.
 
   Context {U V : Type}.
 
