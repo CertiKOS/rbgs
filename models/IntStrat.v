@@ -665,6 +665,36 @@ Section EMOR_STRAT.
   Definition emor_strat :=
     emor_when eready.
 
+  (** **** Residuals *)
+
+  Lemma emor_next_question q :
+    next (pq (operator (f q))) (next (oq q) emor_strat) =
+    emor_when (esuspended q).
+  Proof.
+    apply antisymmetry; cbn; intros s Hs.
+    - dependent destruction Hs; auto.
+    - constructor; auto.
+  Qed.
+
+  Lemma emor_next_answer q r :
+    next (pa (operand (f q) r)) (next (oa r) (emor_when (esuspended q))) =
+    emor_strat.
+  Proof.
+    apply antisymmetry; cbn; intros s Hs.
+    - dependent destruction Hs; auto.
+    - constructor; auto.
+  Qed.
+
+  Lemma emor_next q r :
+    (next (pa (operand (f q) r))
+       (next (oa r)
+          (next (pq (operator (f q)))
+             (next (oq q) emor_strat)))) =
+      emor_strat.
+  Proof.
+    rewrite emor_next_question, emor_next_answer.
+    reflexivity.
+  Qed.
 End EMOR_STRAT.
 
 Arguments eready {_ _ _}.
@@ -678,6 +708,12 @@ Arguments esuspended {_ _ _}.
   signature homomorphism. *)
 
 Notation id E := (emor_strat (@eid E)).
+
+Lemma id_next {E} q r :
+  (next (pa r) (next (oa r) (next (pq q) (next (oq q) (id E))))) = id E.
+Proof.
+  apply emor_next.
+Qed.
 
 (** Layered composition is more complex. *)
 
@@ -1615,7 +1651,7 @@ Qed.
 
 (** **** Associator properties *)
 
-Global Instance falph_iso {E F G} :
+Global Instance fassoc_iso {E F G} :
   Isomorphism (@fassoc E F G) (@fassocr E F G).
 Proof.
   split.
@@ -1706,7 +1742,7 @@ Section RC.
   Qed.
 
   Definition conv :=
-    downset rcp_poset.
+    poset_carrier (downset rcp_poset).
 
   (** *** Residual *)
 
@@ -2604,6 +2640,103 @@ Section VCOMP_VID.
   Qed.
 End VCOMP_VID.
 
+(** ** Signature homomorphisms *)
+
+(** Signature homomorphisms embed into refinement conventions as well
+  as strategies. This will again be useful to define the monoidal
+  structure associated with flat composition for refinement conventions. *)
+
+Section EMOR_RC.
+  Context {E1 E2} (f : emor E1 E2).
+  Obligation Tactic := cbn.
+
+  (** *** Definition *)
+
+  Inductive emor_rc_has : rcp E1 E2 -> Prop :=
+    | emor_rc_allow m :
+        emor_rc_has (rcp_allow (operator (f m)) m)
+    | emor_rc_forbid m n1 n2 :
+        operand (f m) n1 <> n2 ->
+        emor_rc_has (rcp_forbid (operator (f m)) m n1 n2)
+    | emor_rc_cont m n1 n2 k :
+        (operand (f m) n1 = n2 -> emor_rc_has k) ->
+        emor_rc_has (rcp_cont (operator (f m)) m n1 n2 k).
+
+  Hint Constructors emor_rc_has.
+
+  Program Definition emor_rc : conv E1 E2 :=
+    {| Downset.has := emor_rc_has |}.
+  Next Obligation.
+    intros s t Hst Ht. revert s Hst.
+    induction Ht; intros; dependent destruction Hst; auto.
+    constructor. tauto.
+  Qed.
+
+  (** *** Useful lemmas *)
+
+  (** Behavior wrt [rcnext] *)
+
+  Lemma rcnext_emor q r :
+    rcnext (operator (f q)) q r (operand (f q) r) emor_rc = emor_rc.
+  Proof.
+    apply antisymmetry; cbn.
+    - intros s Hs.
+      dependent destruction Hs.
+      auto.
+    - intros s Hs.
+      constructor.
+      auto.
+  Qed.
+
+  (** The resulting refinement convention is in fact a companion of
+    the embedded strategy (see §5.5). *)
+
+  Hint Constructors rsp emor_has : core.
+  Hint Unfold Downset.has : core.
+
+  Lemma emor_strat_rc :
+    rsq emor_rc vid f (id _).
+  Proof.
+    intros s Hs. cbn in *. dependent induction Hs.
+    - constructor; cbn; auto.
+    - constructor; cbn; auto.
+      intros _ [ ].
+      econstructor; cbn; eauto.
+      dependent destruction Hs.
+      + repeat constructor.
+      + repeat constructor.
+        intros r' Hr. cbn in Hr.
+        assert (r' = operand (f q) r); [ | subst].
+        {
+          destruct (classic (r' = operand (f q) r)); auto.
+          elim Hr. constructor. congruence.
+        }
+        apply rsp_pa with (operand (f q) r); cbn; try tauto.
+        rewrite rcnext_vid, rcnext_emor, id_next.
+        apply IHHs; auto.
+        (* need to setup the induction better but should work *)
+  Admitted.
+End EMOR_RC.
+
+(** *** Functoriality *)
+
+Lemma emor_rc_id {E} :
+  emor_rc (@eid E) = vid.
+Proof.
+  unfold eid.
+  apply antisymmetry; cbn; intros s Hs.
+  - induction Hs; cbn in *; auto using JMeq_eq.
+  - induction s; cbn in *; firstorder subst.
+    + apply (emor_rc_allow eid).
+    + apply (emor_rc_forbid eid); cbn; intro; subst; auto.
+    + apply (emor_rc_cont eid); cbn; intro; subst; auto.
+Qed.
+
+Lemma emor_rc_ecomp {E F G} (g : emor F G) (f : emor E F) :
+  emor_rc (g ∘ f) = vcomp (emor_rc f) (emor_rc g).
+Proof.
+Admitted.
+
 (** ** §4.5 Flat Composition *)
 
 (** *** Definition 4.8 (Flat composition of refinement conventions) *)
@@ -2733,6 +2866,12 @@ Section FCOMP_RSQ.
 End FCOMP_RSQ.
 
 (** *** Monoidal structure *)
+
+(** Again we can lift the structural isomorphisms we used
+  for signature homomorphisms. *)
+
+Coercion emor_rc : emor >-> conv.
+
 
 (** * Spatial composition *)
 
