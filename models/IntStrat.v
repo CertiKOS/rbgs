@@ -2957,7 +2957,6 @@ Qed.
 Lemma tlu_tlur {E} :
   @tlu E ∘ @tlur E = eid.
 Proof.
-  apply functional_extensionality_dep. intro q.
   reflexivity.
 Qed.
 
@@ -2981,7 +2980,6 @@ Qed.
 Lemma tru_trur {E} :
   @tru E ∘ @trur E = eid.
 Proof.
-  apply functional_extensionality_dep. intro q.
   reflexivity.
 Qed.
 
@@ -3028,6 +3026,40 @@ Proof.
 Qed.
 
 (** **** Coherence diagrams *)
+
+(** Triangle diagram *)
+
+Lemma tlu_tassoc {E F} :
+  (@eid E * @tlu F) ∘ @tassoc E 1 F = @tru E * @eid F.
+Proof.
+  reflexivity.
+Qed.
+
+(** Pentagon diagram *)
+
+Lemma tassoc_tassoc {E F G H} :
+  @tassoc E F (G * H) ∘ @tassoc (E * F) G H =
+  (@eid E * @tassoc F G H) ∘ @tassoc E (F * G) H ∘ (@tassoc E F G * @eid H).
+Proof.
+  reflexivity.
+Qed.
+
+(** Unit coherence for braiding *)
+
+Lemma tlu_tswap {E} :
+  @tlu E ∘ @tswap E 1 = @tru E.
+Proof.
+  reflexivity.
+Qed.
+
+(** Hexagon *)
+
+Lemma tassoc_tswap {E F G} :
+  @tassoc F G E ∘  @tswap E (F * G) ∘  @tassoc E F G =
+  (@eid F * @tswap E G) ∘ @tassoc F E G ∘ (@tswap E F * @eid G).
+Proof.
+  reflexivity.
+Qed.
 
 (** *** Tensor product of strategies *)
 
