@@ -4078,7 +4078,7 @@ Section LENS_STRAT.
       try dependent destruction Hy;
       econstructor; eauto.
   Qed.
-End SLENS_STRAT.
+End LENS_STRAT.
 
 (*
 
