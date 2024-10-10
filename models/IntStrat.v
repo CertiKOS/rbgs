@@ -4029,7 +4029,7 @@ Abort.
 
 (** **** Promoting a stateful lens to a strategy *)
 
-Section SLENS_STRAT.
+Section LENS_STRAT.
   Context {U V : Type} (f : lens U V).
 
   (** Between any two visits back to the [ready] state, the strategy
@@ -4041,37 +4041,37 @@ Section SLENS_STRAT.
     remember the latest incoming question for play structure purposes
     anyway, we choose to keep it constant and use this solution. *)
 
-  Variant sls_state : @position (glob U) (glob V) -> Type :=
-    | sls_ready (p : state f) : sls_state ready
-    | sls_running (p : state f) v (u : U) : sls_state (running v)
-    | sls_suspended (p : state f) v u : sls_state (suspended v u).
+  Variant lpos : @position (glob U) (glob V) -> Type :=
+    | lready (p : state f) : lpos ready
+    | lrunning (p : state f) v (u : U) : lpos (running v)
+    | lsuspended (p : state f) v u : lpos (suspended v u).
 
-  Inductive sls_has : forall {i}, _ i -> play i -> Prop :=
-    | sls_has_ready p :
-        sls_has (sls_ready p) pnil_ready
-    | sls_has_oq p v u s :
-        sls_has (sls_running p v u) s ->
+  Inductive lens_has : forall {i}, lpos i -> play i -> Prop :=
+    | lens_ready p :
+        lens_has (lready p) pnil_ready
+    | lens_oq p v u s :
+        lens_has (lrunning p v u) s ->
         get f (p, v) = u ->
-        sls_has (sls_ready p) (oq v :: s)
-    | sls_has_pq p v u s :
-        sls_has (sls_suspended p v u) s ->
-        sls_has (sls_running p v u) (pq u :: s)
-    | sls_has_suspended p v u :
-        sls_has (sls_suspended p v u) (pnil_suspended v u)
-    | sls_has_oa p v u u' s :
-        sls_has (sls_running p v u') s ->
-        sls_has (sls_suspended p v u) (@oa _ _ v u u' :: s)
-    | sls_has_pa p v u p' v' s :
-        sls_has (sls_ready p') s ->
+        lens_has (lready p) (oq v :: s)
+    | lens_pq p v u s :
+        lens_has (lsuspended p v u) s ->
+        lens_has (lrunning p v u) (pq u :: s)
+    | lens_suspended p v u :
+        lens_has (lsuspended p v u) (pnil_suspended v u)
+    | lens_oa p v u u' s :
+        lens_has (lrunning p v u') s ->
+        lens_has (lsuspended p v u) (@oa _ _ v u u' :: s)
+    | lens_pa p v u p' v' s :
+        lens_has (lready p') s ->
         set f (p, v) u = (p', v') ->
-        sls_has (sls_running p v u) (@pa _ (glob V) v v' :: s).
+        lens_has (lrunning p v u) (@pa _ (glob V) v v' :: s).
 
   Obligation Tactic := cbn.
 
-  Program Definition sls : strat (glob U) (glob V) ready :=
-    {| Downset.has := sls_has (sls_ready (init_state f)) |}.
+  Program Definition lens_strat : strat (glob U) (glob V) ready :=
+    {| Downset.has := lens_has (lready (init_state f)) |}.
   Next Obligation.
-    generalize (@ready (glob U) (glob V)), (sls_ready (init_state f)).
+    generalize (@ready (glob U) (glob V)), (lready (init_state f)).
     intros i q x y Hxy Hy. revert q Hy.
     induction Hxy; intros;
       try dependent destruction q;
@@ -4079,3 +4079,30 @@ Section SLENS_STRAT.
       econstructor; eauto.
   Qed.
 End SLENS_STRAT.
+
+(*
+
+  (** **** Companion *)
+
+  Fixpoint lcp_has (p : state f) (s : rcp (glob U) (glob V)) : Prop :=
+    match s with
+      | rcp_allow u v =>
+          get f (p, v) = u
+      | rcp_forbid u v u' v' =>
+          get f (p, v) = u /\
+          forall p', set f (p, v) u' <> (p', v')
+      | rcp_cont u v u' v' k =>
+          get f (p, v) = u /\
+          forall p', set f (p, v) u' = (p', v') -> lcp_has p' k
+    end.
+
+  Program Definition lcp : conv (glob U) (glob V) :=
+    {| Downset.has := lcp_has (init_state f) |}.
+  Next Obligation.
+  Admitted.
+
+  Lemma lcp_intro :
+    rsq vid lcp lid lens_strat.
+
+
+*)
