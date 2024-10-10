@@ -4080,9 +4080,11 @@ Section LENS_STRAT.
   Qed.
 End LENS_STRAT.
 
-(*
+(** **** Companion and conjoint refinement conventions *)
 
-  (** **** Companion *)
+Section LENS_RC.
+  Context {U V : Type} (f : lens U V).
+  Obligation Tactic := cbn.
 
   Fixpoint lcp_has (p : state f) (s : rcp (glob U) (glob V)) : Prop :=
     match s with
@@ -4099,10 +4101,50 @@ End LENS_STRAT.
   Program Definition lcp : conv (glob U) (glob V) :=
     {| Downset.has := lcp_has (init_state f) |}.
   Next Obligation.
-  Admitted.
+    generalize (init_state f) as p.
+    intros p s t Hst Ht. revert p Ht.
+    induction Hst; firstorder.
+  Qed.
 
   Lemma lcp_intro :
-    rsq vid lcp lid lens_strat.
+    rsq vid lcp (lens_strat lid) (lens_strat f).
+  Proof.
+  Admitted.
 
+  Lemma lcp_elim :
+    rsq lcp vid (lens_strat f) (lens_strat lid).
+  Proof.
+  Admitted.
 
-*)
+  (** This is just the transpose, maybe we could introduce that operation. *)
+
+  Fixpoint lcj_has (p : state f) (s : rcp (glob V) (glob U)) : Prop :=
+    match s with
+      | rcp_allow v u =>
+          get f (p, v) = u
+      | rcp_forbid v u v' u' =>
+          get f (p, v) = u /\
+          forall p', set f (p, v) u' <> (p', v')
+      | rcp_cont v u v' u' k =>
+          get f (p, v) = u /\
+          forall p', set f (p, v) u' = (p', v') -> lcj_has p' k
+    end.
+
+  Program Definition lcj : conv (glob V) (glob U) :=
+    {| Downset.has := lcj_has (init_state f) |}.
+  Next Obligation.
+    generalize (init_state f) as p.
+    intros p s t Hst Ht. revert p Ht.
+    induction Hst; firstorder.
+  Qed.
+
+  Lemma lcj_intro :
+    rsq lcj vid (lens_strat lid) (lens_strat f).
+  Proof.
+  Admitted.
+
+  Lemma lcj_elim :
+    rsq vid lcj (lens_strat f) (lens_strat lid).
+  Proof.
+  Admitted.
+End LENS_RC.
