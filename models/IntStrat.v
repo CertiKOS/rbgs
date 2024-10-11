@@ -611,7 +611,7 @@ End STRAT.
 Arguments strat : clear implicits.
 Infix "::" := pcons.
 
-Notation "E ->> F" := (strat E F ready) (at level 55, right associativity).
+Notation "E ->> F" := (strat E F ready) (at level 99, right associativity).
 Declare Scope strat_scope.
 Delimit Scope strat_scope with strat.
 Bind Scope strat_scope with strat.
@@ -1826,6 +1826,8 @@ Global Hint Immediate
   conv_has_forbid_allow
   conv_has_forbid_cont : core.
 
+Infix "<=>" := conv (at level 99, right associativity).
+
 Declare Scope conv_scope.
 Delimit Scope conv_scope with conv.
 Bind Scope conv_scope with conv.
@@ -2186,6 +2188,10 @@ Global Hint Unfold rsq.
 Global Instance rsp_params : Params (@rsp) 7 := { }.
 Global Instance rsq_when_params : Params (@rsq_when) 7 := { }.
 Global Instance rsq_params : Params (@rsq) 4 := { }.
+
+Declare Scope rsq_scope.
+Delimit Scope rsq_scope with rsq.
+Bind Scope rsq_scope with rsq.
 
 Section RSQ_COMP.
   Context {E1 E2} (R : conv E1 E2).
@@ -3121,7 +3127,7 @@ Section TSTRAT.
   Obligation Tactic := cbn.
   Hint Constructors pref tstrat_has : core.
 
-  Program Definition tstrat {i1 i2 i} (p : tpos i1 i2 i)
+  Program Definition tstrat_when {i1 i2 i} (p : tpos i1 i2 i)
     (σ1 : strat E1 F1 i1) (σ2 : strat E2 F2 i2) : strat (tens E1 E2) (tens F1 F2) i :=
       {| Downset.has s := exists s1 s2, tstrat_has p s1 s2 s /\
                                         Downset.has σ1 s1 /\
@@ -3139,8 +3145,8 @@ Section TSTRAT.
   (** **** Residuals *)
 
   Lemma tstrat_next_oq q1 q2 σ1 σ2 :
-    next (oq (q1,q2)) (tstrat tp_ready σ1 σ2) =
-    tstrat (tp_running q1 q2) (next (oq q1) σ1) (next (oq q2) σ2).
+    next (oq (q1,q2)) (tstrat_when tp_ready σ1 σ2) =
+    tstrat_when (tp_running q1 q2) (next (oq q1) σ1) (next (oq q2) σ2).
   Proof.
     apply antisymmetry; cbn.
     - intros s (s1 & s2 & Hs & Hs1 & Hs2). dependent destruction Hs. eauto.
@@ -3148,8 +3154,8 @@ Section TSTRAT.
   Qed.
 
   Lemma tstrat_next_pq {q1 q2} m1 m2 σ1 σ2 :
-    next (pq (m1,m2)) (tstrat (tp_running q1 q2) σ1 σ2) =
-    tstrat (tp_suspended q1 q2 m1 m2) (next (pq m1) σ1) (next (pq m2) σ2).
+    next (pq (m1,m2)) (tstrat_when (tp_running q1 q2) σ1 σ2) =
+    tstrat_when (tp_suspended q1 q2 m1 m2) (next (pq m1) σ1) (next (pq m2) σ2).
   Proof.
     apply antisymmetry; cbn.
     - intros s (s1 & s2 & Hs & Hs1 & Hs2). dependent destruction Hs. eauto.
@@ -3157,8 +3163,8 @@ Section TSTRAT.
   Qed.
 
   Lemma tstrat_next_oa {q1 q2 m1 m2} n1 n2 σ1 σ2 :
-    next (oa (m := (m1,m2)) (n1,n2)) (tstrat (tp_suspended q1 q2 m1 m2) σ1 σ2) =
-    tstrat (tp_running q1 q2) (next (oa n1) σ1) (next (oa n2) σ2).
+    next (oa (m := (m1,m2)) (n1,n2)) (tstrat_when (tp_suspended q1 q2 m1 m2) σ1 σ2) =
+    tstrat_when (tp_running q1 q2) (next (oa n1) σ1) (next (oa n2) σ2).
   Proof.
     apply antisymmetry; cbn in *.
     - intros s (s1 & s2 & Hs & Hs1 & Hs2).
@@ -3179,8 +3185,8 @@ Section TSTRAT.
   Qed.
 
   Lemma tstrat_next_pa q1 q2 r1 r2 σ1 σ2 :
-    next (pa (q := (q1,q2)) (r1,r2)) (tstrat (tp_running q1 q2) σ1 σ2) =
-    tstrat tp_ready (next (pa r1) σ1) (next (pa r2) σ2).
+    next (pa (q := (q1,q2)) (r1,r2)) (tstrat_when (tp_running q1 q2) σ1 σ2) =
+    tstrat_when tp_ready (next (pa r1) σ1) (next (pa r2) σ2).
   Proof.
     apply antisymmetry; cbn.
     - intros s (s1 & s2 & Hs & Hs1 & Hs2). cbn in *.
@@ -3200,6 +3206,9 @@ Section TSTRAT.
       eauto 10.
   Qed.
 End TSTRAT.
+
+Notation tstrat := (tstrat_when tp_ready).
+Infix "*" := tstrat : strat_scope.
 
 (** *** Tensor product of refinement conventions *)
 
@@ -3412,6 +3421,8 @@ Section TCONV.
   Qed.
 End TCONV.
 
+Infix "*" := tconv : conv_scope.
+
 (** **** Functoriality vs vertical composition *)
 
 Section TCONV_VCOMP.
@@ -3561,9 +3572,9 @@ Section TRSQ.
       | trs_suspended q1 q2 q1' q2' m1 m2 m1' m2' =>
         Downset.has R1 (rcp_allow m1 m1') ->
         Downset.has R2 (rcp_allow m2 m2') ->
-        rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat v' τ1 τ2)
+        rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat_when v' τ1 τ2)
       | _ =>
-        rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat v' τ1 τ2)
+        rsp (tconv R1 R2) (tconv S1 S2) u s (tstrat_when v' τ1 τ2)
     end.
   Proof.
     intros i1 i2 j1 j2 i j u1 u2 u v v' p R1 S1 s1 τ1 R2 S2 s2 τ2 s H1 H2 Hs.
@@ -3621,7 +3632,20 @@ Section TRSQ.
       rewrite tstrat_next_pa.
       eapply (IHHs _ _ _ _ _ _ _ trs_ready); eauto.
   Qed.
+
+  Lemma trsq :
+    forall {R1 : conv E1 E1'} {S1 : conv F1 F1'} {σ1 : E1 ->> F1} {τ1 : E1' ->> F1'}
+           {R2 : conv E2 E2'} {S2 : conv F2 F2'} {σ2 : E2 ->> F2} {τ2 : E2' ->> F2'},
+      rsq R1 S1 σ1 τ1 ->
+      rsq R2 S2 σ2 τ2 ->
+      rsq (R1 * R2) (S1 * S2) (σ1 * σ2) (τ1 * τ2).
+  Proof.
+    intros. intros s (s1 & s2 & Hs & Hs1 & Hs2).
+    eapply (trsp (p := trs_ready)); eauto.
+  Qed.
 End TRSQ.
+
+Infix "*" := trsq : rsq_scope.
 
 (** ** §5.2 Passing State Through *)
 
@@ -3833,6 +3857,7 @@ Record lens {U V} :=
   }.
 
 Global Arguments lens : clear implicits.
+Infix "~>>" := lens (at level 99, right associativity).
 
 Declare Scope lens_scope.
 Delimit Scope lens_scope with lens.
@@ -3846,7 +3871,7 @@ Open Scope lens_scope.
   equivalence. However, equivalent lenses will yield strategy
   interpretations that are equal. *)
 
-Record lens_eqv {U V} (f g : lens U V) : Prop :=
+Record lens_eqv {U V} (f g : U ~>> V) : Prop :=
   {
     state_eqv : rel (state f) (state g);
     init_state_eqv : state_eqv (init_state f) (init_state g);
@@ -3888,7 +3913,7 @@ Infix "==" := lens_eqv (at level 70, right associativity).
 
 (** **** Embedding bijections *)
 
-Program Definition bij_lens {U V} (f : bijection U V) : lens U V :=
+Program Definition bij_lens {U V} (f : bijection U V) : U ~>> V :=
   {|
     state := unit;
     init_state := tt;
@@ -4080,6 +4105,36 @@ Section LENS_STRAT.
   Qed.
 End LENS_STRAT.
 
+Lemma lens_strat_ref :
+  Monotonic (@lens_strat) (forallr -, forallr -, lens_eqv ==> ref).
+Proof.
+  intros U V f g Hfg s. cbn.
+  destruct Hfg as [Rfg Hinit Hget Hset]. revert Hinit.
+  generalize (init_state f) as sf, (init_state g) as sg,
+             (lready f (init_state f)) as pf, (lready g (init_state g)) as pg.
+  (* need to defiine a relator for lpos *)
+Admitted.
+
+Global Instance lens_strat_eq :
+  Monotonic (@lens_strat) (forallr -, forallr -, lens_eqv ==> eq).
+Proof.
+  pose proof lens_strat_ref.
+  repeat rstep. apply antisymmetry; rauto.
+Qed.
+
+(** **** Refinement conventions and refinement squares *)
+
+(** Giving lenses a strategy representation means that we can reuse
+  the notions of refinement conventions and refinement square that we
+  defined in that broader setting. Below we provide specialized
+  definitions. *)
+
+Definition lconv U V := conv (glob U) (glob V).
+Infix "<~>" := lconv (at level 99, right associativity).
+
+Definition lsq {U1 U2 V1 V2} (R : U1 <~> U2) (S : V1 <~> V2) (f1 : U1 ~>> V1) (f2 : U2 ~>> V2) :=
+  rsq R S (lens_strat f1) (lens_strat f2).
+
 (** **** Companion and conjoint refinement conventions *)
 
 Section LENS_RC.
@@ -4098,7 +4153,7 @@ Section LENS_RC.
           forall p', set f (p, v) u' = (p', v') -> lcp_has p' k
     end.
 
-  Program Definition lcp : conv (glob U) (glob V) :=
+  Program Definition lcp : U <~> V :=
     {| Downset.has := lcp_has (init_state f) |}.
   Next Obligation.
     generalize (init_state f) as p.
@@ -4107,12 +4162,12 @@ Section LENS_RC.
   Qed.
 
   Lemma lcp_intro :
-    rsq vid lcp (lens_strat lid) (lens_strat f).
+    lsq vid lcp lid f.
   Proof.
   Admitted.
 
   Lemma lcp_elim :
-    rsq lcp vid (lens_strat f) (lens_strat lid).
+    lsq lcp vid f lid.
   Proof.
   Admitted.
 
@@ -4139,12 +4194,149 @@ Section LENS_RC.
   Qed.
 
   Lemma lcj_intro :
-    rsq lcj vid (lens_strat lid) (lens_strat f).
+    lsq lcj vid lid f.
   Proof.
   Admitted.
 
   Lemma lcj_elim :
-    rsq vid lcj (lens_strat f) (lens_strat lid).
+    lsq vid lcj f lid.
   Proof.
   Admitted.
 End LENS_RC.
+
+(** *** Spatial Composition *)
+
+(** Based on the ingredients above, we can develop our theory of
+  spatial composition, which is analogous to the tensor product but
+  accepts only lenses on the right-hand side. *)
+
+(** **** Definitions *)
+
+(** Effect signatures *)
+
+Definition scomp (E : esig) (U : Type) : esig :=
+  E * glob U.
+
+Infix "@" := scomp (at level 40, left associativity) : esig_scope.
+
+(** Strategies and lenses *)
+
+Definition scomp_strat {E F U V} (σ: E ->> F) (f: lens U V) : E @ U ->> F @ V :=
+  tstrat σ (lens_strat f).
+
+Infix "@" := scomp_strat : strat_scope.
+
+(** Refinement conventions *)
+
+Definition scomp_conv {E1 E2 U1 U2} (R : conv E1 E2) (S : conv (glob U1) (glob U2)) : conv (E1 @ U1) (E2 @ U2) :=
+  tconv R S.
+
+Infix "@" := scomp_conv : conv_scope.
+
+(** Refinement squares *)
+
+Lemma scomp_rsq {E1 E2 F1 F2 U1 U2 V1 V2} :
+  forall (R : E1 <=> E2) (S : F1 <=> F2) (R' : U1 <~> U2) (S' : V1 <~> V2)
+         (σ1 : E1 ->> F1) (σ2 : E2 ->> F2) (f1 : U1 ~>> V1) (f2 : U2 ~>> V2),
+    rsq R S σ1 σ2 ->
+    lsq R' S' f1 f2 ->
+    rsq (R @ R') (S @ S') (σ1 @ f1) (σ2 @ f2).
+Proof.
+  eauto using trsq.
+Qed.
+
+Infix "@" := (scomp_rsq _ _ _ _ _ _ _ _) : rsq_scope.
+
+(** **** Functoriality *)
+
+(** Horizontal component *)
+
+Lemma scomp_id {E U} :
+  (id E @ lid = id (E @ U))%strat.
+Proof.
+Admitted.
+
+Lemma scomp_compose {E F G U V W} :
+  forall (σ : F ->> G) (τ : E ->> F) (g : V ~>> W) (f : U ~>> V),
+    ((σ ⊙ τ) @ (g ∘ f) = (σ @ g) ⊙ (τ @ f))%strat.
+Proof.
+Admitted.
+
+(** Vertical component *)
+
+Lemma scomp_vid {E U} :
+  ((@vid E) @ (@vid (glob U)) = @vid (E @ U))%conv.
+Proof.
+Admitted.
+
+Lemma scomp_vcomp {E F G U V W} :
+  forall (R1 : conv E F) (S1 : conv F G)
+         (R2 : conv (glob U) (glob V)) (S2 : conv (glob V) (glob W)),
+    ((R1 ;; S1) @ (R2 ;; S2) = (R1 @ R2) ;; (S1 @ S2))%conv.
+Proof.
+  eauto using tconv_vcomp.
+Qed.
+
+(** **** Horizontal structural isomorphisms *)
+
+(** XXX not sure if the left unitor makes that much sense here *)
+
+Definition slu {U} : 1 @ U ->> glob U := tlu.
+Definition slur {U} : glob U ->> 1 @ U := tlur.
+
+Global Instance slu_iso {U} : @Isomorphism (1 @ U) (glob U) slu slur.
+Proof.
+  unfold slu, slur. split.
+  - constructor. rewrite <- emor_strat_ecomp. setoid_rewrite tlu_tlur. auto.
+  - constructor. rewrite <- emor_strat_ecomp. setoid_rewrite tlur_tlu. auto.
+Qed.
+
+Definition sru {E} : E @ unit ->> E := tru.
+Definition srur {E} : E ->> E @ unit := trur.
+
+Global Instance sru_iso {E} : @Isomorphism (E @ unit) E sru srur.
+Proof.
+  unfold sru, srur. split.
+  - constructor. rewrite <- emor_strat_ecomp. setoid_rewrite tru_trur. auto.
+  - constructor. rewrite <- emor_strat_ecomp. setoid_rewrite trur_tru. auto.
+Qed.
+
+Definition sassoc {E U V} : E @ U @ V ->> E @ (U * V) := @tassoc E (glob U) (glob V).
+Definition sassocr {E U V} : E @ (U * V) ->> E @ U @ V := @tassocr E (glob U) (glob V).
+
+Global Instance sassoc_iso {E U V}: Isomorphism (@sassoc E U V) (@sassocr E U V).
+Proof.
+  unfold sassoc, sassocr. split.
+  - constructor. rewrite <- emor_strat_ecomp.
+    setoid_rewrite (@tassoc_tassocr E (glob U) (glob V)). auto.
+  - constructor. rewrite <- emor_strat_ecomp.
+    setoid_rewrite (@tassocr_tassoc E (glob U) (glob V)). auto.
+Qed.
+
+(** **** Coherence diagrams *)
+
+(** XXX could need some property that
+
+      id @ bij_lens f = id ⊗ bij_emor f
+
+ and reuse anything that uses the bijection f.
+ The subtlety is that [bij_lens f] yields a nondeterministic strategy
+ with all ask/answer choices whereas [bij_emor f] would yield a sig
+ homomorphism style of strategy with the 4-move OQ PQ OA PA shape.
+ But once synchronized with [id] the nondeterminism should reduce and
+ leave only the 4 moves. *)
+
+Open Scope strat_scope.
+Coercion eid : esig >-> emor.
+Coercion bid : Sortclass >-> bijection.
+
+Lemma slu_passoc {E : esig} {U : Type} :
+  E @ (@plu U) ⊙ (@sassoc E unit U) = (@sru E) @ U.
+Proof.
+Admitted.
+
+Lemma sassoc_sassoc {E : esig} {U V W : Type} :
+  @sassoc E U (V * W) ⊙ @sassoc (E @ U) V W =
+  E @ (@passoc U V W) ⊙ @sassoc E (U * V) W ⊙ (@sassoc E U V) @ W.
+Proof.
+Admitted.
