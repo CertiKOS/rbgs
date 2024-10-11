@@ -4139,15 +4139,40 @@ Section LENS_STRAT.
   Qed.
 End LENS_STRAT.
 
-Lemma lens_strat_ref :
-  Monotonic (@lens_strat) (forallr -, forallr -, lens_eqv ==> ref).
-Proof.
-  intros U V f g Hfg s. cbn.
-  destruct Hfg as [Rfg Hinit Hget Hset]. revert Hinit.
-  generalize (init_state f) as sf, (init_state g) as sg,
-             (lready f (init_state f)) as pf, (lready g (init_state g)) as pg.
-  (* need to defiine a relator for lpos *)
-Admitted.
+Section LENS_STRAT_REF.
+  Context {U V : Type} (f g : U ~>> V).
+
+  Inductive lpos_eqv (R : rel _ _) : forall {i j}, rel (lpos f i) (lpos g j) :=
+    | lready_eqv pf pg :
+        R pf pg ->
+        lpos_eqv R (lready f pf) (lready g pg)
+    | lrunning_eqv pf pg v u :
+        R pf pg ->
+        lpos_eqv R (lrunning f pf v u) (lrunning g pg v u)
+    | lsuspended_eqv pf pg v u :
+        R pf pg ->
+        lpos_eqv R (lsuspended f pf v u) (lsuspended g pg v u).
+
+  Hint Constructors lens_has lpos_eqv.
+
+  Lemma lens_strat_ref :
+    lens_eqv f g -> lens_strat f [= lens_strat g.
+  Proof.
+    intros Hfg s. cbn.
+    destruct Hfg as [Rfg Hinit Hget Hset].
+    generalize (lready_eqv Rfg _ _ Hinit). clear Hinit.
+    generalize (lready f (init_state f)) as pf, (lready g (init_state g)) as pg.
+    intros pf pg Hp H. revert pg Hp.
+    induction H; intros pg Hp; dependent destruction Hp; eauto 10.
+    - econstructor; eauto.
+      replace (get g (pg0, v)) with (get f (p, v)) by (apply Hget; rauto).
+      assumption.
+    - edestruct (Hset (p, v) (pg0, v) rauto u) as [Hp' ?].
+      edestruct (set g (pg0, v) u) as [pg' xv'] eqn:Hgset.
+      rewrite H0 in *. cbn in *. subst.
+      econstructor; eauto.
+  Qed.
+End LENS_STRAT_REF.
 
 Global Instance lens_strat_eq :
   Monotonic (@lens_strat) (forallr -, forallr -, lens_eqv ==> eq).
