@@ -2754,7 +2754,47 @@ Qed.
 Lemma emor_rc_ecomp {E F G} (g : emor F G) (f : emor E F) :
   emor_rc (g ∘ f) = vcomp (emor_rc f) (emor_rc g).
 Proof.
-Admitted.
+  apply antisymmetry.
+  - intros s. cbn. induction 1; cbn.
+    + exists (operator (g m)). split; constructor.
+    + exists (operator (g m)).
+      split; [constructor | ].
+      split; [constructor | ].
+      intros n. cbn in *. 
+      destruct (classic (operand (f (operator (g m))) n1 = n));
+        eauto using emor_rc_forbid.
+      destruct (classic (operand (g m) n = n2));
+        eauto using emor_rc_forbid.
+      congruence.
+    + exists (operator (g m)).
+      split; [constructor | ].
+      split; [constructor | ].
+      intros n. cbn in *. 
+      destruct (classic (operand (f (operator (g m))) n1 = n));
+        eauto using emor_rc_forbid.
+      destruct (classic (operand (g m) n = n2));
+        eauto using emor_rc_forbid.
+      right. right. subst.
+      rewrite ?rcnext_emor. eauto.
+  - intros s. cbn. induction s; cbn.
+    + intros (mi & Hm1i & Hmi2).
+      dependent destruction Hm1i.
+      dependent destruction Hmi2.
+      apply (emor_rc_allow (g ∘ f)).
+    + intros (mi & Hm1i & Hmi2 & Hn).
+      dependent destruction Hm1i.
+      dependent destruction Hmi2.
+      apply (emor_rc_forbid (g ∘ f)).
+      destruct (Hn (operand (f (operator (g m2))) n1)) as [Hn' | Hn'];
+        dependent destruction Hn'; cbn; congruence.
+    + intros (mi & Hm1i & Hmi2 & Hn).
+      dependent destruction Hm1i.
+      dependent destruction Hmi2.
+      apply (emor_rc_cont (g ∘ f)). intro. subst.
+      destruct (Hn (operand (f (operator (g m2))) n1)) as [Hn' | [Hn' | Hn']];
+        try (dependent destruction Hn'; cbn; congruence).
+      cbn in Hn'. rewrite ?rcnext_emor in Hn'. auto.
+Qed.
 
 (** ** §4.5 Flat Composition *)
 
