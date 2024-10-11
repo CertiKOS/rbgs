@@ -2281,12 +2281,16 @@ Section RSQ_COMP.
     eauto using rsp_comp.
   Qed.
 
-  Lemma rsq_comp σ1 τ1 σ2 τ2 `{Hσ2: !Deterministic σ2} `{Hτ2: !Deterministic τ2}:
+  Lemma rsq_comp σ1 τ1 σ2 τ2:
     rsq S T σ1 σ2 ->
     rsq R S τ1 τ2 ->
     rsq R T (σ1 ⊙ τ1) (σ2 ⊙ τ2).
-  Proof. apply rsq_comp_when; auto. Qed.
+  Proof.
+    apply rsq_comp_when; auto.
+  Qed.
 End RSQ_COMP.
+
+Infix "⊙" := (rsq_comp _ _ _ _) : rsq_scope.
 
 (** *** Definition 4.4 (Identity refinement convention) *)
 
@@ -2585,6 +2589,8 @@ Section RSVCOMP.
   Qed.
 End RSVCOMP.
 
+Infix ";;" := (rsq_vcomp _ _ _ _) : rsq_scope.
+
 (** *** Other properties of vertical composition *)
 
 Section VCOMP_VID.
@@ -2646,6 +2652,8 @@ Section VCOMP_VID.
   Qed.
 End VCOMP_VID.
 
+(* XXX should prove associativity as well? *)
+
 (** ** Signature homomorphisms *)
 
 (** Signature homomorphisms embed into refinement conventions as well
@@ -2700,7 +2708,7 @@ Section EMOR_RC.
   Hint Constructors rsp emor_has : core.
   Hint Unfold Downset.has : core.
 
-  Lemma emor_strat_rc :
+  Lemma emor_strat_elim :
     rsq emor_rc vid f (id _).
   Proof.
     intros s Hs. cbn in *. dependent induction Hs.
@@ -2721,6 +2729,11 @@ Section EMOR_RC.
         rewrite rcnext_vid, rcnext_emor, id_next.
         apply IHHs; auto.
         (* need to setup the induction better but should work *)
+  Admitted.
+
+  Lemma emor_strat_intro :
+    rsq vid emor_rc (id _) f.
+  Proof.
   Admitted.
 End EMOR_RC.
 
@@ -2870,6 +2883,8 @@ Section FCOMP_RSQ.
   Proof.
   Admitted.
 End FCOMP_RSQ.
+
+Infix "+" := (fcomp_rsq _ _ _ _ _ _ _ _) : rsq_scope.
 
 (** *** Monoidal structure *)
 
@@ -4031,27 +4046,6 @@ Next Obligation.
   destruct v; auto.
 Qed.
 
-(** **** Encapsulation primitive *)
-
-(** This allows to hide part of the global state. All stateful lenses
-  can be obtained as normal lense plus state encapsulation. *)
-
-Program Definition encap {U} (u : U) : lens U unit :=
-  {|
-    state := U;
-    init_state := u;
-    get := fst;
-    set _ u' := (u', tt);
-  |}.
-Next Obligation.
-  destruct u1; auto.
-Qed.
-
-Lemma encap_prod {U V} (u : U) (v : V) :
-  encap u * encap v == inv plu ∘ encap (u, v).
-Proof.
-Abort.
-
 (** **** Promoting a stateful lens to a strategy *)
 
 Section LENS_STRAT.
@@ -4135,7 +4129,30 @@ Infix "<~>" := lconv (at level 99, right associativity).
 Definition lsq {U1 U2 V1 V2} (R : U1 <~> U2) (S : V1 <~> V2) (f1 : U1 ~>> V1) (f2 : U2 ~>> V2) :=
   rsq R S (lens_strat f1) (lens_strat f2).
 
-(** **** Companion and conjoint refinement conventions *)
+(** *** §5.4 State Encapsulation *)
+
+(** **** Encapsulation primitive *)
+
+(** This allows to hide part of the global state. All stateful lenses
+  can be obtained as normal lense plus state encapsulation. *)
+
+Program Definition encap {U} (u : U) : lens U unit :=
+  {|
+    state := U;
+    init_state := u;
+    get := fst;
+    set _ u' := (u', tt);
+  |}.
+Next Obligation.
+  destruct u1; auto.
+Qed.
+
+Lemma encap_prod {U V} (u : U) (v : V) :
+  encap u * encap v == inv plu ∘ encap (u, v).
+Proof.
+Abort.
+
+(** **** Companion and conjoint of a stateful lens *)
 
 Section LENS_RC.
   Context {U V : Type} (f : lens U V).
