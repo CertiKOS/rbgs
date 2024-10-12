@@ -1148,6 +1148,105 @@ Proof.
     apply ϕ_rb_with_internals.
 Qed.
 
+Require Import Compiler.
+
+Global Instance asm_deterministic p: Deterministic (Asm.semantics p).
+Proof. apply lts_strat_determ. apply Asm.semantics_determinate. Qed.
+
+Lemma clight2_semantic_preservation:
+  forall p tp,
+  match_prog p tp ->
+  forward_simulation cc_compcert cc_compcert (Clight.semantics2 p) (Asm.semantics tp)
+  /\ backward_simulation cc_compcert cc_compcert (Clight.semantics2 p) (Asm.semantics tp).
+Proof.
+Admitted.
+
+Section ASM.
+
+  Context rb_asm (HA1: Compiler.transf_clight_program rbc = Errors.OK rb_asm).
+  Context bq_asm (HA2: Compiler.transf_clight_program bqc = Errors.OK bq_asm).
+  Context bq_rb_asm (HA3: Linking.link bq_asm rb_asm = Some bq_rb_asm)
+                    (HA4: sk = AST.erase_program bq_rb_asm).
+
+  Definition cc := Compiler.cc_compcert.
+
+  (* ϕ2_1 := ϕ_bq ;; ϕ^cc_bq *)
+  Lemma ϕ2_1 : rsq (ϕ_bq_conv_1 ;; cc) (ϕ_bq_conv_2 ;; cc) M_bq (Asm.semantics bq_asm).
+  Proof.
+    eapply rsq_vcomp.
+    3: apply ϕ_bq_with_internals.
+    3: {
+      eapply fsim_rsq_sk.
+      - apply Asm.semantics_determinate.
+      - apply clight2_semantic_preservation.
+        apply transf_clight_program_match. eauto.
+      - eapply (Linking.link_linkorder _ _ _ Hsk).
+    }
+    all: eauto with typeclass_instances.
+  Qed.
+
+  (* ϕ2_2 := ϕ_rb ;; ϕ^cc_rb *)
+  Lemma ϕ2_2 : rsq (E0_conv ;; cc) (ϕ_rb_conv ;; cc) Π_rb (Asm.semantics rb_asm).
+  Proof.
+    eapply rsq_vcomp.
+    3: apply ϕ_rb_with_internals.
+    3: {
+      eapply fsim_rsq_sk.
+      - apply Asm.semantics_determinate.
+      - apply clight2_semantic_preservation.
+        apply transf_clight_program_match. eauto.
+      - eapply (Linking.link_linkorder _ _ _ Hsk). }
+    all: eauto with typeclass_instances.
+  Qed.
+
+  Lemma absort : E0_conv ;; cc [= E0_conv.
+  Proof. rewrite <- E0_conv_vcomp. reflexivity. Qed.
+
+  (* ϕ2 := (ϕ_bq ;; ϕ^cc_bq) ⊙ (ϕ_rb ;; ϕ^cc_rb) ⊙ absort *)
+  Lemma ϕ2: rsq E0_conv (E_bq_m0_conv ;; cc)
+              (M_bq ⊙ Π_rb) (Asm.semantics bq_asm ⊙ Asm.semantics rb_asm).
+  Proof.
+    rewrite <- absort.
+    eapply rsq_comp. 1-2: eauto with typeclass_instances.
+    - rewrite <- ϕ_bq_conv_ref1. apply ϕ2_1.
+    - rewrite ϕ_rb_conv_ref1. apply ϕ2_2.
+  Qed.
+
+  Import CallconvAlgebra.
+
+  Lemma asm_link_fsim:
+    forward_simulation 1 1
+      (comp_semantics' (Asm.semantics bq_asm) (Asm.semantics rb_asm) sk)
+      (Asm.semantics bq_rb_asm).
+  Proof.
+    eapply open_fsim_ccref. apply cc_compose_id_left. apply cc_compose_id_left.
+    eapply compose_forward_simulations.
+    eapply categorical_compose_approximation.
+    1-3: admit.
+    rewrite HA4.
+    assert (Hx: (fun i: bool => Asm.semantics (if i then bq_asm else rb_asm)) =
+             fun i : bool => if i then Asm.semantics bq_asm else Asm.semantics rb_asm).
+    { apply Axioms.functional_extensionality. intros [|]; eauto. }
+    rewrite <- Hx.
+    eapply AsmLinking.asm_linking. apply HA3.
+  Admitted.
+
+  Theorem ϕ_bq_rb_asm:
+    rsq E0_conv (E_bq_m0_conv ;; cc) Π_bq (Asm.semantics bq_rb_asm).
+  Proof.
+    rewrite ϕ1'.
+    rewrite <- vcomp_vid_r at 1. setoid_rewrite <- vcomp_vid_r at 4.
+    eapply rsq_vcomp.
+    3: apply ϕ2.
+    1-2: eauto with typeclass_instances.
+    setoid_rewrite cc_comp_ref.
+    rewrite <- cc_conv_id. eapply fsim_rsq_sk.
+    apply Asm.semantics_determinate. 2: apply linkorder_refl.
+    apply asm_link_fsim.
+  Qed.
+
+End ASM.
+
 (* --------------------------------------- *)
 
 Lemma ϕ_bq : rsq E_rb_m0_conv E_bq_m0_conv M_bq (Clight.semantics2 BQ.bq_program).
