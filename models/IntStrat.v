@@ -1599,22 +1599,143 @@ Section COMPOSE_FCOMP.
         fccpos cpos_ready (cpos_suspended q2 m2 u2) (fcpos_suspended_r q2 u2)
                (fcpos_suspended_r q2 m2) (fcpos_suspended_r m2 u2) (cpos_suspended (inr q2) (inr m2) (inr u2)).
 
-  Hint Constructors comp_has fcomp_has : core.
+  Hint Constructors comp_has fcomp_has pref : core.
+
+  Lemma compose_fcomp_has {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
+    @fccpos i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij ->
+    forall s1 s2 t1 t2 st1 st2 st,
+      comp_has p1 s1 t1 st1 ->
+      comp_has p2 s2 t2 st2 ->
+      fcomp_has p12 st1 st2 st ->
+      exists s1' s2' t1' t2' s12 t12,
+        s1' [= s1 /\ s2' [= s2 /\ t1' [= t1 /\ t2' [= t2 /\
+        fcomp_has qi s1' s2' s12 /\
+        fcomp_has qj t1' t2' t12 /\
+        comp_has qij s12 t12 st.
+  Proof.
+    intros p s1 s2 t1 t2 st1 st2 st Hst1 Hst2 Hst. cbn.
+    revert i2 j2 i12 j12 ij2 ij12 p2 p12 qi qj qij p s2 t2 st2 st Hst2 Hst.
+    induction Hst1; intros.
+    - (* [σ1 ⊙ τ1] is done; [σ2 ⊙ τ2] may have more to do. *)
+      revert i12 j12 ij12 p12 qi qj qij p st Hst.
+      induction Hst2; intros.
+      + dependent destruction Hst; dependent destruction p.
+        eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        edestruct (IHHst2 _ _ _ _ _ _ _ (fccpos_left_r q))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction p.
+        edestruct (IHHst2 _ _ _ _ _ _ _ (fccpos_right_r q m))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        edestruct (IHHst2 _ _ _ _ _ _ _ (fccpos_suspended_r q m u))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        eauto 20.
+      + dependent destruction Hst; dependent destruction p.
+        edestruct (IHHst2 _ _ _ _ _ _ _ (fccpos_right_r q m))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction p.
+        edestruct (IHHst2 _ _ _ _ _ _ _ (fccpos_left_r q))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        edestruct (IHHst2 _ _ _ _ _ _ _ fccpos_ready)
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - (* [σ1 ⊙ τ1] is ready for a question, but [σ2 ⊙ τ2] might go first. *)
+      rename q into q1, s into s1, t into t1, w into st1.
+      revert i12 j12 ij12 p12 qi qj qij p st Hst.
+      induction Hst2; intros.
+      + (* if they're done then there's no choice. *)
+        dependent destruction Hst; dependent destruction p.
+        edestruct (IHHst1 _ _ _ _ _ _ _ _ _ _ _ (fccpos_left_l q1))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + (* if they can do a question then it could go either way *)
+        dependent destruction Hst; dependent destruction p.
+        * eapply (IHHst1 _ _ _ _ _ _ _ _ _ _ _ (fccpos_left_l q1)) in Hst
+            as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+        * eapply (IHHst2 _ _ _ _ _ _ _ (fccpos_left_r q)) in Hst
+            as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + (* for the remaining case we just replay whatever [σ2 ⊙ τ2] does *)
+        dependent destruction p.
+        eapply (IHHst2 _ _ _ _ _ _ _ (fccpos_right_r q m)) in Hst
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        eapply (IHHst2 _ _ _ _ _ _ _ (fccpos_suspended_r q m u)) in Hst
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        eapply (IHHst2 _ _ _ _ _ _ _ (fccpos_right_r q m)) in Hst
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction p.
+        eapply (IHHst2 _ _ _ _ _ _ _ (fccpos_left_r q)) in Hst
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + dependent destruction Hst; dependent destruction p.
+        eapply (IHHst2 _ _ _ _ _ _ _ fccpos_ready) in Hst
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - (* now that [σ1 ⊙ τ1] is moving, we just replay what it's doing. *)
+      dependent destruction p.
+      eapply (IHHst1 _ _ _ _ _ _ _ _ _ _ _ (fccpos_right_l q m)) in Hst
+        as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - dependent destruction Hst; dependent destruction p.
+      eapply (IHHst1 _ _ _ _ _ _ _ _ _ _ _ (fccpos_suspended_l q m u)) in Hst
+        as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - dependent destruction Hst; dependent destruction p.
+      eauto 30.
+    - dependent destruction Hst; dependent destruction p.
+      eapply (IHHst1 _ _ _ _ _ _ _ _ _ _ _ (fccpos_right_l q m)) in Hst
+        as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - dependent destruction p.
+      eapply (IHHst1 _ _ _ _ _ _ _ _ _ _ _ (fccpos_left_l q)) in Hst
+        as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - dependent destruction Hst; dependent destruction p.
+      eapply (IHHst1 _ _ _ _ _ _ _ _ _ _ _ fccpos_ready) in Hst
+        as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+  Qed.
 
   Lemma fcomp_compose_has {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
     @fccpos i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij ->
-    forall s1 s2 t1 t2 st,
-    (exists st1 st2,
-        comp_has p1 s1 t1 st1 /\
-        comp_has p2 s2 t2 st2 /\
-        fcomp_has p12 st1 st2 st) <->
-    (exists s12 t12,
-        fcomp_has qi s1 s2 s12 /\
-        fcomp_has qj t1 t2 t12 /\
-        comp_has qij s12 t12 st).
+    forall s1 s2 t1 t2 s12 t12 st,
+      fcomp_has qi s1 s2 s12 ->
+      fcomp_has qj t1 t2 t12 ->
+      comp_has qij s12 t12 st ->
+      exists s1' s2' t1' t2' st1 st2,
+        s1' [= s1 /\ s2' [= s2 /\ t1' [= t1 /\ t2' [= t2 /\
+        comp_has p1 s1' t1' st1 /\
+        comp_has p2 s2' t2' st2 /\
+        fcomp_has p12 st1 st2 st.
   Proof.
-    intros p s1 s2 t1 t2 st. split.
-    - intros (st1 & st2 & Hst1 & Hst2 & Hst).
+    intros p s1 s2 t1 t2 s12 t12 st Hs12 Ht12 Hst. cbn.
+    revert i1 i2 j1 j2 ij1 ij2 p1 p2 p12 qi qj p s1 s2 t1 t2 Hs12 Ht12. 
+    induction Hst; intros.
+    - dependent destruction Hs12; dependent destruction p.
+      eauto 30.
+    - (* incoming question *)
+      dependent destruction Hs12; dependent destruction p.
+      + edestruct (IHHst _ _ _ _ _ _ _ _ _ _ _ (fccpos_left_l q1))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + edestruct (IHHst _ _ _ _ _ _ _ _ _ _ _ (fccpos_left_r q2))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - (* internal question *)
+      dependent destruction Hs12; dependent destruction Ht12; dependent destruction p.
+      + edestruct (IHHst _ _ _ _ _ _ _ _ _ _ _ (fccpos_right_l q1 m1))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + edestruct (IHHst _ _ _ _ _ _ _ _ _ _ _ (fccpos_right_r q2 m2))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - (* outgoing question *)
+      dependent destruction Ht12; dependent destruction p.
+      + edestruct (IHHst _ _ _ _ _ _ _ _ _ _ _ (fccpos_suspended_l q0 q1 m1))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + edestruct (IHHst _ _ _ _ _ _ _ _ _ _ _ (fccpos_suspended_r q0 q2 m2))
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+    - (* suspended *)
+      dependent destruction Ht12; dependent destruction p; eauto 30.
+    - (* environment answer *)
+      admit.
+    - (* internal answer *)
+      admit.
+    - (* component answer *)
+      admit.
   Admitted.
 
   Lemma fcomp_compose_when {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
@@ -1624,12 +1745,15 @@ Section COMPOSE_FCOMP.
       compose_when qij (fcomp_when qi σ1 σ2) (fcomp_when qj τ1 τ2).
   Proof.
     intros p σ1 σ2 τ1 τ2.
-    pose proof (fcomp_compose_has p).
     apply antisymmetry; cbn.
     - intros s (st1 &st2 &(s1 &t1 &Hs1 &Ht1 &Hst1) &(s2 &t2 &Hs2 &Ht2 &Hst2) &Hs).
-      edestruct (proj1 (H s1 s2 t1 t2 s)) as (s12 & t12 & Hs12 & Ht12 & H'); eauto 100.
+      edestruct (compose_fcomp_has p s1 s2 t1 t2 st1 st2)
+        as (s1'&s2'&t1'&t2'&?&?&?&?& s12 & t12 & Hs12 & Ht12 & H');
+        eauto 100 using Downset.closed.
     - intros s (s12 &t12 &(s1 &s2 &Hs1 &Hs2 &Hs12) &(t1 &t2 &Ht1 &Ht2 &Ht12) &Hs).
-      edestruct (proj2 (H s1 s2 t1 t2 s)) as (st1 & st2 & Hst1 & Hst2 & H'); eauto 100.
+      edestruct (fcomp_compose_has p s1 s2 t1 t2)
+        as (s1'&s2'&t1'&t2'&?&?&?&?& st1 & st2 & Hst1 & Hst2 & H');
+        eauto 100 using Downset.closed.
   Qed.
 
   Lemma fcomp_compose (σ1: F1->>G1) (σ2: F2->>G2) (τ1: E1->>F1) (τ2: E2->>F2) :
