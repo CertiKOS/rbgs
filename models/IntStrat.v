@@ -4177,8 +4177,8 @@ End LENS_STRAT_REF.
 Global Instance lens_strat_eq :
   Monotonic (@lens_strat) (forallr -, forallr -, lens_eqv ==> eq).
 Proof.
-  pose proof lens_strat_ref.
-  repeat rstep. apply antisymmetry; rauto.
+  repeat rstep.
+  apply antisymmetry; apply lens_strat_ref; rauto.
 Qed.
 
 (** **** Refinement conventions and refinement squares *)
