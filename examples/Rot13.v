@@ -41,162 +41,170 @@ Definition S : esig := F + F.
 
 Arguments compose_when {E F G}%esig_scope {i j k} p (σ τ)%strat_scope.
 
-Definition emp : Genv.symtbl := Genv.empty_stbl nil.
-Definition Γ_play : @play S P ready :=
-  @oq S P emp ::
-  @pq S P emp (inr (F_write hello_bytes)) ::
-  @oa S P emp (inr (F_write hello_bytes)) (Int.repr 5) ::
-  @pa S P emp (Int.repr 0) :: pnil_ready.
-Definition Γ : S ->> P := down Γ_play.
-Definition Γ_secret_play : @play S P ready :=
-  @oq S P emp ::
-  @pq S P emp (inr (F_write uryyb_bytes)) ::
-  @oa S P emp (inr (F_write uryyb_bytes)) (Int.repr 5) ::
-  @pa S P emp (Int.repr 0) :: pnil_ready.
-Definition Γ_secret : S ->> P := down Γ_secret_play.
-Definition Γ_decode_play : @play S P ready :=
-  @oq S P emp ::
-  @pq S P emp (inl (F_read (Int64.repr 100))) ::
-  @oa S P emp (inl (F_read (Int64.repr 100))) uryyb_bytes ::
-  @pq S P emp (inr (F_write hello_bytes)) ::
-  @oa S P emp (inr (F_write hello_bytes)) (Int.repr 5) ::
-  @pa S P emp (Int.repr 0) :: pnil_ready.
-Definition Γ_decode : S ->> P := down Γ_decode_play.
-Definition seq_play n1 n2: @play (P + P) P ready :=
-  @oq (P+P) P emp ::
-  @pq (P+P) P emp (inl emp) ::
-  @oa (P+P) P emp (inl emp) n1 ::
-  @pq (P+P) P emp (inr emp) ::
-  @oa (P+P) P emp (inr emp) n2 ::
-  @pa (P+P) P emp n2 :: pnil_ready.
-Definition seq : P + P ->> P := sup n1, sup n2, down (seq_play n1 n2).
-Inductive fifo_play: list byte -> forall i, @play 0 F i -> Prop :=
-| fifo_nil d : fifo_play d ready pnil_ready
-| fifo_read n d1 d2 d s
-    (Hd: d = app d1 d2) (Hn: Int64.unsigned n = Z.of_nat (length d1)) (Hs: fifo_play d2 ready s):
-  fifo_play d ready (@oq 0 F (F_read n) :: @pa 0 F (F_read n) d1 :: s)
-| fifo_read_all n d s (Hn: (Int64.unsigned n > Z.of_nat (length d))%Z) (Hs: fifo_play nil ready s):
-  fifo_play d ready (@oq 0 F (F_read n) :: @pa 0 F (F_read n) d :: s)
-| fifo_write n d1 d2 d s
-    (Hd: d2 = app d d1) (Hn: Int.unsigned n = Z.of_nat (length d1)) (Hs: fifo_play d2 ready s):
-  fifo_play d ready (@oq 0 F (F_write d1) :: @pa 0 F (F_write d1) n :: s).
-Program Definition fifo : 0 ->> F :=
-  {|
-    Downset.has s := fifo_play nil ready s;
-  |}.
-Next Obligation.
-  cbn.
-  generalize (@ready 0 F).
-  generalize (nil: list byte).
-  intros l p x y Hxy Hy. revert x Hxy.
-  dependent induction Hy; intros x Hxy;
-    dependent destruction Hxy; try constructor.
-  - dependent destruction Hxy; econstructor; eauto.
-  - dependent destruction Hxy. eapply fifo_read_all; eauto.
-  - dependent destruction Hxy. eapply fifo_write; eauto.
-Qed.
+Section STRATEGY.
 
-Definition pipe (p1 p2: S ->> P) : S ->> P :=
-  seq ⊙
-  (p1 + p2)%strat ⊙
-  α+ ⊙
-  (α'+ + id F)%strat ⊙
-  (id F + (Δ+ ⊙ fifo) + id F)%strat ⊙
-  (ρ'+ + id F)%strat.
+  Context (sk_secret sk_decode: AST.program unit unit).
 
-Global Hint Constructors comp_has : core.
+  Definition Γ_play se : @play S P ready :=
+    @oq S P se ::
+      @pq S P se (inr (F_write hello_bytes)) ::
+      @oa S P se (inr (F_write hello_bytes)) (Int.repr 5) ::
+      @pa S P se (Int.repr 0) :: pnil_ready.
+  Definition Γ : S ->> P := sup { se | Genv.valid_for sk_secret se /\ Genv.valid_for sk_decode se }, down (Γ_play se).
+  Definition Γ_secret_play se : @play S P ready :=
+    @oq S P se ::
+      @pq S P se (inr (F_write uryyb_bytes)) ::
+      @oa S P se (inr (F_write uryyb_bytes)) (Int.repr 5) ::
+      @pa S P se (Int.repr 0) :: pnil_ready.
+  Definition Γ_secret : S ->> P := sup { se | Genv.valid_for sk_secret se }, down (Γ_secret_play se).
+  Definition Γ_decode_play se : @play S P ready :=
+    @oq S P se ::
+      @pq S P se (inl (F_read (Int64.repr 100))) ::
+      @oa S P se (inl (F_read (Int64.repr 100))) uryyb_bytes ::
+      @pq S P se (inr (F_write hello_bytes)) ::
+      @oa S P se (inr (F_write hello_bytes)) (Int.repr 5) ::
+      @pa S P se (Int.repr 0) :: pnil_ready.
+  Definition Γ_decode : S ->> P := sup { se | Genv.valid_for sk_decode se }, down (Γ_decode_play se).
 
-Lemma ϕ_1 : Γ [= pipe Γ_secret Γ_decode.
-Proof.
-  intros p Hp. cbn in Hp.
-  assert (Downset.has (pipe Γ_secret Γ_decode) Γ_play).
-  2: { eauto using Downset.closed. } clear Hp. unfold pipe.
-  unfold compose at 1. cbn - [compose].
-  eexists _, _. repeat apply conj.
-  { exists (Int.repr 0), (Int.repr 0). reflexivity. }
-  2: { unfold Γ_play, seq_play.
-       apply comp_oq. apply comp_lq. apply comp_ra.
-       repeat constructor. }
-  Unshelve. 2: refine pnil_ready.
-  unfold compose at 1. cbn - [compose].
-  eexists _, _. repeat apply conj.
-  { eexists _, _. repeat apply conj; try reflexivity.
-    apply fcomp_oq_l. repeat constructor. }
-  2:{ apply comp_oq.  apply comp_lq.  apply comp_ra.  apply comp_la.
-      apply comp_oq.  apply comp_lq.  apply comp_ra.
-      repeat constructor. }
+  Definition seq_play se n1 n2: @play (P + P) P ready :=
+    @oq (P+P) P se ::
+      @pq (P+P) P se (inl se) ::
+      @oa (P+P) P se (inl se) n1 ::
+      @pq (P+P) P se (inr se) ::
+      @oa (P+P) P se (inr se) n2 ::
+      @pa (P+P) P se n2 :: pnil_ready.
+  Definition seq : P + P ->> P := sup se, sup n1, sup n2, down (seq_play se n1 n2).
 
-  unfold compose at 1. cbn - [compose].
-  Unshelve. 2: refine pnil_ready.
-  eexists _, _. repeat apply conj.
+  Inductive fifo_play: list byte -> forall i, @play 0 F i -> Prop :=
+  | fifo_nil d : fifo_play d ready pnil_ready
+  | fifo_read n d1 d2 d s
+      (Hd: d = app d1 d2) (Hn: Int64.unsigned n = Z.of_nat (length d1)) (Hs: fifo_play d2 ready s):
+    fifo_play d ready (@oq 0 F (F_read n) :: @pa 0 F (F_read n) d1 :: s)
+  | fifo_read_all n d s (Hn: (Int64.unsigned n > Z.of_nat (length d))%Z) (Hs: fifo_play nil ready s):
+    fifo_play d ready (@oq 0 F (F_read n) :: @pa 0 F (F_read n) d :: s)
+  | fifo_write n d1 d2 d s
+      (Hd: d2 = app d d1) (Hn: Int.unsigned n = Z.of_nat (length d1)) (Hs: fifo_play d2 ready s):
+    fifo_play d ready (@oq 0 F (F_write d1) :: @pa 0 F (F_write d1) n :: s).
+  Program Definition fifo : 0 ->> F :=
+    {|
+      Downset.has s := fifo_play nil ready s;
+    |}.
+  Next Obligation.
+    cbn.
+    generalize (@ready 0 F).
+    generalize (nil: list byte).
+    intros l p x y Hxy Hy. revert x Hxy.
+    dependent induction Hy; intros x Hxy;
+      dependent destruction Hxy; try constructor.
+    - dependent destruction Hxy; econstructor; eauto.
+    - dependent destruction Hxy. eapply fifo_read_all; eauto.
+    - dependent destruction Hxy. eapply fifo_write; eauto.
+  Qed.
 
-  (* (F+F) + (F+F) ---> ((F+F)+F) + F *)
+  Definition pipe (p1 p2: S ->> P) : S ->> P :=
+    seq ⊙
+    (p1 + p2)%strat ⊙
+    α+ ⊙
+    (α'+ + id F)%strat ⊙
+    (id F + (Δ+ ⊙ fifo) + id F)%strat ⊙
+    (ρ'+ + id F)%strat.
 
-  apply falph_question_l. apply falph_answer_l.
-  apply falph_question_m. apply falph_answer_m.
-  apply falph_question_r. apply falph_answer_r.
-  apply falph_ready.
+  Hint Constructors comp_has : core.
 
-  2: { apply comp_oq. apply comp_lq. apply comp_ra. apply comp_la.
-       apply comp_oq. apply comp_lq. apply comp_ra.
-       repeat constructor. }
+  Lemma ϕ_1 : Γ [= pipe Γ_secret Γ_decode.
+  Proof.
+    intros p Hp. cbn in Hp. destruct Hp as ((se & Hse1 & Hse2) & Hp). cbn in Hp.
+    eapply Downset.closed in Hp; eauto. clear Hp. unfold pipe.
+    unfold compose at 1. cbn - [compose].
+    eexists _, _. repeat apply conj.
+    { exists se, (Int.repr 0), (Int.repr 0). reflexivity. }
+    2: { unfold Γ_play, seq_play.
+         apply comp_oq. apply comp_lq. apply comp_ra.
+         repeat constructor. }
+    Unshelve. 2: refine pnil_ready.
+    unfold compose at 1. cbn - [compose].
+    eexists _, _. repeat apply conj.
+    { eexists _, _. repeat apply conj.
+      - exists (exist _ se Hse1). reflexivity.
+      - exists (exist _ se Hse2). reflexivity.
+      - apply fcomp_oq_l. repeat constructor. }
+    2:{ apply comp_oq.  apply comp_lq.  apply comp_ra.  apply comp_la.
+        apply comp_oq.  apply comp_lq.  apply comp_ra.
+        repeat constructor. }
 
-  Unshelve. 2: refine pnil_ready.
-  eexists _, _. repeat apply conj.
+    unfold compose at 1. cbn - [compose].
+    Unshelve. 2: refine pnil_ready.
+    eexists _, _. repeat apply conj.
 
-  (* ((F+F)+F) + F ---> F + (F+F) + F *)
+    (* (F+F) + (F+F) ---> ((F+F)+F) + F *)
 
-  eexists _, _. repeat apply conj.
-  cbn. apply falphr_question_m. apply falphr_answer_m.
-  apply falphr_question_r. apply falphr_answer_r. apply falphr_ready.
+    apply falph_question_l. apply falph_answer_l.
+    apply falph_question_m. apply falph_answer_m.
+    apply falph_question_r. apply falph_answer_r.
+    apply falph_ready.
 
-  cbn. apply id_has_q. apply id_has_a. apply id_has_pnil_ready.
+    2: { apply comp_oq. apply comp_lq. apply comp_ra. apply comp_la.
+         apply comp_oq. apply comp_lq. apply comp_ra.
+         repeat constructor. }
 
-  (* left by default. so this is what we want *)
-  repeat constructor.
+    Unshelve. 2: refine pnil_ready.
+    eexists _, _. repeat apply conj.
 
-  2: { repeat constructor. }.
+    (* ((F+F)+F) + F ---> F + (F+F) + F *)
 
-  Unshelve. 2: refine pnil_ready.
-  eexists _, _. repeat apply conj.
+    eexists _, _. repeat apply conj.
+    cbn. apply falphr_question_m. apply falphr_answer_m.
+    apply falphr_question_r. apply falphr_answer_r. apply falphr_ready.
 
-  (* F + (F+F) + F ---> F + 0 + F *)
-  eexists _, _. repeat apply conj.
-  2: { cbn. apply id_has_q. apply id_has_a. apply id_has_pnil_ready. }
-  eexists _, _. repeat apply conj. apply id_has_pnil_ready.
+    cbn. apply id_has_q. apply id_has_a. apply id_has_pnil_ready.
 
-  eexists _, _. repeat apply conj.
-  cbn. apply fdel_question_l. apply fdel_answer_l. apply fdel_question_r. apply fdel_answer_r. apply fdel_ready.
-  cbn. eapply fifo_write with (d1 := uryyb_bytes).
-  rewrite app_nil_l. reflexivity. cbn.
-  instantiate (1 := (Int.repr 5)). reflexivity.
-  eapply fifo_read_all with (n := (Int64.repr 100)). cbn.
-  rewrite Int64.unsigned_repr. lia. cbn. lia. apply fifo_nil.
+    (* left by default. so this is what we want *)
+    repeat constructor.
 
-  repeat constructor.
-  repeat constructor.
-  repeat constructor.
-  2: repeat constructor.
+    2: { repeat constructor. }.
 
-  (* F + 0 + F ---> F + F *)
+    Unshelve. 2: refine pnil_ready.
+    eexists _, _. repeat apply conj.
 
-  Unshelve. 2: refine pnil_ready.
-  eexists _, _. repeat apply conj.
-  cbn. apply frhor_ready.
-  cbn. apply id_has_q with (m := F_write hello_bytes).
-  apply id_has_a with (n := (Int.repr 5)). apply id_has_pnil_ready.
+    (* F + (F+F) + F ---> F + 0 + F *)
+    eexists _, _. repeat apply conj.
+    2: { cbn. apply id_has_q. apply id_has_a. apply id_has_pnil_ready. }
+    eexists _, _. repeat apply conj. apply id_has_pnil_ready.
 
-  eapply fcomp_oq_r.
-  eapply (fcomp_pq_r (E1 := F) (E2 := F)).
-  eapply (fcomp_oa_r (E1 := F) (E2 := F)).
-  eapply (fcomp_pa_r (E1 := F) (E2 := F)).
-  constructor.
-Qed.
+    eexists _, _. repeat apply conj.
+    cbn. apply fdel_question_l. apply fdel_answer_l. apply fdel_question_r. apply fdel_answer_r. apply fdel_ready.
+    cbn. eapply fifo_write with (d1 := uryyb_bytes).
+    rewrite app_nil_l. reflexivity. cbn.
+    instantiate (1 := (Int.repr 5)). reflexivity.
+    eapply fifo_read_all with (n := (Int64.repr 100)). cbn.
+    rewrite Int64.unsigned_repr. lia. cbn. lia. apply fifo_nil.
+
+    repeat constructor.
+    repeat constructor.
+    repeat constructor.
+    2: repeat constructor.
+
+    (* F + 0 + F ---> F + F *)
+
+    Unshelve. 2: refine pnil_ready.
+    eexists _, _. repeat apply conj.
+    cbn. apply frhor_ready.
+    cbn. apply id_has_q with (m := F_write hello_bytes).
+    apply id_has_a with (n := (Int.repr 5)). apply id_has_pnil_ready.
+
+    eapply fcomp_oq_r.
+    eapply (fcomp_pq_r (E1 := F) (E2 := F)).
+    eapply (fcomp_oa_r (E1 := F) (E2 := F)).
+    eapply (fcomp_pa_r (E1 := F) (E2 := F)).
+    constructor.
+  Qed.
+
+End STRATEGY.
+
 
 Require Import CAsm Load InitMem Maps AST.
 Require Import Conventions Mach Asm.
 
-Context (read_id write_id: ident).
 Section C_LOADER.
   Import Ctypes Clight.
   Context (prog: Clight.program).
@@ -843,24 +851,282 @@ Section LOADER_CORRECT.
 End LOADER_CORRECT.
 
 Require process.Secret.
+Require Import Clight Ctypes.
 
-Section SECRET.
-  Hypothesis (Hwin: Archi.win64 = false).
+Section ROT13.
+  Import Secret.
+  Section WITH_SE.
+    Import Events.
+    Context (se: Genv.symtbl).
+    Variant rot13_state :=
+      | init (bytes: list byte)
+      (* The first i bytes have been decoded. These intermediate steps correspond
+       to internal steps in the loop of rot13.c, so that we don't have to do
+       induction proof on the Clight loops *)
+      | wip (bytes: list byte) (i: Z)
+      | done (bytes: list byte).
+
+    Definition mem_state := (mem * block * Z)%type.
+
+    Inductive rot13_initial_state: query li_c -> (rot13_state * mem_state)%type -> Prop :=
+    | rot13_initial_state_intro m sg b b_buf len bytes
+        (HB1: Genv.find_symbol se secret_rot13_id = Some b)
+        (HL: Mem.loadbytes m b_buf 0 len = Some (map Byte bytes))
+        (HSG: sg = rot13_sig):
+      rot13_initial_state
+        (cq (Vptr b Ptrofs.zero) sg [ Vptr b_buf Ptrofs.zero; Vlong (Int64.repr len) ] m) (init bytes, (m, b_buf, len)).
+
+    Inductive rot13_final_state: (rot13_state * mem_state)%type -> reply li_c -> Prop :=
+    | rot13_final_state_intro m m' b_buf len bytes
+        (HS: Mem.storebytes m b_buf 0 (map Byte bytes) = Some m'):
+      rot13_final_state (done bytes, (m, b_buf, len)) (cr Vundef m').
+
+    Open Scope Z_scope.
+
+    Inductive rot13_step: (rot13_state * mem_state)%type -> trace -> (rot13_state * mem_state) -> Prop :=
+    | rot13_step1 bytes m: rot13_step (init bytes, m) E0 (wip bytes 0, m)
+    | rot13_stepi bytes bytes' i m
+        (HB: forall b, nth bytes (Z.to_nat i) b -> Byte.unsigned b >= 97)
+        (HI: 0 <= i < Z.of_nat (length bytes))
+        (HU: nth_update bytes (Z.to_nat i) rot13_byte bytes'):
+      rot13_step (wip bytes i, m) E0 (wip bytes' (i + 1), m)
+    | rot13_stepn bytes i m
+        (HN: i = Z.of_nat (length bytes)):
+      rot13_step (wip bytes i, m) E0 (done bytes, m).
+
+  End WITH_SE.
 
   Definition rot13_c : Clight.program. Admitted.
-  Context rot13_asm (Hrot13: Compiler.transf_clight_program rot13_c = Errors.OK rot13_asm).
+  Definition L_rot13 : Smallstep.semantics li_c li_c :=
+    {|
+      activate se :=
+        {|
+          Smallstep.step _ := rot13_step;
+          Smallstep.initial_state := rot13_initial_state se;
+          Smallstep.at_external := fun _ _ => False;
+          Smallstep.after_external := fun _ _ _ => False;
+          Smallstep.final_state := rot13_final_state;
+          Smallstep.globalenv := tt;
+        |};
+      skel := AST.erase_program rot13_c;
+      footprint := AST.footprint_of_program rot13_c;
+    |}.
+  Lemma ϕ_rot13: forward_simulation 1%cc 1%cc L_rot13 (Clight.semantics2 rot13_c).
+  Admitted.
 
-  Context (secret_sk: AST.program unit unit).
-  Definition Σ_secret : Smallstep.semantics li_c li_c. Admitted.
-  Lemma ϕ_secret : Γ_secret [= load_c secret_sk Σ_secret. Admitted.
+End ROT13.
 
+Definition secret_c_main : function. Admitted.
+Definition secret_c_rot13 : function. Admitted.
+
+Definition secret_c_main_id: positive := 1.
+Definition secret_c_rot13_id: positive := 2.
+Definition secret_c_write_id: positive := 3.
+Definition secret_c_msg_id: positive := 4.
+
+Definition msg_il : list init_data :=
+  [ Init_int8 (Int.repr 104); (* h *)
+    Init_int8 (Int.repr 101); (* e *)
+    Init_int8 (Int.repr 108); (* l *)
+    Init_int8 (Int.repr 108); (* l *)
+    Init_int8 (Int.repr 111) ]. (* o *)
+
+Definition msg_globvar : globvar type :=
+  {|
+    gvar_info := tarray tchar 6%Z;
+    gvar_init := msg_il;
+    gvar_readonly := false;
+    gvar_volatile := false;
+  |}.
+
+Program Definition composite_secret_program: Clight.program :=
+  {|
+    prog_defs := [
+      (secret_c_main_id, Gfun (Internal secret_c_main));
+      (secret_c_rot13_id, Gfun (Internal secret_c_rot13));
+      (secret_c_write_id, Gfun write);
+      (secret_c_msg_id, Gvar msg_globvar)];
+    prog_public := nil;
+    prog_main := Some secret_c_main_id;
+    prog_types := [];
+    prog_comp_env := (PTree.empty _);
+  |}.
+Next Obligation. reflexivity. Qed.
+
+Section SECRET.
+  Import Clight Ctypes.
+  Hypothesis (Hwin: Archi.win64 = false).
+  Definition secret_sk := AST.erase_program composite_secret_program.
+
+  Lemma secret_init_mem se:
+    Genv.valid_for secret_sk se ->
+    exists m, init_mem se secret_sk = Some m /\
+           (forall b, Genv.find_symbol se secret_c_msg_id = Some b ->
+                 Mem.loadbytes m b 0 5 = Some (map Byte hello_bytes)).
+  Proof.
+    intros Hvalid.
+    edestruct init_mem_exists with (p := secret_sk) as [m Hm]; eauto.
+    - split.
+      + cbn in H. destruct_or H; inv H. cbn.
+        repeat apply conj; solve [ easy | apply Z.divide_1_l ].
+      + cbn in H. destruct_or H; inv H. cbn. intros.
+        destruct_or H; inv H.
+    - exists m. split; eauto. intros b Hb.
+      unfold init_mem in Hm.
+      Opaque Genv.store_init_data_list.
+      cbn in Hm.
+      Ltac destruct_match :=
+        match goal with
+        | [ H: context [ match ?x with | Some _ => _ | None => _ end ] |- _ ] =>
+            let H' := fresh "H" in destruct x eqn:H'; [ | inv H ]
+        end.
+      repeat (destruct_match; eprod_crush).
+      inv Hb. inv Hm.
+      eapply (@Genv.store_init_data_list_loadbytes se b msg_il) in H6.
+      + erewrite Mem.loadbytes_drop; eauto.
+        right. right. right. constructor.
+      + eapply Genv.store_zeros_loadbytes. eauto.
+  Qed.
+
+  Lemma main_block se:
+    Genv.valid_for secret_sk se ->
+    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_main_id = Some b /\
+           Genv.find_funct (globalenv se composite_secret_program) (Vptr b Ptrofs.zero) = Some (Internal secret_c_main).
+  Proof.
+    intros Hse. exploit @Genv.find_def_symbol; eauto.
+    intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
+    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    reflexivity.
+  Qed.
+  Lemma rot13_block se:
+    Genv.valid_for secret_sk se ->
+    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_rot13_id = Some b /\
+           Genv.find_funct (globalenv se composite_secret_program) (Vptr b Ptrofs.zero) = Some (Internal secret_c_rot13).
+  Proof.
+    intros Hse. exploit @Genv.find_def_symbol; eauto.
+    intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
+    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    reflexivity.
+  Qed.
+  Lemma write_block se:
+    Genv.valid_for secret_sk se ->
+    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_write_id = Some b /\
+           Genv.find_funct (globalenv se composite_secret_program) (Vptr b Ptrofs.zero) = Some write.
+  Proof.
+    intros Hse. exploit @Genv.find_def_symbol; eauto.
+    intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
+    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    reflexivity.
+  Qed.
+  Lemma msg_block se:
+    Genv.valid_for secret_sk se ->
+    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_msg_id = Some b.
+  Proof.
+    intros Hse. exploit @Genv.find_def_symbol; eauto.
+    intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
+    reflexivity.
+  Qed.
 
   Definition L_secret := Secret.secret_spec.
-  Context compose_secret (HX: SmallstepLinking.compose L_secret (Clight.semantics2 rot13_c) = Some compose_secret).
-  Lemma π_secret : forward_simulation 1%cc 1%cc Σ_secret compose_secret. Admitted.
+  Definition L_compose := fun (i: bool) => if i then L_secret else L_rot13.
+  Lemma ϕ_secret : Γ_secret secret_sk [= load_c_sem composite_secret_program (SmallstepLinking.semantics L_compose secret_sk).
+  Proof.
+    intros p Hp. cbn in Hp. destruct Hp as ((se & Hse) & Hp).
+    eapply Downset.closed in Hp; eauto. clear Hp.
+    edestruct secret_init_mem as (m & Hm1 & Hm2). apply Hse.
+    edestruct main_block as (b & Hb1 & Hb2). apply Hse.
+    edestruct write_block as (b1 & Hb3 & Hb4). apply Hse.
+    edestruct msg_block as (b2 & Hb5). apply Hse.
+    assert (Hflag: Mem.alloc_flag m = true).
+    { eapply init_mem_alloc_flag; eauto. }
+    assert (exists m3, Mem.storebytes m b2 0 (map Byte uryyb_bytes) = Some m3) as (m3 & Hm3).
+    { admit. }
+    eexists _, _. repeat apply conj.
+    3: { unfold entry_c_play. unfold Γ_secret_play.
+         apply comp_oq. apply comp_lq. apply comp_rq. apply comp_oa.
+         apply comp_ra. apply comp_la. instantiate (1 := pnil_ready). apply comp_ready. }
+    { cbn. eexists se, _, _, Int.zero. eexists.
+      econstructor; eauto. admit. admit.
+      unfold entry_c_play. reflexivity. }
+    specialize (Hm2 _ Hb5).
+    eexists _, _. repeat apply conj.
+    3: { apply comp_oq. apply comp_lq. apply comp_rq. apply comp_oa.
+         apply comp_ra. apply comp_la. instantiate (1 := pnil_ready). apply comp_ready. }
+    2: { exists false. cbn. eexists se, _, uryyb_bytes, _, _. exists.
+         econstructor; eauto.
+         replace 0%Z with (Ptrofs.unsigned Ptrofs.zero) in Hm3 by reflexivity.
+         eapply Mem.loadbytes_storebytes_same; eauto.
+         unfold write_c_play. reflexivity. }
+    cbn. eapply closure_has_cons.
+    2: apply closure_has_nil.
+    2: apply seq_comp_has_nil2; eauto.
+    cbn. econstructor; eauto.
+    { (* initial step *)
+      econstructor.
+      - instantiate (1 := true).
+        cbn. unfold valid_query. split; cbn; try congruence.
+        admit.
+      - cbn. econstructor; eauto. admit.  }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 1; eauto. }
+    econstructor 4.
+    { apply star_one. econstructor 2.
+      - constructor; eauto. admit.
+      - unfold valid_query. split; cbn; try congruence.
+        admit.
+      - instantiate (3 := false). constructor; eauto. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 1. }
+    (* loop 5 times *)
+    Ltac solve_nth_range :=
+      intros;
+      repeat match goal with
+        | [ H: nth _ _ _ |- _  ] => inv H
+        end; rewrite Byte.unsigned_repr by (cbn; lia); lia.
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 2;
+        [ solve_nth_range | cbn; lia | repeat constructor ]. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 2;
+        [ solve_nth_range | cbn; lia | repeat constructor ]. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 2;
+        [ solve_nth_range | cbn; lia | repeat constructor ]. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 2;
+        [ solve_nth_range | cbn; lia | repeat constructor ]. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 2;
+        [ solve_nth_range | cbn; lia | repeat constructor ]. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 3. reflexivity. }
+    econstructor 4.
+    (* rot13 returns to secret *)
+    { apply star_one. econstructor 3.
+      - constructor. eauto.
+      - econstructor. admit. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 2. }
+    econstructor 2.
+    { econstructor.
+      - econstructor; eauto. admit. admit. admit.
+      - intros [|] Hj.
+        + unfold valid_query in Hj. cbn in Hj. admit.
+        + admit. }
+    { repeat econstructor. }
+    econstructor 4.
+    { apply star_one. econstructor 1. econstructor 3. }
+    econstructor 3.
+    { econstructor. econstructor. }
+    Unshelve. admit. admit.
+  Admitted.
 
-  Context link_asm (HL: Linking.link rot13_asm Secret.secret_asm_program = Some link_asm).
-  Lemma π_secret_cc : forward_simulation cc_compcert cc_compcert Σ_secret (Asm.semantics link_asm).
+  Context rot13_asm (Hrot13: Compiler.transf_clight_program rot13_c = Errors.OK rot13_asm).
+  Context linked_secret_asm (HL: Linking.link rot13_asm Secret.secret_asm_program = Some linked_secret_asm).
+  Lemma π_secret_cc : forward_simulation cc_compcert cc_compcert Σ_secret (Asm.semantics linked_secret_asm).
+  Admitted.
+
+  Lemma ϕ_secret_cc : Γ_secret [= load_asm_prog linked_secret_asm.
   Admitted.
 
 End SECRET.
