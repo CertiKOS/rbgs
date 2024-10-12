@@ -1511,10 +1511,35 @@ Section ESTRAT_FCOMP.
         * exists s1, (oa (m := operator (f2 q2)) r :: pa (operand (f2 q2) r) :: s2).
           repeat (constructor; auto).
     - intros s (s1 & s2 & Hs1 & Hs2 & Hs).
-      revert i1 i2 p1 p2 p p' s1 s2 Hs1 Hs2 Hs.
-      match goal with |- ?G => set (goal := G) end.
-      (* we'll need a somewhat subtle induction here but it's fine *)
-  Admitted.
+      revert i2 p2 s2 Hs2 i p p' s Hs.
+      induction Hs1 as [ | q1 s1 Hs1 IHs1 | q1 | q1 r1 s1 Hs1 IHs1].
+      + (** s1 is done, but s2 may have more to do *)
+        intros ? ? ? ?.
+        induction Hs2 as [ | q2 s2 Hs2 IHs2 | q2 | q2 r2 s2 Hs2 IHs2]; intros;
+        do 2 try dependent destruction Hs; dependent destruction p.
+        * constructor.
+        * constructor; eauto.
+        * constructor.
+        * apply (emor_answer (f1 + f2) (inr q2)); eauto.
+      + (** s1 doing a question next, but s2 may do stuff first *)
+        intros ? ? ? ?.
+        induction Hs2 as [ | q2 s2 Hs2 IHs2 | q2 | q2 r2 s2 Hs2 IHs2]; intros.
+        * dependent destruction Hs; dependent destruction Hs; dependent destruction p.
+          constructor; eauto.
+        * dependent destruction Hs; dependent destruction Hs; dependent destruction p.
+          -- (* s1 goes first *) eapply (emor_question (f1 + f2) (inl q1)); eauto.
+          -- (* s2 goes first *) eapply (emor_question (f1 + f2) (inr q2)); eauto.
+        * dependent destruction Hs. dependent destruction p.
+          constructor.
+        * dependent destruction Hs; dependent destruction Hs; dependent destruction p.
+          eapply (emor_answer (f1 + f2) (inr q2)); eauto.
+      + (** s1 suspended *)
+        intros. dependent destruction Hs. dependent destruction p.
+        econstructor.
+      + (** s1 answer *)
+        intros. do 2 dependent destruction Hs. dependent destruction p.
+        eapply (emor_answer (f1 + f2) (inl q1)); eauto.
+  Qed.
 
   Lemma emor_strat_fcomp :
     emor_strat (f1 + f2) = emor_strat f1 + emor_strat f2.
