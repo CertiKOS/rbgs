@@ -30,6 +30,8 @@ Ltac eprod_crush :=
      | [ H: unit |- _] => destruct H
      end).
 
+(** * Strategy-level definitions and proof *)
+
 Definition P : esig := {| op := Genv.symtbl; ar _ := Integers.int |}.
 Inductive F_op : Type := F_read : int -> F_op | F_write : list byte -> F_op.
 Definition F : esig :=
@@ -201,28 +203,12 @@ Section STRATEGY.
 
 End STRATEGY.
 
+(** * Code Proof *)
+
 Require Import CAsm InitMem Maps AST.
 Require Import Conventions Mach Asm.
 Require Import Ctypes.
 Require Import Util.
-
-Notation tvoid := (Tvoid).
-Notation tchar := (Tint I8 Unsigned noattr).
-Notation tlong := (Tlong Unsigned noattr).
-Notation tptr := (fun ty => Tpointer ty noattr).
-
-Definition rw_parameters := Tcons tint (Tcons (tptr tchar) (Tcons tint Tnil)).
-Definition rw_type :=
-  Tfunction rw_parameters tint cc_default.
-Definition rw_sig : signature :=
-  signature_of_type rw_parameters tint cc_default.
-Definition write : Clight.fundef :=
-  External (EF_external "write" rw_sig) rw_parameters tint cc_default.
-Definition read : Clight.fundef :=
-  External (EF_external "read" rw_sig) rw_parameters tint cc_default.
-Definition read_fun_asm : Asm.fundef := AST.External (EF_external "read" rw_sig).
-Definition write_fun_asm : Asm.fundef := AST.External (EF_external "write" rw_sig).
-Definition main_sig := signature_of_type Tnil tint cc_default.
 
 Lemma rw_sig_size_arguments: size_arguments rw_sig = 0%Z.
 Proof. Transparent Archi.ptr64. cbn. destruct Archi.win64; cbn; lia. Qed.
@@ -315,7 +301,7 @@ Section ASM_LOADER.
     @pa S li_asm (se, q)%embed r :: pnil_ready.
   Inductive valid_read_asm: Genv.symtbl -> (regset * Mem.mem) -> Int.int -> list byte -> (regset * Mem.mem) -> Prop :=
   | valid_read_asm_intro se (rs: regset) m n bytes rs' m' b ofs
-      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some read_fun_asm)
+      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some read_asm)
       (HDI: rs#RDI = Vint (Int.repr 0))
       (HSI: rs#RSI = Vptr b ofs)
       (HDX: rs#RDX = Vint n)
@@ -332,7 +318,7 @@ Section ASM_LOADER.
     @pa S li_asm (se, q)%embed r :: pnil_ready.
   Inductive valid_write_asm: Genv.symtbl -> (regset * Mem.mem) -> list byte -> Int.int -> (regset * Mem.mem) -> Prop :=
   | valid_write_asm_intro se (rs: regset) m bytes n rs' b ofs r
-      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some write_fun_asm)
+      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some write_asm)
       (HDI: rs#RDI = Vint (Int.repr 1))
       (HSI: rs#RSI = Vptr b ofs)
       (HDX: rs#RDX = Vint (Int.repr n))
@@ -348,61 +334,6 @@ Section ASM_LOADER.
     entry_asm ⊙ (lts_strat L) ⊙ runtime_asm.
 
 End ASM_LOADER.
-
-Section FIND_FUNCT.
-  Import Linking.
-  Import AST.
-  Import Clight.
-
-  Lemma match_prog_read p tp f se tse vf tvf:
-    match_prog p tp ->
-    Genv.match_stbls f se tse ->
-    Val.inject f vf tvf ->
-    Genv.find_funct (Clight.globalenv se p) vf = Some read ->
-    Genv.find_funct (Genv.globalenv tse tp) tvf = Some read_fun_asm.
-  Proof.
-  Admitted.
-
-  Lemma match_prog_write p tp f se tse vf tvf:
-    match_prog p tp ->
-    Genv.match_stbls f se tse ->
-    Val.inject f vf tvf ->
-    Genv.find_funct (Clight.globalenv se p) vf = Some write ->
-    Genv.find_funct (Genv.globalenv tse tp) tvf = Some write_fun_asm.
-  Proof.
-  Admitted.
-
-  Import Clight CallconvAlgebra CKLR Compiler Inject.
-
-  Lemma ca_find_funct_read p tp i se1 se2 se3 vf1 vf2 vf3 wn:
-    Util.match_prog p tp ->
-    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
-    Load.mv_cklrs wn vf1 vf2 ->
-    inj_stbls i se2 se3 ->
-    Val.inject i vf2 vf3 ->
-    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some read ->
-    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some read_fun_asm.
-  Proof.
-    intros HMP HSE HVF HI HVF2 HF.
-    eapply Load.cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
-    eapply match_prog_read; eauto. apply HI. apply HF.
-  Qed.
-
-  Lemma ca_find_funct_write p tp i se1 se2 se3 vf1 vf2 vf3 wn:
-    Util.match_prog p tp ->
-    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
-    Load.mv_cklrs wn vf1 vf2 ->
-    inj_stbls i se2 se3 ->
-    Val.inject i vf2 vf3 ->
-    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some write ->
-    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some write_fun_asm.
-  Proof.
-    intros HMP HSE HVF HI HVF2 HF.
-    eapply Load.cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
-    eapply match_prog_write; eauto. apply HI. apply HF.
-  Qed.
-
-End FIND_FUNCT.
 
 Section LOADER_CORRECT.
   Transparent Archi.ptr64.
