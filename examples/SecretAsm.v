@@ -28,9 +28,9 @@ Definition msg_globvar : globvar unit :=
   |}.
 
 Definition write_sig : signature :=
-  {| sig_args := [Tint; Tptr; Tlong]; sig_res := Tint; sig_cc := cc_default; |}.
+  {| sig_args := [Tint; Tptr; Tint]; sig_res := Tint; sig_cc := cc_default; |}.
 Definition rot13_sig : signature :=
-  {| sig_args := [Tptr; Tlong]; sig_res := Tvoid; sig_cc := cc_default; |}.
+  {| sig_args := [Tptr; Tint]; sig_res := Tvoid; sig_cc := cc_default; |}.
 Definition write: Asm.fundef := External (EF_external "write" write_sig).
 Definition rot13: Asm.fundef := External (EF_external "rot13" rot13_sig).
 
@@ -39,11 +39,11 @@ Import Asm.
 Definition secret_main_code: code := [
     Pallocframe 16 (Ptrofs.repr 8) (Ptrofs.repr 0);
     Pleaq RDI (Addrmode None None (inr (secret_msg_id, Ptrofs.repr 0)));
-    Pmovq_ri RSI (Int64.repr 5);
+    Pmovl_ri RSI (Int.repr 5);
     Pcall_s secret_rot13_id rot13_sig;
     Pmovl_ri RDI (Int.repr 1);
     Pleaq RSI (Addrmode None None (inr (secret_msg_id, Ptrofs.repr 0)));
-    Pmovq_ri RDX (Int64.repr 5);
+    Pmovl_ri RDX (Int.repr 5);
     Pcall_s secret_write_id write_sig;
     Pmovl_ri RAX (Int.repr 0);
     Pfreeframe 16 (Ptrofs.repr 8) (Ptrofs.repr 0);
@@ -85,13 +85,13 @@ Section SECRET_SPEC.
         (HB2: Genv.find_symbol se secret_msg_id = Some b2)
         (HSG: sg = rot13_sig):
       secret_spec_at_external (secret2, m)
-        (cq (Vptr b1 Ptrofs.zero) sg [ Vptr b2 Ptrofs.zero; Vlong (Int64.repr 5) ] m)
+        (cq (Vptr b1 Ptrofs.zero) sg [ Vptr b2 Ptrofs.zero; Vint (Int.repr 5) ] m)
     | secret_spec_at_external_intro2 m sg b1 b2
         (HB1: Genv.find_symbol se secret_write_id = Some b1)
         (HB2: Genv.find_symbol se secret_msg_id = Some b2)
         (HSG: sg = write_sig):
       secret_spec_at_external (secret4, m)
-        (cq (Vptr b1 Ptrofs.zero) sg [ Vint (Int.repr 1); Vptr b2 Ptrofs.zero; Vlong (Int64.repr 5) ] m).
+        (cq (Vptr b1 Ptrofs.zero) sg [ Vint (Int.repr 1); Vptr b2 Ptrofs.zero; Vint (Int.repr 5) ] m).
     Inductive secret_spec_after_external: secret_state * mem -> reply li_c -> secret_state * mem -> Prop :=
     | secret_spec_after_external_intro1 m m' v b
         (HB: Genv.find_symbol se secret_msg_id = Some b):
@@ -149,8 +149,6 @@ Section CODE_PROOF.
   Import Asm.
   Require Import Lifting.       (* eprod_crush *)
 
-  Search Mem.inject Mem.unchanged_on.
-
   Inductive secret_match_state: ccworld (cc_c injp @ cc_c_asm) -> secret_state * mem -> block * Asm.state -> Prop :=
   | secret_match_state1 rs nb b sg j m1 m2 Hm se
       (HPC: rs PC = Vptr b Ptrofs.zero)
@@ -169,7 +167,7 @@ Section CODE_PROOF.
       (HB3: Genv.find_symbol se secret_msg_id = Some b3)
       (HPC: rs PC = Vptr b1 Ptrofs.zero)
       (HRA: rs RA = Vptr b2 (Ptrofs.repr 4))
-      (HRSI: rs (IR RSI) = Vlong (Int64.repr 5))
+      (HRSI: rs (IR RSI) = Vint (Int.repr 5))
       (HRDI: rs (IR RDI) = Vptr b3 Ptrofs.zero)
       (HLSP: Mem.loadv Mptr mx2 (Val.offset_ptr rs#RSP (Ptrofs.repr 0)) = Some (rs0 RSP))
       (HLRA: Mem.loadv Mptr mx2 (Val.offset_ptr rs#RSP (Ptrofs.repr 8)) = Some (rs0 RA))
@@ -211,7 +209,7 @@ Section CODE_PROOF.
       (HB3: Genv.find_symbol se secret_msg_id = Some b3)
       (HPC: rs PC = Vptr b1 Ptrofs.zero)
       (HRA: rs RA = Vptr b2 (Ptrofs.repr 8))
-      (HRDX: rs (IR RDX) = Vlong (Int64.repr 5))
+      (HRDX: rs (IR RDX) = Vint (Int.repr 5))
       (HRSI: rs (IR RSI) = Vptr b3 Ptrofs.zero)
       (HRDI: rs (IR RDI) = Vint (Int.repr 1))
       (HLSP: Mem.loadv Mptr mx2 (Val.offset_ptr rs#RSP (Ptrofs.repr 0)) = Some (rs0 RSP))
@@ -866,7 +864,7 @@ Proof.
       intros (tb1 & Htb1 & Htb2).
       exploit @Genv.find_symbol_match. apply HSE. apply HB2.
       intros (tb2 & Htb3 & Htn4).
-      exists wx, (cq (Vptr tb1 Ptrofs.zero) rot13_sig [Vptr tb2 Ptrofs.zero; Vlong (Int64.repr 5)] m2).
+      exists wx, (cq (Vptr tb1 Ptrofs.zero) rot13_sig [Vptr tb2 Ptrofs.zero; Vint (Int.repr 5)] m2).
       split. econstructor; eauto.
       split. repeat econstructor; eauto. congruence.
       split; eauto.
@@ -878,7 +876,7 @@ Proof.
       intros (tb1 & Htb1 & Htb2).
       exploit @Genv.find_symbol_match. apply HSE. apply HB2.
       intros (tb2 & Htb3 & Htn4).
-      exists wx, (cq (Vptr tb1 Ptrofs.zero) write_sig [Vint (Int.repr 1); Vptr tb2 Ptrofs.zero; Vlong (Int64.repr 5)] m2).
+      exists wx, (cq (Vptr tb1 Ptrofs.zero) write_sig [Vint (Int.repr 1); Vptr tb2 Ptrofs.zero; Vint (Int.repr 5)] m2).
       split. econstructor; eauto.
       split. repeat econstructor; eauto. congruence.
       split; eauto.

@@ -31,7 +31,7 @@ Ltac eprod_crush :=
      end).
 
 Definition P : esig := {| op := Genv.symtbl; ar _ := Integers.int |}.
-Inductive F_op : Type := F_read : Integers.int64 -> F_op | F_write : list byte -> F_op.
+Inductive F_op : Type := F_read : int -> F_op | F_write : list byte -> F_op.
 Definition F : esig :=
   {|
     op := F_op;
@@ -59,8 +59,8 @@ Section STRATEGY.
   Definition Γ_secret : S ->> P := sup { se | Genv.valid_for sk_secret se }, down (Γ_secret_play se).
   Definition Γ_decode_play se : @play S P ready :=
     @oq S P se ::
-      @pq S P se (inl (F_read (Int64.repr 100))) ::
-      @oa S P se (inl (F_read (Int64.repr 100))) uryyb_bytes ::
+      @pq S P se (inl (F_read (Int.repr 100))) ::
+      @oa S P se (inl (F_read (Int.repr 100))) uryyb_bytes ::
       @pq S P se (inr (F_write hello_bytes)) ::
       @oa S P se (inr (F_write hello_bytes)) (Int.repr 5) ::
       @pa S P se (Int.repr 0) :: pnil_ready.
@@ -78,9 +78,9 @@ Section STRATEGY.
   Inductive fifo_play: list byte -> forall i, @play 0 F i -> Prop :=
   | fifo_nil d : fifo_play d ready pnil_ready
   | fifo_read n d1 d2 d s
-      (Hd: d = app d1 d2) (Hn: Int64.unsigned n = Z.of_nat (length d1)) (Hs: fifo_play d2 ready s):
+      (Hd: d = app d1 d2) (Hn: Int.unsigned n = Z.of_nat (length d1)) (Hs: fifo_play d2 ready s):
     fifo_play d ready (@oq 0 F (F_read n) :: @pa 0 F (F_read n) d1 :: s)
-  | fifo_read_all n d s (Hn: (Int64.unsigned n > Z.of_nat (length d))%Z) (Hs: fifo_play nil ready s):
+  | fifo_read_all n d s (Hn: (Int.unsigned n > Z.of_nat (length d))%Z) (Hs: fifo_play nil ready s):
     fifo_play d ready (@oq 0 F (F_read n) :: @pa 0 F (F_read n) d :: s)
   | fifo_write n d1 d2 d s
       (Hd: d2 = app d d1) (Hn: Int.unsigned n = Z.of_nat (length d1)) (Hs: fifo_play d2 ready s):
@@ -176,8 +176,8 @@ Section STRATEGY.
     cbn. eapply fifo_write with (d1 := uryyb_bytes).
     rewrite app_nil_l. reflexivity. cbn.
     instantiate (1 := (Int.repr 5)). reflexivity.
-    eapply fifo_read_all with (n := (Int64.repr 100)). cbn.
-    rewrite Int64.unsigned_repr. lia. cbn. lia. apply fifo_nil.
+    eapply fifo_read_all with (n := (Int.repr 100)). cbn.
+    rewrite Int.unsigned_repr. lia. cbn. lia. apply fifo_nil.
 
     repeat constructor.
     repeat constructor.
@@ -201,9 +201,31 @@ Section STRATEGY.
 
 End STRATEGY.
 
-
-Require Import CAsm Load InitMem Maps AST.
+Require Import CAsm InitMem Maps AST.
 Require Import Conventions Mach Asm.
+Require Import Ctypes.
+Require Import Util.
+
+Notation tvoid := (Tvoid).
+Notation tchar := (Tint I8 Unsigned noattr).
+Notation tlong := (Tlong Unsigned noattr).
+Notation tptr := (fun ty => Tpointer ty noattr).
+
+Definition rw_parameters := Tcons tint (Tcons (tptr tchar) (Tcons tint Tnil)).
+Definition rw_type :=
+  Tfunction rw_parameters tint cc_default.
+Definition rw_sig : signature :=
+  signature_of_type rw_parameters tint cc_default.
+Definition write : Clight.fundef :=
+  External (EF_external "write" rw_sig) rw_parameters tint cc_default.
+Definition read : Clight.fundef :=
+  External (EF_external "read" rw_sig) rw_parameters tint cc_default.
+Definition read_fun_asm : Asm.fundef := AST.External (EF_external "read" rw_sig).
+Definition write_fun_asm : Asm.fundef := AST.External (EF_external "write" rw_sig).
+Definition main_sig := signature_of_type Tnil tint cc_default.
+
+Lemma rw_sig_size_arguments: size_arguments rw_sig = 0%Z.
+Proof. Transparent Archi.ptr64. cbn. destruct Archi.win64; cbn; lia. Qed.
 
 Section C_LOADER.
   Import Ctypes Clight.
@@ -232,12 +254,12 @@ Section C_LOADER.
     @pq S li_c (se, q)%embed (inl (F_read n)) ::
     @oa S li_c (se, q)%embed (inl (F_read n)) bytes ::
     @pa S li_c (se, q)%embed r :: pnil_ready.
-  Inductive valid_read_c: Genv.symtbl -> c_query -> Int64.int -> list byte -> c_reply -> Prop :=
+  Inductive valid_read_c: Genv.symtbl -> c_query -> int -> list byte -> c_reply -> Prop :=
   | valid_read_c_intro se q r vf b ofs n m bytes m'
     (HVF: Genv.find_funct (Clight.globalenv se prog) vf = Some read)
     (HREAD: Mem.storebytes m b (Ptrofs.unsigned ofs) (map Byte bytes) = Some m')
-    (HLEN: (Z.of_nat (length bytes) <= Int64.unsigned n)%Z)
-    (HQ: q = cq vf rw_sig [Vint (Int.repr 0); Vptr b ofs; Vlong n]%list m)
+    (HLEN: (Z.of_nat (length bytes) <= Int.unsigned n)%Z)
+    (HQ: q = cq vf rw_sig [Vint (Int.repr 0); Vptr b ofs; Vint n]%list m)
     (HR: r = cr (Vint (Int.repr (Z.of_nat (length bytes)))) m') :
     valid_read_c se q n bytes r.
   Definition read_c : S ->> li_c :=
@@ -251,7 +273,7 @@ Section C_LOADER.
   | valid_write_c_intro se q r vf b ofs len n m bytes 
     (HVF: Genv.find_funct (Clight.globalenv se prog) vf = Some write)
     (HWRITE: Mem.loadbytes m b (Ptrofs.unsigned ofs) len = Some (map Byte bytes))
-    (HQ: q = cq vf rw_sig [Vint (Int.repr 1); Vptr b ofs; Vlong (Int64.repr len)]%list m)
+    (HQ: q = cq vf rw_sig [Vint (Int.repr 1); Vptr b ofs; Vint (Int.repr len)]%list m)
     (HR: r = cr (Vint n) m) :
     valid_write_c se q bytes n r.
   Definition write_c : S ->> li_c :=
@@ -277,7 +299,7 @@ Section ASM_LOADER.
   Inductive valid_entry_asm: Genv.symtbl -> (regset * Mem.mem) -> (regset * Mem.mem) -> int -> Prop :=
   | valid_entry_asm_intro se rs m rs' m' i vf b f main
     (HM: init_mem se sk = Some m)
-    (HMAIN: prog_main prog = Some main)
+    (HMAIN: AST.prog_main prog = Some main)
     (HF: (prog_defmap prog) ! main = Some (Gfun f))
     (HB: Genv.find_symbol se main = Some b)
     (HVF: vf = Vptr b Ptrofs.zero)
@@ -291,13 +313,13 @@ Section ASM_LOADER.
     @pq S li_asm (se, q)%embed (inl (F_read n)) ::
     @oa S li_asm (se, q)%embed (inl (F_read n)) bytes ::
     @pa S li_asm (se, q)%embed r :: pnil_ready.
-  Inductive valid_read_asm: Genv.symtbl -> (regset * Mem.mem) -> Int64.int -> list byte -> (regset * Mem.mem) -> Prop :=
+  Inductive valid_read_asm: Genv.symtbl -> (regset * Mem.mem) -> Int.int -> list byte -> (regset * Mem.mem) -> Prop :=
   | valid_read_asm_intro se (rs: regset) m n bytes rs' m' b ofs
-      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some read_asm)
+      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some read_fun_asm)
       (HDI: rs#RDI = Vint (Int.repr 0))
       (HSI: rs#RSI = Vptr b ofs)
-      (HDX: rs#RDX = Vlong n)
-      (HN: (Z.of_nat (length bytes) <= Int64.unsigned n)%Z)
+      (HDX: rs#RDX = Vint n)
+      (HN: (Z.of_nat (length bytes) <= Int.unsigned n)%Z)
       (HM: Mem.storebytes m b (Ptrofs.unsigned ofs) (map Byte bytes) = Some m')
       (HAX: rs'#(IR RAX) = Vint (Int.repr (Z.of_nat (length bytes)))) :
     valid_read_asm se (rs, m) n bytes (rs', m').
@@ -310,10 +332,10 @@ Section ASM_LOADER.
     @pa S li_asm (se, q)%embed r :: pnil_ready.
   Inductive valid_write_asm: Genv.symtbl -> (regset * Mem.mem) -> list byte -> Int.int -> (regset * Mem.mem) -> Prop :=
   | valid_write_asm_intro se (rs: regset) m bytes n rs' b ofs r
-      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some write_asm)
+      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some write_fun_asm)
       (HDI: rs#RDI = Vint (Int.repr 1))
       (HSI: rs#RSI = Vptr b ofs)
-      (HDX: rs#RDX = Vlong (Int64.repr n))
+      (HDX: rs#RDX = Vint (Int.repr n))
       (HM: Mem.loadbytes m b (Ptrofs.unsigned ofs) n = Some (map Byte bytes))
       (HAX: rs'#(IR RAX) = Vint r) :
     valid_write_asm se (rs, m) bytes r (rs', m).
@@ -327,18 +349,74 @@ Section ASM_LOADER.
 
 End ASM_LOADER.
 
+Section FIND_FUNCT.
+  Import Linking.
+  Import AST.
+  Import Clight.
+
+  Lemma match_prog_read p tp f se tse vf tvf:
+    match_prog p tp ->
+    Genv.match_stbls f se tse ->
+    Val.inject f vf tvf ->
+    Genv.find_funct (Clight.globalenv se p) vf = Some read ->
+    Genv.find_funct (Genv.globalenv tse tp) tvf = Some read_fun_asm.
+  Proof.
+  Admitted.
+
+  Lemma match_prog_write p tp f se tse vf tvf:
+    match_prog p tp ->
+    Genv.match_stbls f se tse ->
+    Val.inject f vf tvf ->
+    Genv.find_funct (Clight.globalenv se p) vf = Some write ->
+    Genv.find_funct (Genv.globalenv tse tp) tvf = Some write_fun_asm.
+  Proof.
+  Admitted.
+
+  Import Clight CallconvAlgebra CKLR Compiler Inject.
+
+  Lemma ca_find_funct_read p tp i se1 se2 se3 vf1 vf2 vf3 wn:
+    Util.match_prog p tp ->
+    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
+    Load.mv_cklrs wn vf1 vf2 ->
+    inj_stbls i se2 se3 ->
+    Val.inject i vf2 vf3 ->
+    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some read ->
+    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some read_fun_asm.
+  Proof.
+    intros HMP HSE HVF HI HVF2 HF.
+    eapply Load.cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
+    eapply match_prog_read; eauto. apply HI. apply HF.
+  Qed.
+
+  Lemma ca_find_funct_write p tp i se1 se2 se3 vf1 vf2 vf3 wn:
+    Util.match_prog p tp ->
+    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
+    Load.mv_cklrs wn vf1 vf2 ->
+    inj_stbls i se2 se3 ->
+    Val.inject i vf2 vf3 ->
+    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some write ->
+    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some write_fun_asm.
+  Proof.
+    intros HMP HSE HVF HI HVF2 HF.
+    eapply Load.cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
+    eapply match_prog_write; eauto. apply HI. apply HF.
+  Qed.
+
+End FIND_FUNCT.
+
 Section LOADER_CORRECT.
-  Import Clight Ctypes.
   Transparent Archi.ptr64.
 
-  Context p tp (Hp: Compiler.transf_clight_program p = Errors.OK tp).
+  Context p tp (Hp: transf_clight_program p = Errors.OK tp).
   Context
     (Hromatch: forall se m, init_mem se (AST.erase_program p) = Some m ->
         ValueAnalysis.romatch_all se (VAInject.bc_of_symtbl se) m).
 
   Lemma Hsk: erase_program p = erase_program tp.
   Proof.
-    eapply match_prog_skel; eauto. apply Compiler.transf_clight_program_match. eauto.
+    apply transf_clight_program_match in Hp.
+    apply clight2_semantic_preservation in Hp.
+    destruct Hp. destruct X. apply fsim_skel.
   Qed.
 
   Lemma entry_correct: rsq CAsm.cc_compcert vid (entry_c p) (entry_asm tp).
@@ -416,7 +494,7 @@ Section LOADER_CORRECT.
           * constructor. eapply initmem_inject; eauto.
       - cbn. repeat apply conj; eauto. constructor. eauto.
         constructor; cbn; erewrite init_mem_nextblock; eauto; try easy.
-        apply match_stbls_flat_inj.
+        apply Load.match_stbls_flat_inj.
     }
 
     destruct H as (w & Hq & Hse).  econstructor; eauto.
@@ -478,7 +556,7 @@ Section LOADER_CORRECT.
     2: {
       cbn. repeat apply conj; eauto. constructor. eauto.
       constructor; cbn; erewrite init_mem_nextblock; eauto; try easy.
-      apply match_stbls_flat_inj.
+      apply Load.match_stbls_flat_inj.
     }
     cbn in Hr. destruct Hr as (r3 & Hr3 & HR). inv Hr3.
     destruct HR as (r3 & Hr3 & HR). inv Hr3.
@@ -503,7 +581,7 @@ Section LOADER_CORRECT.
   Inductive match_inj_state:
     ccworld (cc_cklrs^{*}) -> world vainj -> cc_ca_world -> inj_state -> inj_state -> Prop := 
   | match_inj_state_intro wn wi b1 ofs1 m1 b2 ofs2 m2 caw se 
-      (HM: mm_ca wn (se, wi) (caw_m caw) m1 m2) (HP: mp_ca wn wi b1 ofs1 b2 ofs2):
+      (HM: Load.mm_ca wn (se, wi) (caw_m caw) m1 m2) (HP: Load.mp_ca wn wi b1 ofs1 b2 ofs2):
       match_inj_state wn (se, wi) caw (b1, ofs1, m1) (b2, ofs2, m2).
   Instance runtime_asm_determ:
     Deterministic (runtime_asm tp).
@@ -517,21 +595,21 @@ Section LOADER_CORRECT.
     2: { intros s ([|] & Hs).
          - destruct Hs as (se & q & n & bs & r & H & Hs). rewrite Hs. clear Hs.
            unfold read_c_play. apply rsp_oq. {
-             exists true. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vlong n)), m), n, bs, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), m').
+             exists true. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), m').
              eexists. 2: constructor.
              econstructor; cbn; eauto.
              eapply match_prog_read. 4: eauto.
-             apply Compiler.transf_clight_program_match. eauto.
+             apply Util.transf_clight_program_match. eauto.
              apply Genv.match_stbls_id.
              apply val_inject_refl. }
            intros q2 Hq2. xinv Hq2.
          - destruct Hs as (se & q & bs & n & r & H & Hs). rewrite Hs. clear Hs.
            unfold write_c_play. apply rsp_oq. {
-             exists false. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vlong (Int64.repr len))), m), bs, n, ((Pregmap.init Vundef)#RAX <- (Vint n), m).
+             exists false. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, ((Pregmap.init Vundef)#RAX <- (Vint n), m).
              eexists. 2: constructor.
              econstructor; cbn; eauto.
              eapply match_prog_write. 4: eauto.
-             apply Compiler.transf_clight_program_match. eauto.
+             apply Util.transf_clight_program_match. eauto.
              apply Genv.match_stbls_id.
              apply val_inject_refl. }
            intros q2 Hq2. xinv Hq2. }
@@ -543,11 +621,11 @@ Section LOADER_CORRECT.
       end.
     - destruct Hs as (se & q & n & bs & r & H & Hs). rewrite Hs. clear Hs.
       inv H. unfold read_c_play. apply rsp_oq. {
-        exists true. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vlong n)), m), n, bs, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), m').
+        exists true. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), m').
         eexists. 2: constructor.
         econstructor; cbn; eauto.
         eapply match_prog_read. 4: eauto.
-        apply Compiler.transf_clight_program_match. eauto.
+        apply Util.transf_clight_program_match. eauto.
         apply Genv.match_stbls_id.
         apply val_inject_refl.
       }
@@ -555,14 +633,14 @@ Section LOADER_CORRECT.
       eapply rsp_pq with (m2 := inl (F_read n)). reflexivity.
       eapply rsp_oa. {
         exists true. cbn. 
-      set (w1 := (nw_of_world w)). set (w2 := (injw_of_world w)). set (w3 := (caw_of_world w)).
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
       unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
       eprod_crush. destruct s7.
       match goal with
       | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
       end.
       (* cklrs *)
-      eapply (cklrs_match_query_inv (existT _ x2 c0)) in H as
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
           (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
       (* lessdef *)
       inv H1. repeat inv_lessdef.
@@ -570,7 +648,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
           | [ H: size_arguments _ > 0 |- _ ] => rewrite rw_sig_size_arguments in H  end.
-           lia. apply Hwin. }
+           lia. }
       (* cc_asm vainj *)
       destruct m2. destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -590,7 +668,7 @@ Section LOADER_CORRECT.
         (* ptr *)
         - econstructor; eauto. inv Hb'. constructor; eauto. }
       inv HMS.
-      exploit ca_storebytes; eauto. intros (mx1 & Hs & Hm).
+      exploit Load.ca_storebytes; eauto. intros (mx1 & Hs & Hm).
       inv Hm.
 
         eexists _, _, _, _, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), _).
@@ -599,7 +677,7 @@ Section LOADER_CORRECT.
         econstructor; eauto.
       + cbn in HVF. cbn in HSE.  eprod_crush. inv H8.
         eapply ca_find_funct_read; eauto.
-        apply Compiler.transf_clight_program_match. eauto.
+        apply Util.transf_clight_program_match. eauto.
         apply H7. apply HVF.
       + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
       + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
@@ -609,14 +687,14 @@ Section LOADER_CORRECT.
       { apply NNPP. intros Hx. apply H2. intros Hy. apply Hx.
         apply JMeq_eq; eauto. } clear H2.
 
-      set (w1 := (nw_of_world w)). set (w2 := (injw_of_world w)). set (w3 := (caw_of_world w)).
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
       unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
       eprod_crush. destruct s7.
       match goal with
       | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
       end.
       (* cklrs *)
-      eapply (cklrs_match_query_inv (existT _ x2 c0)) in H as
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
           (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
       (* lessdef *)
       inv H1. repeat inv_lessdef.
@@ -624,7 +702,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
           | [ H: size_arguments _ > 0 |- _ ] => rewrite rw_sig_size_arguments in H  end.
-           lia. apply Hwin. }
+           lia. }
       (* cc_asm vainj *)
       destruct m2. destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -644,7 +722,7 @@ Section LOADER_CORRECT.
         (* ptr *)
         - econstructor; eauto. inv Hb'. constructor; eauto. }
       inv HMS.
-      exploit ca_storebytes; eauto. intros (mx1 & Hs & Hm).
+      exploit Load.ca_storebytes; eauto. intros (mx1 & Hs & Hm).
       inv Hm.
       set (v := (Vint (Int.repr (Z.of_nat (length bs))))).
       eapply rsp_pa with (r2 := ((r0#RAX <- v)#PC <- (r0#RA), mx1)).
@@ -663,7 +741,7 @@ Section LOADER_CORRECT.
          *)
 
         eexists (cr v m2). split.
-        { eapply cklrs_match_reply_intro; eauto. }
+        { eapply Load.cklrs_match_reply_intro; eauto. }
         eexists (cr v m2). split.
         (* need sig *)
         { constructor. easy. }
@@ -682,10 +760,8 @@ Section LOADER_CORRECT.
             repeat (apply Axioms.functional_extensionality; intros).
             apply PropExtensionality.propositional_extensionality.
             split; try easy. intros HX. inv HX. lia.
-            apply Hwin.
           - rewrite rw_sig_size_arguments.
-            intros * HX. inv HX. lia.
-            apply Hwin. }
+            intros * HX. inv HX. lia. }
         { exists (s0, wj). split. split; eauto. split.
           - intros. cbn in Hreg. apply (mi_acc inj) in HJ.
             destruct r1; cbn; eauto. 
@@ -700,18 +776,18 @@ Section LOADER_CORRECT.
       { econstructor; eauto.
       + cbn in HVF. cbn in HSE.  eprod_crush. inv r1.
         eapply ca_find_funct_read; eauto.
-        apply Compiler.transf_clight_program_match. eauto.
+        apply Util.transf_clight_program_match. eauto.
         apply m1. apply HVF.
       + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
       + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto. }
       cbn. reflexivity.
     - destruct Hs as (se & q & bs & n & r & H & Hs). rewrite Hs. clear Hs.
       inv H. unfold write_c_play. apply rsp_oq. {
-        exists false. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vlong (Int64.repr len))), m), bs, n, ((Pregmap.init Vundef)#RAX <- (Vint n), m).
+        exists false. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, ((Pregmap.init Vundef)#RAX <- (Vint n), m).
         eexists. 2: constructor.
         econstructor; cbn; eauto.
         eapply match_prog_write. 4: eauto.
-        apply Compiler.transf_clight_program_match. eauto.
+        apply Util.transf_clight_program_match. eauto.
         apply Genv.match_stbls_id.
         apply val_inject_refl.
       }
@@ -720,14 +796,14 @@ Section LOADER_CORRECT.
       eapply rsp_oa. {
         exists false. cbn.
 
-      set (w1 := (nw_of_world w)). set (w2 := (injw_of_world w)). set (w3 := (caw_of_world w)).
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
       destruct m2 as [rs mt].
       unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
       eprod_crush. destruct s7.
       match goal with
       | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
       end.
-      eapply (cklrs_match_query_inv (existT _ x2 c0)) in H as
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
           (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
       (* lessdef *)
       inv H1. repeat inv_lessdef.
@@ -735,7 +811,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
         | [ H: size_arguments _ > 0 |- _ ] =>
-            rewrite rw_sig_size_arguments in H; try lia  end. apply Hwin. }
+            rewrite rw_sig_size_arguments in H; try lia  end. }
       (* cc_asm vainj *)
       destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -745,7 +821,7 @@ Section LOADER_CORRECT.
       assert (exists b' ofs', rs#RSI = Vptr b' ofs' /\ Val.inject i (Vptr bx ofsx) (Vptr b' ofs')) as (b' & ofs' & Hofs & Hb').
       { specialize (Hreg RSI). rewrite <- H2 in Hreg. inv Hreg.
         eexists _, _. split; eauto. }
-      assert (HCA: mm_ca w1 w2 (caw_m w3) m mt).
+      assert (HCA: Load.mm_ca w1 w2 (caw_m w3) m mt).
       { inv Him. econstructor; eauto. reflexivity.
         apply Mem.unchanged_on_refl. }
 
@@ -754,25 +830,25 @@ Section LOADER_CORRECT.
          econstructor; cbn; eauto.
         + cbn in HVF. cbn in HSE.  eprod_crush. inv H8.
           eapply ca_find_funct_write; eauto.
-          apply Compiler.transf_clight_program_match. eauto.
+          apply Util.transf_clight_program_match. eauto.
           apply H7. apply HVF.
         + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
         + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
-        + inv Him. eapply ca_loadbytes; eauto.
+        + inv Him. eapply Load.ca_loadbytes; eauto.
           econstructor; eauto. inv Hb'. constructor; eauto.
       }
       intros r2 H2. cbn in H2. apply not_and_or in H2 as [H2|H2]. easy.
       assert (n = r2) as <-.
       { apply NNPP. intros Hx. apply H2. intros Hy. apply Hx.
         apply JMeq_eq; eauto. } clear H2.
-      set (w1 := (nw_of_world w)). set (w2 := (injw_of_world w)). set (w3 := (caw_of_world w)).
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
       destruct m2 as [rs mt].
       unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
       eprod_crush. destruct s7.
       match goal with
       | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
       end.
-      eapply (cklrs_match_query_inv (existT _ x2 c0)) in H as
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
           (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
       (* lessdef *)
       inv H1. repeat inv_lessdef.
@@ -780,7 +856,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
         | [ H: size_arguments _ > 0 |- _ ] =>
-            rewrite rw_sig_size_arguments in H; try lia  end. apply Hwin. }
+            rewrite rw_sig_size_arguments in H; try lia  end. }
       (* cc_asm vainj *)
       destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -796,7 +872,7 @@ Section LOADER_CORRECT.
       {
         intros HR. cbn in HR. dependent destruction HR. apply HN. clear HM HN.
         eexists (cr v mx). split.
-        { eapply cklrs_match_reply_intro; eauto. }
+        { eapply Load.cklrs_match_reply_intro; eauto. }
         eexists (cr v mx). split.
         (* need sig *)
         { constructor. easy. }
@@ -808,13 +884,13 @@ Section LOADER_CORRECT.
           - apply Mem.unchanged_on_refl.
           - apply Mem.unchanged_on_refl.
           - rewrite rw_sig_size_arguments.
-            intros * HX. inv HX. lia. apply Hwin. }
+            intros * HX. inv HX. lia. }
         { exists (s0, i). split. reflexivity. split; eauto.
           intros. cbn in Hreg. destruct r0; cbn; eauto. destruct i0; cbn; eauto.
           subst v. eauto. }
       }
 
-      assert (HCA: mm_ca w1 w2 (caw_m w3) m mt).
+      assert (HCA: Load.mm_ca w1 w2 (caw_m w3) m mt).
       { inv Him. econstructor; eauto. reflexivity.
         apply Mem.unchanged_on_refl. }
 
@@ -824,11 +900,11 @@ Section LOADER_CORRECT.
       { econstructor; eauto.
         + cbn in HVF. cbn in HSE.  eprod_crush. inv r0.
           eapply ca_find_funct_write; eauto.
-          apply Compiler.transf_clight_program_match. eauto.
+          apply Util.transf_clight_program_match. eauto.
           apply m0. apply HVF.
         + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
         + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
-        + inv Him. eapply ca_loadbytes; eauto.
+        + inv Him. eapply Load.ca_loadbytes; eauto.
           econstructor; eauto. inv Hb'. constructor; eauto.
         + cbn. reflexivity. }
       cbn. reflexivity.
@@ -850,79 +926,139 @@ Section LOADER_CORRECT.
   (* Admitted. *)
 End LOADER_CORRECT.
 
-Require process.Secret.
-Require Import Clight Ctypes.
+(* Require process.Secret. *)
+(* Require Import Clight Ctypes. *)
 
-Section ROT13.
-  Import Secret.
-  Section WITH_SE.
-    Import Events.
-    Context (se: Genv.symtbl).
-    Variant rot13_state :=
-      | init (bytes: list byte)
-      (* The first i bytes have been decoded. These intermediate steps correspond
-       to internal steps in the loop of rot13.c, so that we don't have to do
-       induction proof on the Clight loops *)
-      | wip (bytes: list byte) (i: Z)
-      | done (bytes: list byte).
+(* Section ROT13. *)
+(*   Import Secret. *)
+(*   Section WITH_SE. *)
+(*     Import Events. *)
+(*     Context (se: Genv.symtbl). *)
+(*     Variant rot13_state := *)
+(*       | init (bytes: list byte) *)
+(*       (* The first i bytes have been decoded. These intermediate steps correspond *)
+(*        to internal steps in the loop of rot13.c, so that we don't have to do *)
+(*        induction proof on the Clight loops *) *)
+(*       | wip (bytes: list byte) (i: Z) *)
+(*       | done (bytes: list byte). *)
 
-    Definition mem_state := (mem * block * Z)%type.
+(*     Definition mem_state := (mem * block * Z)%type. *)
 
-    Inductive rot13_initial_state: query li_c -> (rot13_state * mem_state)%type -> Prop :=
-    | rot13_initial_state_intro m sg b b_buf len bytes
-        (HB1: Genv.find_symbol se secret_rot13_id = Some b)
-        (HL: Mem.loadbytes m b_buf 0 len = Some (map Byte bytes))
-        (HSG: sg = rot13_sig):
-      rot13_initial_state
-        (cq (Vptr b Ptrofs.zero) sg [ Vptr b_buf Ptrofs.zero; Vlong (Int64.repr len) ] m) (init bytes, (m, b_buf, len)).
+(*     Inductive rot13_initial_state: query li_c -> (rot13_state * mem_state)%type -> Prop := *)
+(*     | rot13_initial_state_intro m sg b b_buf len bytes *)
+(*         (HB1: Genv.find_symbol se secret_rot13_id = Some b) *)
+(*         (HL: Mem.loadbytes m b_buf 0 len = Some (map Byte bytes)) *)
+(*         (HSG: sg = rot13_sig): *)
+(*       rot13_initial_state *)
+(*         (cq (Vptr b Ptrofs.zero) sg [ Vptr b_buf Ptrofs.zero; Vlong (Int64.repr len) ] m) (init bytes, (m, b_buf, len)). *)
 
-    Inductive rot13_final_state: (rot13_state * mem_state)%type -> reply li_c -> Prop :=
-    | rot13_final_state_intro m m' b_buf len bytes
-        (HS: Mem.storebytes m b_buf 0 (map Byte bytes) = Some m'):
-      rot13_final_state (done bytes, (m, b_buf, len)) (cr Vundef m').
+(*     Inductive rot13_final_state: (rot13_state * mem_state)%type -> reply li_c -> Prop := *)
+(*     | rot13_final_state_intro m m' b_buf len bytes *)
+(*         (HS: Mem.storebytes m b_buf 0 (map Byte bytes) = Some m'): *)
+(*       rot13_final_state (done bytes, (m, b_buf, len)) (cr Vundef m'). *)
 
-    Open Scope Z_scope.
+(*     Open Scope Z_scope. *)
 
-    Inductive rot13_step: (rot13_state * mem_state)%type -> trace -> (rot13_state * mem_state) -> Prop :=
-    | rot13_step1 bytes m: rot13_step (init bytes, m) E0 (wip bytes 0, m)
-    | rot13_stepi bytes bytes' i m
-        (HB: forall b, nth bytes (Z.to_nat i) b -> Byte.unsigned b >= 97)
-        (HI: 0 <= i < Z.of_nat (length bytes))
-        (HU: nth_update bytes (Z.to_nat i) rot13_byte bytes'):
-      rot13_step (wip bytes i, m) E0 (wip bytes' (i + 1), m)
-    | rot13_stepn bytes i m
-        (HN: i = Z.of_nat (length bytes)):
-      rot13_step (wip bytes i, m) E0 (done bytes, m).
+(*     Inductive rot13_step: (rot13_state * mem_state)%type -> trace -> (rot13_state * mem_state) -> Prop := *)
+(*     | rot13_step1 bytes m: rot13_step (init bytes, m) E0 (wip bytes 0, m) *)
+(*     | rot13_stepi bytes bytes' i m *)
+(*         (HB: forall b, nth bytes (Z.to_nat i) b -> Byte.unsigned b >= 97) *)
+(*         (HI: 0 <= i < Z.of_nat (length bytes)) *)
+(*         (HU: nth_update bytes (Z.to_nat i) rot13_byte bytes'): *)
+(*       rot13_step (wip bytes i, m) E0 (wip bytes' (i + 1), m) *)
+(*     | rot13_stepn bytes i m *)
+(*         (HN: i = Z.of_nat (length bytes)): *)
+(*       rot13_step (wip bytes i, m) E0 (done bytes, m). *)
 
-  End WITH_SE.
+(*   End WITH_SE. *)
 
-  Definition rot13_c : Clight.program. Admitted.
-  Definition L_rot13 : Smallstep.semantics li_c li_c :=
-    {|
-      activate se :=
-        {|
-          Smallstep.step _ := rot13_step;
-          Smallstep.initial_state := rot13_initial_state se;
-          Smallstep.at_external := fun _ _ => False;
-          Smallstep.after_external := fun _ _ _ => False;
-          Smallstep.final_state := rot13_final_state;
-          Smallstep.globalenv := tt;
-        |};
-      skel := AST.erase_program rot13_c;
-      footprint := AST.footprint_of_program rot13_c;
-    |}.
-  Lemma ϕ_rot13: forward_simulation 1%cc 1%cc L_rot13 (Clight.semantics2 rot13_c).
-  Admitted.
+(*   Definition rot13_c : Clight.program. Admitted. *)
+(*   Definition L_rot13 : Smallstep.semantics li_c li_c := *)
+(*     {| *)
+(*       activate se := *)
+(*         {| *)
+(*           Smallstep.step _ := rot13_step; *)
+(*           Smallstep.initial_state := rot13_initial_state se; *)
+(*           Smallstep.at_external := fun _ _ => False; *)
+(*           Smallstep.after_external := fun _ _ _ => False; *)
+(*           Smallstep.final_state := rot13_final_state; *)
+(*           Smallstep.globalenv := tt; *)
+(*         |}; *)
+(*       skel := AST.erase_program rot13_c; *)
+(*       footprint := AST.footprint_of_program rot13_c; *)
+(*     |}. *)
+(*   Lemma ϕ_rot13: forward_simulation 1%cc 1%cc L_rot13 (Clight.semantics2 rot13_c). *)
+(*   Admitted. *)
 
-End ROT13.
+(* End ROT13. *)
 
-Definition secret_c_main : function. Admitted.
-Definition secret_c_rot13 : function. Admitted.
+
+(** ** Rot13 Clight Program *)
+
+Require Import Clight Ctypes Cop.
 
 Definition secret_c_main_id: positive := 1.
 Definition secret_c_rot13_id: positive := 2.
 Definition secret_c_write_id: positive := 3.
 Definition secret_c_msg_id: positive := 4.
+
+Definition rot13_buf_id: positive := 5.
+Definition rot13_len_id: positive := 6.
+Definition rot13_i_id: positive := 7.
+
+(** Definition of rot13 function. For simplicity, we assume that the input
+    buffer only contains lowercase alphabets *)
+Program Definition rot13_body : statement :=
+  let zero := Econst_int (Int.repr 0) tint in
+  let one := Econst_int (Int.repr 1) tint in
+  let len := Etempvar rot13_len_id tint in
+  let i := Etempvar rot13_i_id tint in
+  let buf := Etempvar rot13_buf_id (tptr tchar) in
+  let buf_i := Ederef (Ebinop Oadd buf i tchar) tchar in
+  let i97 := Econst_int (Int.repr 97) tint in
+  let i84 := Econst_int (Int.repr 84) tint in
+  let i26 := Econst_int (Int.repr 26) tint in
+  (* we simplified `buf[i] - 'a' + 13` to `buf[i] - 84` *)
+  let c1 := Ebinop Osub buf_i i84 tint in
+  let c2 := Ebinop Omod c1 i26 tint in
+  let c3 := Ebinop Oadd c2 i97 tint in
+  let for_loop :=
+    (* for i = 0; i < n; i++ *)
+    Sfor(Sset rot13_i_id zero) (Ebinop Olt i len tint)
+      (* buf[i] = (buf[i] - 'a' + 13) % 26 + 'a' *)
+      (Sassign buf_i c3)
+      (Sset rot13_i_id (Ebinop Oadd i one tint))
+  in
+  Ssequence for_loop (Sreturn None).
+
+Program Definition rot13_function : function :=
+  {|
+    fn_return := tvoid;
+    fn_callconv := cc_default;
+    fn_params := [ (rot13_buf_id, tptr tchar); (rot13_len_id, tint) ];
+    fn_temps := [ (rot13_i_id, tint) ];
+    fn_vars := [];
+    fn_body := rot13_body;
+  |}.
+
+Program Definition rot13_clight : Clight.program :=
+  {|
+    prog_defs := [(secret_c_rot13_id, Gfun (Internal rot13_function))];
+    prog_public := [ secret_c_rot13_id ];
+    prog_main := None;
+    prog_types := [];
+    prog_comp_env := (PTree.empty _);
+  |}.
+Next Obligation. reflexivity. Qed.
+
+(** Clight-level program skeletons. Because the `secret` program is written
+    directly in Assembly, we have to provide a corresponding Clight skeletons to
+    invoke the loader, etc. *)
+
+(** The imaginary Clight-level main function that correspond to the main
+    function in the Assembly program secret.s. This function will not be
+    executed, and its semantics will not be used *)
+Context (secret_c_main_function : function).
 
 Definition msg_il : list init_data :=
   [ Init_int8 (Int.repr 104); (* h *)
@@ -939,11 +1075,13 @@ Definition msg_globvar : globvar type :=
     gvar_volatile := false;
   |}.
 
-Program Definition composite_secret_program: Clight.program :=
+(** The imaginary Clight program that corresponds to the module obtained by
+    composing the secret program and the rot13 program *)
+Program Definition sr_clight: Clight.program :=
   {|
     prog_defs := [
-      (secret_c_main_id, Gfun (Internal secret_c_main));
-      (secret_c_rot13_id, Gfun (Internal secret_c_rot13));
+      (secret_c_main_id, Gfun (Internal secret_c_main_function));
+      (secret_c_rot13_id, Gfun (Internal rot13_function));
       (secret_c_write_id, Gfun write);
       (secret_c_msg_id, Gvar msg_globvar)];
     prog_public := nil;
@@ -953,19 +1091,22 @@ Program Definition composite_secret_program: Clight.program :=
   |}.
 Next Obligation. reflexivity. Qed.
 
+Require SecretAsm.
+
 Section SECRET.
   Import Clight Ctypes.
   Hypothesis (Hwin: Archi.win64 = false).
-  Definition secret_sk := AST.erase_program composite_secret_program.
+  Definition sr_sk := AST.erase_program sr_clight.
 
   Lemma secret_init_mem se:
-    Genv.valid_for secret_sk se ->
-    exists m, init_mem se secret_sk = Some m /\
+    Genv.valid_for sr_sk se ->
+    exists m, init_mem se sr_sk = Some m /\
            (forall b, Genv.find_symbol se secret_c_msg_id = Some b ->
-                 Mem.loadbytes m b 0 5 = Some (map Byte hello_bytes)).
+                 Mem.loadbytes m b 0 5 = Some (map Byte hello_bytes)
+                 /\ forall ofs, (0 <= ofs < 5)%Z -> Mem.valid_access m Mint8unsigned b ofs Writable).
   Proof.
     intros Hvalid.
-    edestruct init_mem_exists with (p := secret_sk) as [m Hm]; eauto.
+    edestruct init_mem_exists with (p := sr_sk) as [m Hm]; eauto.
     - split.
       + cbn in H. destruct_or H; inv H. cbn.
         repeat apply conj; solve [ easy | apply Z.divide_1_l ].
@@ -982,16 +1123,27 @@ Section SECRET.
         end.
       repeat (destruct_match; eprod_crush).
       inv Hb. inv Hm.
-      eapply (@Genv.store_init_data_list_loadbytes se b msg_il) in H6.
+      exploit (@Genv.store_init_data_list_loadbytes se b msg_il). apply H6.
+      eapply Genv.store_zeros_loadbytes. eauto.
+      intros Hx.
+      split.
       + erewrite Mem.loadbytes_drop; eauto.
         right. right. right. constructor.
-      + eapply Genv.store_zeros_loadbytes. eauto.
+      + intros ofs Hofs.
+        eapply Mem.valid_access_drop_1; eauto.
+        right. right. right. constructor.
+        unfold Mem.valid_access. split.
+        intros r Hr.
+        erewrite <- Genv.store_init_data_list_perm; eauto.
+        erewrite <- Genv.store_zeros_perm; eauto.
+        eapply init_perm_1 in H4. eauto with mem.
+        cbn in *. lia. cbn. apply Z.divide_1_l.
   Qed.
 
   Lemma main_block se:
-    Genv.valid_for secret_sk se ->
-    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_main_id = Some b /\
-           Genv.find_funct (globalenv se composite_secret_program) (Vptr b Ptrofs.zero) = Some (Internal secret_c_main).
+    Genv.valid_for sr_sk se ->
+    exists b, Genv.find_symbol (globalenv se sr_clight) secret_c_main_id = Some b /\
+           Genv.find_funct (globalenv se sr_clight) (Vptr b Ptrofs.zero) = Some (Internal secret_c_main_function).
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
@@ -999,9 +1151,9 @@ Section SECRET.
     reflexivity.
   Qed.
   Lemma rot13_block se:
-    Genv.valid_for secret_sk se ->
-    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_rot13_id = Some b /\
-           Genv.find_funct (globalenv se composite_secret_program) (Vptr b Ptrofs.zero) = Some (Internal secret_c_rot13).
+    Genv.valid_for sr_sk se ->
+    exists b, Genv.find_symbol (globalenv se sr_clight) secret_c_rot13_id = Some b /\
+           Genv.find_funct (globalenv se sr_clight) (Vptr b Ptrofs.zero) = Some (Internal rot13_function).
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
@@ -1009,9 +1161,9 @@ Section SECRET.
     reflexivity.
   Qed.
   Lemma write_block se:
-    Genv.valid_for secret_sk se ->
-    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_write_id = Some b /\
-           Genv.find_funct (globalenv se composite_secret_program) (Vptr b Ptrofs.zero) = Some write.
+    Genv.valid_for sr_sk se ->
+    exists b, Genv.find_symbol (globalenv se sr_clight) secret_c_write_id = Some b /\
+           Genv.find_funct (globalenv se sr_clight) (Vptr b Ptrofs.zero) = Some write.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
@@ -1019,114 +1171,254 @@ Section SECRET.
     reflexivity.
   Qed.
   Lemma msg_block se:
-    Genv.valid_for secret_sk se ->
-    exists b, Genv.find_symbol (globalenv se composite_secret_program) secret_c_msg_id = Some b.
+    Genv.valid_for sr_sk se ->
+    exists b, Genv.find_symbol (globalenv se sr_clight) secret_c_msg_id = Some b.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
     reflexivity.
   Qed.
+  Lemma Hrot13_sig:
+    SecretAsm.rot13_sig = signature_of_type (Tcons (tptr tchar) (Tcons tint Tnil)) tvoid cc_default.
+  Proof. reflexivity. Qed.
 
-  Definition L_secret := Secret.secret_spec.
-  Definition L_compose := fun (i: bool) => if i then L_secret else L_rot13.
-  Lemma ϕ_secret : Γ_secret secret_sk [= load_c_sem composite_secret_program (SmallstepLinking.semantics L_compose secret_sk).
+  Definition L_secret := SecretAsm.secret_spec.
+  Definition L_compose := fun (i: bool) => if i then L_secret else Clight.semantics2 rot13_clight.
+  Local Opaque semantics2.
+
+  Lemma ϕ_secret :
+    Γ_secret sr_sk [= load_c_sem sr_clight (SmallstepLinking.semantics L_compose sr_sk).
   Proof.
     intros p Hp. cbn in Hp. destruct Hp as ((se & Hse) & Hp).
     eapply Downset.closed in Hp; eauto. clear Hp.
     edestruct secret_init_mem as (m & Hm1 & Hm2). apply Hse.
     edestruct main_block as (b & Hb1 & Hb2). apply Hse.
-    edestruct write_block as (b1 & Hb3 & Hb4). apply Hse.
-    edestruct msg_block as (b2 & Hb5). apply Hse.
+    edestruct rot13_block as (b1 & Hb3 & Hb4). apply Hse.
+    edestruct write_block as (b2 & Hb5 & Hb6). apply Hse.
+    edestruct msg_block as (b3 & Hb7). apply Hse.
     assert (Hflag: Mem.alloc_flag m = true).
     { eapply init_mem_alloc_flag; eauto. }
-    assert (exists m3, Mem.storebytes m b2 0 (map Byte uryyb_bytes) = Some m3) as (m3 & Hm3).
-    { admit. }
+    specialize (Hm2 _ Hb7) as (Hm2 & Hm2').
+    assert (Hm0: Mem.load Mint8unsigned m b3 0 = Some (Vint (Int.repr 104))).
+    { eapply loadbyte' with (i := 0%Z) in Hm2. 2: lia. 2: constructor.
+      rewrite Hm2. repeat f_equal. }
+    assert (exists m', Mem.store Mint8unsigned m b3 0 (Vint (Int.repr 117)) = Some m') as (m3 & Hm0').
+    { edestruct Mem.valid_access_store as (mx & Hmx). 2: eexists; eauto.
+      apply Hm2'. lia. }
+    assert (Hm4: Mem.load Mint8unsigned m3 b3 1 = Some (Vint (Int.repr 101))).
+    { eapply loadbyte' with (i := 1%Z) in Hm2. 2: lia. 2: repeat constructor.
+      erewrite Mem.load_store_other; eauto. do 2 right. cbn. lia. }
+    assert (exists m', Mem.store Mint8unsigned m3 b3 1 (Vint (Int.repr 114)) = Some m') as (m4 & Hm4').
+    { edestruct Mem.valid_access_store as (mx & Hmx). 2: eexists; eauto.
+      eapply Mem.store_valid_access_1; eauto. apply Hm2'. lia. }
+    assert (Hm5: Mem.load Mint8unsigned m4 b3 2 = Some (Vint (Int.repr 108))).
+    { eapply loadbyte' with (i := 2%Z) in Hm2. 2: lia. 2: repeat constructor.
+      erewrite Mem.load_store_other; [ | eauto | ].
+      erewrite Mem.load_store_other; eauto. all : do 2 right; cbn; lia. }
+    assert (exists m', Mem.store Mint8unsigned m4 b3 2 (Vint (Int.repr 121)) = Some m') as (m5 & Hm5').
+    { edestruct Mem.valid_access_store as (mx & Hmx). 2: eexists; eauto.
+      eapply Mem.store_valid_access_1; eauto.
+      eapply Mem.store_valid_access_1; eauto.  apply Hm2'. lia. }
+    assert (Hm6: Mem.load Mint8unsigned m5 b3 3 = Some (Vint (Int.repr 108))).
+    { eapply loadbyte' with (i := 3%Z) in Hm2. 2: lia. 2: repeat constructor.
+      erewrite Mem.load_store_other; [ | eauto | ].
+      erewrite Mem.load_store_other; [ | eauto | ].
+      erewrite Mem.load_store_other; eauto. all : do 2 right; cbn; lia. }
+    assert (exists m', Mem.store Mint8unsigned m5 b3 3 (Vint (Int.repr 121)) = Some m') as (m6 & Hm6').
+    { edestruct Mem.valid_access_store as (mx & Hmx). 2: eexists; eauto.
+      eapply Mem.store_valid_access_1; eauto.
+      eapply Mem.store_valid_access_1; eauto.
+      eapply Mem.store_valid_access_1; eauto.  apply Hm2'. lia. }
+    assert (Hm7: Mem.load Mint8unsigned m6 b3 4 = Some (Vint (Int.repr 111))).
+    { eapply loadbyte' with (i := 4%Z) in Hm2. 2: lia. 2: repeat constructor.
+      erewrite Mem.load_store_other; [ | eauto | ].
+      erewrite Mem.load_store_other; [ | eauto | ].
+      erewrite Mem.load_store_other; [ | eauto | ].
+      erewrite Mem.load_store_other; eauto. all : do 2 right; cbn; lia. }
+    assert (exists m', Mem.store Mint8unsigned m6 b3 4 (Vint (Int.repr 98)) = Some m') as (m7 & Hm7').
+    { edestruct Mem.valid_access_store as (mx & Hmx). 2: eexists ; eauto.
+      eapply Mem.store_valid_access_1; eauto.
+      eapply Mem.store_valid_access_1; eauto.
+      eapply Mem.store_valid_access_1; eauto.
+      eapply Mem.store_valid_access_1; eauto. apply Hm2'. lia. }
+    assert (Mem.loadbytes m7 b3 0 5 = Some (map Byte uryyb_bytes)) as Hmx.
+    { Transparent Mem.loadbytes Mem.store.
+      unfold Mem.loadbytes. cbn.
+      destruct (Mem.range_perm_dec m7 b3 0 5 Cur Readable) eqn: Hx.
+      2: {
+        exfalso. apply n. intros f Hf.
+        clear - Hm0' Hm4' Hm5' Hm6' Hm7' Hm2' Hf.
+        do 5 (eapply Mem.perm_store_1; [ eauto | ]).
+        specialize (Hm2' _ Hf). destruct Hm2'. cbn in *.
+        specialize (H f). exploit H. lia. eauto with mem.
+      }
+      clear - Hm0' Hm4' Hm5' Hm6' Hm7'.
+      unfold Mem.store in *.
+      repeat destruct Mem.valid_access_dec; try congruence.
+      cbn in *.
+      clear - Hm0' Hm4' Hm5' Hm6' Hm7'.
+      inv Hm7'. cbn. inv Hm6'. cbn. inv Hm5'. cbn. inv Hm4'. cbn. inv Hm0'. cbn.
+      f_equal.
+      rewrite !PMap.gss.
+      rewrite !Int.unsigned_repr by (cbn; lia). 
+      replace (Pos.to_nat 5) with 5 by reflexivity. cbn.
+      assert (forall x, encode_int 1 x = [ Byte.repr x ]%list) by reflexivity.
+      rewrite !H. cbn. repeat f_equal.
+      - do 4 rewrite ZMap.gso by lia. now rewrite ZMap.gss.
+      - do 3 rewrite ZMap.gso by lia. now rewrite ZMap.gss.
+      - do 2 rewrite ZMap.gso by lia. now rewrite ZMap.gss.
+      - do 1 rewrite ZMap.gso by lia. now rewrite ZMap.gss.
+      - now rewrite ZMap.gss. }
     eexists _, _. repeat apply conj.
     3: { unfold entry_c_play. unfold Γ_secret_play.
          apply comp_oq. apply comp_lq. apply comp_rq. apply comp_oa.
          apply comp_ra. apply comp_la. instantiate (1 := pnil_ready). apply comp_ready. }
     { cbn. eexists se, _, _, Int.zero. eexists.
-      econstructor; eauto. admit. admit.
+      econstructor. 1,5,6: eauto. apply Hb1. reflexivity. reflexivity.
       unfold entry_c_play. reflexivity. }
-    specialize (Hm2 _ Hb5).
     eexists _, _. repeat apply conj.
     3: { apply comp_oq. apply comp_lq. apply comp_rq. apply comp_oa.
          apply comp_ra. apply comp_la. instantiate (1 := pnil_ready). apply comp_ready. }
     2: { exists false. cbn. eexists se, _, uryyb_bytes, _, _. exists.
          econstructor; eauto.
-         replace 0%Z with (Ptrofs.unsigned Ptrofs.zero) in Hm3 by reflexivity.
-         eapply Mem.loadbytes_storebytes_same; eauto.
+         replace 0%Z with (Ptrofs.unsigned Ptrofs.zero) in Hmx by reflexivity. apply Hmx.
          unfold write_c_play. reflexivity. }
     cbn. eapply closure_has_cons.
     2: apply closure_has_nil.
     2: apply seq_comp_has_nil2; eauto.
-    cbn. econstructor; eauto.
-    { (* initial step *)
-      econstructor.
+    cbn. econstructor; eauto. (* initial step *)
+    { econstructor.
       - instantiate (1 := true).
         cbn. unfold valid_query. split; cbn; try congruence.
-        admit.
-      - cbn. econstructor; eauto. admit.  }
-    econstructor 4.
+        exists secret_c_main_id. split; eauto.
+        + unfold footprint_of_program. cbn.
+          rewrite PTree.gso. rewrite PTree.gso. rewrite PTree.gso.
+          rewrite PTree.gss. reflexivity.
+          all: intros HH; inv HH.
+        + unfold Genv.symbol_address.
+          cbn in Hb1. rewrite Hb1. reflexivity.
+      - econstructor; eauto. }
+    econstructor 4. (* L_secret internal step *)
     { apply star_one. econstructor 1. econstructor 1; eauto. }
-    econstructor 4.
+    econstructor 4. (* L_secret calls rot13 *)
     { apply star_one. econstructor 2.
-      - constructor; eauto. admit.
-      - unfold valid_query. split; cbn; try congruence.
-        admit.
-      - instantiate (3 := false). constructor; eauto. }
-    econstructor 4.
-    { apply star_one. econstructor 1. econstructor 1. }
+      - constructor; eauto. 
+      - instantiate (1 := false).
+        unfold valid_query. split; cbn; try congruence.
+        exists secret_c_rot13_id. split.
+        + Local Transparent semantics2. cbn.
+          unfold footprint_of_program. cbn.
+          rewrite PTree.gss. reflexivity.
+          Local Opaque semantics2.
+        + unfold Genv.symbol_address. cbn in Hb3.
+          rewrite Hb3. reflexivity.
+      - rewrite Hrot13_sig. econstructor; eauto.
+        + rewrite <- Hb4.
+          setoid_rewrite SecretAsm.find_funct_spec; eauto.
+          cbn. rewrite PTree.gss.
+          rewrite PTree.gso. rewrite PTree.gso. rewrite PTree.gss.
+          reflexivity.
+          all: intros HH; inv HH.
+        + reflexivity.
+        + repeat constructor.
+        + cbn. erewrite init_mem_nextblock; eauto. reflexivity. }
+    econstructor 4. (* Callstate -> State *)
+    { apply star_one. econstructor 1.
+      eapply step_internal_function.
+      - rewrite <- Hb4.
+        setoid_rewrite SecretAsm.find_funct_spec; eauto.
+        cbn. rewrite PTree.gss.
+        rewrite PTree.gso. rewrite PTree.gso. rewrite PTree.gss.
+        reflexivity.
+        all: intros HH; inv HH.
+      - econstructor; cbn; eauto.
+        + solve_list_norepet.
+        + solve_list_norepet.
+        + solve_list_disjoint.
+        + apply alloc_variables_nil. }
     (* loop 5 times *)
-    Ltac solve_nth_range :=
-      intros;
-      repeat match goal with
-        | [ H: nth _ _ _ |- _  ] => inv H
-        end; rewrite Byte.unsigned_repr by (cbn; lia); lia.
-    econstructor 4.
-    { apply star_one. econstructor 1. econstructor 2;
-        [ solve_nth_range | cbn; lia | repeat constructor ]. }
-    econstructor 4.
-    { apply star_one. econstructor 1. econstructor 2;
-        [ solve_nth_range | cbn; lia | repeat constructor ]. }
-    econstructor 4.
-    { apply star_one. econstructor 1. econstructor 2;
-        [ solve_nth_range | cbn; lia | repeat constructor ]. }
-    econstructor 4.
-    { apply star_one. econstructor 1. econstructor 2;
-        [ solve_nth_range | cbn; lia | repeat constructor ]. }
-    econstructor 4.
-    { apply star_one. econstructor 1. econstructor 2;
-        [ solve_nth_range | cbn; lia | repeat constructor ]. }
-    econstructor 4.
-    { apply star_one. econstructor 1. econstructor 3. reflexivity. }
-    econstructor 4.
-    (* rot13 returns to secret *)
+    cbn. unfold rot13_body.
+    Ltac one_trivial_step := econstructor 4; [ apply star_one; econstructor 1; crush_step; crush_expr | ].
+    one_trivial_step.
+    econstructor 4. (* unfold Sfor *)
+    { apply star_one. econstructor 1. unfold Sfor. crush_step. }
+    do 5 one_trivial_step.
+    replace (negb (Int.eq Int.one Int.zero)) with true by reflexivity.
+    one_trivial_step.
+    Ltac sub_modu_add_zero_ext :=
+      unfold Int.sub; rewrite !Int.unsigned_repr by (cbn; lia); cbn;
+      unfold Int.modu; rewrite !Int.unsigned_repr by (cbn; lia); cbn;
+      unfold Int.add; rewrite !Int.unsigned_repr by (cbn; lia); cbn;
+      unfold Int.zero_ext; rewrite !Int.unsigned_repr by (cbn; lia); cbn.
+    econstructor 4. (* Sassign buf[i] = .. *)
+    { apply star_one. econstructor 1. crush_step; crush_expr. }
+    do 6 one_trivial_step.
+    replace (negb (Int.eq Int.one Int.zero)) with true by reflexivity.
+    one_trivial_step.
+    econstructor 4. (* Sassign buf[i] = .. *)
+    { apply star_one. econstructor 1. crush_step; crush_expr. }
+    do 6 one_trivial_step.
+    replace (negb (Int.eq Int.one Int.zero)) with true by reflexivity.
+    one_trivial_step.
+    econstructor 4. (* Sassign buf[i] = .. *)
+    { apply star_one. econstructor 1. crush_step; crush_expr. }
+    do 6 one_trivial_step.
+    replace (negb (Int.eq Int.one Int.zero)) with true by reflexivity.
+    one_trivial_step.
+    econstructor 4. (* Sassign buf[i] = .. *)
+    { apply star_one. econstructor 1. crush_step; crush_expr. }
+    do 6 one_trivial_step.
+    replace (negb (Int.eq Int.one Int.zero)) with true by reflexivity.
+    one_trivial_step.
+    econstructor 4. (* Sassign buf[i] = .. *)
+    { apply star_one. econstructor 1. crush_step; crush_expr. }
+    do 6 one_trivial_step.
+    replace (negb (Int.eq Int.zero Int.zero)) with false by reflexivity.
+    do 4 one_trivial_step. 
+    econstructor 4. (* rot13 returns to L_secret *)
     { apply star_one. econstructor 3.
-      - constructor. eauto.
-      - econstructor. admit. }
-    econstructor 4.
+      - constructor.
+      - econstructor. apply Hb7. }
+    econstructor 4. (* L_secret internal step *)
     { apply star_one. econstructor 1. econstructor 2. }
     econstructor 2.
     { econstructor.
-      - econstructor; eauto. admit. admit. admit.
+      - econstructor; eauto.
       - intros [|] Hj.
-        + unfold valid_query in Hj. cbn in Hj. admit.
-        + admit. }
+        + unfold valid_query in Hj. cbn in Hj.
+          destruct Hj as (Hj1 & (i & Hj2 & Hj3)).
+          unfold Genv.symbol_address in Hj3.
+          unfold footprint_of_program in Hj2.
+          destruct (Genv.find_symbol se i) eqn: Hj4; try congruence.
+          inv Hj3.
+          exploit Genv.find_symbol_injective. apply Hj4. apply Hb5.
+          intros ->. cbn in Hj2.
+          rewrite PTree.gso in Hj2. rewrite PTree.gss in Hj2.
+          inv Hj2. intros HH. inv HH.
+        + unfold valid_query in Hj. cbn in Hj.
+          destruct Hj as (Hj1 & (i & Hj2 & Hj3)).
+          unfold Genv.symbol_address in Hj3.
+          Local Transparent semantics2. cbn in Hj2. Local Opaque semantics2.
+          unfold footprint_of_program in Hj2.
+          destruct (Genv.find_symbol se i) eqn: Hj4; try congruence.
+          inv Hj3.
+          exploit Genv.find_symbol_injective. apply Hj4. apply Hb5.
+          intros ->. cbn in Hj2.
+          rewrite PTree.gso in Hj2. rewrite PTree.gempty in Hj2. inv Hj2.
+          intros HH. inv HH. }
     { repeat econstructor. }
-    econstructor 4.
+    econstructor 4. (* L_secret internal step *)
     { apply star_one. econstructor 1. econstructor 3. }
     econstructor 3.
     { econstructor. econstructor. }
-    Unshelve. admit. admit.
-  Admitted.
+  Qed.
 
-  Context rot13_asm (Hrot13: Compiler.transf_clight_program rot13_c = Errors.OK rot13_asm).
-  Context linked_secret_asm (HL: Linking.link rot13_asm Secret.secret_asm_program = Some linked_secret_asm).
-  Lemma π_secret_cc : forward_simulation cc_compcert cc_compcert Σ_secret (Asm.semantics linked_secret_asm).
-  Admitted.
+  (* Context rot13_asm (Hrot13: Compiler.transf_clight_program rot13_c = Errors.OK rot13_asm). *)
+  (* Context linked_secret_asm (HL: Linking.link rot13_asm Secret.secret_asm_program = Some linked_secret_asm). *)
+  (* Lemma π_secret_cc : forward_simulation cc_compcert cc_compcert Σ_secret (Asm.semantics linked_secret_asm). *)
+  (* Admitted. *)
 
-  Lemma ϕ_secret_cc : Γ_secret [= load_asm_prog linked_secret_asm.
-  Admitted.
+  (* Lemma ϕ_secret_cc : Γ_secret [= load_asm_prog linked_secret_asm. *)
+  (* Admitted. *)
 
 End SECRET.
