@@ -8,6 +8,7 @@ Require Import IntStrat.
 Require Import Classical_Prop.
 Require Import Coqlib.
 Require Import Determ.
+Require Import Util.
 
 From compcert.common Require Import LanguageInterface Smallstep Globalenvs.
 From compcert.clightp Require Import Example.
@@ -388,7 +389,29 @@ Qed.
 Local Definition embed_lts_with_sk {liA liB} (L: semantics liA liB) := lts_strat_sk sk L.
 Local Coercion embed_lts_with_sk : semantics >-> poset_carrier.
 
-Context (penv0 : PEnv.penv) (Hpenv0 : rb_penv_rel rb0 penv0).
+Definition penv0 : PEnv.penv :=
+  PTree.set arr_id (PEnv.Array Nz (ZMap.init (PEnv.Val (Vint (Int.repr 0)) tint)) (tarray tint Nz))
+  (PTree.set cnt1_id (PEnv.Val (Vint (Int.repr 0)) tint)
+  (PTree.set cnt2_id (PEnv.Val (Vint (Int.repr 0)) tint)
+  (PTree.empty PEnv.val))).
+
+Lemma Hpenv0 : rb_penv_rel rb0 penv0.
+Proof.
+  unfold penv0. econstructor; eauto.
+  - rewrite PTree.gss. reflexivity.
+  - rewrite PTree.gso. rewrite PTree.gss. reflexivity.
+    intros H. inv H.
+  - rewrite PTree.gso. rewrite PTree.gso. rewrite PTree.gss. reflexivity.
+    intros H. inv H. intros H. inv H.
+  - intros i Hi. eexists. repeat apply conj; eauto.
+    rewrite ZMap.gi. reflexivity.
+  - constructor. cbn. rewrite Int.unsigned_repr; cbn; lia.
+  - unfold Example.N. lia.
+  - constructor. cbn. rewrite Int.unsigned_repr; cbn; lia.
+  - unfold Example.N. lia.
+  - intros. do 3 (rewrite PTree.gso; eauto).
+Qed.
+
 Context (m0 : Mem.mem) (arr_b cnt1_b cnt2_b: positive).
 Definition se_valid2 se :=
   Genv.find_symbol se arr_id = Some arr_b /\
@@ -398,8 +421,16 @@ Definition id_in_penv id := id = arr_id \/ id = cnt1_id \/ id = cnt2_id.
 Definition ce := ClightP.ClightP.prog_comp_env rb_program.
 Context (Hm0: forall se, se_valid2 se -> PEnv.penv_mem_match ce se penv0 m0)
   (Hse_valid2_inv: forall se pe m, PEnv.penv_mem_match ce se pe m -> se_valid2 se).
-Context (match_rb_id_in_penv:
-  forall rb pe id v, rb_penv_rel rb pe -> pe!id = Some v -> id_in_penv id).
+
+Lemma match_rb_id_in_penv rb pe id v:
+  rb_penv_rel rb pe -> pe!id = Some v -> id_in_penv id.
+Proof.
+  intros H1 H2. inv H1. unfold id_in_penv.
+  destruct (peq id arr_id). firstorder.
+  destruct (peq id cnt1_id). firstorder.
+  destruct (peq id cnt2_id). firstorder.
+  exploit HNONE; eauto. intros. congruence.
+Qed.
 
 Lemma se_valid2_in_penv_agree se1 se2 id:
   se_valid2 se1 -> se_valid2 se2 -> id_in_penv id ->
@@ -1148,27 +1179,17 @@ Proof.
     apply ϕ_rb_with_internals.
 Qed.
 
-Require Import Compiler.
-
 Global Instance asm_deterministic p: Deterministic (Asm.semantics p).
 Proof. apply lts_strat_determ. apply Asm.semantics_determinate. Qed.
 
-Lemma clight2_semantic_preservation:
-  forall p tp,
-  match_prog p tp ->
-  forward_simulation cc_compcert cc_compcert (Clight.semantics2 p) (Asm.semantics tp)
-  /\ backward_simulation cc_compcert cc_compcert (Clight.semantics2 p) (Asm.semantics tp).
-Proof.
-Admitted.
-
 Section ASM.
 
-  Context rb_asm (HA1: Compiler.transf_clight_program rbc = Errors.OK rb_asm).
-  Context bq_asm (HA2: Compiler.transf_clight_program bqc = Errors.OK bq_asm).
+  Context rb_asm (HA1: transf_clight_program rbc = Errors.OK rb_asm).
+  Context bq_asm (HA2: transf_clight_program bqc = Errors.OK bq_asm).
   Context bq_rb_asm (HA3: Linking.link bq_asm rb_asm = Some bq_rb_asm)
                     (HA4: sk = AST.erase_program bq_rb_asm).
 
-  Definition cc := Compiler.cc_compcert.
+  Definition cc := CAsm.cc_compcert.
 
   (* ϕ2_1 := ϕ_bq ;; ϕ^cc_bq *)
   Lemma ϕ2_1 : rsq (ϕ_bq_conv_1 ;; cc) (ϕ_bq_conv_2 ;; cc) M_bq (Asm.semantics bq_asm).
@@ -1179,7 +1200,7 @@ Section ASM.
       eapply fsim_rsq_sk.
       - apply Asm.semantics_determinate.
       - apply clight2_semantic_preservation.
-        apply transf_clight_program_match. eauto.
+        apply Util.transf_clight_program_match. eauto.
       - eapply (Linking.link_linkorder _ _ _ Hsk).
     }
     all: eauto with typeclass_instances.
