@@ -2932,24 +2932,25 @@ Section EMOR_RC.
   Lemma emor_strat_elim :
     rsq emor_rc vid f (id _).
   Proof.
-    intros s Hs. cbn in *. dependent induction Hs.
-    - constructor; cbn; auto.
-    - constructor; cbn; auto.
-      intros _ [ ].
-      econstructor; cbn; eauto.
-      dependent destruction Hs.
-      + repeat constructor.
-      + repeat constructor.
-        intros r' Hr. cbn in Hr.
-        assert (r' = operand (f q) r); [ | subst].
-        {
-          destruct (classic (r' = operand (f q) r)); auto.
-          elim Hr. constructor. congruence.
-        }
-        apply rsp_pa with (operand (f q) r); cbn; try tauto.
-        rewrite rcnext_vid, rcnext_emor, id_next.
-        apply IHHs; auto.
-        (* need to setup the induction better but should work *)
+    red. red. cbn.
+    cut (forall i pe s, emor_has f (i:=i) pe s ->
+         forall j ps pi, rsp emor_rc vid (i1:=i) (i2:=j) ps s (emor_when eid pi));
+      eauto.
+    induction 1; intros.
+    - dependent destruction ps. dependent destruction pi.
+      econstructor; cbn; auto.
+    - dependent destruction ps. dependent destruction pi.
+      econstructor; cbn; eauto. intros _ [ ]. 
+      econstructor; cbn; eauto. setoid_rewrite (emor_next_question eid q); eauto.
+    - dependent destruction ps. dependent destruction pi.
+      econstructor; cbn; eauto. constructor.
+    - dependent destruction ps. dependent destruction pi.
+      econstructor; cbn; eauto. constructor. intros r2 Hr.
+      apply rsp_pa with r2.
+      + cbn. intros [Hq Hr']. subst. apply Hr.
+        constructor. intro. subst. elim Hr'. auto.
+      + setoid_rewrite (emor_next_answer eid q2 r2).
+        (* same inversion thing *)
   Admitted.
 
   Lemma emor_strat_intro :
