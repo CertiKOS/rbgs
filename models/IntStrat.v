@@ -16,6 +16,17 @@ Proof.
   exact (@functional_extensionality A B).
 Qed.
 
+(** Helpful tactic for messy inversions *)
+
+Ltac xsubst :=
+  repeat progress
+    (match goal with
+     | H : ?x = ?x |- _ =>
+         clear H
+     | H : existT _ _ _ = existT _ _ _ |- _ =>
+         apply inj_pair2 in H
+     end ||
+     subst).
 
 (** * §2 COMPOSITIONAL SEMANTICS FOR VERIFICATION *)
 
@@ -1508,15 +1519,10 @@ Section FCOMP_STRAT.
     fcomp_when (fcpos_running_l q) (next (oa (m:=m) n) σ1) σ2.
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - simple inversion Hs; try congruence.
-      + inversion H. subst. 
-        apply inj_pair2 in H3. subst.
-        apply inj_pair2 in H4. subst.
-        apply inj_pair2 in H5. inversion H5.
-      + intros HX. inversion H0. subst.
-        apply inj_pair2 in H4. subst.
-        apply inj_pair2 in H5. subst.
-        apply inj_pair2 in H6. cbn in *. apply pcons_oa_inv in H6 as [<- <-].
+    - simple inversion Hs; xsubst; try congruence.
+      + inversion H. xsubst. congruence.
+      + inversion H0. xsubst.
+        apply pcons_oa_inv in H6 as [<- <-].
         exists s0, s2. easy.
     - eauto 10.
   Qed.
@@ -1526,27 +1532,33 @@ Section FCOMP_STRAT.
     fcomp_when (fcpos_running_r q) σ1 (next (oa (m:=m) n) σ2).
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - dependent destruction Hs. admit. (* inversion glitch *)
+    - simple inversion Hs; xsubst; try congruence.
+      + inversion H0. xsubst. congruence.
+      + inversion H1. xsubst. apply pcons_oa_inv in H6 as [<- <-]. eauto.
     - eauto 10.
-  Admitted.
+  Qed.
 
   Lemma fcomp_next_pa_l q r σ1 σ2 :
     next (pa r) (fcomp_when (fcpos_running_l q) σ1 σ2) =
     fcomp_when fcpos_ready (next (pa (q:=q) r) σ1) σ2.
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - dependent destruction Hs. admit. (* inversion glitch *)
+    - simple inversion Hs; xsubst; try congruence.
+      + inversion H0. xsubst. congruence.
+      + inversion H0. xsubst. apply pcons_pa_inv in H6 as [<- <-]. eauto.
     - eauto 10.
-  Admitted.
+  Qed.
 
   Lemma fcomp_next_pa_r q r σ1 σ2 :
     next (pa r) (fcomp_when (fcpos_running_r q) σ1 σ2) =
     fcomp_when fcpos_ready σ1 (next (pa (q:=q) r) σ2).
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - dependent destruction Hs. admit. (* inversion glitch *)
+    - simple inversion Hs; xsubst; try congruence.
+      + inversion H1. xsubst. congruence.
+      + inversion H1. xsubst. apply pcons_pa_inv in H6 as [<- <-]. eauto.
     - eauto 10.
-  Admitted.
+  Qed.
 End FCOMP_STRAT.
 
 Notation fcomp_st := (fcomp_when fcpos_ready).
