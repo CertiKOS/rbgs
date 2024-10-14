@@ -19,17 +19,6 @@ Close Scope Z_scope.
 
 Axiom (Hwin: Archi.win64 = false).
 
-Ltac eprod_crush :=
-  repeat
-    (match goal with
-     | [ H: ?a * ?b |- _ ] => destruct H;cbn [fst snd] in *; subst
-     | [ H: (?a, ?b) = (?c, ?d) |- _ ] => inv H
-     | [ H: (?x * ?y)%rel _ _ |- _] => destruct H; cbn [fst snd] in *; subst
-     | [ H: ?x /\ ?y |- _] => destruct H
-     | [ H: (exists _, _) |- _] => destruct H
-     | [ H: unit |- _] => destruct H
-     end).
-
 (** * Strategy-level definitions and proof *)
 
 Definition P : esig := {| op := Genv.symtbl; ar _ := Integers.int |}.
@@ -259,6 +248,7 @@ Section C_LOADER.
   | valid_write_c_intro se q r vf b ofs len n m bytes 
     (HVF: Genv.find_funct (Clight.globalenv se prog) vf = Some write)
     (HWRITE: Mem.loadbytes m b (Ptrofs.unsigned ofs) len = Some (map Byte bytes))
+    (HI: (0 <= len < Int.modulus - 1)%Z)
     (HQ: q = cq vf rw_sig [Vint (Int.repr 1); Vptr b ofs; Vint (Int.repr len)]%list m)
     (HR: r = cr (Vint n) m) :
     valid_write_c se q bytes n r.
@@ -307,7 +297,7 @@ Section ASM_LOADER.
       (HDX: rs#RDX = Vint n)
       (HN: (Z.of_nat (length bytes) <= Int.unsigned n)%Z)
       (HM: Mem.storebytes m b (Ptrofs.unsigned ofs) (map Byte bytes) = Some m')
-      (HAX: rs'#(IR RAX) = Vint (Int.repr (Z.of_nat (length bytes)))) :
+      (HAX: rs' = (rs#RAX <- (Vint (Int.repr (Z.of_nat (length bytes)))))#PC <- (rs#RA)) :
     valid_read_asm se (rs, m) n bytes (rs', m').
   Definition read_asm : S ->> li_asm :=
     sup se, sup q, sup n, sup bytes, sup r, sup (_: valid_read_asm se q n bytes r), down (read_asm_play se q n bytes r).
@@ -322,8 +312,10 @@ Section ASM_LOADER.
       (HDI: rs#RDI = Vint (Int.repr 1))
       (HSI: rs#RSI = Vptr b ofs)
       (HDX: rs#RDX = Vint (Int.repr n))
+      (* HI is for determinism *)
+      (HI: (0 <= n < Int.modulus - 1)%Z)
       (HM: Mem.loadbytes m b (Ptrofs.unsigned ofs) n = Some (map Byte bytes))
-      (HAX: rs'#(IR RAX) = Vint r) :
+      (HAX: rs' = (rs#RAX <- (Vint r))#PC <- (rs#RA)) :
     valid_write_asm se (rs, m) bytes r (rs', m).
   Definition write_asm : S ->> li_asm :=
     sup se, sup q, sup bytes, sup n, sup r, sup (_: valid_write_asm se q bytes n r), down (write_asm_play se q bytes n r).
@@ -335,20 +327,59 @@ Section ASM_LOADER.
 
 End ASM_LOADER.
 
-Section LOADER_CORRECT.
-  Transparent Archi.ptr64.
+Local Hint Constructors pcoh : core.
 
-  Context p tp (Hp: transf_clight_program p = Errors.OK tp).
-  Context
-    (Hromatch: forall se m, init_mem se (AST.erase_program p) = Some m ->
-        ValueAnalysis.romatch_all se (VAInject.bc_of_symtbl se) m).
+Instance runtime_asm_determ tp: Deterministic (runtime_asm tp).
+Proof.
+  Ltac dd := dependent destruction Hs; dependent destruction Ht; eauto.
+  Ltac om := match goal with
+    | [ |- pcoh (oq ?x :: _) (oq ?y :: _) ] =>
+        let H := fresh "H" in
+        destruct (classic (x = y)); [ inv H | ]; eauto
+    | [ |- pcoh (oa ?x :: _) (oa ?y :: _) ] =>
+        let H := fresh "H" in
+        destruct (classic (x = y)); [ inv H | ]; eauto
+    end.
+  split. intros s t Hs Ht.
+  unfold runtime_asm in *.
+  destruct Hs as [[|] (?&?&?&?&?&Hs1&Hs)];
+    destruct Ht as [[|] (?&?&?&?&?&Ht1&Ht)]; cbn in *; dd.
+  - om. constructor. dd.
+    assert (x1 = x6) as ->.
+    { inv Hs1. inv Ht1. congruence. }
+    constructor. dd.
+    om. constructor. dd.
+    inv Hs1. inv Ht1.
+    rewrite HSI in HSI0. inv HSI0.
+    rewrite HM in HM0. inv HM0. repeat constructor. dd.
+  - inv Ht1. inv Hs1. eapply pcons_pcoh_oq; eauto.
+    intros A. inv A. rewrite HDI in HDI0. inv HDI0.
+  - inv Ht1. inv Hs1. eapply pcons_pcoh_oq; eauto.
+    intros A. inv A. rewrite HDI in HDI0. inv HDI0.
+  - om. constructor. dd.
+    assert (x1 = x6) as <-.
+    { inv Hs1. inv Ht1. rewrite HSI in HSI0. inv HSI0.
+      rewrite HDX in HDX0.
+      exploit int_repr_inj. apply HI. apply HI0. congruence.
+      intros <-. rewrite HM in HM0.
+      inv HM0. eapply map_inj; eauto.
+      intros. inv H. easy. }
+    constructor. dd.
+    om. constructor. dd. dd.
+    inv Hs1. inv Ht1. repeat constructor.
+Qed.
+
+Section LOADER_CORRECT.
+  Context p tp (Hp: match_prog p tp).
 
   Lemma Hsk: erase_program p = erase_program tp.
   Proof.
-    apply transf_clight_program_match in Hp.
     apply clight2_semantic_preservation in Hp.
     destruct Hp. destruct X. apply fsim_skel.
   Qed.
+
+  Transparent Archi.ptr64.
+  Opaque match_prog.
 
   Lemma entry_correct: rsq CAsm.cc_compcert vid (entry_c p) (entry_asm tp).
   Proof.
@@ -421,7 +452,7 @@ Section LOADER_CORRECT.
           destruct i0; eauto; cbn.
         + constructor; cbn.
           * erewrite init_mem_nextblock; eauto. reflexivity.
-          * eapply Hromatch. eauto.
+          * eapply InitMem.init_mem_romatch. eauto.
           * constructor. eapply initmem_inject; eauto.
       - cbn. repeat apply conj; eauto. constructor. eauto.
         constructor; cbn; erewrite init_mem_nextblock; eauto; try easy.
@@ -481,7 +512,7 @@ Section LOADER_CORRECT.
         destruct i0; eauto; cbn.
       + constructor; cbn.
         * erewrite init_mem_nextblock; eauto. reflexivity.
-        * eapply Hromatch. eauto.
+        * eapply InitMem.init_mem_romatch. eauto.
         * constructor. eapply initmem_inject; eauto.
     }
     2: {
@@ -514,9 +545,6 @@ Section LOADER_CORRECT.
   | match_inj_state_intro wn wi b1 ofs1 m1 b2 ofs2 m2 caw se 
       (HM: Load.mm_ca wn (se, wi) (caw_m caw) m1 m2) (HP: Load.mp_ca wn wi b1 ofs1 b2 ofs2):
       match_inj_state wn (se, wi) caw (b1, ofs1, m1) (b2, ofs2, m2).
-  Instance runtime_asm_determ:
-    Deterministic (runtime_asm tp).
-  Admitted.
 
   Lemma runtime_correct: rsq vid CAsm.cc_compcert (runtime_c p) (runtime_asm tp).
   Proof.
@@ -526,21 +554,21 @@ Section LOADER_CORRECT.
     2: { intros s ([|] & Hs).
          - destruct Hs as (se & q & n & bs & r & H & Hs). rewrite Hs. clear Hs.
            unfold read_c_play. apply rsp_oq. {
-             exists true. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), m').
+             exists true. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, (_, m').
              eexists. 2: constructor.
              econstructor; cbn; eauto.
              eapply match_prog_read. 4: eauto.
-             apply Util.transf_clight_program_match. eauto.
+             apply Hp.
              apply Genv.match_stbls_id.
              apply val_inject_refl. }
            intros q2 Hq2. xinv Hq2.
          - destruct Hs as (se & q & bs & n & r & H & Hs). rewrite Hs. clear Hs.
            unfold write_c_play. apply rsp_oq. {
-             exists false. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, ((Pregmap.init Vundef)#RAX <- (Vint n), m).
+             exists false. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, (_, m).
              eexists. 2: constructor.
              econstructor; cbn; eauto.
              eapply match_prog_write. 4: eauto.
-             apply Util.transf_clight_program_match. eauto.
+             apply Hp.
              apply Genv.match_stbls_id.
              apply val_inject_refl. }
            intros q2 Hq2. xinv Hq2. }
@@ -552,14 +580,13 @@ Section LOADER_CORRECT.
       end.
     - destruct Hs as (se & q & n & bs & r & H & Hs). rewrite Hs. clear Hs.
       inv H. unfold read_c_play. apply rsp_oq. {
-        exists true. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), m').
+        exists true. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, (_, m').
         eexists. 2: constructor.
         econstructor; cbn; eauto.
         eapply match_prog_read. 4: eauto.
-        apply Util.transf_clight_program_match. eauto.
+        apply Hp.
         apply Genv.match_stbls_id.
-        apply val_inject_refl.
-      }
+        apply val_inject_refl. }
       intros q Hq. cbn in Hq. dependent destruction Hq.
       eapply rsp_pq with (m2 := inl (F_read n)). reflexivity.
       eapply rsp_oa. {
@@ -602,13 +629,12 @@ Section LOADER_CORRECT.
       exploit Load.ca_storebytes; eauto. intros (mx1 & Hs & Hm).
       inv Hm.
 
-        eexists _, _, _, _, ((Pregmap.init Vundef)#RAX <- (Vint (Int.repr (Z.of_nat (Datatypes.length bs)))), _).
+        eexists _, _, _, _, (_, _).
         eexists.
         2: { unfold read_asm_play. repeat constructor. }
         econstructor; eauto.
       + cbn in HVF. cbn in HSE.  eprod_crush. inv H8.
         eapply ca_find_funct_read; eauto.
-        apply Util.transf_clight_program_match. eauto.
         apply H7. apply HVF.
       + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
       + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
@@ -707,18 +733,18 @@ Section LOADER_CORRECT.
       { econstructor; eauto.
       + cbn in HVF. cbn in HSE.  eprod_crush. inv r1.
         eapply ca_find_funct_read; eauto.
-        apply Util.transf_clight_program_match. eauto.
         apply m1. apply HVF.
       + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
-      + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto. }
+      + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
+      }
       cbn. reflexivity.
     - destruct Hs as (se & q & bs & n & r & H & Hs). rewrite Hs. clear Hs.
       inv H. unfold write_c_play. apply rsp_oq. {
-        exists false. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, ((Pregmap.init Vundef)#RAX <- (Vint n), m).
+        exists false. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, (_, m).
         eexists. 2: constructor.
         econstructor; cbn; eauto.
         eapply match_prog_write. 4: eauto.
-        apply Util.transf_clight_program_match. eauto.
+        apply Hp.
         apply Genv.match_stbls_id.
         apply val_inject_refl.
       }
@@ -730,6 +756,7 @@ Section LOADER_CORRECT.
       set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
       destruct m2 as [rs mt].
       unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
+      destruct HI as [HI1 HI2].
       eprod_crush. destruct s7.
       match goal with
       | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
@@ -756,12 +783,11 @@ Section LOADER_CORRECT.
       { inv Him. econstructor; eauto. reflexivity.
         apply Mem.unchanged_on_refl. }
 
-        eexists _, _, _, _, ((Pregmap.init Vundef)#RAX <- (Vint n), _).
+        eexists _, _, _, _, (_, _).
         exists. 2: { repeat constructor. }
          econstructor; cbn; eauto.
         + cbn in HVF. cbn in HSE.  eprod_crush. inv H8.
           eapply ca_find_funct_write; eauto.
-          apply Util.transf_clight_program_match. eauto.
           apply H7. apply HVF.
         + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
         + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
@@ -775,6 +801,7 @@ Section LOADER_CORRECT.
       set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
       destruct m2 as [rs mt].
       unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
+      destruct HI as [HI1 HI2].
       eprod_crush. destruct s7.
       match goal with
       | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
@@ -831,7 +858,6 @@ Section LOADER_CORRECT.
       { econstructor; eauto.
         + cbn in HVF. cbn in HSE.  eprod_crush. inv r0.
           eapply ca_find_funct_write; eauto.
-          apply Util.transf_clight_program_match. eauto.
           apply m0. apply HVF.
         + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
         + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
@@ -839,6 +865,7 @@ Section LOADER_CORRECT.
           econstructor; eauto. inv Hb'. constructor; eauto.
         + cbn. reflexivity. }
       cbn. reflexivity.
+      Unshelve. exact (Int.repr 0).
   Qed.
 
   Lemma load_sem_correct L_c L_asm:
@@ -856,7 +883,7 @@ Section LOADER_CORRECT.
 
   (* Lemma load_prog_correct : *)
   (*   load_c_prog p [= load_asm_prog tp. *)
-  (* Admitted. *)
+  (* Abort. *)
 End LOADER_CORRECT.
 
 (** ** Rot13 Clight Program *)
@@ -1149,6 +1176,7 @@ Section SECRET.
          exists false. cbn. eexists se, _, uryyb_bytes, _, _. exists.
          econstructor; eauto.
          replace 0%Z with (Ptrofs.unsigned Ptrofs.zero) in Hmx by reflexivity. apply Hmx.
+         cbn. lia.
          unfold write_c_play. reflexivity. }
     cbn. eapply closure_has_cons.
     2: apply closure_has_nil.
@@ -1279,14 +1307,6 @@ Section SECRET.
     econstructor 3.
     { econstructor. econstructor. }
   Qed.
-
-  (* Context rot13_asm (Hrot13: Compiler.transf_clight_program rot13_c = Errors.OK rot13_asm). *)
-  (* Context linked_secret_asm (HL: Linking.link rot13_asm Secret.secret_asm_program = Some linked_secret_asm). *)
-  (* Lemma π_secret_cc : forward_simulation cc_compcert cc_compcert Σ_secret (Asm.semantics linked_secret_asm). *)
-  (* Admitted. *)
-
-  (* Lemma ϕ_secret_cc : Γ_secret [= load_asm_prog linked_secret_asm. *)
-  (* Admitted. *)
 
 End SECRET.
 
@@ -1596,6 +1616,7 @@ Section DECODE.
          - exists false. cbn. eexists se, _, hello_bytes, _, _. exists. 2: reflexivity.
            econstructor; eauto.
            replace 0%Z with (Ptrofs.unsigned Ptrofs.zero) in Hmx by reflexivity. apply Hmx.
+           cbn. lia.
          - cbn. unfold read_c_play, write_c_play. repeat constructor. }
     cbn. eapply closure_has_cons.
     2: apply closure_has_nil. 2: apply seq_comp_has_nil2; eauto.
@@ -1772,3 +1793,70 @@ Section DECODE.
   Qed.
 
 End DECODE.
+
+Section PROOF.
+  Import Errors Linking CallconvAlgebra.
+  Opaque linkorder.
+  Definition secret_asm := SecretAsm.secret_asm_program.
+  Context rot13_asm (Hrot13: match_prog rot13_clight rot13_asm).
+  Context sr_asm (Hsr: match_prog sr_clight sr_asm)
+    (Hlink_sr: link secret_asm rot13_asm = Some sr_asm).
+
+  Lemma ϕ_secret_cc :
+    Γ_secret sr_sk [= load_asm_prog sr_asm.
+  Proof.
+    etransitivity. apply ϕ_secret.
+    rewrite load_sem_correct; eauto.
+    unfold load_asm_sem. unfold load_asm_prog. reflexivity.
+    apply Asm.semantics_determinate.
+    eapply open_fsim_ccref. apply cc_compose_id_right. apply cc_compose_id_right.
+    eapply compose_forward_simulations.
+    2: { eapply AsmLinking.asm_linking; eauto. }
+    assert (sr_sk = erase_program sr_asm).
+    { unfold sr_sk. apply Hsk. eauto. }
+    rewrite H.
+    apply SmallstepLinking.semantics_simulation'; intros [|].
+    - cbn. apply SecretAsm.secret_correct. apply Hwin.
+    - apply clight2_semantic_preservation; eauto.
+    - cbn. apply linkorder_erase_asm.
+      apply link_linkorder in Hlink_sr. apply Hlink_sr.
+    - cbn. erewrite Hsk; eauto.
+      apply linkorder_erase_asm.
+      apply link_linkorder in Hlink_sr. apply Hlink_sr.
+  Qed.
+
+  Context decode_asm (Hdecode: match_prog decode_clight decode_asm).
+  Context dr_asm (Hdr: match_prog dr_clight dr_asm)
+    (Hlink_dr: link decode_asm rot13_asm = Some dr_asm).
+
+  Lemma ϕ_decode_cc :
+    Γ_decode dr_sk [= load_asm_prog dr_asm.
+  Proof.
+    etransitivity. apply ϕ_decode.
+    rewrite load_sem_correct; eauto.
+    unfold load_asm_sem. unfold load_asm_prog. reflexivity.
+    apply Asm.semantics_determinate.
+    eapply open_fsim_ccref. apply cc_compose_id_right. apply cc_compose_id_right.
+    eapply compose_forward_simulations.
+    2: { eapply AsmLinking.asm_linking; eauto. }
+    assert (dr_sk = erase_program dr_asm).
+    { unfold dr_sk. apply Hsk. eauto. }
+    rewrite H.
+    apply SmallstepLinking.semantics_simulation'; intros [|].
+    - apply clight2_semantic_preservation; eauto.
+    - apply clight2_semantic_preservation; eauto.
+    - cbn. erewrite Hsk; eauto. apply linkorder_erase_asm.
+      apply link_linkorder in Hlink_dr. apply Hlink_dr.
+    - cbn. erewrite Hsk; eauto. apply linkorder_erase_asm.
+      apply link_linkorder in Hlink_dr. apply Hlink_dr.
+  Qed.
+
+  Lemma ϕ_1' :
+    Γ sr_sk dr_sk [= pipe (load_asm_prog sr_asm) (load_asm_prog dr_asm).
+  Proof.
+    etransitivity. apply ϕ_1.
+    unfold pipe.
+    rewrite ϕ_decode_cc.
+    rewrite ϕ_secret_cc. reflexivity.
+  Qed.
+End PROOF.

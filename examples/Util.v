@@ -2,6 +2,18 @@ Require Import LanguageInterface Smallstep CallconvAlgebra.
 Require Import Compiler CallConv Asmrel.
 Require Import Clight.
 Require Import  Linking.
+Require Import Coqlib.
+
+Ltac eprod_crush :=
+  repeat
+    (match goal with
+     | [ H: ?a * ?b |- _ ] => destruct H;cbn [fst snd] in *; subst
+     | [ H: (?a, ?b) = (?c, ?d) |- _ ] => inv H
+     | [ H: (?x * ?y)%rel _ _ |- _] => destruct H; cbn [fst snd] in *; subst
+     | [ H: ?x /\ ?y |- _] => destruct H
+     | [ H: (exists _, _) |- _] => destruct H
+     | [ H: unit |- _] => destruct H
+     end).
 
 Local Open Scope linking_scope.
 
@@ -224,8 +236,6 @@ Require Load.
 Section FIND_FUNCT.
   Import Coqlib Linking AST Clight Values.
 
-  Import Lifting. (* eprod_crush *)
-
   Lemma compcert_match_program_gen p tp:
     match_prog p tp ->
     exists (C: Type) (LC: Linker C) (c: C) mf mv,
@@ -349,3 +359,47 @@ Section FIND_FUNCT.
   Qed.
 
 End FIND_FUNCT.
+
+
+Require ClightPLink.
+Require Import Maps.
+
+Lemma linkorder_erase_asm (p1 p2: Asm.program):
+  Linking.linkorder p1 p2 ->
+  Linking.linkorder (erase_program p1) (erase_program p2).
+Proof.
+  intros (A & B & C). split. apply A. split. apply B.
+  intros * H1. destruct p1, p2.
+  unfold prog_defmap in *. cbn - [PTree_Properties.of_list] in *.
+  destruct ((PTree_Properties.of_list prog_defs) ! id) eqn: Hw.
+  - specialize (C _ _ Hw) as  (x & Hx1 & Hx2 & Hx3).
+    rewrite ClightP.ptree_of_list_map. rewrite Hx1.
+    rewrite ClightP.ptree_of_list_map in H1. rewrite Hw in H1.
+    cbn in *. eexists. split; eauto.
+    split.
+    + inv H1. inv Hx2. cbn. repeat constructor.
+      cbn. inv H. repeat constructor; eauto.
+    + intros. specialize (Hx3 H). congruence.
+  - rewrite ClightP.ptree_of_list_map in H1. rewrite Hw in H1. inv H1.
+Qed.
+
+Require Import Integers.
+
+Transparent Int.repr.
+Lemma int_repr_inj i j:
+  (0 <= i < Int.modulus - 1)%Z -> (0 <= j < Int.modulus - 1)%Z -> Int.repr i = Int.repr j -> i = j.
+Proof.
+  intros Hi Hj Hij.
+  unfold Int.repr in Hij. inv Hij.
+  rewrite !Int.Z_mod_modulus_eq in H0.
+  rewrite !Z.mod_small in H0; eauto. lia. lia.
+Qed.
+Opaque Int.repr.
+
+Lemma map_inj {A B} (f: A -> B) xs ys:
+  (forall x y, f x = f y -> x = y) ->
+  map f xs = map f ys -> xs = ys.
+Proof.
+  intros Hf. revert ys. induction xs; destruct ys; cbn; intros H; inv H; eauto.
+  f_equal; eauto.
+Qed.

@@ -1497,6 +1497,12 @@ Global Instance compose_when_monotonic {E F G i j k p}:
   Monotonic (@compose_when E F G i j k p) (ref ++> ref ++> ref).
 Admitted.
 
+Global Instance fcomp_when_monotonic {E1 E2 F1 F2 i1 i2 i p}:
+  Monotonic (@fcomp_when E1 E2 F1 F2 i1 i2 i p) (ref ++> ref ++> ref).
+Admitted.
+
+Global Instance fcomp_params : Params (@fcomp_when) 2 := { }.
+
 Lemma vcomp_assoc {E F G H} (σ: conv E F) (τ: conv F G) (υ: conv G H):
   vcomp (vcomp σ τ) υ = vcomp σ (vcomp τ υ).
 Admitted.
