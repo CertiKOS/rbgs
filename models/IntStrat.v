@@ -26,7 +26,8 @@ Ltac xsubst :=
      | H : existT _ _ _ = existT _ _ _ |- _ =>
          apply inj_pair2 in H
      end ||
-     subst).
+     subst ||
+     discriminate).
 
 (** * §2 COMPOSITIONAL SEMANTICS FOR VERIFICATION *)
 
@@ -439,6 +440,12 @@ Section STRAT.
     | pnil_ready_pref t : pref pnil_ready t
     | pnil_suspended_pref {q m} t : pref (@pnil_suspended q m) t
     | pcons_pref {i j} (e : move i j) s t : pref s t -> pref (pcons e s) (pcons e t).
+
+  Lemma pref_refl i s :
+    @pref i s s.
+  Proof.
+    induction s; constructor; auto.
+  Qed.
 
   Program Canonical Structure play_poset (p : position) : poset :=
     {|
@@ -1519,11 +1526,10 @@ Section FCOMP_STRAT.
     fcomp_when (fcpos_running_l q) (next (oa (m:=m) n) σ1) σ2.
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - simple inversion Hs; xsubst; try congruence.
-      + inversion H. xsubst. congruence.
-      + inversion H0. xsubst.
-        apply pcons_oa_inv in H6 as [<- <-].
-        exists s0, s2. easy.
+    - simple inversion Hs; xsubst.
+      inversion H0. xsubst.
+      apply pcons_oa_inv in H6 as [<- <-].
+      exists s0, s2. easy.
     - eauto 10.
   Qed.
 
@@ -1532,9 +1538,8 @@ Section FCOMP_STRAT.
     fcomp_when (fcpos_running_r q) σ1 (next (oa (m:=m) n) σ2).
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - simple inversion Hs; xsubst; try congruence.
-      + inversion H0. xsubst. congruence.
-      + inversion H1. xsubst. apply pcons_oa_inv in H6 as [<- <-]. eauto.
+    - simple inversion Hs; xsubst.
+      inversion H1. xsubst. apply pcons_oa_inv in H6 as [<- <-]. eauto.
     - eauto 10.
   Qed.
 
@@ -1543,9 +1548,8 @@ Section FCOMP_STRAT.
     fcomp_when fcpos_ready (next (pa (q:=q) r) σ1) σ2.
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - simple inversion Hs; xsubst; try congruence.
-      + inversion H0. xsubst. congruence.
-      + inversion H0. xsubst. apply pcons_pa_inv in H6 as [<- <-]. eauto.
+    - simple inversion Hs; xsubst.
+      inversion H0. xsubst. apply pcons_pa_inv in H6 as [<- <-]. eauto.
     - eauto 10.
   Qed.
 
@@ -1554,9 +1558,8 @@ Section FCOMP_STRAT.
     fcomp_when fcpos_ready σ1 (next (pa (q:=q) r) σ2).
   Proof.
     apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
-    - simple inversion Hs; xsubst; try congruence.
-      + inversion H1. xsubst. congruence.
-      + inversion H1. xsubst. apply pcons_pa_inv in H6 as [<- <-]. eauto.
+    - simple inversion Hs; xsubst.
+      inversion H1. xsubst. apply pcons_pa_inv in H6 as [<- <-]. eauto.
     - eauto 10.
   Qed.
 End FCOMP_STRAT.
@@ -5004,11 +5007,303 @@ Section SCOMP_ID.
   Qed.
 End SCOMP_ID.
 
+Section SCOMP_COMPOSE.
+  Context {E F G : esig} {U V W : Type} {g : V ~>> W} {f : U ~>> V}.
+
+  Variant sccpos :
+    forall {i1 j1 i2 j2 ij1 ij2 i12 j12 ij12}, @cpos E F G i1 j1 ij1 ->
+                                               lpos (g ∘ f) ij2 ->
+                                               tpos ij1 ij2 ij12 ->
+                                               lpos g i2 -> tpos i1 i2 i12 ->
+                                               lpos f j2 -> tpos j1 j2 j12 ->
+                                               cpos i12 j12 ij12 -> Type :=
+      | scc_ready pg pf :
+        sccpos cpos_ready
+               (lready (g∘f) (pg,pf))
+               tp_ready
+               (lready g pg) tp_ready
+               (lready f pf) tp_ready
+               cpos_ready
+      | scc_left pg pf (**) q (w : glob W) pf' (v : glob V) :
+        sccpos (cpos_left q)
+               (lrunning (g∘f) (pg,pf) w (get f (pf',v)))
+               (tp_running q w)
+               (lrunning g pg w v) (tp_running q w)
+               (lready f pf') tp_ready
+               (cpos_left (q,w))
+      | scc_right pg pf (**) q (w : glob W) pf' (v : glob V) (**) m (u : glob U) :
+        sccpos (cpos_right q m)
+               (lrunning (g∘f) (pg,pf) w u)
+               (tp_running q w)
+               (lsuspended g pg w v) (tp_suspended q w m v)
+               (lrunning f pf' v u) (tp_running m v)
+               (cpos_right (q,w) (m,v))
+      | scc_suspended pg pf (**) q (w : glob W) pf' (v : glob V) (**) m u (**) x :
+        sccpos (cpos_suspended q m x)
+               (lsuspended (g∘f) (pg,pf) w u)
+               (tp_suspended q w x u)
+               (lsuspended g pg w v) (tp_suspended q w m v)
+               (lsuspended f pf' v u) (tp_suspended m v x u)
+               (cpos_suspended (q,w) (m,v) (x,u)).
+
+  Hint Constructors lens_has tstrat_has comp_has pref sccpos.
+
+  Lemma scomp_compose_when_1 {i1 j1 i2 j2 ij1 ij2 i12 j12 ij12 pij1 pij2 pij12 pi2 pi12 pj2 pj12 pij12'} :
+    forall p: @sccpos i1 j1 i2 j2 ij1 ij2 i12 j12 ij12 pij1 pij2 pij12 pi2 pi12 pj2 pj12 pij12',
+    forall s1 t1 st1, comp_has pij1 s1 t1 st1 ->
+    forall st2, lens_has (g∘f) pij2 st2 ->
+    forall st12, tstrat_has pij12 st1 st2 st12 ->
+    match p with
+      | scc_ready pg pf =>
+        True
+      | scc_left pg pf q w pf' v
+      | scc_right pg pf q w pf' v _ _
+      | scc_suspended pg pf q w pf' v _ _ _ =>
+        set f (pf, get g (pg, w)) (get f (pf', v)) = (pf', v)
+    end ->
+    exists s1' t1' s2 t2 s12 t12,
+      s1' [= s1 /\ t1' [= t1 /\
+      lens_has g pi2 s2 /\
+      lens_has f pj2 t2 /\
+      tstrat_has pi12 s1' s2 s12 /\
+      tstrat_has pj12 t1' t2 t12 /\
+      comp_has pij12' s12 t12 st12.
+  Proof.
+    intros p s1 t1 st1 Hst1. cbn.
+    revert i2 j2 ij2 i12 j12 ij12 pij2 pij12 pi2 pi12 pj2 pj12 pij12' p.
+    induction Hst1; intros until p; intros st2 Hst2 st12 Hst12 Hp.
+    - (* ready *)
+      dependent destruction Hst12.
+      dependent destruction Hst2.
+      dependent destruction p.
+      eauto 20.
+    - (* env question *)
+      dependent destruction Hst12.
+      dependent destruction Hst2.
+      dependent destruction p.
+      rename s into s1, t into t1, w into st1, s2 into st2, s0 into st12, q2 into w.
+      edestruct IHHst1 with (p := scc_left pg pf q w pf (get g (pg, w)))
+        as (s1' & t1' & s2 & t2 & s12 & t12 &
+            Hs1' & Ht1' & Hs2 & Ht2 & Hs12 & Ht12 & Hst12'); eauto using set_get.
+      exists (oq q :: s1'), t1', (oq w :: s2), t2, (oq (q,w) :: s12), t12.
+      eauto 20 using pref_refl.
+    - (* left question *)
+      dependent destruction p.
+      rename s into s1, t into t1, w into st1, w0 into w.
+      edestruct IHHst1 with (p := scc_right pg pf q w pf' v m (get f (pf',v)))
+        as (s1' & t1' & s2 & t2 & s12 & t12 &
+            Hs1' & Ht1' & Hs2 & Ht2 & Hs12 & Ht12 & Hst12'); eauto.
+      exists (pq m :: s1'), (oq m ::t1'), (pq v :: s2), (oq v :: t2),
+             (pq (m,v) :: s12), (oq (m,v) :: t12); eauto 20.
+    - (* right question *)
+      dependent destruction Hst12.
+      dependent destruction Hst2.
+      dependent destruction p.
+      rename s into s1, t into t1, w into st1, q2 into w, u into x, m2 into u,
+             s2 into st2, s0 into st12.
+      edestruct IHHst1 with (p := scc_suspended pg pf q w pf' v m u x)
+        as (s1' & t1' & s2 & t2 & s12 & t12 &
+            Hs1' & Ht1' & Hs2 & Ht2 & Hs12 & Ht12 & Hst12'); eauto.
+      exists s1', (pq x :: t1'), s2, (pq u :: t2),
+             s12, (pq (x,u) :: t12); eauto 20.
+    - (* suspended *)
+      dependent destruction Hst12.
+      dependent destruction Hst2.
+      dependent destruction p.
+      eauto 20.
+    - (* environment answer *)
+      dependent destruction Hst12.
+      dependent destruction Hst2.
+      dependent destruction p.
+      rename s into s1, t into t1, w into st1, q2 into w, v into y, v0 into v,
+             u into x, m2 into u, n2 into u', s2 into st2, s0 into st12.
+      edestruct IHHst1 with (p := scc_right pg pf q w pf' v m u')
+        as (s1' & t1' & s2 & t2 & s12 & t12 &
+            Hs1' & Ht1' & Hs2 & Ht2 & Hs12 & Ht12 & Hst12'); eauto.
+      exists s1', (oa y :: t1'), s2, (oa u' :: t2),
+        s12, (oa (m:=(x,u)) (y,u') :: t12); eauto 20.
+    - (* right answer *)
+      dependent destruction p.
+      rename s into s1, t into t1, w into st1, w0 into w.
+      destruct (set f (pf', v) u) as [pf'' v'] eqn:H''.
+      edestruct IHHst1 with (p := scc_left pg pf q w pf'' v') (st2 := st2) (st12 := st12)
+        as (s1' & t1' & s2 & t2 & s12 & t12 &
+            Hs1' & Ht1' & Hs2 & Ht2 & Hs12 & Ht12 & Hst12'); auto.
+      { setoid_rewrite <- H''. rewrite get_set. auto. }
+      { setoid_rewrite <- H''. rewrite get_set.
+        setoid_rewrite <- Hp. rewrite set_set. auto. }
+      exists (oa n :: s1'), (pa n :: t1'), (oa (m:=v) v' :: s2), (pa (q:=v) v' :: t2),
+             (oa (m:=(m,v)) (n, v') :: s12), (pa (q:=(m,v)) (n, v') :: t12); eauto 20.
+      repeat (split; eauto 20).
+      + econstructor; eauto.
+      + econstructor; eauto.
+    - (* left answer *)      
+      dependent destruction Hst12.
+      dependent destruction Hst2.
+      dependent destruction p. cbn in *.
+      rename s into s1, t into t1, w into st1, q2 into w, s2 into st2, s0 into st12.
+      rewrite Hp in Hst2. cbn in *.
+      destruct (set g (pg, w) v) as [pg' w'] eqn:H''. cbn in *.
+      edestruct IHHst1 with (p := scc_ready pg' pf') (st2 := st2)
+        as (s1' & t1' & s2 & t2 & s12 & t12 &
+            Hs1' & Ht1' & Hs2 & Ht2 & Hs12 & Ht12 & Hst12'); eauto.
+      exists (pa r :: s1'), t1', (pa (F:=glob W) w' :: s2), t2,
+             (pa (F:=G@W) (q:=(q,w)) (r,w') :: s12), t12; eauto 30.
+      repeat (split; eauto 20).
+      + econstructor; eauto.
+      + rewrite Hp; cbn.
+        rewrite H''; cbn.
+        econstructor; eauto.
+  Qed.
+
+  Lemma scomp_compose_when_2 {i1 j1 i2 j2 ij1 ij2 i12 j12 ij12 pij1 pij2 pij12 pi2 pi12 pj2 pj12 pij12'} :
+    forall p: @sccpos i1 j1 i2 j2 ij1 ij2 i12 j12 ij12 pij1 pij2 pij12 pi2 pi12 pj2 pj12 pij12',
+    forall s12 t12 st12, comp_has pij12' s12 t12 st12 ->
+    forall s1 s2 t1 t2,
+    lens_has g pi2 s2 ->
+    lens_has f pj2 t2 ->
+    tstrat_has pi12 s1 s2 s12 ->
+    tstrat_has pj12 t1 t2 t12 ->
+    match p with
+      | scc_ready pg pf =>
+        True
+      | scc_left pg pf q w pf' v
+      | scc_right pg pf q w pf' v _ _
+      | scc_suspended pg pf q w pf' v _ _ _ =>
+        set f (pf, get g (pg, w)) (get f (pf', v)) = (pf', v)
+    end ->
+    exists st1 st2,
+      comp_has pij1 s1 t1 st1 /\
+      lens_has (g∘f) pij2 st2 /\
+      tstrat_has pij12 st1 st2 st12.
+  Proof.
+    intros p s12 t12 st12 Hst12.
+    revert i1 j1 i2 j2 ij1 ij2 pij1 pij2 pij12 pi2 pi12 pj2 pj12 p.
+    induction Hst12; intros until p; intros s1 s2 t1 t2 Hs2 Ht2 Hs12 Ht12 Hp.
+    - (* ready *)
+      dependent destruction Hs12.
+      dependent destruction Hs2.
+      dependent destruction p.
+      eauto 20.
+    - (* env question *)
+      dependent destruction Hs12.
+      dependent destruction Hs2.
+      dependent destruction p.
+      rename q2 into w, q1 into q, s into s12, t into t12, w into st12.
+      rename p0 into pg, s0 into s2.
+      edestruct IHHst12 with (p := scc_left pg pf q w pf (get g (pg, w)))
+        as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto using set_get.
+      exists (oq q :: st1), (oq w :: st2).
+      repeat (split; eauto).
+      constructor; auto.
+    - (* left question *)
+      dependent destruction Hs12.
+      dependent destruction Hs2.
+      dependent destruction Ht12.
+      dependent destruction Ht2.
+      dependent destruction p.
+      clear x x0 x1.
+      rename q2 into w, q1 into q, s into s12, t into t12, w into st12.
+      rename p1 into pf', p0 into pg, s0 into s2, s2 into t1, s3 into t2.
+      rename m1 into m, m2 into v.
+      edestruct IHHst12 with (p := scc_right pg pf q w pf' v m (get f (pf',v)))
+        as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto.
+      exists st1, st2; eauto 20.
+    - (* right question *)
+      dependent destruction Ht12.
+      dependent destruction Ht2.
+      dependent destruction p.
+      clear x x0 x1.
+      rename q0 into q, w0 into w, q2 into v, q1 into m, m2 into u, m1 into x,
+        s into s12, t into t12, w into st12, p0 into pf', s3 into t2, s0 into t1.
+      edestruct IHHst12 with (p := scc_suspended pg pf q w pf' v m u x)
+        as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto.
+      exists (pq x :: st1), (pq u :: st2); eauto 20.
+      repeat split; eauto.
+      constructor; eauto.
+    - (* suspended *)
+      dependent destruction Ht12.
+      dependent destruction Ht2.
+      dependent destruction p.
+      clear x x0 x1 x2.
+      rename q0 into q, q2 into v, q1 into m, m2 into u, m1 into x,
+        s into s12, p0 into pf'.
+      exists (pnil_suspended _ _), (pnil_suspended _ _).
+      repeat split; eauto.
+      constructor; eauto.
+    - (* environment answer *)
+      simple inversion Ht12; clear Ht12; xsubst. intros Ht12.
+      dependent destruction H2. xsubst.
+      apply pcons_oa_inv in H6 as [? ?]. subst.
+      dependent destruction Ht2.
+      dependent destruction p.
+      clear x x0 x1.
+      rename q0 into q, w0 into w, q2 into v, q1 into m, m2 into u, m1 into x,
+        s into s12, t into t12, w into st12, p0 into pf', s3 into t2, s0 into t1,
+        n1 into y, n2 into u'.
+      edestruct IHHst12 with (p := scc_right pg pf q w pf' v m u')
+        as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto.
+      exists (oa y :: st1), (oa u' :: st2); eauto 20.
+      repeat split; eauto.
+      constructor; eauto.
+    - (* right answer *)
+      simple inversion Ht12; clear Ht12; xsubst. intros Ht12.
+      dependent destruction H2. xsubst.
+      apply pcons_pa_inv in H6 as [? ?]. subst.
+      simple inversion Hs12; clear Hs12; xsubst. intros Hs12.
+      dependent destruction H2. xsubst.
+      apply pcons_oa_inv in H6 as [? ?]. subst.
+      dependent destruction H.
+      dependent destruction Ht2.
+      dependent destruction Hs2.
+      dependent destruction p1.
+      clear x x0 x1 x2.
+      rename q0 into q, q3 into w, q2 into v, q1 into m, s into s12, t into t12,
+        w into st12, p0 into pf', r2 into v', s5 into s2, s3 into t2, p' into pf'',
+        r1 into n, s0 into t1, s4 into s1, p into pg.
+      edestruct IHHst12 with (p := scc_left pg pf q w pf'' v')
+        as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto.
+      { setoid_rewrite <- H. rewrite get_set.
+        setoid_rewrite <- Hp. rewrite set_set. auto. }
+      setoid_rewrite <- H in Hst2. rewrite get_set in Hst2.
+      exists st1, st2. eauto.
+    - (* left answer *)
+      simple inversion Hs12; clear Hs12; xsubst. intros Hs12.
+      dependent destruction H2. xsubst.
+      apply pcons_pa_inv in H6 as [? ?]. subst.
+      dependent destruction Hs2.
+      dependent destruction p.
+      clear x x0 x1.
+      rename q1 into q, q2 into w, s into s12, t into t12, w into st12,
+        p0 into pg, r2 into w', s3 into s2, r1 into r, s0 into s1, p' into pg'.
+      edestruct IHHst12 with (p := scc_ready pg' pf')
+        as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto.
+      exists (pa r :: st1), (pa w' :: st2).
+      repeat split; eauto.
+      + econstructor; eauto. cbn.
+        setoid_rewrite Hp. cbn.
+        setoid_rewrite H. cbn. auto.
+      + constructor. auto.
+  Qed.
+End SCOMP_COMPOSE.
+
 Lemma scomp_compose {E F G U V W} :
   forall (σ : F ->> G) (τ : E ->> F) (g : V ~>> W) (f : U ~>> V),
     ((σ ⊙ τ) @ (g ∘ f) = (σ @ g) ⊙ (τ @ f))%strat.
 Proof.
-Admitted.
+  intros. apply antisymmetry; cbn.
+  - intros s (st1 & st2 & Hs & (s1 & t1 & Hs1 & Ht1 & Hst1) & Hst2).
+    edestruct (@scomp_compose_when_1 E F G U V W)
+      with (p := @scc_ready E F G U V W g f (init_state g) (init_state f))
+      as (s1' & t1' & s2 & t2 & s12 & t12 & Hs1' & Ht1' & Hs2 & Ht2 & Hs12 & Ht12 & Hs');
+    eauto 20 using Downset.closed.
+  - intros s (s12 & t12 & (s1 & s2 & Hs12 & Hs1 & Hs2) &
+                          (t1 & t2 & Ht12 & Ht1 & Ht2) & Hs).
+    edestruct (@scomp_compose_when_2 E F G U V W)
+      with (p := @scc_ready E F G U V W g f (init_state g) (init_state f))
+      as (st1 & st2 & Hst1 & Hst2 & Hs');
+    eauto 20.
+Qed.
 
 (** Vertical component *)
 
