@@ -498,6 +498,18 @@ Section STRAT.
     intro H. dependent destruction H. reflexivity.
   Qed.
 
+  Lemma pcons_oa_inv q m (n1 n2 : ar m) (s1 s2: play (running q)) :
+    pcons (oa n1) s1 = pcons (oa n2) s2 -> n1 = n2 /\ s1 = s2.
+  Proof.
+    intro H. dependent destruction H; auto. 
+  Qed.
+
+  Lemma pcons_pa_inv q (r1 r2 : ar q) s1 s2 :
+    pcons (pa r1) s1 = pcons (pa r2) s2 -> r1 = r2 /\ s1 = s2.
+  Proof.
+    intro H. dependent destruction H; auto. 
+  Qed.
+
   (** *** Determinism *)
 
   Inductive pcoh : forall {i : position}, relation (play i) :=
@@ -1491,15 +1503,6 @@ Section FCOMP_STRAT.
     - eauto 10.
   Qed.
 
-  Lemma oa_cons_inv {E F: esig} q (m: op E) (n1 n2 : ar m) (s1 s2: @play E F (running q)):
-    oa n1 :: s1 = oa n2 :: s2 -> n1 = n2 /\ s1 = s2.
-  Proof.
-    intros H. inversion H. 
-    apply inj_pair2 in H1. subst.
-    apply inj_pair2 in H2. subst.
-    easy.
-  Qed.
-
   Lemma fcomp_next_oa_l q m n σ1 σ2 :
     next (oa n) (fcomp_when (fcpos_suspended_l q m) σ1 σ2) =
     fcomp_when (fcpos_running_l q) (next (oa (m:=m) n) σ1) σ2.
@@ -1513,7 +1516,7 @@ Section FCOMP_STRAT.
       + intros HX. inversion H0. subst.
         apply inj_pair2 in H4. subst.
         apply inj_pair2 in H5. subst.
-        apply inj_pair2 in H6. cbn in *. apply oa_cons_inv in H6 as [<- <-].
+        apply inj_pair2 in H6. cbn in *. apply pcons_oa_inv in H6 as [<- <-].
         exists s0, s2. easy.
     - eauto 10.
   Qed.
