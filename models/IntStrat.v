@@ -1454,6 +1454,78 @@ Section FCOMP_STRAT.
     edestruct (fcomp_has_closed p) as (s1 & s2 & Hst1 & Hst2 & Hs); eauto.
     eauto 10 using Downset.closed.
   Qed.
+
+  Lemma fcomp_next_oq_l q σ1 σ2 :
+    next (oq (inl q)) (fcomp_when fcpos_ready σ1 σ2) =
+    fcomp_when (fcpos_running_l q) (next (oq q) σ1) σ2.
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. eauto.
+    - eauto 10.
+  Qed.
+
+  Lemma fcomp_next_oq_r q σ1 σ2 :
+    next (oq (inr q)) (fcomp_when fcpos_ready σ1 σ2) =
+    fcomp_when (fcpos_running_r q) σ1 (next (oq q) σ2).
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. eauto.
+    - eauto 10.
+  Qed.
+
+  Lemma fcomp_next_pq_l q m σ1 σ2 :
+    next (pq (inl m)) (fcomp_when (fcpos_running_l q) σ1 σ2) =
+    fcomp_when (fcpos_suspended_l q m) (next (pq m) σ1) σ2.
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. eauto.
+    - eauto 10.
+  Qed.
+
+  Lemma fcomp_next_pq_r q m σ1 σ2 :
+    next (pq (inr m)) (fcomp_when (fcpos_running_r q) σ1 σ2) =
+    fcomp_when (fcpos_suspended_r q m) σ1 (next (pq m) σ2).
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. eauto.
+    - eauto 10.
+  Qed.
+
+  Lemma fcomp_next_oa_l q m n σ1 σ2 :
+    next (oa n) (fcomp_when (fcpos_suspended_l q m) σ1 σ2) =
+    fcomp_when (fcpos_running_l q) (next (oa (m:=m) n) σ1) σ2.
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. exists s0, s2. admit. (* inversion glitch *)
+    - eauto 10.
+  Admitted.
+
+  Lemma fcomp_next_oa_r q m n σ1 σ2 :
+    next (oa n) (fcomp_when (fcpos_suspended_r q m) σ1 σ2) =
+    fcomp_when (fcpos_running_r q) σ1 (next (oa (m:=m) n) σ2).
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. admit. (* inversion glitch *)
+    - eauto 10.
+  Admitted.
+
+  Lemma fcomp_next_pa_l q r σ1 σ2 :
+    next (pa r) (fcomp_when (fcpos_running_l q) σ1 σ2) =
+    fcomp_when fcpos_ready (next (pa (q:=q) r) σ1) σ2.
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. admit. (* inversion glitch *)
+    - eauto 10.
+  Admitted.
+
+  Lemma fcomp_next_pa_r q r σ1 σ2 :
+    next (pa r) (fcomp_when (fcpos_running_r q) σ1 σ2) =
+    fcomp_when fcpos_ready σ1 (next (pa (q:=q) r) σ2).
+  Proof.
+    apply antisymmetry; intros s; cbn; intros (s1 & s2 & Hs1 & Hs2 & Hs).
+    - dependent destruction Hs. admit. (* inversion glitch *)
+    - eauto 10.
+  Admitted.
 End FCOMP_STRAT.
 
 Notation fcomp_st := (fcomp_when fcpos_ready).
@@ -3249,20 +3321,162 @@ End FCOMP_VCOMP.
 Section FCOMP_RSQ.
   Context {E1 E2 F1 F2 E1' E2' F1' F2' : esig}.
 
-  (*
-  Variant fcrspos :
-    forall {i1 i2 i j1 j2 j}, fcpos i1 i2 i -> fcpos j1 j2 j ->
-                              rspos i1 j1 -> rspos i2 j2 -> rspos i j -> Type :=
+  Variant fcrspos : forall {i1 i2 i j1 j2 j}, rspos i1 j1 -> rspos i2 j2 ->
+                                              fcpos i1 i2 i -> fcpos j1 j2 j ->
+                                              rspos i j -> Type :=
     | fcrs_ready :
-        fcrspos fcpos_ready fcpos_ready
-                rs_ready rs_ready rs_ready
-    | fcrs_running_l (q1 : F1) (q2 : F2) :
-        fcrspos (fcpos_running_l q1) (fcpos_running_l q2)
-                (rs_running q1 q2) rs_ready (rs_running (inl q1) (inl q2))
+        fcrspos rs_ready rs_ready fcpos_ready fcpos_ready rs_ready
+    | fcrs_running_l (q1 : F1) (q2 : F1') :
+        fcrspos (rs_running q1 q2) rs_ready
+                (fcpos_running_l q1) (fcpos_running_l q2)
+                (rs_running (inl q1) (inl q2))
     | fcrs_running_r (q1 : F2) (q2 : F2') :
-        fcrspos (fcpos_running_r q1) (fcpos_running_r q2)
-                rs_ready (rs_running q1 q2) (rs_running (inr q1) (inr q2)).
-   *)
+        fcrspos rs_ready (rs_running q1 q2)
+                (fcpos_running_r q1) (fcpos_running_r q2)
+                (rs_running (inr q1) (inr q2))
+    | fcrs_suspended_l (q1 : F1) (q2 : F1') (m1 : E1) (m2 : E1') :
+        fcrspos (rs_suspended q1 q2 m1 m2) rs_ready
+                (fcpos_suspended_l q1 m1) (fcpos_suspended_l q2 m2)
+                (rs_suspended (inl q1) (inl q2) (inl m1) (inl m2))
+    | fcrs_suspended_r (q1 : F2) (q2 : F2') (m1 : E2) (m2 : E2') :
+        fcrspos rs_ready (rs_suspended q1 q2 m1 m2)
+                (fcpos_suspended_r q1 m1) (fcpos_suspended_r q2 m2)
+                (rs_suspended (inr q1) (inr q2) (inr m1) (inr m2)).
+
+  Hint Constructors rsp fcomp_has fcrspos.
+
+  Lemma fcomp_rsp {i1 i2 i j1 j2 j p1 p2 pi pj pij} :
+    forall p : @fcrspos i1 i2 i j1 j2 j p1 p2 pi pj pij,
+    forall R1 S1 s1 τ1, rsp R1 S1 p1 s1 τ1 ->
+    forall R2 S2 s2 τ2, rsp R2 S2 p2 s2 τ2 ->
+    forall s, fcomp_has pi s1 s2 s ->
+    match p with
+      | fcrs_running_l q1 q2 =>
+          Downset.has S1 (rcp_allow q1 q2)
+      | fcrs_running_r q1 q2 =>
+          Downset.has S2 (rcp_allow q1 q2)
+      | fcrs_suspended_l q1 q2 m1 m2 =>
+          Downset.has S1 (rcp_allow q1 q2) /\
+          Downset.has R1 (rcp_allow m1 m2)
+      | fcrs_suspended_r q1 q2 m1 m2 =>
+          Downset.has S2 (rcp_allow q1 q2) /\
+          Downset.has R2 (rcp_allow m1 m2)
+      | _ => True
+    end ->
+    rsp (R1 + R2) (S1 + S2) pij s (fcomp_when pj τ1 τ2).
+  Proof.
+    intros p R1 S1 s1 τ1 H1. revert i2 i j2 j p2 pi pj pij p.
+    induction H1; intros i2 i j2 j p2 pi pj pij p R2 S2 s2 τ2 H2.
+    - (* s1 terminated when ready, need to unroll s2 *)
+      revert i j pi pj pij p.
+      induction H2; intros i j pi pj pij p s12 Hs12.
+      + (* s2 ready *)
+        dependent destruction Hs12.
+        dependent destruction p.
+        constructor; cbn; eauto 10.
+      + (* environment question for s2 *)
+        dependent destruction Hs12.
+        dependent destruction p.
+        constructor; cbn; eauto.
+        intros [q2 | q2] Hq; cbn; try tauto.
+        rewrite fcomp_next_oq_r; eauto.
+        apply H2 with (p := fcrs_running_r _ _); eauto.
+      + (* component question of s2 *)
+        dependent destruction Hs12.
+        dependent destruction p; intros.
+        apply (rsp_pq _ _ _ _ (inr m1) (inr m2)); cbn; auto.
+        rewrite fcomp_next_pq_r; eauto.
+        apply IHrsp with (p := fcrs_suspended_r q1 q2 m1 m2); eauto.
+      + (* suspended *)
+        dependent destruction Hs12.
+        dependent destruction p.
+        constructor; cbn; eauto.
+      + (* environment answer in s2 *)
+        dependent destruction Hs12.
+        dependent destruction p. intros [Hq Hm].
+        constructor; cbn; eauto.
+        intros n2 Hn.
+        rewrite rcnext_fcomp_r; auto.
+        rewrite fcomp_next_oa_r.
+        apply H2 with (p := fcrs_running_r q1 q2); eauto.
+      + (* component answer in s2 *)
+        dependent destruction Hs12.
+        dependent destruction p. intros.
+        econstructor; cbn; eauto.
+        rewrite rcnext_fcomp_r; auto.
+        rewrite fcomp_next_pa_r.
+        apply IHrsp with (p := fcrs_ready); eauto.
+    - (* incoming question in s1, could still do s2 first *)
+      revert i j pi pj pij p.
+      induction H2; intros i j pi pj pij p s12 Hs12.
+      + (* s2 is nil, there's no choice *)
+        dependent destruction Hs12.
+        dependent destruction p. intros [ ].
+        constructor; cbn; eauto 10.
+        intros [q2 | q2] Hq; try tauto.
+        rewrite fcomp_next_oq_l.
+        eapply H1 with (p := fcrs_running_l q1 q2); eauto.
+      + (* environment question for s2, could go either way *)
+        dependent destruction Hs12;
+        dependent destruction p; intros [ ];
+        constructor; cbn; eauto;
+        intros [q2 | q2] Hq; try tauto.
+        * rewrite fcomp_next_oq_l.
+          eapply H1 with (s2 := oq q0 :: s0) (p := fcrs_running_l _ _); eauto.
+        * rewrite fcomp_next_oq_r.
+          eapply H4 with (p := fcrs_running_r _ _); eauto.
+      + (* component question of s2 *)
+        dependent destruction Hs12.
+        dependent destruction p; intros.
+        apply (rsp_pq _ _ _ _ (inr m1) (inr m2)); cbn; auto.
+        rewrite fcomp_next_pq_r; eauto.
+        apply IHrsp with (p := fcrs_suspended_r _ _ m1 m2); eauto.
+      + (* suspended *)
+        dependent destruction Hs12.
+        dependent destruction p.
+        constructor; cbn; eauto.
+      + (* environment answer in s2 *)
+        dependent destruction Hs12.
+        dependent destruction p. intros [Hq Hm].
+        constructor; cbn; eauto.
+        intros n2 Hn.
+        rewrite rcnext_fcomp_r; auto.
+        rewrite fcomp_next_oa_r.
+        apply H4 with (p := fcrs_running_r _ _); eauto.
+      + (* component answer in s2 *)
+        dependent destruction Hs12.
+        dependent destruction p. intros.
+        econstructor; cbn; eauto.
+        rewrite rcnext_fcomp_r; auto.
+        rewrite fcomp_next_pa_r.
+        apply IHrsp with (p := fcrs_ready); eauto.
+    - (* outgoing question in s1 *)
+      intros s12 Hs12. dependent destruction Hs12.
+      dependent destruction p. intros.
+      eapply rsp_pq with (inl m2); eauto.
+      rewrite fcomp_next_pq_l.
+      eapply IHrsp with (p := fcrs_suspended_l q1 q2 m1 m2); eauto.
+    - (* suspended in s1 *)
+      intros s12 Hs12. dependent destruction Hs12.
+      dependent destruction p. intros [ ].
+      dependent destruction H2; constructor; cbn; eauto 10.
+    - (* environment answer into s1 *)
+      intros s12 Hs12. dependent destruction Hs12.
+      dependent destruction p. intros [ ].
+      constructor; cbn; eauto.
+      + dependent destruction H2; eauto.
+      + intros n2 Hn.
+        rewrite rcnext_fcomp_l; auto.
+        rewrite fcomp_next_oa_l.
+        eapply H1 with (p := fcrs_running_l _ _); eauto.
+    - (* component answer in s1 *)
+      intros s12 Hs12. dependent destruction Hs12.
+      dependent destruction p. intro.
+      econstructor; cbn; eauto.
+      rewrite rcnext_fcomp_l; auto.
+      rewrite fcomp_next_pa_l.
+      eapply IHrsp with (p := fcrs_ready); eauto.
+  Qed.
 
   Lemma fcomp_rsq :
     forall (R1 : conv E1 E1') (S1 : conv F1 F1') (σ1 : E1 ->> F1) (τ1 : E1' ->> F1')
@@ -3271,7 +3485,9 @@ Section FCOMP_RSQ.
       rsq R2 S2 σ2 τ2 ->
       rsq (R1 + R2) (S1 + S2) (σ1 + σ2)%strat (τ1 + τ2)%strat.
   Proof.
-  Admitted.
+    intros R1 S1 ? ? R2 S2 ? ? H1 H2 s (s1 & s2 & Hs1 & Hs2 & Hs).
+    eapply (fcomp_rsp fcrs_ready); eauto.
+  Qed.
 End FCOMP_RSQ.
 
 Infix "+" := (fcomp_rsq _ _ _ _ _ _ _ _) : rsq_scope.
