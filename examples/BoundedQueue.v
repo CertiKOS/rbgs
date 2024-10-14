@@ -16,11 +16,6 @@ Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.
 Close Scope list.
 
-Lemma rsq_de {E F U} (τ: strat E F ready) (u0: U):
-  rsq (de u0) (de u0) τ (tstrat tp_ready τ slens_id).
-Proof.
-Admitted.
-
 (** * Example *)
 
 Ltac eprod_crush :=
@@ -1010,28 +1005,6 @@ Proof.
       eapply match_rb_id_in_penv; eauto.
 Qed.
 
-Section PIN_NO_JOIN.
-
-  Import Lifting PEnv.
-  Inductive pin_query R: Memory.mem * Genv.symtbl -> query (li_c @ penv) -> query (li_c @ mem) -> Prop :=
-  | pin_query_intro se m q pe (MPE: R se pe m):
-    pin_query R (m, se) (q, pe) (q, m).
-  Inductive pin_reply R: Memory.mem * Genv.symtbl -> reply (li_c @ penv) -> reply (li_c @ mem) -> Prop :=
-  | pin_reply_intro se r m pe (MPE: R se pe m):
-    pin_reply R (m, se) (r, pe) (r, m).
-  Program Definition pin_no_join ce: callconv (li_c @ penv) (li_c @ mem) :=
-    {|
-      ccworld := Memory.mem * Genv.symtbl;
-      match_senv '(_, se) se1 se2 := se = se1 /\ se = se2;
-      LanguageInterface.match_query := pin_query (penv_mem_match ce);
-      LanguageInterface.match_reply '(_, se) r1 r2 := exists m, pin_reply (penv_mem_match ce) (m, se) r1 r2;
-    |}.
-  Next Obligation. reflexivity. Qed.
-  Next Obligation. inv H0. reflexivity. Qed.
-  Next Obligation. inv H. reflexivity. Qed.
-
-End PIN_NO_JOIN.
-
 Local Opaque ce.
 
 Lemma pin_join_ref :
@@ -1186,6 +1159,7 @@ Section ASM.
 
   Context rb_asm (HA1: transf_clight_program rbc = Errors.OK rb_asm).
   Context bq_asm (HA2: transf_clight_program bqc = Errors.OK bq_asm).
+  Context (HA0: CategoricalLinkable (Asm.semantics bq_asm) (Asm.semantics rb_asm)).
   Context bq_rb_asm (HA3: Linking.link bq_asm rb_asm = Some bq_rb_asm)
                     (HA4: sk = AST.erase_program bq_rb_asm).
 
@@ -1242,15 +1216,14 @@ Section ASM.
   Proof.
     eapply open_fsim_ccref. apply cc_compose_id_left. apply cc_compose_id_left.
     eapply compose_forward_simulations.
-    eapply categorical_compose_approximation.
-    1-3: admit.
+    eapply categorical_compose_approximation; eauto with typeclass_instances.
     rewrite HA4.
     assert (Hx: (fun i: bool => Asm.semantics (if i then bq_asm else rb_asm)) =
              fun i : bool => if i then Asm.semantics bq_asm else Asm.semantics rb_asm).
     { apply Axioms.functional_extensionality. intros [|]; eauto. }
     rewrite <- Hx.
     eapply AsmLinking.asm_linking. apply HA3.
-  Admitted.
+  Qed.
 
   Theorem ϕ_bq_rb_asm:
     rsq E0_conv (E_bq_m0_conv ;; cc) Π_bq (Asm.semantics bq_rb_asm).
@@ -1267,155 +1240,3 @@ Section ASM.
   Qed.
 
 End ASM.
-
-(* --------------------------------------- *)
-
-Lemma ϕ_bq : rsq E_rb_m0_conv E_bq_m0_conv M_bq (Clight.semantics2 BQ.bq_program).
-Proof.
-  (* pose proof BQ.bq_correct0 as HA. *)
-  (* apply fsim_rsq in HA. 2: admit. *)
-  (* eapply @rsq_vcomp in HA. 5: apply ϕ_bq0. 2: constructor. 2-3: admit. *)
-
-  (* pose proof (ClightP.transl_program_correct _ _ HT1). *)
-  (* assert (rsq (vcomp (vcomp E_rb_conv flag_cc) ClightP.pout) *)
-  (*             (vcomp (vcomp E_bq_conv bq_cc) (ClightP.pin ce)) *)
-  (*             rs_ready M_bq (Clight.semantics2 tbq)) as HX. *)
-  (* { *)
-  (*   eapply rsq_vcomp. constructor. admit. admit. 2: apply fsim_rsq; eauto. 2: admit. *)
-  (*   eapply rsq_vcomp. constructor. admit. admit. apply ϕ_bq0. *)
-  (*   apply fsim_rsq; eauto. admit. *)
-  (* } *)
-  (* eapply (rsq_deencap_target _ _ _ _ m0) in HA. *)
-  (* pose proof (@rsq_lift_convert _ mem (Clight.semantics2 BQ.bq_program)) as HB. *)
-  (* eapply @rsq_vcomp in HB. 5: apply HA. 2: constructor. 2-3: admit. *)
-  (* pose proof (fp BQ.bq_program) as HC. apply fsim_rsq in HC. 2: admit. *)
-  (* eapply @rsq_vcomp in HC. 5: apply HB. 2: constructor. 2-3: admit. *)
-  (* rewrite ϕ_rb_conv_ref. *)
-  (* rewrite <- !E0_conv_vcomp in HX. apply HX. *)
-Abort.
-
-Lemma ϕ_rb_conv_ref:
-  E_rb_m0_conv [= (vcomp (vcomp E_rb_rb0_conv' rb_cc) (ClightP.pin ce)).
-Proof.
-  unfold E_rb_m0_conv. unfold E_rb_m0_conv_explicit. unfold deencap.
-  unfold E_rb_rb0_conv'. unfold E_rb_rb0_conv. unfold deencap.
-  unfold join_conv.
-  rewrite !vcomp_assoc.
-  intros c Hc. revert Hc.
-
-  (* destruct c. *)
-  (* - cbn in *. *)
-  (*   (* destruct Hc as [Hc1 Hc2]. *) *)
-  (*   (* destruct Hc2 as ((se3 & (cq & m_frag1)) & Hc2 & Hc3). *) *)
-  (*   (* xinv Hc2. xinv Hc3. cbn in *. subst. xinv HM. xinv Hc1. *) *)
-  (*   admit. *)
-  (* - cbn in *. *)
-  (*   admit. *)
-  (* -  *)
-
-  (* rewrite vcomp_expand. intros c (((se1 & q1) & m_frag) & Hc). cbn in Hc. *)
-  (* rewrite vcomp_expand. cbn. *)
-  (* exists ((se1, q1)%embed, rb0). intros [[cr rb1]|]. *)
-  (* 2: { *)
-  (*   specialize (Hc None). destruct c; cbn in *. *)
-  (*   - cbn. admit. *)
-  (*   - admit. *)
-  (*   - admit. *)
-  (* } *)
-  (* specialize (Hc (Some (cr, m_frag))). *)
-  (* - cbn in *. admit. *)
-  (* - cbn in *. *)
-
-  (* eapply rsq_vcomp. constructor. admit. admit. *)
-  (* assert (R: rel S_rb Mem.mem). admit. *)
-  (* set (t := (tstrat tp_ready id R)). *)
-  (* instantiate (1 := (tstrat tpos_ready id R)). *)
-
-  (* cbn. intros c Hc. induction c. *)
-  (* - rename m1 into mq. cbn in *. destruct m2 as (se & cqm). *)
-  (*   destruct Hc as (((se1 & q1) & m_frag) & Hc1 & Hc3). *)
-  (*   destruct Hc1 as ((se2 & q2) & Hc1 & Hc2). *)
-  (*   destruct Hc3 as ((se3 & (cq & m_frag1)) & Hc3 & Hc4). *)
-  (*   xinv Hc3. xinv HM. xinv Hc1. xinv Hc2. inv H2. xinv Hc4. cbn in *. subst. *)
-  (*   exists (se, Datatypes.pair cq penv0)%embed. split. *)
-  (*   2: { econstructor. instantiate (1 := (m0, se)). *)
-  (*        - constructor; eauto. *)
-  (*        - cbn. inv HM0. constructor; eauto. *)
-  (*          apply Hm0. inv HM; eauto. } *)
-  (*   exists (se, Datatypes.pair cq rb0)%embed. split. *)
-  (*   2: { econstructor. reflexivity. cbn. *)
-  (*        destruct cq. constructor. 2: apply Hpenv0. *)
-  (*        inv HM0. eauto. } *)
-  (*   exists ((se, cq)%embed, rb0). split. *)
-  (*   2: { repeat econstructor. } *)
-  (*   exists (se, cq)%embed. split. *)
-  (*   { constructor. apply HM. } *)
-  (*   constructor. *)
-  (* - rename m1 into mq. cbn in Hc. destruct m2 as (se & cqm). *)
-  (*   destruct Hc as (((se1 & q1) & m_frag) & Hc1 & Hc3 & Hr1). *)
-  (*   destruct Hc1 as ((se2 & q2) & Hc1 & Hc2). *)
-  (*   destruct Hc3 as ((se3 & (cq & m_frag1)) & Hc3 & Hc4). *)
-  (*   xinv Hc3. xinv HM. xinv Hc1. xinv Hc2. inv H2. xinv Hc4. cbn in * |-. subst. *)
-  (*   unfold vcomp_has at 1. *)
-  (*   assert (HA: cc_conv_has rb_cc (@rcp_allow (Lifting.lifted_li S_rb li_c) (Lifting.lifted_li PEnv.penv li_c) (se, Datatypes.pair cq rb0)%embed (se, Datatypes.pair cq penv0)%embed)). *)
-  (*   { econstructor. reflexivity. cbn. destruct cq. constructor. 2: apply Hpenv0. inv HM0. eauto. } *)
-  (*   assert (HB: Downset.has E_rb_rb0_conv' (@rcp_allow E_rb (Lifting.lifted_li S_rb li_c) mq (se, Datatypes.pair cq rb0)%embed)). *)
-  (*   { exists ((se, cq)%embed, rb0). split. *)
-  (*     - exists (se, cq)%embed. split. { constructor. apply HM. } constructor. *)
-  (*     - repeat econstructor. } *)
-  (*   assert (HC: Downset.has (vcomp E_rb_rb0_conv' rb_cc) (@rcp_allow E_rb (Lifting.lifted_li PEnv.penv li_c) mq (se, Datatypes.pair cq penv0)%embed)). *)
-  (*   { exists (se, Datatypes.pair cq rb0)%embed. split. apply HB. apply HA. } *)
-  (*   assert (HD: cc_conv_has (ClightP.pin ce) (@rcp_allow (Lifting.lifted_li PEnv.penv li_c) li_c (se, (Datatypes.pair cq penv0))%embed (se, cqm)%embed)). *)
-  (*   { econstructor. instantiate (1 := (m0, se)). { constructor; eauto. } *)
-  (*     cbn. inv HM0. constructor; eauto. apply Hm0. inv HM; eauto. } *)
-  (*   exists (se, Datatypes.pair cq penv0)%embed. split. apply HC. split. apply HD. *)
-  (*   intros (cr & pe1). apply not_imply_or. intros Hx. *)
-  (*   eapply @rcp_forbid_mr with (w:= (m0, se)) in Hx. cbn in Hx. *)
-  (*   destruct Hx as (mx & Hx). *)
-  (*   2: { split; eauto. } *)
-  (*   2: { cbn. inv HM0. constructor; eauto. apply Hm0. inv HM; eauto. } *)
-  (*   exists (se, Datatypes.pair cq rb0)%embed. split. apply HB. split. apply HA. *)
-  (*   intros (cr1 & rrb1). apply not_imply_or. intros Hy. *)
-  (*   eapply @rcp_forbid_mr with (w:= tt) in Hy. cbn in Hy. inv Hy. *)
-  (*   2: { reflexivity. } *)
-  (*   2: { inv HM0. constructor; eauto. apply Hpenv0. } *)
-  (*   exists ((se, cq)%embed, rb0). split. 2: split. *)
-  (*   { exists (se, cq)%embed. split. { constructor. apply HM. } constructor. } *)
-  (*   { repeat econstructor. } *)
-  (*   intros (cr2 & rrb2). apply not_imply_or. intros Hz. *)
-  (*   eapply esig_rel_mr_elim in Hz. 2: { repeat constructor. } inv Hz. *)
-  (*   exists (se, cq)%embed. split. { constructor. apply HM. } split. constructor. *)
-  (*   intros cr3. cbn. apply or_commut. apply not_imply_or. intros Hw. *)
-  (*   eapply esig_rel_mr_elim in Hw. 2: apply HM.  *)
-  (*   remember ({| cr_retval := rv; cr_mem := m |}) as cr. *)
-  (*   specialize (Hr1 (cr, mx)) as [Hr1|Hr1]. *)
-  (*   + destruct Hr1 as ((?&?) & C1 & C2 & Hr1). xinv C1. xinv C2. inv H2. *)
-  (*     specialize (Hr1 cr3) as [Hr1|Hr1]. *)
-  (*     * dependent destruction Hr1. easy. *)
-  (*     * dependent destruction Hr1. constructor; eauto. *)
-  (*   + exfalso. destruct Hr1 as ((?&?) & C1 & C2 & Hr1). *)
-  (*     specialize (Hr1 (cr, mx)). xinv C1. xinv C2. xinv HM1. *)
-  (*     destruct Hr1 as [Hr1|Hr1]. *)
-  (*     * dependent destruction Hr1. apply HA0. constructor. *)
-  (*     * dependent destruction Hr1. apply HN. xinv Hx. *)
-  (*       econstructor; eauto. *)
-  (* - *)
-
-
-Abort.
-
-Lemma ϕ_rb : rsq E0_conv E_rb_m0_conv Π_rb (Clight.semantics2 rbc).
-Proof.
-  (* pose proof rb_correct2. *)
-  (* pose proof (ClightP.transl_program_correct _ _ HT2). *)
-  (* assert (rsq (vcomp (vcomp E0_conv 1%cc) ClightP.pout) *)
-  (*             (vcomp (vcomp E_rb_rb0_conv' rb_cc) (ClightP.pin ce)) *)
-  (*             Π_rb (Clight.semantics2 rbc)) as HX. *)
-  (* { *)
-  (*   eapply rsq_vcomp. admit. admit. 2: apply fsim_rsq; eauto. 2: admit. *)
-  (*   eapply rsq_vcomp. admit. admit. apply ϕ_rb1. *)
-  (*   apply fsim_rsq; eauto. admit. *)
-  (* } *)
-  (* rewrite ϕ_rb_conv_ref. *)
-  (* rewrite <- !E0_conv_vcomp in HX. apply HX. *)
-Abort.

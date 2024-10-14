@@ -208,7 +208,7 @@ Proof.
 Qed.
 
 (* ----------------------------------------------------------------- *)
-(** ** Find_funct utilities *)
+(** ** Find_funct utilities, used in Rot13 example *)
 
 Require Import AST Ctypes.
 
@@ -360,6 +360,36 @@ Section FIND_FUNCT.
 
 End FIND_FUNCT.
 
+(* ----------------------------------------------------------------- *)
+(** ** An auxiliary callconv used in the BQ example *)
+
+Require Memory PEnv.
+
+Section PIN_NO_JOIN.
+
+  Import Lifting PEnv Memory.Mem.
+  Inductive pin_query R: Memory.mem * Genv.symtbl -> query (li_c @ penv) -> query (li_c @ mem) -> Prop :=
+  | pin_query_intro se m q pe (MPE: R se pe m):
+    pin_query R (m, se) (q, pe) (q, m).
+  Inductive pin_reply R: Memory.mem * Genv.symtbl -> reply (li_c @ penv) -> reply (li_c @ mem) -> Prop :=
+  | pin_reply_intro se r m pe (MPE: R se pe m):
+    pin_reply R (m, se) (r, pe) (r, m).
+  Program Definition pin_no_join ce: callconv (li_c @ penv) (li_c @ mem) :=
+    {|
+      ccworld := Memory.mem * Genv.symtbl;
+      match_senv '(_, se) se1 se2 := se = se1 /\ se = se2;
+      LanguageInterface.match_query := pin_query (penv_mem_match ce);
+      LanguageInterface.match_reply '(_, se) r1 r2 := exists m, pin_reply (penv_mem_match ce) (m, se) r1 r2;
+    |}.
+  Next Obligation. intros. destruct w. cbn in *. destruct H. subst. easy.  Qed.
+  Next Obligation. intros. destruct w. cbn in *. destruct H. subst. easy.  Qed.
+  Next Obligation. intros. destruct w. cbn in *. destruct H. inv H0. easy. Qed.
+  Next Obligation. intros. destruct w. cbn in *. inv H. easy. Qed.
+
+End PIN_NO_JOIN.
+
+(* ----------------------------------------------------------------- *)
+(** ** Misc utilities *)
 
 Require ClightPLink.
 Require Import Maps.
@@ -402,4 +432,44 @@ Lemma map_inj {A B} (f: A -> B) xs ys:
 Proof.
   intros Hf. revert ys. induction xs; destruct ys; cbn; intros H; inv H; eauto.
   f_equal; eauto.
+Qed.
+
+Global Instance asm_program_sem p: ProgramSem (Asm.semantics p).
+Proof.
+  split.
+  - intros. destruct s.
+    destruct H as [H ?]. inv H. unfold valid_query; cbn. 
+    unfold Genv.find_funct in H1.
+    destruct (rs Asm.PC); try congruence.
+    destruct Ptrofs.eq_dec; try congruence.
+    split. intros X. discriminate X.
+    subst. unfold Genv.find_funct_ptr in H1.
+    destruct Genv.find_def eqn: Hdef; try congruence.
+    destruct g; try congruence. inv H1.
+    rewrite Genv.find_def_spec in Hdef.
+    destruct Genv.invert_symbol eqn: Hse; try congruence.
+    exists i. split. unfold footprint_of_program.
+    rewrite Hdef. auto.
+    unfold Genv.symbol_address.
+    apply Genv.invert_find_symbol in Hse.
+    rewrite Hse. auto.
+  - intros. destruct s. cbn in *. inv H.
+    unfold valid_query. cbn.
+    intros [? (i & Hi & Hse)].
+    unfold Genv.find_funct in H0.
+    destruct (rs Asm.PC); try congruence.
+    destruct Ptrofs.eq_dec; try congruence.
+    unfold Genv.find_funct_ptr in H0.
+    destruct Genv.find_def eqn: Hdef; try congruence.
+    destruct g eqn: Hg; try congruence. inv H0.
+    unfold globalenv in Hdef. cbn in *.
+    rewrite Genv.find_def_spec in Hdef.
+    destruct Genv.invert_symbol eqn: Hs; try congruence.
+    apply Genv.invert_find_symbol in Hs.
+    unfold Genv.symbol_address in Hse.
+    destruct (Genv.find_symbol se i) eqn: Hxe; try congruence.
+    inv Hse. exploit Genv.find_symbol_injective.
+    apply Hs. apply Hxe. intros ->.
+    unfold footprint_of_program in Hi. rewrite Hdef in Hi.
+    discriminate Hi.
 Qed.

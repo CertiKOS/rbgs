@@ -1374,6 +1374,11 @@ Lemma representation_independence {E} {S T: Type} (R: rel S T) s0 t0:
 Proof.
 Admitted.
 
+Lemma rsq_de {E F U} (τ: strat E F ready) (u0: U):
+  rsq (de u0) (de u0) τ (tstrat tp_ready τ slens_id).
+Proof.
+Admitted.
+
 Global Hint Constructors sls_has tstrat_has : core.
 
 Lemma seq_comp_tstrat {E1 F1 E2 F2 i j k} (tp: tpos i j k)
