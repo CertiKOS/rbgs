@@ -4186,6 +4186,37 @@ Section TCONV_VCOMP.
   Qed.
 End TCONV_VCOMP.
 
+Lemma tconv_vid {E F} :
+  tconv (@vid E) (@vid F) = @vid (E * F).
+Proof.
+  apply Downset.has_eq_ext. cbn.
+  intros s.
+  induction s as [[m1 u1] [m2 u2] |
+                  [m1 u1] [m2 u2] [n1 u1'] [n2 u2'] |
+                  [m1 u1] [m2 u2] [n1 u1'] [n2 u2'] k]; cbn in *.
+  - firstorder congruence.
+  - firstorder try congruence; xsubst.
+    + intros H. dependent destruction H. auto.
+    + intros H. dependent destruction H. auto.
+    + dependent destruction H.
+      destruct (classic (n1 ~= n2)); auto.
+      destruct (classic (u1' ~= u2')); auto.
+      dependent destruction H.
+      dependent destruction H1.
+      elim H0; auto.
+  - firstorder try congruence; xsubst.
+    + dependent destruction H5. elim H4; auto.
+    + dependent destruction H5. elim H4; auto.
+    + dependent destruction H4.
+      rewrite !rcnext_vid in H3. auto.
+    + dependent destruction H1.
+      destruct (classic (n1 ~= n2)); auto.
+      destruct (classic (u1' ~= u2')); auto.
+      dependent destruction H1.
+      dependent destruction H3.
+      right. right. rewrite !rcnext_vid. auto.
+Qed.
+
 (** *** Tensor product of refinement squares *)
 
 Section TRSQ.
@@ -5310,7 +5341,8 @@ Qed.
 Lemma scomp_vid {E U} :
   ((@vid E) @ (@vid (glob U)) = @vid (E @ U))%conv.
 Proof.
-Admitted.
+  eauto using tconv_vid.
+Qed.
 
 Lemma scomp_vcomp {E F G U V W} :
   forall (R1 : conv E F) (S1 : conv F G)
