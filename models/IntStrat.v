@@ -4694,16 +4694,18 @@ Section LENS_STRAT.
 
   Obligation Tactic := cbn.
 
-  Program Definition lens_strat : strat (glob U) (glob V) ready :=
-    {| Downset.has := lens_has (lready (init_state f)) |}.
+  Program Definition lens_strat_when {i} (p : lpos i) : strat (glob U) (glob V) i :=
+    {| Downset.has := lens_has p |}.
   Next Obligation.
-    generalize (@ready (glob U) (glob V)), (lready (init_state f)).
     intros i q x y Hxy Hy. revert q Hy.
     induction Hxy; intros;
       try dependent destruction q;
       try dependent destruction Hy;
       econstructor; eauto.
   Qed.
+
+  Definition lens_strat :=
+    lens_strat_when (lready (init_state f)).
 End LENS_STRAT.
 
 Section LENS_STRAT_REF.
@@ -4900,10 +4902,74 @@ Infix "@" := (scomp_rsq _ _ _ _ _ _ _ _) : rsq_scope.
 
 (** Horizontal component *)
 
-Lemma scomp_id {E U} :
-  (id E @ lid = id (E @ U))%strat.
-Proof.
-Admitted.
+Section SCOMP_ID.
+  Context {E : esig} {U : Type}.
+
+  Variant scipos : forall {i j ij}, epos eid i -> lpos lid j -> tpos i j ij -> epos eid ij -> Type :=
+    | sci_ready :
+      scipos eready (lready lid tt) tp_ready eready
+    | sci_suspended (q : E) (u : U) :
+      scipos (esuspended q) (lsuspended lid tt u u)
+        (tp_suspended (E2:=glob U) (F2:=glob U) q u q u)
+        (esuspended (f := @eid (E @ U)) (q, u)).
+
+  Hint Constructors tstrat_has emor_has lens_has.
+
+  Lemma scomp_id_when {i j ij pi pj pij p} (x : @scipos i j ij pi pj pij p) :
+    tstrat_when pij (emor_when eid pi) (lens_strat_when lid pj) = emor_when eid p.
+  Proof.
+    apply antisymmetry; cbn.
+    - intros s (s1 & s2 & Hs & Hs1 & Hs2).
+      revert j ij pj pij p x s s2 Hs Hs2.
+      induction Hs1; intros.
+      + dependent destruction Hs.
+        dependent destruction x.
+        constructor.
+      + dependent destruction Hs. dependent destruction Hs2.
+        dependent destruction Hs. dependent destruction Hs2.
+        dependent destruction x.
+        constructor.
+        eapply (IHHs1 _ _ _ _ _ (sci_suspended q m2)); eauto.
+      + dependent destruction Hs.
+        dependent destruction x0.
+        constructor.
+      + dependent destruction Hs. dependent destruction Hs2.
+        dependent destruction Hs. dependent destruction Hs2.
+        dependent destruction x.
+        constructor.
+        eapply (IHHs1 _ _ _ _ _ sci_ready); eauto.
+    - intros s Hs. revert i j pi pj pij x.
+      induction Hs; intros.
+      + dependent destruction x.
+        eauto.
+      + dependent destruction x.
+        destruct q as [q u].
+        edestruct (IHHs _ _ _ _ _ (sci_suspended q u))
+          as (s1 & s2 & Hs' & Hs1 & Hs2); eauto.
+        exists (oq q :: pq q :: s1), (oq u :: pq u :: s2).
+        split. { constructor. constructor. assumption. }
+        split. { constructor. assumption. }
+        eauto.
+      + dependent destruction x.
+        exists (pnil_suspended _ _), (pnil_suspended _ _).
+        split; eauto.
+        constructor.
+      + dependent destruction x.
+        destruct r as [r u']. cbn in *.
+        edestruct (IHHs _ _ _ _ _ sci_ready)
+          as (s1 & s2 & Hs' & Hs1 & Hs2); eauto.
+        exists (oa r :: pa r :: s1), (oa (E:=glob U) u' :: pa (F:=glob U) u' :: s2). 
+        split. { constructor. constructor. eauto. }
+        split. { constructor. eauto. }
+        eauto.
+  Qed.
+
+  Lemma scomp_id :
+    (id E @ lid = id (E @ U))%strat.
+  Proof.
+    apply (scomp_id_when sci_ready).
+  Qed.
+End SCOMP_ID.
 
 Lemma scomp_compose {E F G U V W} :
   forall (σ : F ->> G) (τ : E ->> F) (g : V ~>> W) (f : U ~>> V),
