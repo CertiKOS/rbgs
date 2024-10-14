@@ -2983,6 +2983,138 @@ Section FCOMP_RC.
     - destruct Ht as [ | [? ?]]; eauto.
     - destruct Ht as [ | [? ?]]; eauto.
   Qed.
+
+  Lemma rcnext_fcomp_l q1 q2 r1 r2 R S :
+    Downset.has R (rcp_allow q1 q2) ->
+    ~ Downset.has R (rcp_forbid q1 q2 r1 r2) ->
+    rcnext (inl q1) (inl q2) r1 r2 (fcomp_rc R S) = fcomp_rc (rcnext q1 q2 r1 r2 R) S.
+  Proof.
+    intros Hq Hr.
+    apply Downset.has_eq_ext. cbn.
+    firstorder.
+  Qed.
+
+  Lemma rcnext_fcomp_r q1 q2 r1 r2 R S :
+    Downset.has S (rcp_allow q1 q2) ->
+    ~ Downset.has S (rcp_forbid q1 q2 r1 r2) ->
+    rcnext (inr q1) (inr q2) r1 r2 (fcomp_rc R S) = fcomp_rc R (rcnext q1 q2 r1 r2 S).
+  Proof.
+    intros Hq Hr.
+    apply Downset.has_eq_ext. cbn.
+    firstorder.
+  Qed.
+
+  Lemma fcomp_sup_l {I} (R : I -> _) S :
+    inhabited I ->
+    fcomp_rc (lsup R) S = sup i, fcomp_rc (R i) S.
+  Proof.
+    assert (HI_ex: forall I P, inhabited I -> (exists i:I, P) <-> P)
+      by (split; auto; firstorder).
+    intros HI. apply Downset.has_eq_ext. intros s. revert I R S HI.
+    induction s as [[q1|q1] [q2|q2] |
+                    [q1|q1] [q2|q2] r1 r2 |
+                    [q1|q1] [q2|q2] r1 r2 k];
+    try (cbn; intros; rewrite ?HI_ex by auto; tauto).
+    - intros I R S HI. cbn -[lsup] in *. rewrite rcnext_sup.
+      split.
+      + intros [[ir Hr] | [[iq Hq] Hnext]]; try solve [cbn; eauto].
+        unfold fsup in Hnext. rewrite IHk in Hnext by eauto.
+        destruct Hnext as [[i Hi] Hk]. cbn in *. eauto.
+      + cbn -[fsup]. intros [i [Hr | [Hq Hk]]]; eauto. right. split; eauto.
+        unfold fsup. rewrite IHk by eauto. cbn.
+        exists (exist _ i Hq). cbn. assumption.
+    - intros I R S HI. cbn -[lsup] in *.
+      rewrite IHk by auto. cbn. firstorder.
+  Qed.
+
+  Lemma fcomp_sup_r {I} R (S : I -> _) :
+    inhabited I ->
+    fcomp_rc R (lsup S) = sup i, fcomp_rc R (S i).
+  Proof.
+    assert (HI_ex: forall I P, inhabited I -> (exists i:I, P) <-> P)
+      by (split; auto; firstorder).
+    intros HI. apply Downset.has_eq_ext. intros s. revert I R S HI.
+    induction s as [[q1|q1] [q2|q2] |
+                    [q1|q1] [q2|q2] r1 r2 |
+                    [q1|q1] [q2|q2] r1 r2 k];
+    try (cbn; intros; rewrite ?HI_ex by auto; tauto).
+    - intros I R S HI. cbn -[lsup] in *.
+      rewrite IHk by auto. cbn. firstorder.
+    - intros I R S HI. cbn -[lsup] in *. rewrite rcnext_sup.
+      split.
+      + intros [[ir Hr] | [[iq Hq] Hnext]]; try solve [cbn; eauto].
+        unfold fsup in Hnext. rewrite IHk in Hnext by eauto.
+        destruct Hnext as [[i Hi] Hk]. cbn in *. eauto.
+      + cbn -[fsup]. intros [i [Hr | [Hq Hk]]]; eauto. right. split; eauto.
+        unfold fsup. rewrite IHk by eauto. cbn.
+        exists (exist _ i Hq). cbn. assumption.
+  Qed.
+
+  Lemma fcomp_inf_l {I} (R : I -> _) S :
+    inhabited I ->
+    fcomp_rc (linf R) S = inf i, fcomp_rc (R i) S.
+  Proof.
+    assert (HI_all: forall I (P:Prop), inhabited I -> (forall i:I, P) <-> P)
+      by (split; auto; firstorder).
+    intros HI. apply Downset.has_eq_ext. intros s. revert I R S HI.
+    induction s as [[q1|q1] [q2|q2] |
+                    [q1|q1] [q2|q2] r1 r2 |
+                    [q1|q1] [q2|q2] r1 r2 k];
+    try (cbn; intros; rewrite ?HI_all by auto; tauto).
+    - intros I R S HI. cbn -[linf] in IHk |- *.
+      rewrite rcnext_inf. unfold finf.
+      destruct (classic (Downset.has (inf j, R j) (rcp_forbid q1 q2 r1 r2))).
+      1: { split; auto. }
+      rewrite IHk.
+      2: { apply not_all_ex_not in H as [? ?]. eauto. }
+      cbn. split.
+      + intros [? | (Hq & Hr)]; try tauto. intros i.
+        destruct (classic (Downset.has (R i) (rcp_forbid q1 q2 r1 r2))); auto. right.
+        specialize (Hr (exist _ i H0)); auto.
+      + intros Hr. right. split.
+        * intros i. specialize (Hr i) as [? | [? _]]; eauto.
+        * intros [i Hi]. cbn. destruct (Hr i) as [? | [? ?]]; tauto.
+    - intros I R S HI. cbn -[linf] in IHk |- *. rewrite IHk by auto.
+      clear - HI. cbn. split.
+      + intros [Hr | (Hq & Hk)]; auto.
+      + intros H.
+        destruct (classic (Downset.has S (rcp_forbid q1 q2 r1 r2))); auto. right.
+        destruct HI as [i0]. destruct (H i0) as [ | [? ?]]; try tauto. split; auto.
+        intros i. specialize (H i) as [? | [? ?]]; tauto.
+  Qed.
+
+  Lemma fcomp_inf_r {I} R (S : I -> _) :
+    inhabited I ->
+    fcomp_rc R (linf S) = inf i, fcomp_rc R (S i).
+  Proof.
+    assert (HI_all: forall I (P:Prop), inhabited I -> (forall i:I, P) <-> P)
+      by (split; auto; firstorder).
+    intros HI. apply Downset.has_eq_ext. intros s. revert I R S HI.
+    induction s as [[q1|q1] [q2|q2] |
+                    [q1|q1] [q2|q2] r1 r2 |
+                    [q1|q1] [q2|q2] r1 r2 k];
+    try (cbn; intros; rewrite ?HI_all by auto; tauto).
+    - intros I R S HI. cbn -[linf] in IHk |- *. rewrite IHk by auto.
+      clear - HI. cbn. split.
+      + intros [Hr | (Hq & Hk)]; auto.
+      + intros H.
+        destruct (classic (Downset.has R (rcp_forbid q1 q2 r1 r2))); auto. right.
+        destruct HI as [i0]. destruct (H i0) as [ | [? ?]]; try tauto. split; auto.
+        intros i. specialize (H i) as [? | [? ?]]; tauto.
+    - intros I R S HI. cbn -[linf] in IHk |- *.
+      rewrite rcnext_inf. unfold finf.
+      destruct (classic (Downset.has (inf j, S j) (rcp_forbid q1 q2 r1 r2))).
+      1: { split; auto. }
+      rewrite IHk.
+      2: { apply not_all_ex_not in H as [? ?]. eauto. }
+      cbn. split.
+      + intros [? | (Hq & Hr)]; try tauto. intros i.
+        destruct (classic (Downset.has (S i) (rcp_forbid q1 q2 r1 r2))); auto. right.
+        specialize (Hr (exist _ i H0)); auto.
+      + intros Hr. right. split.
+        * intros i. specialize (Hr i) as [? | [? _]]; eauto.
+        * intros [i Hi]. cbn. destruct (Hr i) as [? | [? ?]]; tauto.
+  Qed.
 End FCOMP_RC.
 
 Infix "+" := fcomp_rc : conv_scope.
@@ -3033,14 +3165,83 @@ Section FCOMP_VCOMP.
     apply Downset.has_eq_ext. intro s. revert R1 R2 S1 S2.
     induction s as [[q1|q1] [q2|q2] | [q1|q1] [q2|q2] r1 r2 | [q1|q1] [q2|q2] r1 r2 k];
     intros; [ cbn in *; rewrite Hex; firstorder .. | | | | ].
-    - split.
-      + cbn; rewrite Hex.
-        intros H. left.
-        destruct H as [(qi & Hq1 & Hq2 & Hr) | ((qi & Hq1 & Hq2) & Hk)].
-        * exists qi; repeat (split; auto). intro ri. destruct (Hr ri); auto.
-        * exists qi; repeat (split; auto). intro ri. right. right.
-          (** will need rcnext/sup/inf properties for fcomp_rc *)
-  Admitted.
+    - destruct (classic (inhabited F1)) as [HF1 | ?].
+      2: {
+        cbn in *; rewrite Hex. split.
+        + intros [[? ?] | [[? ?] ?]]; elim H; eauto.
+        + intros [[? ?] | (_ & [ ] & _)]; elim H; eauto.
+      }
+      rewrite (vcomp_expand R1 S1), (vcomp_expand (R1 + R2) (S1 + S2)).
+      rewrite fcomp_sup_l by auto. cbn -[linf fcomp_rc].
+      setoid_rewrite fcomp_inf_l; auto using None.
+      rewrite Hex. cbn in *. split.
+      + intros (qi & Hr). left. exists qi.
+        intros ri. specialize (Hr ri).
+        destruct ri as [ri | ].
+        2: { destruct Hr as [(?&?&?)|[[? ?] ?]]; repeat (split; auto); discriminate. }
+        destruct Hr as [(Hq1 & Hq2 & Hr) | ((Hq1 & Hq2) & Hr)].
+        * repeat (split; auto). intros. edestruct Hr; eauto.
+        * repeat (split; auto). intros. symmetry in H. dependent destruction H.
+          destruct (classic (Downset.has R1 (rcp_forbid q1 qi r1 ri))); auto.
+          destruct (classic (Downset.has S1 (rcp_forbid qi q2 ri r2))); auto.
+          right. right.
+          rewrite !rcnext_vcomp_at in Hr by auto.
+          rewrite !rcnext_fcomp_l by auto.
+          apply IHk in Hr. auto.
+      + intros [(qi & Hr) | (? & X)]. 2: destruct (X None) as [[ ] _].
+        exists qi. intros ri. specialize (Hr ri) as (Hq1 & Hq2 & Hr).
+        destruct ri as [ri | ]. 2: { left. repeat (split; auto). discriminate. }
+        specialize (Hr _ eq_refl).
+        destruct (classic (Downset.has R1 (rcp_forbid q1 qi r1 ri)));
+          try solve [left; repeat (split; auto); inversion 1; subst; eauto].
+        destruct (classic (Downset.has S1 (rcp_forbid qi q2 ri r2)));
+          try solve [left; repeat (split; auto); inversion 1; subst; eauto].
+        right. split; auto.
+        destruct Hr as [? | Hr]; try tauto.
+        destruct Hr as [? | Hr]; try tauto.
+        rewrite rcnext_vcomp_at by auto. apply IHk.
+        rewrite !rcnext_fcomp_l in Hr; auto.
+    - cbn. rewrite ?Hex. split; try tauto.
+      intros [(_ & _ & [ ] & _) | (_ & [ ] & _)].
+    - cbn. rewrite ?Hex. split; try tauto.
+      intros [(_ & [ ] & _) | (_ & _ & [ ] & _)].
+    - destruct (classic (inhabited F2)) as [HF2 | ?].
+      2: {
+        cbn in *; rewrite Hex. split.
+        + intros [[? ?] | [[? ?] ?]]; elim H; eauto.
+        + intros [(_ & [ ] & _) | [? ?]]; elim H; eauto.
+      }
+      rewrite (vcomp_expand R2 S2), (vcomp_expand (R1 + R2) (S1 + S2)).
+      rewrite fcomp_sup_r by auto. cbn -[linf fcomp_rc].
+      setoid_rewrite fcomp_inf_r; auto using None.
+      rewrite Hex. cbn in *. split.
+      + intros (qi & Hr). right. exists qi.
+        intros ri. specialize (Hr ri).
+        destruct ri as [ri | ].
+        2: { destruct Hr as [(?&?&?)|[[? ?] ?]]; repeat (split; auto); discriminate. }
+        destruct Hr as [(Hq1 & Hq2 & Hr) | ((Hq1 & Hq2) & Hr)].
+        * repeat (split; auto). intros. edestruct Hr; eauto.
+        * repeat (split; auto). intros. symmetry in H. dependent destruction H.
+          destruct (classic (Downset.has R2 (rcp_forbid q1 qi r1 ri))); auto.
+          destruct (classic (Downset.has S2 (rcp_forbid qi q2 ri r2))); auto.
+          right. right.
+          rewrite !rcnext_vcomp_at in Hr by auto.
+          rewrite !rcnext_fcomp_r by auto.
+          apply IHk in Hr. auto.
+      + intros [(? & X) | (qi & Hr)]. 1: destruct (X None) as [[ ] _].
+        exists qi. intros ri. specialize (Hr ri) as (Hq1 & Hq2 & Hr).
+        destruct ri as [ri | ]. 2: { left. repeat (split; auto). discriminate. }
+        specialize (Hr _ eq_refl).
+        destruct (classic (Downset.has R2 (rcp_forbid q1 qi r1 ri)));
+          try solve [left; repeat (split; auto); inversion 1; subst; eauto].
+        destruct (classic (Downset.has S2 (rcp_forbid qi q2 ri r2)));
+          try solve [left; repeat (split; auto); inversion 1; subst; eauto].
+        right. split; auto.
+        destruct Hr as [? | Hr]; try tauto.
+        destruct Hr as [? | Hr]; try tauto.
+        rewrite rcnext_vcomp_at by auto. apply IHk.
+        rewrite !rcnext_fcomp_r in Hr; auto.
+  Qed.
 End FCOMP_VCOMP.
 
 (** **** Flat composition of refinement squares *)
