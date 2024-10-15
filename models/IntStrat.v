@@ -4758,8 +4758,8 @@ Section LENS_STRAT.
 
   Variant lpos : @position (glob U) (glob V) -> Type :=
     | lready (p : state f) : lpos ready
-    | lrunning (p : state f) v (u : U) : lpos (running v)
-    | lsuspended (p : state f) v u : lpos (suspended v u).
+    | lrunning (p : state f) (v : glob V) (u : glob U) : lpos (running v)
+    | lsuspended (p : state f) (v : glob V) (u : glob U) : lpos (suspended v u).
 
   Inductive lens_has : forall {i}, lpos i -> play i -> Prop :=
     | lens_ready p :
@@ -4795,6 +4795,47 @@ Section LENS_STRAT.
 
   Definition lens_strat :=
     lens_strat_when (lready (init_state f)).
+
+  (** Some properties *)
+
+  Lemma lens_strat_next_oq (p : state f) (v : glob V) (u : U) :
+    get f (p, v) = u ->
+    next (oq v) (lens_strat_when (lready p)) = lens_strat_when (lrunning p v u).
+  Proof.
+    intros Hv.
+    apply antisymmetry; cbn; intros s Hs.
+    - dependent destruction Hs. congruence.
+    - econstructor; eauto.
+  Qed.
+
+  Lemma lens_strat_next_pq (p : state f) (v : glob V) (u : glob U) :
+    next (pq u) (lens_strat_when (lrunning p v u)) =
+    lens_strat_when (lsuspended p v u).
+  Proof.
+    apply antisymmetry; cbn; intros s Hs.
+    - dependent destruction Hs. auto.
+    - econstructor; eauto.
+  Qed.
+
+  Lemma lens_strat_next_oa (p : state f) (v : glob V) (u : glob U) (u' : ar u) :
+    next (oa u') (lens_strat_when (lsuspended p v u)) =
+    lens_strat_when (lrunning p v u').
+  Proof.
+    apply antisymmetry; cbn; intros s Hs.
+    - dependent destruction Hs. auto.
+    - econstructor; eauto.
+  Qed.
+
+  Lemma lens_strat_next_pa (p : state f) (v : glob V) (u : U) p' (v' : ar v) :
+    set f (p, v) u = (p', v') ->
+    next (pa v') (lens_strat_when (lrunning p v u)) =
+    lens_strat_when (lready p').
+  Proof.
+    intros Hv'.
+    apply antisymmetry; cbn; intros s Hs.
+    - dependent destruction Hs. setoid_rewrite H in Hv'. congruence.
+    - econstructor; eauto.
+  Qed.
 End LENS_STRAT.
 
 Section LENS_STRAT_REF.
@@ -4880,6 +4921,7 @@ Abort.
 Section LENS_RC.
   Context {U V : Type} (f : lens U V).
   Obligation Tactic := cbn.
+  Hint Constructors rsp lens_has : core.
 
   Fixpoint lcp_has (p : state f) (s : rcp (glob U) (glob V)) : Prop :=
     match s with
@@ -4893,23 +4935,147 @@ Section LENS_RC.
           forall p', set f (p, v) u' = (p', v') -> lcp_has p' k
     end.
 
-  Program Definition lcp : U <~> V :=
-    {| Downset.has := lcp_has (init_state f) |}.
+  Program Definition lcp_when p : U <~> V :=
+    {| Downset.has := lcp_has p |}.
   Next Obligation.
-    generalize (init_state f) as p.
     intros p s t Hst Ht. revert p Ht.
     induction Hst; firstorder.
+  Qed.
+
+  Definition lcp :=
+    lcp_when (init_state f).
+
+  (** Useful lemmas *)
+
+  Lemma rcnext_lcp pf (u : glob U) (v : glob V) pf' u' v' :
+    get f (pf, v) = u ->
+    set f (pf, v) u' = (pf', v') ->
+    rcnext u v u' v' (lcp_when pf) = lcp_when pf'.
+  Proof.
+    intros Hu Hv'.
+    apply antisymmetry; intros s; cbn.
+    - intros [H H']. eauto.
+    - intros Hs. split; auto. intros ? ?.
+      setoid_rewrite H in Hv'. congruence.
+  Qed.
+
+  (** Companion properties *)
+
+  Variant lcpipos pf : forall {i j}, lpos lid i -> lpos f j -> rspos i j -> Type :=
+    | lcpi_ready :
+      lcpipos pf (lready lid tt)
+                 (lready f pf) rs_ready
+    | lcpi_running (u : glob U) (v : glob V) u' :
+      lcpipos pf (lrunning lid tt u u')
+                 (lrunning f pf v u') (rs_running u v)
+    | lcpi_suspended (u : glob U) (v : glob V) u' :
+      lcpipos pf (lsuspended lid tt u u')
+                 (lsuspended f pf v u') (rs_suspended u v u' u').
+
+  Lemma lcp_intro_when {pf i j pi pj pij} (q : @lcpipos pf i j pi pj pij) :
+    match q with
+      | lcpi_running _ u v _ | lcpi_suspended _ u v _ => get f (pf, v) = u
+      | _ => True
+    end ->
+    rsq_when vid (lcp_when pf) pij (lens_strat_when lid pi) (lens_strat_when f pj).
+  Proof.
+    intros Hq s Hs. revert pf j pj pij q Hq. cbn in *.
+    induction Hs; intros.
+    - dependent destruction q.
+      constructor; cbn; eauto.
+    - dependent destruction q. rename v into u.
+      econstructor; cbn; eauto. intros v Hv.
+      erewrite lens_strat_next_oq by eauto.
+      apply IHHs with (q := lcpi_running pf u v u); auto.
+    - dependent destruction q. rename v into u, u into u', v0 into v.
+      econstructor; cbn; eauto.
+      rewrite lens_strat_next_pq.
+      apply IHHs with (q := lcpi_suspended pf u v u'); auto.
+    - dependent destruction q. rename v into u, u into u', v0 into v.
+      econstructor; cbn; eauto.
+    - dependent destruction q. rename v into u, u into u', v0 into v, u' into u''.
+      econstructor; cbn; eauto. intros xu'' Hxu''.
+      assert (u'' ~= xu'') as HX by tauto.
+      clear Hxu''. subst xu''.
+      rewrite rcnext_vid, lens_strat_next_oa.
+      apply IHHs with (q := lcpi_running pf u v u''); auto.
+    - dependent destruction q. rename v into u, v' into u', v0 into v.
+      destruct (set f (pf, v) u') as [pf' v'] eqn:Hv'.
+      eapply (rsp_pa (F1:=glob U) (F2:=glob V) _ _ u v u' v').
+      { cbn. intros [H H']. apply (H' pf'). auto. }
+      erewrite rcnext_lcp, lens_strat_next_pa by eauto.
+      apply IHHs with (q := lcpi_ready pf'); auto.
   Qed.
 
   Lemma lcp_intro :
     lsq vid lcp lid f.
   Proof.
-  Admitted.
+    apply (lcp_intro_when (lcpi_ready (init_state f))); auto.
+  Qed.
+
+  Variant lcpepos : forall pf {i j}, lpos f i -> lpos lid j -> rspos i j -> Type :=
+    | lcpe_ready pf :
+      lcpepos pf (lready f pf)
+                 (lready lid tt) rs_ready
+    | lcpe_running pf (u : glob U) (v : glob V) (pf' : state f) u' v' :
+      lcpepos pf' (lrunning f pf v u')
+                 (lrunning lid tt v v') (rs_running v v)
+    | lcpe_suspended pf (u : glob U) (v : glob V) (pf' : state f) u' v' :
+      lcpepos pf' (lsuspended f pf v u')
+                 (lsuspended lid tt v v') (rs_suspended v v u' v').
+
+  Lemma lcp_elim_when {pf i j pi pj pij} (q : @lcpepos pf i j pi pj pij) :
+    match q with
+      | lcpe_running pf u v pf' u' v'
+      | lcpe_suspended pf u v pf' u' v' =>
+          get f (pf, v) = u /\
+          set f (pf, v) u' = (pf', v')
+      | _ => True
+    end ->
+    rsq_when (lcp_when pf) vid pij (lens_strat_when f pi) (lens_strat_when lid pj).
+  Proof.
+    intros Hq s Hs. revert pf j pj pij q Hq. cbn in *.
+    induction Hs; intros.
+    - dependent destruction q.
+      constructor; cbn; eauto.
+    - dependent destruction q.
+      econstructor; cbn; eauto. intros v' Hv'. subst v'.
+      erewrite lens_strat_next_oq by eauto. cbn.
+      apply IHHs with (q := lcpe_running p u v p u v); auto.
+      split; auto. rewrite <- H, set_get. reflexivity.
+    - dependent destruction q. rename u0 into u, u into u'.
+      destruct Hq as [Hu Hv'].
+      apply (rsp_pq _ _ v v u' v'). { cbn. rewrite <- Hv', get_set. auto. }
+      rewrite lens_strat_next_pq.
+      apply IHHs with (q := lcpe_suspended p u v pf' u' v'); auto.
+    - dependent destruction q.
+      econstructor; cbn; eauto.
+    - dependent destruction q. rename p into pf, u0 into u, u into u', u' into u''.
+      destruct Hq as [Hu Hv'].
+      econstructor; cbn; eauto. intros v'' Hv''.
+      apply not_and_or in Hv'' as [Hv'' | Hv''].
+      { rewrite <- Hv', get_set in Hv''. tauto. }
+      apply not_all_ex_not in Hv'' as [pf'' Hv''].
+      apply NNPP in Hv''.
+      erewrite rcnext_lcp, lens_strat_next_oa; eauto.
+      2: setoid_rewrite <- Hv'; rewrite get_set; reflexivity.
+      apply IHHs with (q := lcpe_running pf u v pf'' u'' v''); auto.
+      rewrite <- Hv', set_set in Hv''. auto. 
+    - dependent destruction q. destruct Hq as [Hu Hv'].
+      rename p into pf, p' into pf', pf' into pf'',
+             u0 into u, u into u'.
+      rewrite Hv' in H. dependent destruction H.
+      eapply (rsp_pa (F1:=glob V) (F2:=glob V) _ _ v v v' v').
+      { cbn. intros [H H']. elim H'; auto. }
+      erewrite rcnext_vid, lens_strat_next_pa by (cbn; eauto).
+      apply IHHs with (q := lcpe_ready pf'); auto.
+  Qed.
 
   Lemma lcp_elim :
     lsq lcp vid f lid.
   Proof.
-  Admitted.
+    apply (lcp_elim_when (lcpe_ready (init_state f))); auto.
+  Qed.
 
   (** This is just the transpose, maybe we could introduce that operation. *)
 
@@ -4925,23 +5091,146 @@ Section LENS_RC.
           forall p', set f (p, v) u' = (p', v') -> lcj_has p' k
     end.
 
-  Program Definition lcj : conv (glob V) (glob U) :=
-    {| Downset.has := lcj_has (init_state f) |}.
+  Program Definition lcj_when pf : V <~> U :=
+    {| Downset.has := lcj_has pf |}.
   Next Obligation.
-    generalize (init_state f) as p.
-    intros p s t Hst Ht. revert p Ht.
+    intros pf s t Hst Ht. revert pf Ht.
     induction Hst; firstorder.
+  Qed.
+
+  Definition lcj :=
+    lcj_when (init_state f).
+
+  (** Useful lemmas *)
+
+  Lemma rcnext_lcj pf (u : glob U) (v : glob V) pf' u' v' :
+    get f (pf, v) = u ->
+    set f (pf, v) u' = (pf', v') ->
+    rcnext v u v' u' (lcj_when pf) = lcj_when pf'.
+  Proof.
+    intros Hu Hv'.
+    apply antisymmetry; intros s; cbn.
+    - intros [H H']. eauto.
+    - intros Hs. split; auto. intros ? ?.
+      setoid_rewrite H in Hv'. congruence.
+  Qed.
+
+  (** Companion properties *)
+
+  Variant lcjipos : forall pf {i j}, lpos lid i -> lpos f j -> rspos i j -> Type :=
+    | lcji_ready pf :
+      lcjipos pf (lready lid tt)
+                 (lready f pf) rs_ready
+    | lcji_running pf (u : glob U) (v : glob V) (pf' : state f) u' v' :
+      lcjipos pf' (lrunning lid tt v v')
+                  (lrunning f pf v u') (rs_running v v)
+    | lcji_suspended pf (u : glob U) (v : glob V) (pf' : state f) u' v' :
+      lcjipos pf' (lsuspended lid tt v v')
+                  (lsuspended f pf v u') (rs_suspended v v v' u').
+
+  Lemma lcj_intro_when {pf i j pi pj pij} (q : @lcjipos pf i j pi pj pij) :
+    match q with
+      | lcji_running pf u v pf' u' v'
+      | lcji_suspended pf u v pf' u' v' =>
+          get f (pf, v) = u /\
+          set f (pf, v) u' = (pf', v')
+      | _ => True
+    end ->
+    rsq_when (lcj_when pf) vid pij (lens_strat_when lid pi) (lens_strat_when f pj).
+  Proof.
+    intros Hq s Hs. revert pf j pj pij q Hq. cbn in *.
+    induction Hs; intros.
+    - dependent destruction q.
+      constructor; cbn; eauto.
+    - dependent destruction q.
+      econstructor; cbn; eauto. intros v' Hv'. subst v'.
+      erewrite lens_strat_next_oq by eauto.
+      set (u := get f (pf, v)).
+      apply IHHs with (q := lcji_running pf u v pf u v); auto.
+      split; auto. subst u. rewrite set_get. reflexivity.
+    - dependent destruction q. destruct Hq as [Hu Hv'].
+      rename u0 into u, u into v'.
+      apply (rsp_pq _ _ v v v' u'). { cbn. rewrite <- Hv', get_set. auto. }
+      rewrite lens_strat_next_pq.
+      apply IHHs with (q := lcji_suspended pf u v pf' u' v'); auto.
+    - dependent destruction q.
+      econstructor; cbn; eauto.
+    - dependent destruction q. destruct Hq as [Hu Hv'].
+      rename u0 into u, u'0 into u', u into v', u' into v''.
+      econstructor; cbn; eauto. intros u'' Hu''.
+      apply not_and_or in Hu'' as [Hu'' | Hu''].
+      { rewrite <- Hv', get_set in Hu''. tauto. }
+      apply not_all_ex_not in Hu'' as [pf'' Hv''].
+      apply NNPP in Hv''.
+      erewrite rcnext_lcj, lens_strat_next_oa; eauto.
+      2: setoid_rewrite <- Hv'; rewrite get_set; reflexivity.
+      apply IHHs with (q := lcji_running pf u v pf'' u'' v''); auto.
+      rewrite <- Hv', set_set in Hv''. auto. 
+    - dependent destruction q. destruct Hq as [Hu Hv'].
+      rename u0 into u.
+      eapply (rsp_pa (F1:=glob V) (F2:=glob V) _ _ v v v' v').
+      { cbn. intros [H H']. elim H'; auto. }
+      erewrite rcnext_vid, lens_strat_next_pa by (cbn; eauto).
+      apply IHHs with (q := lcji_ready pf'); auto.
   Qed.
 
   Lemma lcj_intro :
     lsq lcj vid lid f.
   Proof.
-  Admitted.
+    apply (lcj_intro_when (lcji_ready (init_state f))); auto.
+  Qed.
+
+  Variant lcjepos pf : forall {i j}, lpos f i -> lpos lid j -> rspos i j -> Type :=
+    | lcje_ready :
+      lcjepos pf (lready f pf)
+                 (lready lid tt) rs_ready
+    | lcje_running (u : glob U) (v : glob V) u' :
+      lcjepos pf (lrunning f pf v u')
+                 (lrunning lid tt u u') (rs_running v u)
+    | lcje_suspended (u : glob U) (v : glob V) u' :
+      lcjepos pf (lsuspended f pf v u')
+                 (lsuspended lid tt u u') (rs_suspended v u u' u').
+
+  Lemma lcj_elim_when {pf i j pi pj pij} (q : @lcjepos pf i j pi pj pij) :
+    match q with
+      | lcje_running _ u v _ | lcje_suspended _ u v _ => get f (pf, v) = u
+      | _ => True
+    end ->
+    rsq_when vid (lcj_when pf) pij (lens_strat_when f pi) (lens_strat_when lid pj).
+  Proof.
+    intros Hq s Hs. revert pf j pj pij q Hq. cbn in *.
+    induction Hs; intros.
+    - dependent destruction q.
+      constructor; cbn; eauto.
+    - dependent destruction q. rename p into pf.
+      econstructor; cbn; eauto. intros u' Hu'.
+      setoid_rewrite H in Hu'. subst u'.
+      erewrite lens_strat_next_oq by eauto.
+      apply IHHs with (q := lcje_running pf u v u); auto.
+    - dependent destruction q. rename p into pf, u0 into u, u into u'.
+      econstructor; cbn; eauto.
+      rewrite lens_strat_next_pq.
+      apply IHHs with (q := lcje_suspended pf u v u'); auto.
+    - dependent destruction q. rename p into pf, u0 into u, u into u'.
+      econstructor; cbn; eauto.
+    - dependent destruction q. rename p into pf, u0 into u, u into u', u' into u''.
+      econstructor; cbn; eauto. intros xu'' Hxu''.
+      assert (u'' ~= xu'') as HX by tauto.
+      clear Hxu''. subst xu''.
+      rewrite rcnext_vid, lens_strat_next_oa.
+      apply IHHs with (q := lcje_running pf u v u''); auto.
+    - dependent destruction q. rename p into pf, u0 into u, u into u', p' into pf'.
+      eapply (rsp_pa (F1:=glob V) (F2:=glob U) _ _ v u v' u').
+      { cbn. intros [Hu H']. apply (H' pf'). auto. }
+      erewrite rcnext_lcj, lens_strat_next_pa by (cbn; eauto).
+      apply IHHs with (q := lcje_ready pf'); auto.
+  Qed.
 
   Lemma lcj_elim :
     lsq vid lcj f lid.
   Proof.
-  Admitted.
+    apply (lcj_elim_when (lcje_ready (init_state f))); auto.
+  Qed.
 End LENS_RC.
 
 (** *** Spatial Composition *)
