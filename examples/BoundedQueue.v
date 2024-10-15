@@ -684,7 +684,7 @@ Proof.
 
   eapply rsq_vcomp. 
   4: apply rsq_de.
-  1-2: typeclasses eauto.
+  1-2,4: typeclasses eauto.
 
   rewrite <- (vcomp_vid_r E_rb_conv).
   rewrite <- (vcomp_vid_r E_bq_conv).
