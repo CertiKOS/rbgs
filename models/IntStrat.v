@@ -5970,4 +5970,73 @@ Section SRU_NATURAL.
     rewrite compose_assoc. f_equal.
     apply sru_natural.
   Qed.
-End SRU_NATURAL.  
+End SRU_NATURAL.
+
+
+
+Section VCOMP_NOT_ASSOC.
+  Definition twoa := {| op := unit; ar _ := bool |}.
+  Definition twoq := {| op := bool; ar _ := unit |}.
+
+  Definition toprc_has {E F} (s : rcp E F) : Prop :=
+    match s with
+      rcp_allow _ _ => True | _ => False
+    end.
+
+  Variant foo_has : rcp twoa twoq -> Prop :=
+    | foo_q (q : bool) :
+      foo_has (@rcp_allow twoa twoq tt q)
+    | foo_r (q r : bool) :
+      q <> r -> foo_has (@rcp_forbid twoa twoq tt q r tt)
+    | foo_cont (q r : bool) k :
+      q <> r -> foo_has (@rcp_cont twoa twoq tt q r tt k).
+
+  Hint Constructors foo_has : core.
+
+  Program Definition R : 1 <=> twoa :=
+    {| Downset.has := toprc_has |}.
+  Next Obligation.
+    destruct H; cbn in *; tauto.
+  Qed.
+
+  Program Definition foo : twoa <=> twoq :=
+    {| Downset.has := foo_has |}.
+  Next Obligation.
+    destruct H; inversion H0; subst; constructor; auto.
+  Qed.
+
+  Program Definition S : twoq <=> 1 :=
+    {| Downset.has := toprc_has |}.
+  Next Obligation.
+    destruct H; cbn in *; tauto.
+  Qed.
+
+  Lemma vcomp_not_assoc :
+    (R ;; foo) ;; S <> R ;; (foo ;; S).
+  Proof.
+    intros H.
+    assert (Downset.has (R ;; (foo ;; S)) (@rcp_forbid 1 1 tt tt tt tt)).
+    { clear. cbn.
+      exists tt. repeat split; auto.
+      exists true. eauto.
+      intros b. right. exists (negb b). split; auto. split; auto.
+      intros [] . left. constructor.
+      destruct b; discriminate. }
+    assert (~ Downset.has ((R ;; foo) ;; S) (@rcp_forbid 1 1 tt tt tt tt)).
+    { clear. cbn.
+      apply all_not_not_ex. intros q3.
+      apply or_not_and. right.
+      apply or_not_and. right.
+      apply ex_not_not_all. exists tt.
+      apply and_not_or. split; try tauto.
+      apply all_not_not_ex. intros [ ].
+      apply or_not_and. right.
+      apply or_not_and. right.
+      apply ex_not_not_all. exists q3.
+      apply and_not_or. split; auto.
+      intros H. inversion H. apply H1. auto. }
+    apply H1.
+    rewrite H.
+    assumption.
+  Qed.
+End VCOMP_NOT_ASSOC.
