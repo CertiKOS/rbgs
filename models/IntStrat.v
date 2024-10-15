@@ -3939,6 +3939,18 @@ End TSTRAT.
 Notation tstrat := (tstrat_when tp_ready).
 Infix "*" := tstrat : strat_scope.
 
+(** **** Properties for embedded structural isomorphisms *)
+
+Lemma tru_natural {E F} (σ : E ->> F) :
+  σ ⊙ tru = tru ⊙ (tstrat σ eid).
+Proof.
+Admitted.
+
+Lemma trur_natural {E F} (σ : E ->> F) :
+  trur ⊙ σ = (tstrat σ eid) ⊙ trur.
+Proof.
+Admitted.
+
 (** *** Tensor product of refinement conventions *)
 
 Section TCONV.
