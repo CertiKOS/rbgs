@@ -250,7 +250,9 @@ Qed.
 
 (** * §6.1 Embedding CompCertO Semantics *)
 
-From compcert Require Import LanguageInterface Smallstep Globalenvs.
+From compcert Require Import Smallstep Globalenvs.
+Require LanguageInterface.
+Import -(notations) LanguageInterface.
 
 (* Inductive query_se_prod {li: language_interface} := *)
 (* | query_se_pair: Genv.symtbl -> query li -> query_se_prod. *)
@@ -359,7 +361,7 @@ Section CONV.
 
 End CONV.
 
-Coercion cc_conv: callconv >-> poset_carrier.
+Coercion cc_conv: callconv >-> conv.
 
 Require Import Coqlib.
 Close Scope list_scope.
@@ -666,7 +668,7 @@ Section FSIM.
       rewrite <- Hs. eauto.
     Qed.
 
-  Local Coercion lts_strat: semantics >-> poset_carrier.
+  Local Coercion lts_strat: semantics >-> strat.
 
   Lemma fsim_rsq: rsq ccA ccB L1 L2.
   Proof.
@@ -1157,9 +1159,9 @@ Section REL.
   Qed.
 End REL.
 
-Coercion rel_conv : rel >-> poset_carrier.
+Coercion rel_conv : rel >-> conv.
 
-Lemma cc_conv_id {li}: @cc_conv li _ 1 = (@vid li).
+Lemma cc_conv_id {li}: @cc_conv li _ cc_id = (@vid li).
 Proof.
   apply antisymmetry.
   - intros c Hc. induction c; cbn in *.
@@ -1232,39 +1234,10 @@ Section ESIG_REL_CONV.
 
 End ESIG_REL_CONV.
 
-Coercion esig_rel_conv : esig_rel >-> poset_carrier.
+Coercion esig_rel_conv : esig_rel >-> conv.
 
-(* XXX: move to IntStrat.v *)
-Section LENS_ID.
-
-  Program Definition lens_id {U} : lens U U :=
-    {|
-      IntStrat.get := fun u => u;
-      IntStrat.set := fun v u => u;
-    |}.
-
-  Program Definition embed_lens {U V} (l: @lens U V) : slens V U :=
-    {|
-      slens_lens :=
-        {|
-          IntStrat.get := fun '(u, tt) => l.(IntStrat.get) u;
-          IntStrat.set := fun '(u, tt) v => (l.(IntStrat.set) u v, tt);
-        |};
-      slens_state := unit;
-      slens_init := tt;
-    |}.
-  Next Obligation. destruct u0. apply get_set. Qed.
-  Next Obligation. destruct u0. rewrite set_get. easy. Qed.
-  Next Obligation. destruct u0. rewrite set_set. easy. Qed.
-
-  Definition slens_id {U} : slens U U := embed_lens lens_id.
-
-End LENS_ID.
-
-Coercion sls : slens >-> poset_carrier.
-
-Notation "E @ S" := (tens E (glob S)) : esig_scope.
-Notation "σ @ S" := (tstrat tp_ready σ (@slens_id S)) : strat_scope.
+(* Notation "E @ S" := (tens E (glob S)) : esig_scope. *)
+(* Notation "σ @ S" := (tstrat tp_ready σ (@slens_id S)) : strat_scope. *)
 
 Program Definition E0_conv {E} : conv 0 E := {| Downset.has s := False |}.
 
@@ -1273,6 +1246,79 @@ Proof.
   apply antisymmetry.
   - intros x Hx. xinv Hx.
   - intros x Hx. cbn in *. destruct x; xinv Hx; easy.
+Qed.
+
+(* -------------------------------------------- *)
+
+Global Hint Constructors rsp : core.
+
+(* XXX: move to IntStrat.v *)
+Lemma has_next_iff {E F i j} (σ: strat E F _) (m: move i j) (s: play j):
+  Downset.has σ (m :: s) <-> Downset.has (next m σ) s.
+Proof. split; eauto. Qed.
+
+Lemma rsq_id_conv {E F i} p (σ τ: strat E F i):
+  rsq_when vid vid p σ τ <-> σ [= τ.
+Proof.
+  split.
+  - intros H x Hx. specialize (H _ Hx).
+    revert Hx. dependent induction H; eauto.
+    + intros. apply has_next_iff. eapply H1; eauto.
+      reflexivity. eapply has_next_iff. eauto.
+    + intros. cbn in H. subst.
+      apply has_next_iff. eapply IHrsp; try reflexivity.
+      eapply has_next_iff. eauto.
+    + intros. apply has_next_iff. eapply H1; try reflexivity.
+      * intros [? X]. apply X. apply JMeq_refl.
+      * rewrite rcnext_vid. apply JMeq_refl.
+      * eapply has_next_iff. eauto.
+    + intros. cbn in H.
+      apply not_and_or in H as [H|H]. congruence.
+      assert (r1 = r2). { apply JMeq_eq. apply NNPP. eauto. }
+      subst.
+      apply has_next_iff. eapply IHrsp; try reflexivity.
+      rewrite rcnext_vid. apply JMeq_refl.
+      eapply has_next_iff. eauto.
+  - intros. rewrite H. clear H σ.
+    intros x Hx. revert τ p Hx.
+    induction x.
+    + intros. dependent destruction p. eauto.
+    + intros. dependent destruction p. eauto.
+    + intros. dependent destruction p.
+      * dependent destruction m. apply rsp_oq.
+        { eapply Downset.closed; eauto. constructor. }
+        intros q2 Hq2. cbn in Hq2. subst. eauto.
+      * dependent destruction m.
+        -- eapply rsp_pq. reflexivity. eauto.
+        -- eapply rsp_pa with (r2 := r).
+           { intros [? X]. apply X. apply JMeq_refl. }
+           rewrite rcnext_vid. eauto.
+      * dependent destruction m. apply rsp_oa.
+        { eapply Downset.closed; eauto. constructor. }
+        intros n2 Hn2. cbn in Hn2.
+        apply not_and_or in Hn2 as [Hn2|Hn2]. congruence.
+        assert (n = n2). { apply JMeq_eq. apply NNPP. eauto. }
+        subst. rewrite rcnext_vid. eauto.
+Qed.
+
+Lemma rsq_id_strat {E F i j} (pi: epos eid i) (pj: epos eid j) (p: rspos i j) (R S: conv E F):
+  R [= S -> rsq_when S R p (emor_when eid pi) (emor_when eid pj).
+Proof.
+  intros H. intros c Hc. revert j p pj R S H.
+  cbn in Hc. dependent induction Hc; intros; eauto.
+  + dependent destruction p. dependent destruction pj.
+    apply rsp_ready. constructor.
+  + dependent destruction p. dependent destruction pj.
+    apply rsp_oq. constructor.
+    intros q2 Hq2. eapply rsp_pq. eauto.
+    setoid_rewrite (emor_next_question eid q2). eauto.
+  + dependent destruction p. dependent destruction pj.
+    apply rsp_suspended. constructor.
+  + dependent destruction p. dependent destruction pj.
+    apply rsp_oa. { constructor. }
+    intros n2 Hn2. eapply rsp_pa. eauto.
+    setoid_rewrite (emor_next_answer eid q2 n2).
+    apply IHHc. cbn. eauto.
 Qed.
 
 Lemma rcp_cont_inv {E1 E2} m1 m2 n1 n2 k q1 q2 r1 r2 c:
@@ -1295,36 +1341,36 @@ Section ENCAP.
   Obligation Tactic := cbn.
   Context {U: Type} (u0 : U).
 
-  Inductive e_has {E: esig} : forall {i}, U -> @play (E@U) E i -> Prop :=
-  | e_has_ready u: e_has u pnil_ready
-  | e_has_q u m s:
-    e_has u s -> e_has u (oq m :: pq (m, u) :: s)
-  | e_has_suspended u m:
-    e_has u (@pnil_suspended (E@U) E m (m, u))
-  | e_has_a m u n u' s:
-    e_has u' s -> e_has u (@oa _ _ m (m, u) (n, u') :: pa n :: s).
-  Hint Constructors e_has : core.
-  Lemma e_has_ref {E i} (x y: @play (E@U) E i):
-    pref x y -> e_has u0 y -> e_has u0 x.
-  Proof.
-    intros Href Hy. revert Href.
-    dependent induction Hy; intros; eauto.
-    - dependent destruction Href. eauto.
-    - dependent destruction Href. eauto.
-      dependent destruction Href.
-      constructor. eapply IHHy. eauto.
-    - dependent destruction Href. eauto.
-    - dependent destruction Href. eauto.
-      dependent destruction Href.
-      constructor. eapply IHHy. eauto.
-  Qed.
-  (* Ideally, we would define the encap primitive as [e: U → 1] and use it as
-     [E@e : E@U → E] but then we have to handle the isomorphism between 1 × E and E
-     all the time. *)
-  Program Definition e {E:esig} : strat (E@U) E ready :=
-    {| Downset.has s := e_has u0 s |}.
-  Next Obligation. intros. eapply e_has_ref; eauto. Qed.
-  Definition encap {E F} (σ: strat E (F@U) ready) := e ⊙ σ.
+(*   Inductive e_has {E: esig} : forall {i}, U -> @play (E@U) E i -> Prop := *)
+(*   | e_has_ready u: e_has u pnil_ready *)
+(*   | e_has_q u m s: *)
+(*     e_has u s -> e_has u (oq m :: pq (m, u) :: s) *)
+(*   | e_has_suspended u m: *)
+(*     e_has u (@pnil_suspended (E@U) E m (m, u)) *)
+(*   | e_has_a m u n u' s: *)
+(*     e_has u' s -> e_has u (@oa _ _ m (m, u) (n, u') :: pa n :: s). *)
+(*   Hint Constructors e_has : core. *)
+(*   Lemma e_has_ref {E i} (x y: @play (E@U) E i): *)
+(*     pref x y -> e_has u0 y -> e_has u0 x. *)
+(*   Proof. *)
+(*     intros Href Hy. revert Href. *)
+(*     dependent induction Hy; intros; eauto. *)
+(*     - dependent destruction Href. eauto. *)
+(*     - dependent destruction Href. econstructor. *)
+(*       dependent destruction Href. *)
+(*       constructor. eapply IHHy. eauto. *)
+(*     - dependent destruction Href. eauto. *)
+(*     - dependent destruction Href. econstructor. *)
+(*       dependent destruction Href. *)
+(*       constructor. eapply IHHy. eauto. *)
+(*   Qed. *)
+(*   (* Ideally, we would define the encap primitive as [e: U → 1] and use it as *)
+(*      [E@e : E@U → E] but then we have to handle the isomorphism between 1 × E and E *)
+(*      all the time. *) *)
+(*   Program Definition e {E:esig} : strat (E@U) E ready := *)
+(*     {| Downset.has s := e_has u0 s |}. *)
+(*   Next Obligation. intros. eapply e_has_ref; eauto. Qed. *)
+(*   Definition encap {E F} (σ: strat E (F@U) ready) := e ⊙ σ. *)
 
   Inductive de_has {E: esig} : U -> rcp E (E@U) -> Prop :=
   | de_has_allow u m: de_has u (rcp_allow m (m, u))
@@ -1337,17 +1383,99 @@ Section ENCAP.
   Program Definition de {E:esig} : conv E (E@U) :=
     {| Downset.has s := de_has u0 s |}.
   Next Obligation.
-      intros E x y H1. revert u0; induction H1; intros u0 Hx; try solve [ dependent destruction Hx; eauto ].
+      intros E x y H1. revert u0; induction H1; intros u0 Hx;
+        try solve [ dependent destruction Hx; eauto ]; eauto.
       - simple inversion Hx; try congruence. subst.
         apply rcp_cont_inv in H0 as (A & B & C & D & K).
-        subst. xsubst. intros HX.
-        constructor. eauto.
+        subst. xsubst. intros HX. constructor.
       - simple inversion Hx; try congruence. subst.
         apply rcp_forbid_inv in H1 as (A & B & C & D).
-        subst. xsubst. intros. constructor. easy.
-      - simple inversion Hx; try congruence.
+        subst. xsubst. intros. constructor.
+      - simple inversion Hx; try congruence; subst.
+        apply rcp_cont_inv in H0 as (A & B & C & D & K).
+        subst. xsubst. intros. constructor. eauto.
+      - simple inversion Hx; try congruence; subst.
+        apply rcp_forbid_inv in H1 as (A & B & C & D).
+        subst. xsubst. intros. constructor. intros. easy.
   Qed.
+
+  Definition de' {E:esig}: E <=> E @ U := trur ;; E @ (lcj (IntStrat.encap u0)).
+
+  Hint Constructors emor_rc_has : core.
+
+  Lemma de_eq {E}: @de E = de'.
+  Proof.
+    apply antisymmetry.
+    - intros x Hx. cbn in *. revert u0 Hx. induction x; intros; cbn.
+      + dependent destruction Hx.
+        exists (m1, tt). repeat apply conj; eauto.
+        apply (emor_rc_allow trur (m1, tt)).
+        apply (emor_rc_allow eid m1).
+      + destruct m2 as (m2 & u1).
+        destruct n2 as (n2 & u2). cbn in *.
+        simple inversion Hx; try congruence.
+        apply rcp_forbid_inv in H1 as (A & B & C & D).
+        subst. inv B. xsubst. inv D. intros Hn.
+        exists (m2, tt). repeat apply conj; eauto.
+        apply (emor_rc_allow trur (m2, tt)).
+        apply (emor_rc_allow eid m2). cbn in *.
+        intros [n3 []]. 
+        destruct (classic (n1 = n3)).
+        * subst. right. split. apply (emor_rc_allow eid m2). split; eauto.
+          left. apply (emor_rc_forbid eid m2 n3 n2). eauto.
+        * left. apply (emor_rc_forbid trur (m2, tt) _ _).
+          cbn. congruence.
+      + simple inversion Hx; try congruence; subst.
+        apply rcp_cont_inv in H0 as (A & B & C & D & K).
+        subst. xsubst. intros.
+        cbn.
+        exists (m1, tt). split.
+        assert (m1 = operator (trur (m1, tt))). reflexivity.
+        rewrite H. constructor.
+        split. admit.
+        cbn. intros [n2 tt].
+        destruct (classic (n1 = n2)).
+        * subst. right.
+          destruct (classic (n2 = n3)).
+          -- subst. right.
+             (* rewrite rcnext_emor. *)
+             admit.
+          -- left. admit.
+        * left. admit.
+    - intros x. unfold de'. cbn. revert u0.
+      induction x; intros; cbn in *.
+      + destruct m2 as (m2 & u1). destruct H as ((m3 & tt) & A1 & A2 & ->).
+        dependent destruction A1. dependent destruction A2. econstructor.
+      + destruct m2 as (m2 & u1). destruct n2 as (n2 & u2).
+        destruct H as ((m3 & []) & A1 & (A2 & <-) & A3).
+        dependent destruction A1. dependent destruction A2. cbn in *.
+        econstructor. intros <-.
+        specialize (A3 (n1, tt)) as [A3 | A3].
+        * dependent destruction A3. apply H. eauto.
+        * destruct A3 as (A1 & A2 & [A3|(A3 & A4)]).
+          -- dependent destruction A3. apply H. eauto.
+          -- apply (A4 u2). eauto.
+      + destruct m2 as (m2 & u1). destruct n2 as (n2 & u2).
+        destruct H as ((m3 & []) & A1 & (A2 & <-) & A3).
+        dependent destruction A1. dependent destruction A2. cbn in *.
+        econstructor. intros <-. apply IHx. clear IHx.
+        specialize (A3 (n1, tt)) as [A3 | A3].
+        * dependent destruction A3. exfalso. apply H; eauto.
+        * destruct A3 as [A3|A3].
+          -- exfalso. destruct A3 as (?&?&A3).
+             destruct A3 as [A3|A3].
+             ++ dependent destruction A3. eauto.
+             ++ destruct A3. apply (H2 u2); eauto.
+          -- setoid_rewrite (rcnext_emor trur (m3, tt) n1) in A3.
+             setoid_rewrite rcnext_tconv in A3. admit.
+             { intros A. cbn in A. dependent destruction A. eauto. }
+             { intros [? A]. cbn in A. eapply A. reflexivity. }
+  Admitted.
+
   Definition deencap {E F} (R: conv E F) : conv E (F@U) := R ;; de.
+
+  Definition e {E:esig} : E @ U ->> E := sru ⊙ (E @ (IntStrat.encap u0)).
+  Definition encap {E F} (σ: strat E (F@U) ready) := e ⊙ σ.
 
 End ENCAP.
 
@@ -1359,13 +1487,51 @@ End ENCAP.
 Lemma deencap_rsq {E F: esig} {S: Type} (σ: strat E (F@S) ready) (s0: S):
   rsq vid (de s0) (encap s0 σ) σ.
 Proof.
+  unfold encap. rewrite de_eq. unfold de'. unfold e.
+  unfold sru.
+  pose proof (lcj_elim (IntStrat.encap s0)) as A.
+  rewrite <- (compose_id_l σ) at 2.
+  eapply rsq_comp.
+  2: apply rsq_id_conv; reflexivity.
+  assert (rsq vid vid (id F) (id F)) as B.
+  { apply rsq_id_conv; reflexivity. }
+  pose proof (scomp_rsq _ _ _ _ _ _ _ _ B A) as C.
+  rewrite scomp_id in C. rewrite scomp_vid in C.
+  assert (rsq vid trur (@tru F) (id (F @ _))) as D. admit.
+  rewrite <- (compose_id_l (id (F @ S))).
+  eapply rsq_comp. 2: apply C.
+  rewrite <- (vcomp_vid_l (vid @ lcj (IntStrat.encap s0))).
+  eapply rsq_vcomp. 3: apply D.
+  1-2: admit.
+  rewrite <- !scomp_id.
+  eapply scomp_rsq.
+  rewrite emor_rc_id. apply rsq_id_conv. reflexivity.
+  admit.
+Admitted.
+
+Lemma sru_rewrite {E F} (σ : strat E F ready):
+  σ ⊙ sru = sru ⊙ σ @ lid .
+Admitted.
+
+Lemma id_scomp_comp {E F U V} (σ : E ->> F) (l : U ~>> V):
+  id F @ l ⊙ σ @ lid = σ @ lid ⊙ id E @ l.
+Admitted.
+
+Global Instance compose_when_monotonic {E F G i j k p}:
+  Monotonic (@compose_when E F G i j k p) (ref ++> ref ++> ref).
 Admitted.
 
 (* E@[s0> ⊙ σ@S ⊑ σ ⊙ E@[s0>
    XXX: move to IntStrat.v *)
 Lemma encap_lift {E F} {S: Type} (σ: strat E F ready) (s0: S):
   (e s0) ⊙ (σ @ S) [= σ ⊙ (e s0).
-Admitted.
+Proof.
+  unfold e. rewrite <- !compose_assoc.
+  rewrite sru_rewrite.
+  rewrite !compose_assoc.
+  apply compose_when_monotonic. reflexivity.
+  rewrite id_scomp_comp. reflexivity.
+Qed.
 
 (* R s0 t0 → E@[s0> ⊑_{E@R → 1} E@[t0>
    XXX: move to IntStrat.v *)
@@ -1374,12 +1540,26 @@ Lemma representation_independence {E} {S T: Type} (R: rel S T) s0 t0:
 Proof.
 Admitted.
 
-Lemma rsq_de {E F U} (τ: strat E F ready) (u0: U):
-  rsq (de u0) (de u0) τ (tstrat tp_ready τ slens_id).
-Proof.
+Lemma lsq_de {U: Type} (u0: U):
+  lsq (lcj (IntStrat.encap u0)) (lcj (IntStrat.encap u0)) lid lid.
 Admitted.
 
-Global Hint Constructors sls_has tstrat_has : core.
+Lemma rsq_de {E F U} (τ: strat E F ready) (u0: U):
+  rsq (de u0) (de u0) τ (τ @ U).
+Proof.
+  rewrite !de_eq. unfold de'.
+  eapply rsq_vcomp.
+  4: {
+    eapply scomp_rsq. 2: apply lsq_de.
+    rewrite !emor_rc_id.
+    apply rsq_id_conv. reflexivity.
+  }
+  3: {
+    admit.
+  }
+Admitted.
+
+Global Hint Constructors tstrat_has : core.
 
 Lemma seq_comp_tstrat {E1 F1 E2 F2 i j k} (tp: tpos i j k)
   (s1: @play (tens E1 F1) (tens E2 F2) k) s2 s
@@ -1399,66 +1579,69 @@ Proof.
 Qed.
 
 (* This could be generalized to any (stateful?) lens *)
-Lemma tstrat_has_exists {E F U i} (s: @play E F i):
-  inhabited U ->
-  exists j sp k (tp: tpos i j k) t st,
-    sls_has (@slens_id U) sp t /\ tstrat_has tp s t st /\
-      (match sp with
-      | sls_ready _ => True
-      | sls_suspended _ v u | sls_running _ v u => v = u
-       end).
-Proof.
-  intros [u]. dependent induction s.
-  - eexists _, _, _, tp_ready, _, _. split; eauto.
-  - eexists _, _, _, _, _, _. split; eauto.
-  - dependent destruction m;
-      destruct (IHs u) as (j & sp & k & tp & t & ts & HA & HB & HC);
-      dependent destruction tp; dependent destruction sp; destruct p; subst.
-    + eexists _, _, _, _, (oq u0 :: _), _. eauto.
-    + eexists _, _, _, _, (pq m2 :: _), _. eauto. 
-    + eexists _, _, _, _, (oa _ :: _), _. eauto.
-    + eexists _, _, _, _, (pa _ :: _), _.
-      split. apply sls_has_pa with (p := tt) (p' := tt). eauto. 
-      cbn. reflexivity. split; eauto.
-      Unshelve. 1,3: exact tt. all: exact u.
-Qed.
+(* Lemma tstrat_has_exists {E F U i} (s: @play E F i): *)
+(*   inhabited U -> *)
+(*   exists j sp k (tp: tpos i j k) t st, *)
+(*     emor_has eid sp t /\ tstrat_has tp s t st. *)
+(* Proof. *)
+(*   intros [u]. dependent induction s. *)
+(*   - eexists _, _, _, tp_ready, _, _. split; eauto. *)
+(*   - eexists _, _, _, _, _, _. split; eauto. *)
+(*   - dependent destruction m; *)
+(*       destruct (IHs u) as (j & sp & k & tp & t & ts & HA & HB & HC); *)
+(*       dependent destruction tp; dependent destruction sp; destruct p; subst. *)
+(*     + eexists _, _, _, _, (oq u0 :: _), _. eauto. *)
+(*     + eexists _, _, _, _, (pq m2 :: _), _. eauto.  *)
+(*     + eexists _, _, _, _, (oa _ :: _), _. eauto. *)
+(*     + eexists _, _, _, _, (pa _ :: _), _. *)
+(*       split. apply sls_has_pa with (p := tt) (p' := tt). eauto.  *)
+(*       cbn. reflexivity. split; eauto. *)
+(*       Unshelve. 1,3: exact tt. all: exact u. *)
+(* Qed. *)
+
+  (* Hs3 : lens_has lid st s2 *)
 
 Lemma tstrat_seq_comp {E1 E2 U i j k} (tp: tpos i j k)
   es fs es1 es2 (s: @play (E1@U) (E2@U) _) st1:
-  tstrat_has tp es fs s -> seq_comp_has es1 es2 es -> sls_has (@slens_id U) st1 fs ->
+  tstrat_has tp es fs s ->
+  seq_comp_has es1 es2 es ->
+  lens_has lid st1 fs ->
   exists s1 s2 st2 fs1 fs2,
-    sls_has slens_id st1 fs1 /\ sls_has slens_id st2 fs2 /\
+    lens_has lid st1 fs1 /\ lens_has lid st2 fs2 /\
     tstrat_has tp es1 fs1 s1 /\ tstrat_has tp_ready es2 fs2 s2 /\
     seq_comp_has s1 s2 s.
-Proof.
-  intros Ht Hs Hf. revert es1 es2 Hs st1 Hf.
-  induction Ht; intros.
-  - dependent destruction Hs. 
-    eexists _, _, _, _, _; eauto.
-  - dependent destruction Hs; dependent destruction Hf.
-    + eexists pnil_ready, _, _, pnil_ready, (oq _ :: _); repeat apply conj; eauto.
-    + edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
-      eexists _, _, _, (oq _ :: _), _; repeat apply conj; eauto.
-  - dependent destruction Hs; dependent destruction Hf.
-    edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
-    eexists _, _, _, _, _; repeat apply conj; eauto.
-  - dependent destruction Hs. 
-    edestruct (tstrat_has_exists (U:=U) t) as (j & sp & k & tp & xt & ts & HA & HB & HC).
-    split. exact q2. dependent destruction tp.
-    eexists _, _, _, _, xt; repeat apply conj; eauto.
-  - dependent destruction Hs; dependent destruction Hf.
-    edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
-    eexists _, _, _, (oa _ :: _), _; repeat apply conj; eauto.
-  - dependent destruction Hs; dependent destruction Hf.
-    edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
-    eexists _, _, _, (pa _ :: _), _; repeat apply conj; eauto.
-Qed.
+Admitted.
+(* Proof. *)
+(*   intros Ht Hs Hf. revert es1 es2 Hs st1 Hf. *)
+(*   induction Ht; intros. *)
+(*   - dependent destruction Hs.  *)
+(*     eexists _, _, _, _, _; eauto. *)
+(*   - dependent destruction Hs; dependent destruction Hf. *)
+(*     + eexists pnil_ready, _, _, pnil_ready, (oq _ :: _); repeat apply conj; eauto. *)
+(*     + edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto. *)
+(*       eexists _, _, _, (oq _ :: _), _; repeat apply conj; eauto. *)
+(*   - dependent destruction Hs; dependent destruction Hf. *)
+(*     edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto. *)
+(*     eexists _, _, _, _, _; repeat apply conj; eauto. *)
+(*   - dependent destruction Hs.  *)
+(*     edestruct (tstrat_has_exists (U:=U) t) as (j & sp & k & tp & xt & ts & HA & HB & HC). *)
+(*     split. exact q2. dependent destruction tp. *)
+(*     eexists _, _, _, _, xt; repeat apply conj; eauto. *)
+(*   - dependent destruction Hs; dependent destruction Hf. *)
+(*     edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto. *)
+(*     eexists _, _, _, (oa _ :: _), _; repeat apply conj; eauto. *)
+(*   - dependent destruction Hs; dependent destruction Hf. *)
+(*     edestruct IHHt as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto. *)
+(*     eexists _, _, _, (pa _ :: _), _; repeat apply conj; eauto. *)
+(* Qed. *)
 
-Lemma lens_seq_comp {U V i} (l: lens U V) (sp: sls_state i) tp s t st:
+Global Hint Constructors tstrat_has lens_has: core.
+
+Lemma lens_seq_comp {U V i} (l: bijection U V) (sp: lpos l i) tp s t st:
   seq_comp_has s t st ->
-  sls_has (embed_lens l) sp s ->
-  sls_has (embed_lens l) tp t ->
-  sls_has (embed_lens l) sp st.
+  lens_has l sp s ->
+  lens_has l tp t ->
+  lens_has l sp st.
 Proof.
   intros Hst Hs Ht. revert sp tp Hs Ht. dependent induction Hst.
   - intros. dependent destruction sp. dependent destruction tp.
@@ -1470,37 +1653,33 @@ Proof.
   - intros. dependent destruction Hs. eauto.
 Qed.
 
-Lemma closure_lift {E F U} (σ: strat E F ready):
+Lemma closure_lift {E F} {U: Type} (σ: strat E F ready):
   closure (σ@U) = (closure σ)@U.
 Proof.
   apply antisymmetry.
-  - intros s Hs. cbn - [slens_id] in *.
+  - intros s Hs. cbn in *.
     dependent induction Hs.
     + exists pnil_ready, pnil_ready. firstorder eauto.
+      constructor.
     + edestruct IHHs as (t1 & t2 & Ht1 & Ht2 & Ht3); eauto.
-      cbn - [slens_id] in H. destruct H as (s1 & s2 & Hs1 & Hs2 & Hs3).
+      cbn in H. destruct H as (s1 & s2 & Hs1 & Hs2 & Hs3).
       exploit @seq_comp_tstrat; eauto.
       intros (st1 & st2 & Hst1 & Hst2 & Hst3).
       exists st1, st2. split; eauto. split; eauto.
       eapply lens_seq_comp; eauto.
-  - intros s Hs. cbn - [slens_id] in *.
+  - intros s Hs. cbn in *.
     edestruct Hs as (s1 & s2 & Hs1 & Hs2 & Hs3); eauto. clear Hs.
     revert s2 s Hs1 Hs3.
     (* Set Printing Implicit. cbn. *)
-    generalize (@sls_ready U U (@slens_state U U (@slens_id U)) (@slens_init U U (@slens_id U))) as st.
+    generalize ((@lready U U lid tt)) as st.
     dependent induction Hs2; intros.
     + dependent destruction Hs1. eauto.
     + edestruct @tstrat_seq_comp as (xs1 & xs2 & st2 & fs1 & fs2 & HA & HB & HC & HD & HE); eauto.
       exploit IHHs2; eauto. intros Hc.
       eapply closure_has_cons; eauto.
-      exists s, fs1. repeat apply conj; eauto. cbn - [slens_id] in *.
+      exists s, fs1. repeat apply conj; eauto. cbn in *.
       dependent destruction st. cbn in *. destruct p. eauto.
 Qed.
-
-(* XXX: move to IntStrat.v *)
-Global Instance compose_when_monotonic {E F G i j k p}:
-  Monotonic (@compose_when E F G i j k p) (ref ++> ref ++> ref).
-Admitted.
 
 Global Instance fcomp_when_monotonic {E1 E2 F1 F2 i1 i2 i p}:
   Monotonic (@fcomp_when E1 E2 F1 F2 i1 i2 i p) (ref ++> ref ++> ref).
@@ -1516,7 +1695,7 @@ Global Instance compose_params : Params (@compose_when) 2 := { }.
 
 Lemma tstrat_sup_l {I} {E1 E2 F1 F2 i1 i2 i} (p: tpos i1 i2 i)
   (σ: I -> strat E1 F1 i1) (τ: strat E2 F2 i2) :
-  tstrat p (sup i:I, σ i) τ = sup i:I, tstrat p (σ i) τ.
+  tstrat_when p (sup i:I, σ i) τ = sup i:I, tstrat_when p (σ i) τ.
 Proof.
   apply antisymmetry.
   - intros x Hx. destruct Hx as (s & t & Hst & (a & Hs) & Ht).
@@ -1549,7 +1728,7 @@ Qed.
 
 Global Instance vcomp_params : Params (@vcomp) 2 := { }.
 
-Global Hint Constructors tstrat_has id_has: core.
+Global Hint Constructors tstrat_has : core.
 
 Global Instance conv_id_regular {E}: RegularConv (@vid E).
 Proof.
@@ -1622,123 +1801,14 @@ Proof.
     rewrite !regular_conv; eauto.
 Qed.
 
-Global Hint Constructors rsp : core.
+(* Global Instance tstrat_deterministic {E1 E2 F1 F2 i j k} (tp: tpos i j k) (σ: strat E1 F1 i) (τ: strat E2 F2 j): *)
+(*   Deterministic σ -> *)
+(*   Deterministic τ -> *)
+(*   Deterministic (tstrat_when tp σ τ). *)
+(* Admitted. *)
 
-(* XXX: move to IntStrat.v *)
-Lemma has_next_iff {E F i j} (σ: strat E F _) (m: move i j) (s: play j):
-  Downset.has σ (m :: s) <-> Downset.has (next m σ) s.
-Proof. split; eauto. Qed.
-
-Lemma rsq_id_conv {E F i} p (σ τ: strat E F i):
-  rsq_when vid vid p σ τ <-> σ [= τ.
-Proof.
-  split.
-  - intros H x Hx. specialize (H _ Hx).
-    revert Hx. dependent induction H; eauto.
-    + intros. apply has_next_iff. eapply H1; eauto.
-      reflexivity. eapply has_next_iff. eauto.
-    + intros. cbn in H. subst.
-      apply has_next_iff. eapply IHrsp; try reflexivity.
-      eapply has_next_iff. eauto.
-    + intros. apply has_next_iff. eapply H1; try reflexivity.
-      * intros [? X]. apply X. apply JMeq_refl.
-      * rewrite rcnext_vid. apply JMeq_refl.
-      * eapply has_next_iff. eauto.
-    + intros. cbn in H.
-      apply not_and_or in H as [H|H]. congruence.
-      assert (r1 = r2). { apply JMeq_eq. apply NNPP. eauto. }
-      subst.
-      apply has_next_iff. eapply IHrsp; try reflexivity.
-      rewrite rcnext_vid. apply JMeq_refl.
-      eapply has_next_iff. eauto.
-  - intros. rewrite H. clear H σ.
-    intros x Hx. revert τ p Hx.
-    induction x.
-    + intros. dependent destruction p. eauto.
-    + intros. dependent destruction p. eauto.
-    + intros. dependent destruction p.
-      * dependent destruction m. apply rsp_oq.
-        { eapply Downset.closed; eauto. constructor. }
-        intros q2 Hq2. cbn in Hq2. subst. eauto.
-      * dependent destruction m.
-        -- eapply rsp_pq. reflexivity. eauto.
-        -- eapply rsp_pa with (r2 := r).
-           { intros [? X]. apply X. apply JMeq_refl. }
-           rewrite rcnext_vid. eauto.
-      * dependent destruction m. apply rsp_oa.
-        { eapply Downset.closed; eauto. constructor. }
-        intros n2 Hn2. cbn in Hn2.
-        apply not_and_or in Hn2 as [Hn2|Hn2]. congruence.
-        assert (n = n2). { apply JMeq_eq. apply NNPP. eauto. }
-        subst. rewrite rcnext_vid. eauto.
-Qed.
-
-Lemma conv_has_next_iff {E F} (R: conv E F) m1 m2 n1 n2 k:
-  Downset.has R (rcp_cont m1 m2 n1 n2 k) <-> Downset.has (rcnext m1 m2 n1 n2 R) k.
-Proof. split; eauto. Qed.
-
-Lemma next_id1 {E} (q: op E):
-  next (pq q) (next (oq q) (id E)) = id_when (id_suspended q).
-Proof.
-  apply antisymmetry.
-  - cbn. intros. dependent destruction H. eauto.
-  - cbn. intros. econstructor; eauto.
-Qed.
-
-Lemma next_id2 {E} (m: op E) (n: ar m):
-  next (pa n) (next (oa n) (id_when (id_suspended m))) = id E.
-Proof.
-  apply antisymmetry.
-  - cbn. intros. dependent destruction H. eauto.
-  - cbn. intros. econstructor; eauto.
-Qed.
-
-Lemma rsq_id_strat {E F i j} (pi: idpos i) (pj: idpos j) (p: rspos i j) (R S: conv E F):
-  rsq_when S R p (id_when pi) (id_when pj) <-> R [= S.
-Proof.
-  split; intros H.
-  - intros x Hx. revert R S H Hx. induction x; intros.
-    + admit.
-    + admit.
-    + dependent destruction p.
-      {
-        dependent destruction pi.
-        dependent destruction pj.
-        apply conv_has_next_iff. eapply IHx.
-        2: { eapply conv_has_next_iff; eauto. }
-        intros c Hc.
-        assert (Hc': Downset.has (id E) (oq m1 :: pq m1 :: oa n1 :: pa n1 :: c)).
-        { constructor. constructor. eauto. }
-        specialize (H _ Hc').
-        dependent destruction H. exploit H0. eauto. intros HA.
-        dependent destruction HA.
-
-
-      }
-      2: {dependent destruction pi.}
-      2: {
-        dependent destruction pi.
-        dependent destruction pj.
-
-
-      (* { constructor. constructor. eauto. } *)
-      (* specialize (H _ Hc'). *)
-      (* dependent destruction H. exploit H0. eauto. intros HA. *)
-      (* dependent destruction HA. *)
-      admit.
-  - intros c Hc. revert j p pj R S H.
-    cbn in Hc. dependent induction Hc; intros; eauto.
-    + dependent destruction p. dependent destruction pj.
-      apply rsp_ready. constructor.
-    + dependent destruction p. dependent destruction pj. 
-      apply rsp_oq. constructor.
-      intros q2 Hq2. eapply rsp_pq. eauto.
-      rewrite next_id1. eauto.
-    + dependent destruction p. dependent destruction pj.
-      apply rsp_suspended. constructor.
-    + dependent destruction p. dependent destruction pj.
-      apply rsp_oa. { constructor. }
-      intros n2 Hn2. eapply rsp_pa. eauto.
-      rewrite next_id2. apply IHHc.
-      cbn. eauto.
+Global Instance scomp_deterministic {E F U V} (σ: E ->> F) (l: bijection U V):
+  Deterministic σ ->
+  Deterministic (σ @ l).
 Admitted.
+

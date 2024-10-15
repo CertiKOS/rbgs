@@ -40,7 +40,9 @@ examples/CompCertSem.v
 examples/CompCertStrat.v
 examples/Determ.v
 examples/Util.v
+examples/BoundedQueue.v
 examples/SecretAsm.v
+examples/Rot13.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v

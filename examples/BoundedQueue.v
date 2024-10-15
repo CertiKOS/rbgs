@@ -10,7 +10,9 @@ Require Import Coqlib.
 Require Import Determ.
 Require Import Util.
 
-From compcert.common Require Import LanguageInterface Smallstep Globalenvs.
+From compcert.common Require Import Smallstep Globalenvs.
+Require LanguageInterface.
+Import -(notations) LanguageInterface.
 From compcert.clightp Require Import Example.
 Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.
@@ -55,7 +57,7 @@ Proof.
   Ltac split_evar := instantiate (1 := (_, _)).
   setoid_rewrite <- closure_lift.
   apply rsq_closure; eauto with typeclass_instances.
-  intros p (s & t & Hs & Ht & Hst). cbn - [slens_id] in *. 
+  intros p (s & t & Hs & Ht & Hst). cbn in *.
   dependent destruction Ht. { xinv Hs. apply rsp_ready. constructor. }
   dependent destruction Hs. apply rsp_oq. { constructor. }
   intros qx Hq. xinv Hq. inv HM. rename q2 into d1.
@@ -382,7 +384,7 @@ Proof.
 Qed.
 
 Local Definition embed_lts_with_sk {liA liB} (L: semantics liA liB) := lts_strat_sk sk L.
-Local Coercion embed_lts_with_sk : semantics >-> poset_carrier.
+Local Coercion embed_lts_with_sk : semantics >-> strat.
 
 Definition penv0 : PEnv.penv :=
   PTree.set arr_id (PEnv.Array Nz (ZMap.init (PEnv.Val (Vint (Int.repr 0)) tint)) (tarray tint Nz))
@@ -670,16 +672,6 @@ Definition ϕ_bq_conv_1 :=
 Definition ϕ_bq_conv_2 :=
   (deencap m0 E_bq_conv ;; lift_convert_rel li_c mem) ;; join_cc.
 
-Global Instance tstrat_deterministic {E1 E2 F1 F2 i j k} (tp: tpos i j k) (σ: strat E1 F1 i) (τ: strat E2 F2 j):
-  Deterministic σ ->
-  Deterministic τ ->
-  Deterministic (tstrat tp σ τ).
-Admitted.
-
-Global Instance slens_deterministic {U V} (l: slens U V):
-  Deterministic l.
-Admitted.
-
 Lemma ϕ_bq_with_internals : rsq ϕ_bq_conv_1 ϕ_bq_conv_2 M_bq (Clight.semantics2 BQ.bq_program).
 Proof.
   eapply rsq_vcomp. constructor. 
@@ -843,14 +835,14 @@ Proof.
     apply not_and_or in Hr1 as [Hr1|Hr1]. easy.
     apply not_and_or in Hr1 as [Hr1|Hr1]. exfalso. apply Hr1. constructor.
     apply not_or_and in Hr1 as [Hr1 Hr2].
-    rewrite @rcnext_tconv; eauto.
+    setoid_rewrite @rcnext_tconv; eauto.
     rewrite (regular_conv (R := vid)); eauto. 2: constructor.
     assert (x = n1). { apply NNPP. intros Hx. apply Hr. constructor. congruence. }
     subst.
     specialize (Hf3 a) as [A|[A|A]]; try easy.
     + exfalso. simple inversion A; try congruence.
       apply rcp_forbid_inv in H1. eprod_crush. xsubst. inv H0. easy.
-    + rewrite de_rcnext in A. rewrite de_rcnext. apply IHc.
+    + setoid_rewrite de_rcnext in A. setoid_rewrite de_rcnext. apply IHc.
       assert (y = u0). apply NNPP. intros Hx. apply Hr2.
       split; eauto. intros Hc. apply Hx. apply JMeq_eq; eauto.
       subst. eauto.
@@ -951,12 +943,12 @@ Proof.
       { apply regular_conv.
         - econstructor. econstructor; eauto. xinv HM; eauto.
         - intros Hx. xinv Hx. apply HA. econstructor; eauto. reflexivity. }
-      rewrite Hrc1.
+      setoid_rewrite Hrc1.
       assert (Hrc2: rcnext (se, q)%embed ((se, q)%embed, m) cr (cr, m2) (de m) = de m2).
       { clear. apply antisymmetry.
         - intros c Hc. cbn in *. xinv Hc. eauto.
         - intros c Hc. constructor. eauto. }
-      rewrite Hrc2 in Ha.
+      setoid_rewrite Hrc2 in Ha.
       assert (Hrc3: rcnext m1 (se, q)%embed n1 cr E_rb_conv = E_rb_conv).
       { apply regular_conv.
         - constructor. cbn. easy.
@@ -984,7 +976,8 @@ Proof.
             intros Hxa. constructor; eauto.
             intros Hra. apply Hxa. constructor. intros <-. easy.
           + exfalso. xinv H1. easy.
-          + congruence.
+          + setoid_rewrite Hrc3 in H1.
+            setoid_rewrite Hrc4 in H1. congruence.
         - intros d Hd. cbn.
           exists (se, q)%embed. split. { constructor. now cbn. }
           split. { constructor. }
@@ -994,8 +987,8 @@ Proof.
           { apply NNPP. intros HA. apply Hxb. constructor. congruence. }
           eapply esig_rel_mr_elim in Hxa.
           2: { cbn. eauto. } subst cr1.
-          rewrite Hrc3. rewrite Hrc4. apply Hd. }
-      rewrite Hrc5. eapply IHc; eauto.
+          rewrite Hrc3. setoid_rewrite Hrc4. apply Hd. }
+      setoid_rewrite Hrc5. eapply IHc; eauto.
       split; eauto. intros. clear - HM0 HRB H.
       exploit Hse_valid2_inv. eauto. intros Hx.
       constructor. intros id v Hv.
@@ -1008,7 +1001,7 @@ Qed.
 Local Opaque ce.
 
 Lemma pin_join_ref :
-  pin_no_join ce ;; join_cc [= ClightP.pin ce.
+  pin_no_join ce ;; join_cc [= cc_conv (ClightP.pin ce).
 Proof.
   intros c Hc. induction c.
   - cbn in *. eprod_crush. xinv H. xinv H0.
@@ -1207,10 +1200,10 @@ Section ASM.
     - rewrite ϕ_rb_conv_ref1. apply ϕ2_2.
   Qed.
 
-  Import CallconvAlgebra.
+  Import -(notations) CallconvAlgebra.
 
   Lemma asm_link_fsim:
-    forward_simulation 1 1
+    forward_simulation cc_id cc_id
       (comp_semantics' (Asm.semantics bq_asm) (Asm.semantics rb_asm) sk)
       (Asm.semantics bq_rb_asm).
   Proof.
