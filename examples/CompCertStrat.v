@@ -1512,15 +1512,6 @@ Lemma vcomp_assoc {E F G H} (σ: conv E F) (τ: conv F G) (υ: conv G H):
   vcomp (vcomp σ τ) υ = vcomp σ (vcomp τ υ).
 Admitted.
 
-(* XXX: move to IntStrat.v *)
-Lemma rsq_id_conv {E F i} p (σ τ: strat E F i):
-  rsq_when vid vid p σ τ <-> σ [= τ.
-Admitted.
-
-Lemma rsq_id_strat {E F} p (R S: conv E F):
-  rsq_when S R p (id E) (id F) <-> R [= S.
-Admitted.
-
 Global Instance compose_params : Params (@compose_when) 2 := { }.
 
 Lemma tstrat_sup_l {I} {E1 E2 F1 F2 i1 i2 i} (p: tpos i1 i2 i)
@@ -1630,3 +1621,124 @@ Proof.
     apply not_imply_or. intros Hn23.
     rewrite !regular_conv; eauto.
 Qed.
+
+Global Hint Constructors rsp : core.
+
+(* XXX: move to IntStrat.v *)
+Lemma has_next_iff {E F i j} (σ: strat E F _) (m: move i j) (s: play j):
+  Downset.has σ (m :: s) <-> Downset.has (next m σ) s.
+Proof. split; eauto. Qed.
+
+Lemma rsq_id_conv {E F i} p (σ τ: strat E F i):
+  rsq_when vid vid p σ τ <-> σ [= τ.
+Proof.
+  split.
+  - intros H x Hx. specialize (H _ Hx).
+    revert Hx. dependent induction H; eauto.
+    + intros. apply has_next_iff. eapply H1; eauto.
+      reflexivity. eapply has_next_iff. eauto.
+    + intros. cbn in H. subst.
+      apply has_next_iff. eapply IHrsp; try reflexivity.
+      eapply has_next_iff. eauto.
+    + intros. apply has_next_iff. eapply H1; try reflexivity.
+      * intros [? X]. apply X. apply JMeq_refl.
+      * rewrite rcnext_vid. apply JMeq_refl.
+      * eapply has_next_iff. eauto.
+    + intros. cbn in H.
+      apply not_and_or in H as [H|H]. congruence.
+      assert (r1 = r2). { apply JMeq_eq. apply NNPP. eauto. }
+      subst.
+      apply has_next_iff. eapply IHrsp; try reflexivity.
+      rewrite rcnext_vid. apply JMeq_refl.
+      eapply has_next_iff. eauto.
+  - intros. rewrite H. clear H σ.
+    intros x Hx. revert τ p Hx.
+    induction x.
+    + intros. dependent destruction p. eauto.
+    + intros. dependent destruction p. eauto.
+    + intros. dependent destruction p.
+      * dependent destruction m. apply rsp_oq.
+        { eapply Downset.closed; eauto. constructor. }
+        intros q2 Hq2. cbn in Hq2. subst. eauto.
+      * dependent destruction m.
+        -- eapply rsp_pq. reflexivity. eauto.
+        -- eapply rsp_pa with (r2 := r).
+           { intros [? X]. apply X. apply JMeq_refl. }
+           rewrite rcnext_vid. eauto.
+      * dependent destruction m. apply rsp_oa.
+        { eapply Downset.closed; eauto. constructor. }
+        intros n2 Hn2. cbn in Hn2.
+        apply not_and_or in Hn2 as [Hn2|Hn2]. congruence.
+        assert (n = n2). { apply JMeq_eq. apply NNPP. eauto. }
+        subst. rewrite rcnext_vid. eauto.
+Qed.
+
+Lemma conv_has_next_iff {E F} (R: conv E F) m1 m2 n1 n2 k:
+  Downset.has R (rcp_cont m1 m2 n1 n2 k) <-> Downset.has (rcnext m1 m2 n1 n2 R) k.
+Proof. split; eauto. Qed.
+
+Lemma next_id1 {E} (q: op E):
+  next (pq q) (next (oq q) (id E)) = id_when (id_suspended q).
+Proof.
+  apply antisymmetry.
+  - cbn. intros. dependent destruction H. eauto.
+  - cbn. intros. econstructor; eauto.
+Qed.
+
+Lemma next_id2 {E} (m: op E) (n: ar m):
+  next (pa n) (next (oa n) (id_when (id_suspended m))) = id E.
+Proof.
+  apply antisymmetry.
+  - cbn. intros. dependent destruction H. eauto.
+  - cbn. intros. econstructor; eauto.
+Qed.
+
+Lemma rsq_id_strat {E F i j} (pi: idpos i) (pj: idpos j) (p: rspos i j) (R S: conv E F):
+  rsq_when S R p (id_when pi) (id_when pj) <-> R [= S.
+Proof.
+  split; intros H.
+  - intros x Hx. revert R S H Hx. induction x; intros.
+    + admit.
+    + admit.
+    + dependent destruction p.
+      {
+        dependent destruction pi.
+        dependent destruction pj.
+        apply conv_has_next_iff. eapply IHx.
+        2: { eapply conv_has_next_iff; eauto. }
+        intros c Hc.
+        assert (Hc': Downset.has (id E) (oq m1 :: pq m1 :: oa n1 :: pa n1 :: c)).
+        { constructor. constructor. eauto. }
+        specialize (H _ Hc').
+        dependent destruction H. exploit H0. eauto. intros HA.
+        dependent destruction HA.
+
+
+      }
+      2: {dependent destruction pi.}
+      2: {
+        dependent destruction pi.
+        dependent destruction pj.
+
+
+      (* { constructor. constructor. eauto. } *)
+      (* specialize (H _ Hc'). *)
+      (* dependent destruction H. exploit H0. eauto. intros HA. *)
+      (* dependent destruction HA. *)
+      admit.
+  - intros c Hc. revert j p pj R S H.
+    cbn in Hc. dependent induction Hc; intros; eauto.
+    + dependent destruction p. dependent destruction pj.
+      apply rsp_ready. constructor.
+    + dependent destruction p. dependent destruction pj. 
+      apply rsp_oq. constructor.
+      intros q2 Hq2. eapply rsp_pq. eauto.
+      rewrite next_id1. eauto.
+    + dependent destruction p. dependent destruction pj.
+      apply rsp_suspended. constructor.
+    + dependent destruction p. dependent destruction pj.
+      apply rsp_oa. { constructor. }
+      intros n2 Hn2. eapply rsp_pa. eauto.
+      rewrite next_id2. apply IHHc.
+      cbn. eauto.
+Admitted.
