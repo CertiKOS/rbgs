@@ -3942,14 +3942,21 @@ Infix "*" := tstrat : strat_scope.
 (** **** Properties for embedded structural isomorphisms *)
 
 Lemma tru_natural {E F} (σ : E ->> F) :
-  σ ⊙ tru = tru ⊙ (tstrat σ eid).
+  σ ⊙ tru = tru ⊙ (σ * eid).
 Proof.
 Admitted.
 
 Lemma trur_natural {E F} (σ : E ->> F) :
-  trur ⊙ σ = (tstrat σ eid) ⊙ trur.
+  trur ⊙ σ = (σ * eid) ⊙ trur.
 Proof.
-Admitted.
+  rewrite <- (compose_id_r (trur ⊙ σ)), <- tru_trur.
+  rewrite emor_strat_ecomp, compose_assoc.
+  rewrite <- !(compose_assoc _ _ trur). f_equal.
+  rewrite <- (compose_id_l (σ * id 1)), <- trur_tru.
+  rewrite emor_strat_ecomp, compose_assoc.
+  f_equal.
+  apply tru_natural.
+Qed.
 
 (** *** Tensor product of refinement conventions *)
 
