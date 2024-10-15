@@ -2987,34 +2987,83 @@ Section EMOR_RC.
   Hint Constructors rsp emor_has : core.
   Hint Unfold Downset.has : core.
 
+  Variant esepos : forall {i j}, epos f i -> epos eid j -> rspos i j -> Type :=
+    | ese_ready :
+        esepos eready eready rs_ready
+    | ese_suspended (q : E2) :
+        esepos (esuspended q) (esuspended q)
+               (rs_suspended q q (operator (f q)) q).
+
+  Lemma emor_strat_elim_when {i j pi pj pij} (p : @esepos i j pi pj pij) :
+    rsq_when emor_rc vid pij (emor_when f pi) (emor_when eid pj).
+  Proof.
+    red. cbn. intros s Hs. revert j pj pij p.
+    induction Hs; intros.
+    - dependent destruction p.
+      econstructor; cbn; auto.
+    - dependent destruction p.
+      econstructor; cbn; eauto. intros _ [ ].
+      econstructor; cbn; eauto. setoid_rewrite (emor_next_question eid q).
+      apply IHHs with (1 := ese_suspended q).
+    - dependent destruction p.
+      econstructor; cbn; eauto. constructor.
+    - dependent destruction p.
+      econstructor; cbn; eauto. { constructor. }
+      intros r' Hr'.
+      assert (r' = operand (f q) r).
+      { destruct (classic (r' = operand (f q) r)); auto.
+        elim Hr'. constructor. auto. } subst.
+      econstructor; cbn; eauto.
+      { intros [_ H]. apply H. reflexivity. }
+      setoid_rewrite (emor_next_answer eid q (operand (f q) r)).
+      rewrite rcnext_emor, rcnext_vid.
+      apply IHHs with (1 := ese_ready).
+  Qed.
+
   Lemma emor_strat_elim :
     rsq emor_rc vid f (id _).
   Proof.
-    red. red. cbn.
-    cut (forall i pe s, emor_has f (i:=i) pe s ->
-         forall j ps pi, rsp emor_rc vid (i1:=i) (i2:=j) ps s (emor_when eid pi));
-      eauto.
-    induction 1; intros.
-    - dependent destruction ps. dependent destruction pi.
-      econstructor; cbn; auto.
-    - dependent destruction ps. dependent destruction pi.
-      econstructor; cbn; eauto. intros _ [ ]. 
-      econstructor; cbn; eauto. setoid_rewrite (emor_next_question eid q); eauto.
-    - dependent destruction ps. dependent destruction pi.
-      econstructor; cbn; eauto. constructor.
-    - dependent destruction ps. dependent destruction pi.
-      econstructor; cbn; eauto. constructor. intros r2 Hr.
-      apply rsp_pa with r2.
-      + cbn. intros [Hq Hr']. subst. apply Hr.
-        constructor. intro. subst. elim Hr'. auto.
-      + setoid_rewrite (emor_next_answer eid q2 r2).
-        (* same inversion thing *)
-  Abort.
+    apply (emor_strat_elim_when ese_ready).
+  Qed.
+
+  Variant esipos : forall {i j}, epos eid i -> epos f j -> rspos i j -> Type :=
+    | esi_ready :
+        esipos eready eready rs_ready
+    | esi_suspended (q : E2) :
+        esipos (esuspended (operator (f q))) (esuspended q)
+               (rs_suspended (operator (f q)) q (operator (f q)) (operator (f q))).
+
+  Lemma emor_strat_intro_when {i j pi pj pij} (p : @esipos i j pi pj pij) :
+    rsq_when vid emor_rc pij (emor_when (@eid E1) pi) (emor_when f pj).
+  Proof.
+    red. cbn. intros s Hs. revert j pj pij p.
+    induction Hs; intros.
+    - dependent destruction p.
+      econstructor; cbn; eauto.
+    - dependent destruction p.
+      econstructor; cbn; eauto.
+      intros m Hm. dependent destruction Hm.
+      econstructor; cbn; eauto.
+      setoid_rewrite (emor_next_question f m).
+      apply IHHs with (1 := esi_suspended m).
+    - dependent destruction p.
+      econstructor; cbn; eauto.
+    - dependent destruction p.
+      econstructor; cbn; eauto.
+      intros n Hn.
+      destruct (classic (r ~= n)); try tauto. subst. clear Hn.
+      econstructor; cbn; eauto.
+      { cbn. intros H. dependent destruction H. apply H. reflexivity. }
+      rewrite rcnext_vid, rcnext_emor.
+      setoid_rewrite emor_next_answer.
+      apply IHHs with (1 := esi_ready).
+  Qed.
 
   Lemma emor_strat_intro :
     rsq vid emor_rc (id _) f.
   Proof.
-  Abort.
+    apply (emor_strat_intro_when esi_ready).
+  Qed.
 End EMOR_RC.
 
 (** *** Functoriality *)
