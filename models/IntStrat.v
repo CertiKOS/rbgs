@@ -1839,12 +1839,34 @@ Section COMPOSE_FCOMP.
     - (* suspended *)
       dependent destruction Ht12; dependent destruction p; eauto 30.
     - (* environment answer *)
-      admit.
+      simple inversion Ht12; clear Ht12; xsubst; intros Ht12;
+      inversion H2; clear H2; xsubst;
+      apply pcons_oa_inv in H6 as [? ?]; subst;
+      dependent destruction p.
+      + edestruct IHHst with (1 := fccpos_right_l q0 q1)
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + edestruct IHHst with (1 := fccpos_right_r q0 q2)
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
     - (* internal answer *)
-      admit.
+      simple inversion Ht12; clear Ht12; xsubst; intros Ht12;
+      inversion H2; clear H2; xsubst;
+      apply pcons_pa_inv in H6 as [? ?]; xsubst;
+      simple inversion Hs12; clear Hs12; xsubst; intros Hs12;
+      inversion H2; clear H2; xsubst;
+      apply pcons_oa_inv in H6 as [? ?]; xsubst;
+      dependent destruction p.
+      + edestruct IHHst with (1 := fccpos_left_l q0)
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+      + edestruct IHHst with (1 := fccpos_left_r q0)
+          as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
     - (* component answer *)
-      admit.
-  Admitted.
+      simple inversion Hs12; clear Hs12; xsubst; intros Hs12;
+      inversion H2; clear H2; xsubst;
+      apply pcons_pa_inv in H6 as [? ?]; xsubst;
+      dependent destruction p;
+      edestruct IHHst with (1 := fccpos_ready)
+        as (?&?&?&?&?&?&?&?&?&?&?&?&?); eauto 30.
+  Qed.
 
   Lemma fcomp_compose_when {i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij} :
     @fccpos i1 i2 j1 j2 i12 j12 ij1 ij2 ij12 p1 p2 p12 qi qj qij ->
@@ -2987,12 +3009,12 @@ Section EMOR_RC.
         constructor. intro. subst. elim Hr'. auto.
       + setoid_rewrite (emor_next_answer eid q2 r2).
         (* same inversion thing *)
-  Admitted.
+  Abort.
 
   Lemma emor_strat_intro :
     rsq vid emor_rc (id _) f.
   Proof.
-  Admitted.
+  Abort.
 End EMOR_RC.
 
 (** *** Functoriality *)
