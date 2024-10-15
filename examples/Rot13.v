@@ -131,67 +131,70 @@ Section STRATEGY.
 
     (* (* (F+F) + (F+F) ---> ((F+F)+F) + F *) *)
 
-    (* apply falph_question_l. apply falph_answer_l. *)
-    (* apply falph_question_m. apply falph_answer_m. *)
-    (* apply falph_question_r. apply falph_answer_r. *)
-    (* apply falph_ready.
- *)
-    (* 2: { apply comp_oq. apply comp_lq. apply comp_ra. apply comp_la. *)
-    (*      apply comp_oq. apply comp_lq. apply comp_ra. *)
-    (*      repeat constructor. } *)
-
-    (* Unshelve. 2: refine pnil_ready. *)
-    (* eexists _, _. repeat apply conj. *)
+    apply emor_question. apply emor_answer.
+    apply emor_question. apply emor_answer.
+    apply emor_question. apply emor_answer.
+    apply emor_ready.
+    2: { apply comp_oq. apply comp_lq. apply comp_ra. apply comp_la.
+         apply comp_oq. apply comp_lq. apply comp_ra.
+         repeat constructor. }
+    cbn [operator fassoc].
+    Unshelve. 2: refine pnil_ready.
+    eexists _, _. repeat apply conj.
 
     (* (* ((F+F)+F) + F ---> F + (F+F) + F *) *)
 
-    (* eexists _, _. repeat apply conj. *)
-    (* cbn. apply falphr_question_m. apply falphr_answer_m. *)
-    (* apply falphr_question_r. apply falphr_answer_r. apply falphr_ready. *)
+    eexists _, _. repeat apply conj.
+    (* fassocr *)
+    apply emor_question. apply emor_answer.
+    apply emor_question. apply emor_answer.
+    apply emor_ready.
+    (* id *)
+    apply emor_question. apply emor_answer. apply emor_ready.
 
-    (* cbn. apply id_has_q. apply id_has_a. apply id_has_pnil_ready. *)
-
-    (* (* left by default. so this is what we want *) *)
-    (* repeat constructor. *)
-
-    (* 2: { repeat constructor. }. *)
-
-    (* Unshelve. 2: refine pnil_ready. *)
-    (* eexists _, _. repeat apply conj. *)
+    (* fcomp execute left component by default. so this is what we want *)
+    repeat constructor.
+    2: { repeat constructor. }
+    cbn [operator fassoc].
+    Unshelve. 2: refine pnil_ready.
+    eexists _, _. repeat apply conj.
 
     (* (* F + (F+F) + F ---> F + 0 + F *) *)
-    (* eexists _, _. repeat apply conj. *)
-    (* 2: { cbn. apply id_has_q. apply id_has_a. apply id_has_pnil_ready. } *)
-    (* eexists _, _. repeat apply conj. apply id_has_pnil_ready. *)
+    eexists _, _. repeat apply conj.
+    2: { apply emor_question. apply emor_answer. apply emor_ready. }
+    eexists _, _. repeat apply conj. apply emor_ready.
 
-    (* eexists _, _. repeat apply conj. *)
-    (* cbn. apply fdel_question_l. apply fdel_answer_l. apply fdel_question_r. apply fdel_answer_r. apply fdel_ready. *)
-    (* cbn. eapply fifo_write with (d1 := uryyb_bytes). *)
-    (* rewrite app_nil_l. reflexivity. cbn. *)
-    (* instantiate (1 := (Int.repr 5)). reflexivity. *)
-    (* eapply fifo_read_all with (n := (Int.repr 100)). cbn. *)
-    (* rewrite Int.unsigned_repr. lia. cbn. lia. apply fifo_nil. *)
+    eexists _, _. repeat apply conj.
+    (* delta *)
+    eapply emor_question with (q := inl _). apply emor_answer.
+    eapply emor_question with (q := inr _). apply emor_answer.
+    apply emor_ready.
+    (* fifo *)
+    eapply fifo_write with (d1 := uryyb_bytes).
+    rewrite app_nil_l. reflexivity. cbn.
+    instantiate (1 := (Int.repr 5)). reflexivity.
+    eapply fifo_read_all with (n := (Int.repr 100)). cbn.
+    rewrite Int.unsigned_repr. lia. cbn. lia. apply fifo_nil.
 
-    (* repeat constructor. *)
-    (* repeat constructor. *)
-    (* repeat constructor. *)
-    (* 2: repeat constructor. *)
+    repeat constructor.
+    repeat constructor.
+    repeat constructor.
+    2: repeat constructor.
 
-    (* (* F + 0 + F ---> F + F *) *)
+    (* F + 0 + F ---> F + F *)
 
-    (* Unshelve. 2: refine pnil_ready. *)
-    (* eexists _, _. repeat apply conj. *)
-    (* cbn. apply frhor_ready. *)
-    (* cbn. apply id_has_q with (m := F_write hello_bytes). *)
-    (* apply id_has_a with (n := (Int.repr 5)). apply id_has_pnil_ready. *)
+    Unshelve. 2: refine pnil_ready.
+    eexists _, _. repeat apply conj.
+    cbn. apply emor_ready.
+    cbn. apply emor_question with (q := F_write hello_bytes).
+    apply emor_answer with (r := (Int.repr 5)). apply emor_ready.
 
-    (* eapply fcomp_oq_r. *)
-    (* eapply (fcomp_pq_r (E1 := F) (E2 := F)). *)
-    (* eapply (fcomp_oa_r (E1 := F) (E2 := F)). *)
-    (* eapply (fcomp_pa_r (E1 := F) (E2 := F)). *)
-    (* constructor. *)
-  (* Qed. *)
-  Admitted.
+    eapply fcomp_oq_r.
+    eapply (fcomp_pq_r (E1 := F) (E2 := F)).
+    eapply (fcomp_oa_r (E1 := F) (E2 := F)).
+    eapply (fcomp_pa_r (E1 := F) (E2 := F)).
+    constructor.
+  Qed.
 
 End STRATEGY.
 
@@ -1043,7 +1046,7 @@ Section SECRET.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
-    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    2: { exists b. split; eauto. eapply genv_funct_symbol; eauto. }
     reflexivity.
   Qed.
   Lemma rot13_block se:
@@ -1053,7 +1056,7 @@ Section SECRET.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
-    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    2: { exists b. split; eauto. eapply genv_funct_symbol; eauto. }
     reflexivity.
   Qed.
   Lemma write_block se:
@@ -1063,7 +1066,7 @@ Section SECRET.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
-    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    2: { exists b. split; eauto. eapply genv_funct_symbol; eauto. }
     reflexivity.
   Qed.
   Lemma msg_block se:
@@ -1448,7 +1451,7 @@ Section DECODE.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
-    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    2: { exists b. split; eauto. eapply genv_funct_symbol; eauto. }
     reflexivity.
   Qed.
   Lemma decode_rot13_block se:
@@ -1458,7 +1461,7 @@ Section DECODE.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
-    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    2: { exists b. split; eauto. eapply genv_funct_symbol; eauto. }
     reflexivity.
   Qed.
   Lemma decode_write_block se:
@@ -1468,7 +1471,7 @@ Section DECODE.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
-    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    2: { exists b. split; eauto. eapply genv_funct_symbol; eauto. }
     reflexivity.
   Qed.
   Lemma decode_read_block se:
@@ -1478,7 +1481,7 @@ Section DECODE.
   Proof.
     intros Hse. exploit @Genv.find_def_symbol; eauto.
     intros [H _]. edestruct H as (b & Hb1 & Hb2); eauto.
-    2: {exists b. split; eauto. eapply genv_funct_symbol; eauto.}
+    2: { exists b. split; eauto. eapply genv_funct_symbol; eauto. }
     reflexivity.
   Qed.
 

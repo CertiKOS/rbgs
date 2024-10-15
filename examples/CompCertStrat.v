@@ -1539,45 +1539,68 @@ End ENCAP.
 
 Global Hint Constructors tstrat_has lens_has: core.
 
-Lemma lsq_id_lcj {U V: Type} i1 i2 (p: rspos i1 i2)  (f: U ~>> V)
+Lemma lsq_id_lcj {U V: Type} i1 i2 (rp: rspos i1 i2)  (f: U ~>> V)
   (lp1 lp2: lpos lid _) (st1 st2: IntStrat.state f):
-  (* (match lp2 with *)
-  (*  | lready _ w *)
-  (*  | lrunning _ p v w | lsuspended _ p v w => w end) -> *)
-  rsq_when (lcj_when f st1) (lcj_when f st2) p
+  match lp1, lp2 with
+   | lready _ _, lready _ _ => st1 = st2
+   | lrunning _ _ u1 u2, lrunning _ _ v1 v2 =>
+       IntStrat.get f (st2, u1) = v1 /\
+       IntStrat.get f (st1, u2) = v2 /\ IntStrat.set f (st2, u1) v2 = (st1, u2)
+   | lsuspended _ _ u1 u2, lsuspended _ _ v1 v2 =>
+       IntStrat.get f (st2, u1) = v1 /\
+       IntStrat.get f (st1, u2) = v2 /\ IntStrat.set f (st2, u1) v2 = (st1, u2)
+   | _, _ => False end ->
+  rsq_when (lcj_when f st1) (lcj_when f st2) rp
     (lens_strat_when lid lp1) (lens_strat_when lid lp2).
 Proof.
-  intros x Hx. cbn in Hx. revert i2 st1 st2 lp2 p.
-  dependent induction Hx; intros; dependent destruction p0; eauto.
+  intros Hp c Hc. cbn in Hc. revert i2 lp2 st1 st2 Hp rp.
+  dependent induction Hc; intros; dependent destruction rp; eauto.
   - dependent destruction lp2. apply rsp_ready. cbn. eauto.
-  - dependent destruction lp2.
+  - dependent destruction lp2. subst.
     apply rsp_oq. cbn. eauto.
-    intros q2 Hq2. cbn in Hq2. setoid_rewrite lens_strat_next_oq; eauto.
+    intros q2 Hq2. cbn in Hq2.
+    setoid_rewrite lens_strat_next_oq; eauto.
+    eapply IHHc. split; cbn; eauto.
+    subst. rewrite set_get. easy.
   - dependent destruction lp2. destruct p0.
-Admitted.
-
+    eapply rsp_pq. cbn. apply Hp.
+    setoid_rewrite lens_strat_next_pq; eauto.
+  - dependent destruction lp2. apply rsp_suspended. cbn. eauto.
+  - dependent destruction lp2. destruct p0.
+    destruct Hp as (Hp1 & Hp2 & Hp3).
+    eapply rsp_oa. cbn; eauto.
+    intros n2 Hn2. cbn in Hn2.
+    apply not_and_or in Hn2 as [Hn2|Hn2]. easy.
+    apply not_all_ex_not in Hn2 as [st3 Hst].
+    apply NNPP in Hst.
+    setoid_rewrite lens_strat_next_oa; eauto.
+    setoid_rewrite rcnext_lcj; eauto. apply IHHc.
+    repeat split.
+    + subst. eauto.
+    + setoid_rewrite <- Hst. apply get_set.
+    + subst. setoid_rewrite <- Hp3 in Hst.
+      rewrite set_set in Hst. eauto.
+  - dependent destruction lp2. destruct p0. cbn in H. inv H.
+    destruct Hp as (Hp1 & Hp2 & Hp3).
+    eapply rsp_pa. cbn; eauto.
+    intros [HX1 HX2]. eapply HX2. eauto.
+    setoid_rewrite lens_strat_next_pa; eauto. 2: cbn; eauto.
+    setoid_rewrite rcnext_lcj; eauto.
+Qed.
 
 Lemma lsq_de {U: Type} (u0: U):
   lsq (lcj (IntStrat.encap u0)) (lcj (IntStrat.encap u0)) lid lid.
-Admitted.
+Proof. apply lsq_id_lcj. reflexivity. Qed.
 
 Lemma tru_rsq {F}: rsq vid trur (@sru F) (id (F @ _)).
 Proof.
-  (* rewrite <- trur_tru. *)
-
-  (* rewrite <- scomp_id. *)
-
   pose proof (emor_strat_intro (@trur F)) as A.
-  assert (rsq vid vid (@tru F) tru).
+  assert (rsq vid vid (@tru F) tru) as B.
   { apply rsq_id_conv. reflexivity. }
-
-Admitted.
-
-  (* Lemma emor_strat_intro : *)
-  (*   rsq vid emor_rc (id _) f. *)
-  (* Proof. *)
-  (*   apply (emor_strat_intro_when esi_ready). *)
-  (* Qed. *)
+  pose proof (rsq_comp _ _ _ _ _ _ _ A B) as C.
+  rewrite compose_id_l in C.
+  setoid_rewrite (retraction srur) in C. apply C.
+Qed.
 
 (* The encapsulated strategy is refined by the original strategy using the
    "deencap" refinement convention.
@@ -1608,17 +1631,15 @@ Proof.
   apply lsq_de.
 Qed.
 
-Lemma sru_rewrite {E F} (σ : strat E F ready):
-  σ ⊙ sru = sru ⊙ σ @ lid .
-Admitted.
-
 Lemma id_scomp_comp {E F U V} (σ : E ->> F) (l : U ~>> V):
   id F @ l ⊙ σ @ lid = σ @ lid ⊙ id E @ l.
 Proof.
   rewrite <- !scomp_compose.
   rewrite compose_id_l.
-  rewrite compose_id_r. f_equal.
-Admitted.
+  rewrite compose_id_r.
+  apply scomp_strat_eq.
+  rewrite lcomp_lid_r. rewrite lcomp_lid_l. reflexivity.
+Qed.
 
 (* E@[s0> ⊙ σ@S ⊑ σ ⊙ E@[s0>
    XXX: move to IntStrat.v *)
@@ -1626,7 +1647,7 @@ Lemma encap_lift {E F} {S: Type} (σ: strat E F ready) (s0: S):
   (e s0) ⊙ (σ @ S) [= σ ⊙ (e s0).
 Proof.
   unfold e. rewrite <- !compose_assoc.
-  rewrite sru_rewrite.
+  rewrite sru_natural.
   rewrite !compose_assoc.
   apply compose_when_monotonic. reflexivity.
   rewrite id_scomp_comp. reflexivity.
@@ -1697,9 +1718,40 @@ Proof.
   apply representation_independence0. eauto.
 Qed.
 
-(* Lemma tru_lid {E F} (σ : E ->> F): *)
-(*   σ @ lid = trur ⊙ σ ⊙ tru. *)
-(* Admitted. *)
+Lemma rsq_trur {E F} (τ: E ->> F): rsq trur trur τ (τ @ lid).
+Proof.
+  pose proof (emor_strat_elim (@trur E)) as A.
+  assert (rsq vid vid (@tru E) tru) as B.
+  { apply rsq_id_conv. reflexivity. }
+  assert (rsq vid vid τ τ) as C.
+  { apply rsq_id_conv. reflexivity. }
+  pose proof (emor_strat_intro (@trur F)) as D.
+  pose proof (rsq_comp _ _ _ _ _ _ _ B A) as H1.
+  pose proof (rsq_comp _ _ _ _ _ _ _ C H1) as H2.
+  pose proof (rsq_comp _ _ _ _ _ _ _ D H2) as H3.
+  clear - H3.
+  rewrite compose_id_l in H3.
+  rewrite (retraction tru) in H3.
+  rewrite !compose_id_r in H3.
+  rewrite <- compose_assoc in H3.
+  setoid_rewrite  sru_natural in H3. 
+  assert ((trur ⊙ τ) @ lid = (@trur (F * 1)) ⊙ τ @ lid) as A.
+  {
+    rewrite <- lcomp_lid_r at 1.
+    rewrite scomp_compose.
+    f_equal.
+    pose proof (srur_natural (@trur F)).
+    assert (srur ⊙ trur ⊙ (@sru F)  = trur @ lid ⊙ srur ⊙ sru).
+    rewrite <- !compose_assoc. f_equal. apply H.
+    setoid_rewrite (retraction srur) in H0.
+    rewrite !compose_id_r in H0. symmetry. apply H0.
+  }
+  rewrite A in H3.
+  rewrite <- compose_assoc in H3.
+  setoid_rewrite (retraction tru) in H3.
+  rewrite compose_id_l in H3.
+  apply H3.
+Qed.
 
 Lemma rsq_de {E F U} (τ: strat E F ready) (u0: U) :
   Deterministic τ ->
@@ -1707,23 +1759,14 @@ Lemma rsq_de {E F U} (τ: strat E F ready) (u0: U) :
 Proof.
   intros Ht. rewrite !de_eq. unfold de'.
   eapply rsq_vcomp.
-  4: {
+  3: apply rsq_trur.
+  3: {
     eapply scomp_rsq. 2: apply lsq_de.
     rewrite !emor_rc_id.
     apply rsq_id_conv. reflexivity.
   }
-  1-2: eauto with typeclass_instances.
-  (* rewrite tru_lid. *)
-  (* rewrite <- (compose_id_r τ) at 1. *)
-  (* rewrite <- (compose_id_l (τ ⊙ id E)) at 1. *)
-  (* eapply rsq_comp. 2: eapply rsq_comp. *)
-  (* 2: apply rsq_id_conv; reflexivity. *)
-  admit.
-
-emor_strat_intro: forall {E1 E2 : esig} (f : emor E1 E2), rsq vid f (id E1) f
-emor_strat_elim: forall {E1 E2 : esig} (f : emor E1 E2), rsq f vid f (id E2)
-
-Admitted.
+  all: eauto with typeclass_instances.
+Qed.
 
 Global Hint Constructors tstrat_has : core.
 
