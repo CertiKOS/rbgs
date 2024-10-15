@@ -4456,6 +4456,8 @@ Program Definition bid {U} : bijection U U :=
   {| fw u := u;
      bw u := u |}.
 
+Coercion bid : Sortclass >-> bijection.
+
 Program Definition bcomp {U V W} (g : bijection V W) (f : bijection U V) :=
   {| fw u := fw g (fw f u);
      bw w := bw f (bw g w) |}.
@@ -5773,7 +5775,6 @@ Qed.
 
 Open Scope strat_scope.
 Coercion eid : esig >-> emor.
-Coercion bid : Sortclass >-> bijection.
 
 Lemma slu_passoc {E : esig} {U : Type} :
   E @ (@plu U) ⊙ (@sassoc E unit U) = (@sru E) @ U.
@@ -5790,17 +5791,183 @@ Admitted.
 
 (** Naturality of [sru] *)
 
-Lemma sru_natural {E F} (σ : E ->> F) :
-  σ ⊙ sru = sru ⊙ (σ @ unit).
-Proof.
-Admitted.
+Section SRU_NATURAL.
+  Context {E F : esig}.
+  Hint Constructors emor_has comp_has tstrat_has pref lens_has.
 
-Lemma srur_natural {E F} (σ : E ->> F) :
-  srur ⊙ σ = (σ @ unit) ⊙ srur.
-Proof.
-  rewrite <- (compose_id_r (srur ⊙ σ)), <- (retraction sru).
-  rewrite compose_assoc, <- !(compose_assoc _ _ srur). f_equal.
-  rewrite <- (compose_id_l (σ @ unit)), <- (retraction srur).
-  rewrite compose_assoc. f_equal.
-  apply sru_natural.
-Qed.
+  Variant srunpos :
+    forall i {j1 j2 k ik ijk},
+           epos tru j1 -> cpos i j1 ijk ->
+           epos tru j2 -> lpos bid k -> tpos i k ik -> cpos j2 ik ijk -> Type :=
+    | srun_ready :
+        srunpos ready eready cpos_ready
+                eready (lready bid tt) tp_ready cpos_ready
+    | srun_running (q : F) :
+        srunpos (running q) eready (cpos_left q)
+                (esuspended q) (lrunning bid tt tt tt)
+                (tp_running q (tt : glob unit))
+                (cpos_right (F:=F@unit) q (q,tt))
+    | srun_suspended (q : F) (m : E) :
+        srunpos (suspended q m) (esuspended m)
+                (cpos_suspended (E:=E@unit) q m (m,tt))
+                (esuspended q) (lsuspended bid tt tt tt)
+                (tp_suspended (E2 := glob unit) (F2 := glob unit) q tt m tt)
+                (cpos_suspended (F:=F@unit) (E:=E@unit) q (q,tt) (m,tt)).
+
+  Lemma sru_natural_has_1 {i j1 j2 k ik ijk pj1 pijk pj2 pk pik pijk'} :
+    @srunpos i j1 j2 k ik ijk pj1 pijk pj2 pk pik pijk' ->
+    forall s w t,
+      emor_has tru pj1 t ->
+      comp_has pijk s t w ->
+      exists s' t' u su,
+          s' [= s /\
+          emor_has tru pj2 t' /\
+          lens_has bid pk u /\
+          tstrat_has pik s' u su /\
+          comp_has pijk' t' su w.
+  Proof.
+    intros p s w t Ht Hw.
+    revert j1 j2 k ik ijk pj1 pijk pj2 pk pik pijk' p w t Ht Hw. cbn.
+    induction s; intros.
+    - dependent destruction p.
+      dependent destruction Hw.
+      eauto 10.
+    - dependent destruction p.
+      dependent destruction Ht;
+      dependent destruction Hw.
+      + eauto 10.
+      + dependent destruction Hw.
+    - dependent destruction m.
+      + dependent destruction p.
+        dependent destruction Hw.
+        edestruct IHs with (1 := srun_running q)
+          as (s' & t' & u & su & Hs' & Ht' & Hu & Hsu & H'); eauto.
+        exists (oq q :: s'),
+               (oq q :: pq (E:=F@unit) (q,tt) :: t'),
+               (oq (F:=glob unit) tt :: u),
+               (oq (F:=F@unit) (q,tt) :: su).
+        repeat split; try constructor; eauto.
+      + dependent destruction p.
+        dependent destruction Hw.
+        dependent destruction Ht.
+        dependent destruction Hw.
+        edestruct IHs with (1 := srun_suspended q m)
+          as (s' & t' & u & su & Hs' & Ht' & Hu & Hsu & H'); eauto.
+        exists (pq m :: s'),
+               t',
+               (pq (E:=glob unit) tt :: u),
+               (pq (E:=E@unit) (m,tt) :: su).
+        repeat split; try constructor; eauto.
+      + dependent destruction p.
+        dependent destruction Ht.
+        * (* it can stop even if σ would like it to continue *)
+          dependent destruction Hw.
+          exists (pnil_suspended _ _),
+                 (pnil_suspended _ _),
+                 (pnil_suspended _ _),
+                 (pnil_suspended _ _).
+          repeat split; eauto.
+        * dependent destruction Hw.
+          dependent destruction Hw.
+          destruct r as [n []].
+          edestruct IHs with (1 := srun_running q)
+            as (s' & t' & u & su & Hs' & Ht' & Hu & Hsu & H'); eauto.
+          exists (oa n :: s'),
+                 t',
+                 (oa (E:=1) tt :: u),
+                 (oa (E:=E@unit) (n,tt) :: su).
+          repeat split; try constructor; eauto.
+      + dependent destruction p.
+        dependent destruction Hw.
+        edestruct IHs with (1 := srun_ready)
+            as (s' & t' & u & su & Hs' & Ht' & Hu & Hsu & H'); eauto.
+        exists (pa r :: s'),
+               (oa (E:=F@unit) (m:=(q,tt)) (r,tt) :: pa r :: t'),
+               (pa (F:=1) tt :: u),
+               (pa (F:=F@unit) (q:=(q,tt)) (r,tt) :: su).
+        repeat split; try constructor; eauto.
+  Qed.
+
+  Lemma sru_natural_has_2 {i j1 j2 k ik ijk pj1 pijk pj2 pk pik pijk'} :
+    @srunpos i j1 j2 k ik ijk pj1 pijk pj2 pk pik pijk' ->
+    forall s t u su w,
+      emor_has tru pj2 t ->
+      lens_has bid pk u ->
+      tstrat_has pik s u su ->
+      comp_has pijk' t su w ->
+      exists s' t',
+        s' [= s /\
+        emor_has tru pj1 t' /\
+        comp_has pijk s' t' w.
+  Proof.
+    intros p s t u su w Ht Hu Hsu Hw. cbn.
+    revert j1 j2 k ik ijk pj1 pijk pj2 pk pik pijk' p t u su w Ht Hu Hsu Hw.
+    induction s; intros.
+    - dependent destruction p.
+      dependent destruction Hsu.
+      dependent destruction Hw.
+      + eauto.
+      + dependent destruction Ht.
+        dependent destruction Hw.
+    - dependent destruction p.
+      dependent destruction Hsu.
+      dependent destruction Hw.
+      eauto.
+    - dependent destruction m.
+      + (* incoming question *)
+        dependent destruction p.
+        dependent destruction Hsu.
+        dependent destruction Hu. cbn in Hu.
+        dependent destruction Hw; eauto.
+        dependent destruction Ht.
+        dependent destruction Hw.
+        edestruct IHs with (1 := srun_running q)
+          as (s' & t' & Hs' & Ht' & H'); eauto 10.
+      + (* outgoing question *)
+        dependent destruction p.
+        dependent destruction Hsu.
+        dependent destruction Hu.
+        dependent destruction Hw.
+        edestruct IHs with (1 := srun_suspended q m)
+          as (s' & t' & Hs' & Ht' & H'); eauto 10.
+      + (* incoming answer *)
+        dependent destruction p.
+        dependent destruction Hsu.
+        dependent destruction Hw.
+        dependent destruction Hu.
+        destruct n2.
+        edestruct IHs with (1 := srun_running q)
+          as (s' & t' & Hs' & Ht' & H'); eauto 20.
+      + (* outgoing answer *)
+        dependent destruction p.
+        dependent destruction Hsu.
+        dependent destruction Hu.
+        dependent destruction Hw.
+        dependent destruction Ht.
+        dependent destruction Hw.
+        edestruct IHs with (1 := srun_ready)
+          as (s' & t' & Hs' & Ht' & H'); eauto 20.
+  Qed.
+
+  Lemma sru_natural (σ : E ->> F) :
+    σ ⊙ sru = sru ⊙ (σ @ unit).
+  Proof.
+    apply antisymmetry; cbn.
+    - intros w (s & t & Hs & Ht & Hw).
+      edestruct (sru_natural_has_1 srun_ready)
+        as (? & ? & ? & ? & ? & ? & ? & ? & ?); eauto 20 using Downset.closed.
+    - intros w (s & t & Hs & (s1 & s2 & Ht & Hs1 & Hs2) & Hw).
+      edestruct (sru_natural_has_2 srun_ready)
+        as (? & ? & ? & ? & ?); eauto 20 using Downset.closed.
+  Qed.
+
+  Lemma srur_natural (σ : E ->> F) :
+    srur ⊙ σ = (σ @ unit) ⊙ srur.
+  Proof.
+    rewrite <- (compose_id_r (srur ⊙ σ)), <- (retraction sru).
+    rewrite compose_assoc, <- !(compose_assoc _ _ srur). f_equal.
+    rewrite <- (compose_id_l (σ @ unit)), <- (retraction srur).
+    rewrite compose_assoc. f_equal.
+    apply sru_natural.
+  Qed.
+End SRU_NATURAL.  
