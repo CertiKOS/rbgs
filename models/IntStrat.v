@@ -5304,6 +5304,14 @@ Definition scomp_strat {E F U V} (σ: E ->> F) (f: lens U V) : E @ U ->> F @ V :
 
 Infix "@" := scomp_strat : strat_scope.
 
+Global Instance scomp_strat_eq :
+  Monotonic
+    (@scomp_strat)
+    (forallr -, forallr -, forallr -, forallr -, - ==> lens_eqv ==> eq).
+Proof.
+  unfold scomp_strat. repeat rstep. f_equal. rauto.
+Qed.
+
 (** Refinement conventions *)
 
 Definition scomp_conv {E1 E2 U1 U2} (R : conv E1 E2) (S : conv (glob U1) (glob U2)) : conv (E1 @ U1) (E2 @ U2) :=
