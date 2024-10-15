@@ -1325,6 +1325,8 @@ Class Retraction {E F} (f : E ->> F) (g : F ->> E) :=
     retraction : f ⊙ g = id F;
   }.
 
+Arguments retraction {E F} f {g _}.
+
 Class Isomorphism {E F} (f : E ->> F) (g : F ->> E) :=
   {
     iso_fw :> Retraction f g;
@@ -1335,7 +1337,7 @@ Lemma retract {E F G} `{Hfg : Retraction F G} (σ : strat E G ready) :
   f ⊙ g ⊙ σ = σ.
 Proof.
   rewrite <- compose_assoc.
-  rewrite retraction.
+  rewrite (retraction f).
   rewrite compose_id_l.
   reflexivity.
 Qed.
@@ -5304,6 +5306,14 @@ Definition scomp_strat {E F U V} (σ: E ->> F) (f: lens U V) : E @ U ->> F @ V :
 
 Infix "@" := scomp_strat : strat_scope.
 
+Global Instance scomp_strat_eq :
+  Monotonic
+    (@scomp_strat)
+    (forallr -, forallr -, forallr -, forallr -, - ==> lens_eqv ==> eq).
+Proof.
+  unfold scomp_strat. repeat rstep. f_equal. rauto.
+Qed.
+
 (** Refinement conventions *)
 
 Definition scomp_conv {E1 E2 U1 U2} (R : conv E1 E2) (S : conv (glob U1) (glob U2)) : conv (E1 @ U1) (E2 @ U2) :=
@@ -5775,3 +5785,22 @@ Lemma sassoc_sassoc {E : esig} {U V W : Type} :
   E @ (@passoc U V W) ⊙ @sassoc E (U * V) W ⊙ (@sassoc E U V) @ W.
 Proof.
 Admitted.
+
+(** **** Additional properties of embedded structural isomorphisms *)
+
+(** Naturality of [sru] *)
+
+Lemma sru_natural {E F} (σ : E ->> F) :
+  σ ⊙ sru = sru ⊙ (σ @ unit).
+Proof.
+Admitted.
+
+Lemma srur_natural {E F} (σ : E ->> F) :
+  srur ⊙ σ = (σ @ unit) ⊙ srur.
+Proof.
+  rewrite <- (compose_id_r (srur ⊙ σ)), <- (retraction sru).
+  rewrite compose_assoc, <- !(compose_assoc _ _ srur). f_equal.
+  rewrite <- (compose_id_l (σ @ unit)), <- (retraction srur).
+  rewrite compose_assoc. f_equal.
+  apply sru_natural.
+Qed.
