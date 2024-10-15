@@ -1537,12 +1537,47 @@ Section ENCAP.
 
 End ENCAP.
 
+Global Hint Constructors tstrat_has lens_has: core.
+
+Lemma lsq_id_lcj {U V: Type} i1 i2 (p: rspos i1 i2)  (f: U ~>> V)
+  (lp1 lp2: lpos lid _) (st1 st2: IntStrat.state f):
+  (* (match lp2 with *)
+  (*  | lready _ w *)
+  (*  | lrunning _ p v w | lsuspended _ p v w => w end) -> *)
+  rsq_when (lcj_when f st1) (lcj_when f st2) p
+    (lens_strat_when lid lp1) (lens_strat_when lid lp2).
+Proof.
+  intros x Hx. cbn in Hx. revert i2 st1 st2 lp2 p.
+  dependent induction Hx; intros; dependent destruction p0; eauto.
+  - dependent destruction lp2. apply rsp_ready. cbn. eauto.
+  - dependent destruction lp2.
+    apply rsp_oq. cbn. eauto.
+    intros q2 Hq2. cbn in Hq2. setoid_rewrite lens_strat_next_oq; eauto.
+  - dependent destruction lp2. destruct p0.
+Admitted.
+
+
 Lemma lsq_de {U: Type} (u0: U):
   lsq (lcj (IntStrat.encap u0)) (lcj (IntStrat.encap u0)) lid lid.
 Admitted.
 
-Lemma tru_rsq {F}: rsq vid trur (@tru F) (id (F @ _)).
+Lemma tru_rsq {F}: rsq vid trur (@sru F) (id (F @ _)).
+Proof.
+  (* rewrite <- trur_tru. *)
+
+  (* rewrite <- scomp_id. *)
+
+  pose proof (emor_strat_intro (@trur F)) as A.
+  assert (rsq vid vid (@tru F) tru).
+  { apply rsq_id_conv. reflexivity. }
+
 Admitted.
+
+  (* Lemma emor_strat_intro : *)
+  (*   rsq vid emor_rc (id _) f. *)
+  (* Proof. *)
+  (*   apply (emor_strat_intro_when esi_ready). *)
+  (* Qed. *)
 
 (* The encapsulated strategy is refined by the original strategy using the
    "deencap" refinement convention.
@@ -1579,6 +1614,10 @@ Admitted.
 
 Lemma id_scomp_comp {E F U V} (σ : E ->> F) (l : U ~>> V):
   id F @ l ⊙ σ @ lid = σ @ lid ⊙ id E @ l.
+Proof.
+  rewrite <- !scomp_compose.
+  rewrite compose_id_l.
+  rewrite compose_id_r. f_equal.
 Admitted.
 
 (* E@[s0> ⊙ σ@S ⊑ σ ⊙ E@[s0>
@@ -1592,8 +1631,6 @@ Proof.
   apply compose_when_monotonic. reflexivity.
   rewrite id_scomp_comp. reflexivity.
 Qed.
-
-Global Hint Constructors tstrat_has lens_has: core.
 
 Lemma rel_conv_rcnext { U V } (R: rel U V) m1 m2 n1 n2:
   R m1 m2 -> R n1 n2 -> rcnext m1 m2 n1 n2 R = R.
@@ -1682,6 +1719,9 @@ Proof.
   (* eapply rsq_comp. 2: eapply rsq_comp. *)
   (* 2: apply rsq_id_conv; reflexivity. *)
   admit.
+
+emor_strat_intro: forall {E1 E2 : esig} (f : emor E1 E2), rsq vid f (id E1) f
+emor_strat_elim: forall {E1 E2 : esig} (f : emor E1 E2), rsq f vid f (id E2)
 
 Admitted.
 
