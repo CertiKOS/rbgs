@@ -17,6 +17,15 @@ Require Import
      TensorComp SkelLinking.
 Require Import CategoricalComp FlatComp.
 
+(** * §6.4 Certified Abstraction Layers *)
+
+(** This file corresponds to §6.4 in the paper.
+
+    The theorem `layer_vcomp` corresponds to vertical composition of layers as
+    claimed in the paper. Additionally, this files also includes `layer_hcomp`
+    and `layer_tcomp` for horizontal and tensor composition of abstraction
+    layers. These two are not presented in the paper though. *)
+
 Program Definition cc_null {liA liB}: callconv liA liB :=
   {|
     ccworld := Empty_set;

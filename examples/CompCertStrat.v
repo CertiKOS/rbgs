@@ -39,6 +39,8 @@ Arguments pair {A B}%type_scope _ _.
 Notation "x * y" := (prod x y) : embed_scope.
 Notation "( x , y , .. , z )" := (pair .. (pair x y) .. z) : embed_scope.
 
+(** ** Embedding CompCertO's language interface into effect signatures *)
+
 Canonical Structure li_sig li: esig :=
   {|
     op := (Genv.symtbl * query li)%embed;
@@ -46,11 +48,16 @@ Canonical Structure li_sig li: esig :=
   |}.
 Coercion li_sig: language_interface >-> esig.
 
+(** ** Definition 6.1 (Embedding CompCertO's simulation conventions into
+refinement conventions )*)
+
 Section CONV.
   Local Open Scope embed.
   Obligation Tactic := cbn.
 
   Context {liA liB: language_interface} (cc: callconv liA liB).
+
+  (** *** Definition *)
 
   Inductive cc_conv_has: rcp liA liB -> Prop :=
   | cc_conv_has_allow m1 m2 se1 se2 w
@@ -76,6 +83,9 @@ Section CONV.
     intros. exfalso. eauto.
   Qed.
 
+  (** [cc_conv_at] allows the choice of world to happen before the simulation,
+      so that the world used in the simulation is consistent.  *)
+
   Inductive cc_conv_at_has: option (ccworld cc) -> rcp liA liB -> Prop :=
   | cc_conv_at_has_allow m1 m2 se1 se2 w
     (HSE: match_senv cc w se1 se2) (HM: match_query cc w m1 m2):
@@ -100,6 +110,8 @@ Section CONV.
     - constructor; eauto.
       intros. exfalso. eauto.
   Qed.
+
+  (** *** Properties *)
 
   Lemma cc_conv_expand:
     cc_conv = sup w, cc_conv_at w.
@@ -135,6 +147,8 @@ End CONV.
 
 Coercion cc_conv: callconv >-> conv.
 
+(** ** Embedding preserves identity *)
+
 Lemma cc_conv_id {li}: @cc_conv li _ cc_id = (@vid li).
 Proof.
   apply antisymmetry.
@@ -157,26 +171,17 @@ Proof.
       Unshelve. all: exact tt.
 Qed.
 
+(** ** Embedding CompCertO's transition systems *)
+
 Close Scope list_scope.
-
-Inductive non_recur_play {E F}: forall {i}, @play E F i -> Prop :=
-| non_recur_play_nil: non_recur_play pnil_ready
-| non_recur_play_suspended q m: non_recur_play (pnil_suspended q m)
-| non_recur_play_pa q (r: ar q): non_recur_play (pa r :: pnil_ready)
-| non_recur_play_oa q m (r: ar m) (s: play (running q)):
-  non_recur_play s -> non_recur_play (oa r :: s)
-| non_recur_play_oq q s: non_recur_play s -> non_recur_play (oq q :: s)
-| non_recur_play_pq q m (s: play (suspended q m)):
-  non_recur_play s -> non_recur_play (pq m :: s).
-
-Class NonRecur {E F p} (σ: @strat E F p): Prop :=
-  { non_recur: forall s, Downset.has σ s -> non_recur_play s; }.
 
 Section LTS.
   Local Open Scope embed.
   Obligation Tactic := cbn.
 
   Context {liA liB: language_interface} (L: semantics liA liB).
+
+  (** *** Definition *)
 
   Inductive state_strat_has (se: Genv.symtbl) (q: query liB) (s: state L): forall {i}, @play liA liB i -> Prop :=
   | state_strat_has_external_suspend m
@@ -209,6 +214,10 @@ Section LTS.
     - eauto.
   Qed.
 
+  (** The skeleton is given as an extra parameter. When the symbol table that
+      comes together with the question does not match the skeleton, the strategy
+      is empty *)
+
   Inductive lts_strat_has sk: forall {i}, @play liA liB i -> Prop :=
   | lts_strat_has_nil: @lts_strat_has sk ready pnil_ready
   | lts_strat_has_intro se q s k
@@ -237,6 +246,12 @@ Definition lts_strat_sk sk {liA liB} (L: semantics liA liB): strat liA liB ready
   closure (lts_strat' L sk ready).
 Definition lts_strat {liA liB} (L: semantics liA liB): strat liA liB ready := lts_strat_sk (skel L) L.
 
+(** The transition system semantics in CompCertO is single-shot, so it will not
+    be re-executed once it's done *)
+
+Class NonRecur {E F p} (σ: @strat E F p): Prop :=
+  { non_recur: forall s, Downset.has σ s -> no_reentrancy_play s; }.
+
 Global Instance lts_strat_nonrecur sk {liA liB} (L: semantics liA liB) i: NonRecur (lts_strat' L sk i).
 Proof.
   split. intros s Hs. cbn in Hs. dependent destruction Hs.
@@ -248,7 +263,9 @@ Proof.
   - apply IHHS; eauto.
 Qed.
 
-(** * Deterministic *)
+(** ** Deterministic property *)
+
+(** deterministic transition system corresponds to deterministic strategy *)
 
 Section DETERM.
 
@@ -344,7 +361,7 @@ Section DETERM.
     seq_comp_has s1 s2 s -> seq_comp_has t1 t2 t ->
     pcoh s1 t1 -> pcoh s2 t2 ->
     (is_pnil_ready s1 -> pcoh_dep t s2) -> (is_pnil_ready t1 -> pcoh_dep s t2) ->
-    non_recur_play s1 -> non_recur_play t1 ->
+    no_reentrancy_play s1 -> no_reentrancy_play t1 ->
     pcoh s t.
   Proof.
     intros Hs Ht Hc1 Hc2 Hd1 Hd2 Ho1 Ho2. revert t1 t2 t Ht Hc1 Hc2 Hd1 Hd2 Ho1 Ho2.
@@ -400,6 +417,10 @@ Section DETERM.
   Qed.
 
 End DETERM.
+
+(** ** Soundness of CompCertO's simulation *)
+
+(** CompCertO’s compiler correctness corresponds to the refinement square *)
 
 Section FSIM.
   Local Open Scope embed_scope.
@@ -474,10 +495,36 @@ Section FSIM.
 
 End FSIM.
 
-Arguments play_suspended {E F i} _.
+(** The strategy that corresponds to transition system are regular strategies *)
+
 Section REGULAR.
 
-  Hint Constructors pref seq_comp_has play_suspended no_reentrancy_play : core.
+  Hint Constructors pref play_suspended seq_comp_has play_suspended no_reentrancy_play : core.
+
+  Lemma lts_strat_no_reentrancy sk {liA liB} (L: semantics liA liB) i:
+    no_reentrancy (lts_strat' L sk i).
+  Proof.
+    intros s Hs. cbn in Hs. dependent destruction Hs; eauto.
+    constructor 3. clear HVF INIT. dependent induction HS; eauto.
+  Qed.
+
+  Instance lts_regular sk {liA liB} (L: semantics liA liB):
+    Regular (lts_strat_sk sk L).
+  Proof.
+    split. eexists; split. reflexivity. apply lts_strat_no_reentrancy.
+  Qed.
+
+End REGULAR.
+
+(** Properties of regular strategies and properties between sequential
+    composition and horizontal composotion. These are used when proving the
+    embedding preserves the composition *)
+
+Arguments play_suspended {E F i} _.
+
+Section REGULAR.
+
+  Hint Constructors pref play_suspended seq_comp_has play_suspended no_reentrancy_play : core.
 
   Lemma no_reentrancy_play_ref {E F i} (s t: @play E F i):
     s [= t -> no_reentrancy_play t -> no_reentrancy_play s.
@@ -486,8 +533,6 @@ Section REGULAR.
       intros; cbn in *; dependent destruction Href; eauto.
     xinv Href. eauto.
   Qed.
-
-  Hint Constructors play_suspended : core.
 
   Lemma comp_has_suspended {E F G i j k} (p: cpos i j k) (s: @play F G i) (t: @play E F j) w:
     comp_has p s t w -> play_suspended w -> play_suspended t.
@@ -650,24 +695,12 @@ Section REGULAR.
     exists pnil_ready. constructor.
   Qed.
 
-  Lemma lts_strat_no_reentrancy sk {liA liB} (L: semantics liA liB) i:
-    no_reentrancy (lts_strat' L sk i).
-  Proof.
-    intros s Hs. cbn in Hs. dependent destruction Hs; eauto.
-    constructor 3. clear HVF INIT. dependent induction HS; eauto.
-  Qed.
-
-  Instance lts_regular sk {liA liB} (L: semantics liA liB):
-    Regular (lts_strat_sk sk L).
-  Proof.
-    split. eexists; split. reflexivity. apply lts_strat_no_reentrancy.
-  Qed.
-
 End REGULAR.
 
-Require Import CategoricalComp.
+(** A few more properties between sequential composition and horizontal
+    composotion. *)
 
-Section CC_COMP.
+Section PROPERTY.
 
   Hint Constructors play_suspended seq_comp_has comp_has closure_has : core.
 
@@ -782,7 +815,21 @@ Section CC_COMP.
     Unshelve. eauto.
   Qed.
 
-  (* s* ∘ t ⊑ (s ∘ t)* *)
+End PROPERTY.
+
+(** ** The embedding preserves composition *)
+
+(** In the sense that [L1] ⊙ [L2] ⊑ [L1 ⊙ L2] *)
+
+Require Import CategoricalComp.
+
+Section CC_COMP.
+
+  Hint Constructors play_suspended seq_comp_has comp_has closure_has : core.
+
+  (** The interaction between the closure operator and composition:
+        s* ∘ t = (s ∘ t)*
+   *)
   Lemma closure_comp {E F G} (σ: strat F G ready) (τ: strat E F ready)
     (Hτ: Regular τ):
     (closure σ) ⊙ τ = closure (σ ⊙ τ).
@@ -823,6 +870,8 @@ Section CC_COMP.
       eapply Downset.closed.
       eapply seq_comp_has_incr. apply B. eauto.
   Qed.
+
+  (** We first show the embedding preserves composition of single-shot execution *)
 
   Context {liA liB liC} (L1: semantics liB liC) (L2: semantics liA liB).
 
@@ -897,6 +946,9 @@ Section CC_COMP.
     - intros. eauto.
   Qed.
 
+  (** The embedding of transition systems preserve composition comes as a
+      corollary *)
+
   Lemma cc_comp_ref sk1 sk2:
     (lts_strat_sk sk1 L1) ⊙ (lts_strat_sk sk2 L2) [= lts_strat (comp_semantics' L1 L2 sk1).
   Proof.
@@ -909,6 +961,12 @@ Section CC_COMP.
   Qed.
 
 End CC_COMP.
+
+(** The interaction between the closure operator and the spacial composition.
+    Particularly,
+
+      (σ @ U)* = σ* @ U.
+ *)
 
 Section CLOSURE_SCOMP.
 
@@ -1036,7 +1094,120 @@ Section CLOSURE_SCOMP.
 
 End CLOSURE_SCOMP.
 
+(** ** Theorem 6.2 (The frame property for Clight)  *)
+
+Require Clight Join Memory ClightPComp Lifting.
+
+Section FRAME.
+  Import Clight Join Memory.Mem ClightPComp.
+  Import -(notations) Lifting.
+
+  Inductive join_query : query (lifted_li mem li_c) -> query li_c -> Prop :=
+  | join_query_intro vf sg vargs m msrc mtgt
+      (MJOIN: Join.join m msrc mtgt):
+    join_query (cq vf sg vargs msrc, m) (cq vf sg vargs mtgt).
+
+  Inductive join_reply: reply (lifted_li mem li_c) -> reply li_c -> Prop :=
+  | join_reply_intro rv m msrc mtgt
+      (MJOIN: Join.join m msrc mtgt):
+    join_reply (cr rv msrc, m) (cr rv mtgt).
+
+  Program Definition join_cc : callconv (lifted_li mem li_c) li_c :=
+    {|
+      ccworld := unit;
+      match_senv _ se1 se2 := se1 = se2;
+      match_query _ := join_query;
+      match_reply _ := join_reply;
+    |}.
+  Next Obligation. reflexivity. Qed.
+  Next Obligation. inv H0. reflexivity. Qed.
+  Next Obligation. inv H. reflexivity. Qed.
+
+  Context (p: program).
+  Inductive join_ms : state * mem -> state -> Prop :=
+  | clightp_ms_State:
+    forall f s k e le mx m1 m2 (HJ: join mx m1 m2),
+      join_ms (State f s k e le m1, mx) (State f s k e le m2)
+  | join_ms_Callstate:
+    forall vf args k mx m1 m2 (HJ: join mx m1 m2),
+      join_ms (Callstate vf args k m1, mx) (Callstate vf args k m2)
+  | join_ms_Returnstate:
+    forall rv k mx m1 m2 (HJ: join mx m1 m2),
+      join_ms (Returnstate rv k m1, mx) (Returnstate rv k m2).
+
+  Lemma join_step ge mx:
+    forall s1 t s1',
+    Clight.step2 ge s1 t s1' ->
+    forall s2, join_ms (s1, mx) s2 ->
+    exists s2', Clight.step2 ge s2 t s2' /\
+    join_ms (s1', mx) s2'.
+  Proof with (eexists _; split; econstructor; eauto).
+    induction 1; intros S1 HS; inv HS;
+      try solve [ eexists _; split; econstructor; eauto ].
+    - exploit clight_lvalue_join; eauto. intros A.
+      exploit clight_expr_join; eauto. intros B.
+      exploit sem_cast_join; eauto.
+      rewrite H1. intros C. inv C.
+      exploit assign_loc_join; eauto. intros (? & D & E)...
+    - exploit clight_expr_join; eauto. intros A...
+    - exploit clight_expr_join; eauto. intros A.
+      exploit clight_exprlist_join; eauto; intros B...
+    - exploit clight_exprlist_join; eauto. intros A.
+      exploit ClightP.external_call_join; eauto. intros (? & B & C)...
+    - exploit clight_expr_join; eauto. intros A.
+      exploit bool_val_join; eauto.
+      rewrite H0. intros B. inv B...
+    - exploit free_list_join; eauto.
+      rewrite H. intros A. inv A...
+    - exploit clight_expr_join; eauto. intros A.
+      exploit sem_cast_join; eauto.
+      rewrite H0. intros B. inv B.
+      exploit free_list_join; eauto.
+      rewrite H1. intros C. inv C...
+    - exploit free_list_join; eauto.
+      rewrite H0. intros A. inv A...
+    - exploit clight_expr_join; eauto. intros A...
+    - exploit clight_function_entry_join; eauto. intros (? & A & B)...
+    - exploit ClightP.external_call_join; eauto. intros (? & A & B)...
+  Qed.
+
+  Lemma frame_property :
+    forward_simulation join_cc join_cc (lifted_semantics mem (semantics2 p)) (semantics2 p).
+  Proof.
+    constructor. econstructor. reflexivity. firstorder.
+    instantiate (1 := fun _ _ _ => _). cbn beta.
+    intros se1 se2 w Hse Hse1. cbn -[semantics2] in *. subst se2.
+    rename w into mx.
+    eapply forward_simulation_step with (match_states := join_ms).
+    - intros [q1 mq] q2 [s1 ms] Hq Hi. cbn in *. eprod_crush.
+      inv Hq. inv H.
+      eexists. split; econstructor; eauto.
+      apply mjoin_nextblock in MJOIN.
+      rewrite MJOIN. unfold Ple in *.
+      etransitivity; eauto.
+      apply Pos.le_max_r.
+    - intros [s1 ms1] s2 [r1 mr1] Hjoin Hf.
+      inv Hf. cbn in *. subst. inv H. inv Hjoin.
+      eexists. split; constructor; eauto.
+    - intros [s1 ms1] s2 [q1 mq1] Hjoin He.
+      inv He. cbn in *. subst. inv H. inv Hjoin.
+      eexists tt, _. repeat apply conj; eauto.
+      + econstructor; eauto.
+      + constructor; eauto.
+      + intros [r1 mr1] r2 [s1' ms1'] Hjoin Hr.
+        eprod_crush. inv H. inv Hjoin.
+        eexists. split; constructor; eauto.
+    - intros [s1 ms1] t [s1' ms1'] [HS <-] s2 Hjoin.
+      eapply join_step; eauto.
+    - apply well_founded_ltof.
+  Qed.
+
+End FRAME.
+
 (* --------------------------------------------------------------- *)
+
+(** ** Miscellaneous properties  *)
+
 (** A handy way to built stateless refinement convention from the relation on
     questions and answers *)
 

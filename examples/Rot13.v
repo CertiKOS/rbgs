@@ -25,7 +25,7 @@ Close Scope Z_scope.
     the strategy framework presented in the paper. There is also a legacy
     version of this example which can be found in `examples/process/*.v` is
     proved purely using CompCertO structures. The legacy version is not
-    presented in the paper but provides some useful infrastructures.
+    presented in the paper but it shares some common infrastructures.
 
     Particularly, this file depends on:
 
@@ -38,13 +38,26 @@ Close Scope Z_scope.
 
       in the paper;
 
-    - examples/Util.v: various utilities about the CompCertO correctness theorem
+    - examples/Util.v: various auxiliary definitions and lemmas about the
+      CompCertO correctness theorem
 
- *)
+    - examples/process/InitMem.v: the construction of the initial memory that is
+      used to invoke the execution of CompCertO semantics
+
+    - examples/process/Load.v: This file has the loader correctness for the
+      legacy version. Most of the lemmas are also useful here
+
+    We made one simplification to the example presented in the paper: we used
+    the shorted string "hello" instead of "hello, world!" so that we don't have
+    to deal with rot13 encoding on non-ascii characters. This simplified things
+    because proving numeric calculations in CompCert is thorny due to the
+    convertion among various representations of integers/bytes/nats.
+
+*)
 
 Axiom (Hwin: Archi.win64 = false).
 
-(** * Strategy-level definitions and proof *)
+(** ** Strategy-level definitions *)
 
 Definition P : esig := {| op := Genv.symtbl; ar _ := Integers.int |}.
 Inductive F_op : Type := F_read : int -> F_op | F_write : list byte -> F_op.
@@ -57,10 +70,14 @@ Definition S : esig := F + F.
 
 Arguments compose_when {E F G}%esig_scope {i j k} p (σ τ)%strat_scope.
 
+(** The strategy level specification of the overall execution Γ_(1), the secret
+    module Γ_secret, and the Γ_decode. *)
+
 Section STRATEGY.
 
   Context (sk_secret sk_decode: AST.program unit unit).
 
+  (** *** Example 2.4 (Command Specifications) *)
   Definition Γ_play se : @play S P ready :=
     @oq S P se ::
       @pq S P se (inr (F_write hello_bytes)) ::
@@ -82,6 +99,7 @@ Section STRATEGY.
       @pa S P se (Int.repr 0) :: pnil_ready.
   Definition Γ_decode : S ->> P := sup { se | Genv.valid_for sk_decode se }, down (Γ_decode_play se).
 
+  (** *** Example 2.11 (Composing processes) *)
   Definition seq_play se n1 n2: @play (P + P) P ready :=
     @oq (P+P) P se ::
       @pq (P+P) P se (inl se) ::
@@ -127,6 +145,7 @@ Section STRATEGY.
 
   Hint Constructors comp_has : core.
 
+  (** *** Property ϕ_(1) in Example 2.11 *)
   Lemma ϕ_1 : Γ [= pipe Γ_secret Γ_decode.
   Proof.
     intros p Hp. cbn in Hp. destruct Hp as ((se & Hse1 & Hse2) & Hp). cbn in Hp.
@@ -221,7 +240,7 @@ Section STRATEGY.
 
 End STRATEGY.
 
-(** * Code Proof *)
+(** ** C and Asm Loader definitions *)
 
 Require Import CAsm InitMem Maps AST.
 Require Import Conventions Mach Asm.
@@ -236,6 +255,7 @@ Section C_LOADER.
   Context (prog: Clight.program).
   Let sk := AST.erase_program prog.
 
+  (** *** The entry part of the C Loader *)
   Definition entry_c_play (se: Genv.symtbl) q r i : @play li_c P ready :=
     @oq li_c P se ::
     @pq li_c P se (se, q)%embed ::
@@ -253,6 +273,7 @@ Section C_LOADER.
   Definition entry_c : li_c ->> P :=
     sup se, sup q, sup r, sup i, sup (_: valid_entry_c se q r i), down (entry_c_play se q r i).
 
+  (** *** The runtime part of the C Loader *)
   Definition read_c_play se q n bytes r : @play S li_c ready :=
     @oq S li_c (se, q)%embed ::
     @pq S li_c (se, q)%embed (inl (F_read n)) ::
@@ -296,6 +317,7 @@ Section ASM_LOADER.
   Context (prog: Asm.program).
   Let sk := erase_program prog.
 
+  (** *** The entry part of the Asm Loader *)
   Definition entry_asm_play (se: Genv.symtbl) q r rv : @play li_asm P ready :=
     @oq li_asm P se ::
     @pq li_asm P se (se, q)%embed ::
@@ -313,6 +335,8 @@ Section ASM_LOADER.
     valid_entry_asm se (rs, m) (rs', m') i.
   Definition entry_asm : li_asm ->> P :=
     sup se, sup q, sup r, sup i, sup (_: valid_entry_asm se q r i), down (entry_asm_play se q r i).
+
+  (** *** The runtime part of the Asm Loader *)
   Definition read_asm_play se q n bytes r : @play S li_asm ready :=
     @oq S li_asm (se, q)%embed ::
     @pq S li_asm (se, q)%embed (inl (F_read n)) ::
@@ -358,6 +382,8 @@ End ASM_LOADER.
 
 Local Hint Constructors pcoh : core.
 
+(** Deterministic property of the asm runtime *)
+
 Instance runtime_asm_determ tp: Deterministic (runtime_asm tp).
 Proof.
   Ltac dd := dependent destruction Hs; dependent destruction Ht; eauto.
@@ -397,6 +423,8 @@ Proof.
     om. constructor. dd. dd.
     inv Hs1. inv Ht1. repeat constructor.
 Qed.
+
+(** ** Loader correctness *)
 
 Section LOADER_CORRECT.
   Context p tp (Hp: match_prog p tp).
@@ -916,7 +944,9 @@ Section LOADER_CORRECT.
   (* Abort. *)
 End LOADER_CORRECT.
 
-(** ** Rot13 Clight Program *)
+(** ** Code Proof for the Clight programs *)
+
+(** *** Clight Program rot13.c *)
 
 Require Import Clight Ctypes Cop.
 
@@ -1015,6 +1045,10 @@ Program Definition sr_clight: Clight.program :=
 Next Obligation. reflexivity. Qed.
 
 Require SecretAsm.
+
+(** *** Correctness proof of the secret program *)
+
+(** The proof corresponds to the ϕ_secret and π_secret combined in the Example 6.4 *)
 
 Section SECRET.
 
@@ -1340,6 +1374,10 @@ Section SECRET.
 
 End SECRET.
 
+(** ** Code Proof for the Clight programs *)
+
+(** *** Clight Program decode.c *)
+
 Definition decode_main_id: positive := 1.
 Definition decode_rot13_id: positive := 2.
 Definition decode_read_id: positive := 3.
@@ -1453,6 +1491,10 @@ Lemma Hdr_program : Linking.link decode_clight rot13_clight = Some dr_clight.
   apply mk_program_ext; eauto.
   cbn in e. inv e. reflexivity.
 Qed.
+
+(** *** Correctness proof of the decode program *)
+
+(** The proof corresponds to the ϕ_decode and π_decode combined in the Example 6.4 *)
 
 Section DECODE.
 
@@ -1823,6 +1865,10 @@ Section DECODE.
   Qed.
 
 End DECODE.
+
+(** ** Putting together *)
+
+(** The overall proof corresponds the property (1) in Section 1.1 *)
 
 Section PROOF.
   Import Errors Linking.

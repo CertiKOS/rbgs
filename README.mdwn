@@ -68,7 +68,8 @@ Once Coq and Menhir have been installed, run the script
 
 At this point make sure there were no error messages. In particular
 if your versions of Coq, Menhir, etc. are not suitable to build
-CompCert or `coqrel`, this is when things will break.
+CompCert or `coqrel`, this is when things will break. Warnings about
+the `install-doc` target can be safely ignored.
 
 If the configuration was successful you should be able to build the
 development using `make`. We recommend using the `-jN` option to enable

@@ -10,4 +10,19 @@ clean::
 	+make -C coqrel clean
 	+make -C compcert clean
 
+popl25-artifact33:
+	[ -e .git ] && [ -e compcert/.git ] && [ -e coqrel/.git ]
+	rm -rf $@.n $@
+	mkdir $@.n
+	git archive --format=tar HEAD | tar -C $@.n -x
+	(cd coqrel; git archive --format=tar HEAD) | tar -C $@.n/coqrel -x
+	(cd compcert; git archive --format=tar HEAD) | tar -C $@.n/compcert -x
+	mv $@.n $@
+
+popl25-artifact33.tar: popl25-artifact33
+	tar -cf $@ $<
+
+%.gz: %
+	gzip $*
+
 -include Makefile.user
