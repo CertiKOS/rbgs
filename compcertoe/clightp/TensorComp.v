@@ -1,7 +1,7 @@
 From Coq Require Import
      Relations RelationClasses
      List FinFun.
-From compcert.clightp Require Import
+From clightp Require Import
      Lifting AbRel.
 From compcert.lib Require Import
      Coqlib.
@@ -9,9 +9,8 @@ From compcert.common Require Import
      LanguageInterface Events
      Globalenvs Smallstep
      Linking Memory Values
-     CallconvAlgebra
-     CategoricalComp
-     FlatComp.
+     CallconvAlgebra.
+Require Import CategoricalComp FlatComp.
 
 Generalizable All Variables.
 Close Scope Z_scope.

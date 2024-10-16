@@ -2,7 +2,7 @@ From compcert Require Import
      Integers Coqlib Maps
      Memory AST Values
      Globalenvs Linking Ctypes.
-From compcert.clightp Require Import
+From clightp Require Import
   ClightP PEnv.
 
 Import ClightP.

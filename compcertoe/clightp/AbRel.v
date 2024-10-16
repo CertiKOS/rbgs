@@ -1,6 +1,6 @@
 From Coq Require Import
      Relations RelationClasses List.
-From compcert.clightp Require Import
+From clightp Require Import
      Lifting.
 From compcert.lib Require Import
      Coqlib Maps.

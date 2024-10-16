@@ -13,7 +13,7 @@ Require Import Util.
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
-From compcert.clightp Require Import Example.
+From clightp Require Import Example.
 Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.
 Close Scope list.
@@ -161,6 +161,8 @@ Definition L_enq_strat: strat 0 (E_bq @ S_bq) ready :=
 Definition L_deq_strat: strat 0 (E_bq @ S_bq) ready :=
   sup {v | Cop.val_casted v tint}, sup q, down (L_deq_play v q).
 Definition L_bq : strat 0 (E_bq @ S_bq) ready := closure (join L_enq_strat L_deq_strat).
+
+Import Datatypes.
 
 Definition L_inc1_play (f: nat -> val) (c1 c2: nat): @play 0 (E_rb @ S_rb) ready :=
   oq (inc1, (f, c1, c2)) :: @pa _ _ (inc1, (f, c1, c2)) (c1, (f, ((S c1) mod N)%nat, c2)) :: pnil_ready.

@@ -4,16 +4,16 @@ From Coq Require Import
      List.
 From compcert.lib Require Import
      Coqlib.
+Require Import CategoricalComp FlatComp.
 From compcert.common Require Import
      Events
      Globalenvs
      LanguageInterface
      Linking
      CallconvAlgebra
-     CategoricalComp
-     FlatComp
      SmallstepLinking
      Smallstep.
+
 
 (** ** Definitions *)
 Section Lifting.

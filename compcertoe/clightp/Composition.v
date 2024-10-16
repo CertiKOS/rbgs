@@ -9,14 +9,13 @@ From compcert.common Require Import
      Events Globalenvs
      Smallstep Linking
      Memory Values
-     CallconvAlgebra
-     CategoricalComp
-     FlatComp.
+     CallconvAlgebra.
 From compcert.cfrontend Require Import
      Clight Ctypes.
-From compcert.clightp Require Import
+From clightp Require Import
      Lifting AbRel CModule
      TensorComp SkelLinking.
+Require Import CategoricalComp FlatComp.
 
 Program Definition cc_null {liA liB}: callconv liA liB :=
   {|

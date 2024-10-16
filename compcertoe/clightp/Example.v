@@ -5,8 +5,9 @@ From compcert Require Import
      Clight Ctypes
      LanguageInterface
      Events Globalenvs
-     Smallstep CategoricalComp.
-From compcert.clightp Require Import
+     Smallstep.
+Require Import CategoricalComp.
+From clightp Require Import
   Lifting Encapsulation
   ClightP PEnv ClightPLink ClightPComp.
 Import ListNotations.

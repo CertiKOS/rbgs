@@ -2,7 +2,7 @@ From Coq Require Import
      Relations
      RelationClasses
      List.
-From compcert.clightp Require Import
+From clightp Require Import
      Lifting AbRel.
 From compcert.lib Require Import
      Coqlib Maps.
@@ -12,11 +12,11 @@ From compcert.common Require Import
      Smallstep Linking
      SmallstepLinking
      Memory Values
-     CallconvAlgebra
-     CategoricalComp
-     FlatComp.
+     CallconvAlgebra.
 From compcert.cfrontend Require Import
      Clight Ctypes.
+Require Import CategoricalComp FlatComp.
+
 
 (* A module is a list of compilation units. Specifically, they are Clight
    programs at this time. Note that in the layer library the modules are
