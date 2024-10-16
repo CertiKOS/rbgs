@@ -4,6 +4,8 @@ Require Import AST CAsm.
 Require Asm.
 Import ListNotations.
 
+(** * §F.4 Simulation between C and Asm components *)
+
 Notation hello_bytes := [ Byte.repr 104; Byte.repr 101; Byte.repr 108; Byte.repr 108; Byte.repr 111 ].
 Notation uryyb_bytes := [ Byte.repr 117; Byte.repr 114; Byte.repr 121; Byte.repr 121; Byte.repr 98].
 
