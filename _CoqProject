@@ -26,7 +26,6 @@ structures/Lattice.v
 structures/Completion.v
 lattices/Downset.v
 models/IntStrat.v
-examples/CAL.v
 examples/CompCertStrat.v
 examples/Determ.v
 examples/Util.v
