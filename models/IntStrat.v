@@ -48,8 +48,8 @@ Qed.
 
 (** This section introduces the basic definitions below. However, for
   the most part it is a high-level overview of the framework which is
-  formally defined in the following section. We have formalized
-  examples separately; see [examples/CompCertStrat.v]. *)
+  formally defined in the following section. Note that we have formalized
+  examples separately. *)
 
 (** ** §2.2 Effect Signatures *)
 
