@@ -2,6 +2,9 @@ Makefile
 Makefile.conf
 .coqdeps.d
 *.vo
+*.vos
+*.vok
+*.lia.cache
 *.glob
 .*.aux
 *.d
