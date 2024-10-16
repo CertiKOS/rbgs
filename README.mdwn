@@ -58,6 +58,7 @@ versions of CompCert and `coqrel` we are using. If you are using `opam`
 (recommended), an appropriate environment can be set up as follows:
 
     $ opam init
+    $ eval $(opam env --switch=default)  # as instructed by opam init
     $ opam install coq.8.15.2 menhir.20240715
 
 Once Coq and Menhir have been installed, run the script
