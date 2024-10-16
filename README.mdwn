@@ -49,7 +49,7 @@ Everything else should match what is described in the paper exactly.
 
 In addition, we have provided code for some (but not all) of the
 applications described in §6, including our embedding of CompCertO
-semantics (§6.1), the example shown in the introduction (§6.3), 
+semantics (§6.1), the example shown in the introduction (§6.3),
 the certified abstraction layers (§6.4), and the ClightP semantics (§6.3).
 
 ## Setting up the build environment
@@ -111,13 +111,13 @@ Overall, the artifact is structured as follows:
     Only the most basic constructions are used by our development.
   * `models/IntStrat.v` is our main development, which formalizes
     the material presented in §2–5.
-  * `examples/CompCertStrat.v` contains the embedding of CompCertO 
+  * `examples/CompCertStrat.v` contains the embedding of CompCertO
     semantics into the strategy model as described in §6.1.
   * `examples/Rot13.v` contains the verification details of the rot13
     example as presented in §6.3.
   * `examples/Composition.v` formalizes the certified abstraction layers
     as described in §6.4 and Appendix C.
-  * `examples/clightp/ClightP.v` and `examples/clightp/ClightPComp.v` 
-    contains the formalization of the ClightP semantics and its 
+  * `examples/clightp/ClightP.v` and `examples/clightp/ClightPComp.v`
+    contain the formalization of the ClightP semantics and its
     composition property as described in §6.5 and Appendix D.
 
