@@ -12,7 +12,7 @@ Require Import Determ.
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
-From compcert.process Require Import Process.
+From process Require Import Process.
 Require Import Asm.
 Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.

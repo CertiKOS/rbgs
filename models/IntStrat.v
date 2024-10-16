@@ -29,6 +29,21 @@ Ltac xsubst :=
      subst ||
      discriminate).
 
+(** Miscellaneous rewriting rules *)
+
+Lemma all_eq_some {A} {P : A -> Prop} (a:A) :
+  (forall x, Some a = Some x -> P x) <-> P a.
+Proof.
+  firstorder congruence.
+Qed.
+
+Lemma all_eq_none {A} {P : A -> Prop} :
+  (forall x, None = Some x -> P x) <-> True.
+Proof.
+  firstorder congruence.
+Qed.
+
+
 (** * §2 COMPOSITIONAL SEMANTICS FOR VERIFICATION *)
 
 (** This section introduces the basic definitions below. However, for
@@ -4201,12 +4216,6 @@ Section TCONV_VCOMP.
     tconv (vcomp_at m1' n1' R1 S1) (vcomp_at m2' n2' R2 S2) =
     vcomp_at (m1', m2') (combine_ans m1' m2' n1' n2') (tconv R1 R2) (tconv S1 S2).
   Proof.
-    (* we will need these property *)
-    assert (EQSOME: forall A a (P : A -> Prop), (forall x:A, Some a = Some x -> P x) <-> P a).
-    { clear. firstorder congruence. }
-    assert (EQNONE: forall A (P : A -> Prop), (forall x:A, None = Some x -> P x) <-> True).
-    { clear. firstorder congruence. }
-
     apply Downset.has_eq_ext. intro s.
     revert m1' m2' n1' n2' R1 R2 S1 S2.
     induction s as [[m1 m2] [m1'' m2''] |
@@ -4215,10 +4224,10 @@ Section TCONV_VCOMP.
     - cbn. tauto.
     - cbn. intros.
       destruct n1' as [n1' | ], n2' as [n2' | ]; cbn;
-        rewrite ?EQSOME, ?EQNONE; tauto.
+        rewrite ?all_eq_some, ?all_eq_none; tauto.
     - cbn. intros.
       destruct n1' as [n1' | ], n2' as [n2' | ]; cbn;
-        rewrite ?EQSOME, ?EQNONE; try tauto.
+        rewrite ?all_eq_some, ?all_eq_none; try tauto.
       refold.
       destruct (classic (Downset.has R1 (rcp_forbid m1 m1' n1 n1'))); try tauto.
       destruct (classic (Downset.has R2 (rcp_forbid m2 m2' n2 n2'))); try tauto.
@@ -5970,4 +5979,73 @@ Section SRU_NATURAL.
     rewrite compose_assoc. f_equal.
     apply sru_natural.
   Qed.
-End SRU_NATURAL.  
+End SRU_NATURAL.
+
+
+
+Section VCOMP_NOT_ASSOC.
+  Definition twoa := {| op := unit; ar _ := bool |}.
+  Definition twoq := {| op := bool; ar _ := unit |}.
+
+  Definition toprc_has {E F} (s : rcp E F) : Prop :=
+    match s with
+      rcp_allow _ _ => True | _ => False
+    end.
+
+  Variant foo_has : rcp twoa twoq -> Prop :=
+    | foo_q (q : bool) :
+      foo_has (@rcp_allow twoa twoq tt q)
+    | foo_r (q r : bool) :
+      q <> r -> foo_has (@rcp_forbid twoa twoq tt q r tt)
+    | foo_cont (q r : bool) k :
+      q <> r -> foo_has (@rcp_cont twoa twoq tt q r tt k).
+
+  Hint Constructors foo_has : core.
+
+  Program Definition R : 1 <=> twoa :=
+    {| Downset.has := toprc_has |}.
+  Next Obligation.
+    destruct H; cbn in *; tauto.
+  Qed.
+
+  Program Definition foo : twoa <=> twoq :=
+    {| Downset.has := foo_has |}.
+  Next Obligation.
+    destruct H; inversion H0; subst; constructor; auto.
+  Qed.
+
+  Program Definition S : twoq <=> 1 :=
+    {| Downset.has := toprc_has |}.
+  Next Obligation.
+    destruct H; cbn in *; tauto.
+  Qed.
+
+  Lemma vcomp_not_assoc :
+    (R ;; foo) ;; S <> R ;; (foo ;; S).
+  Proof.
+    intros H.
+    assert (Downset.has (R ;; (foo ;; S)) (@rcp_forbid 1 1 tt tt tt tt)).
+    { clear. cbn.
+      exists tt. repeat split; auto.
+      exists true. eauto.
+      intros b. right. exists (negb b). split; auto. split; auto.
+      intros [] . left. constructor.
+      destruct b; discriminate. }
+    assert (~ Downset.has ((R ;; foo) ;; S) (@rcp_forbid 1 1 tt tt tt tt)).
+    { clear. cbn.
+      apply all_not_not_ex. intros q3.
+      apply or_not_and. right.
+      apply or_not_and. right.
+      apply ex_not_not_all. exists tt.
+      apply and_not_or. split; try tauto.
+      apply all_not_not_ex. intros [ ].
+      apply or_not_and. right.
+      apply or_not_and. right.
+      apply ex_not_not_all. exists q3.
+      apply and_not_or. split; auto.
+      intros H. inversion H. apply H1. auto. }
+    apply H1.
+    rewrite H.
+    assumption.
+  Qed.
+End VCOMP_NOT_ASSOC.
