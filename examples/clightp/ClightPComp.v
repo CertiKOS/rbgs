@@ -12,8 +12,24 @@ Require Import LogicalRelations.
 
 Generalizable All Variables.
 
+(** * Composition of ClightP correctness *)
+
+(** This file corresponds to Appendix D in the paper. The ultimately composition
+    theorem is `clightp_comp` at the end of the this file. The properties used
+    in this proof involves CompCertO's encapsulation, which is not present in
+    this paper.
+
+    In more details:
+
+    * the simulation convention S is named as `cin`
+    * the simulation convention R is named as `cout`
+    * the property ϕ_M is named as `eclightp_out`
+    * the property ϕ_N is named as `clight_in` *)
+
+
 (** ------------------------------------------------------------------------- *)
 (** patch to the identity semantics *)
+
 Section LEFT_UNIT.
   Context {liA liB} (L: semantics liA liB).
   Definition left_comp_id' :=
