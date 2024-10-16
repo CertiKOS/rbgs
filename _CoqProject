@@ -37,6 +37,7 @@ examples/CAL.v
 examples/CompCertStrat.v
 examples/Determ.v
 examples/Util.v
+examples/BQUtil.v
 examples/BoundedQueue.v
 examples/SecretAsm.v
 examples/Rot13.v
