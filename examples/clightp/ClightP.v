@@ -6,6 +6,15 @@ Require Import Lia.
 Require Import Join.
 Require Import Lifting AbRel PEnv.
 
+(** * §6.5 Clight with Module-Local State *)
+
+(** This file corresponds to §6.5 in the paper, which describes the semantics of
+    ClightP, a variant on Clight that supports module local state
+
+    The theorem `transl_program_correct` at the end of this file is the
+    correctness property we claimed in the paper. *)
+
+
 (** ------------------------------------------------------------------------- *)
 Hypothesis external_call_join:
   forall ge m ef vargs m1 m2 t vres m1',
