@@ -37,7 +37,6 @@ models/IntSpec.v
 models/Coherence.v
 models/IntStrat.v
 examples/CAL.v
-examples/CompCertSem.v
 examples/CompCertStrat.v
 examples/Determ.v
 examples/Util.v
