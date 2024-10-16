@@ -1,6 +1,7 @@
 Makefile
 Makefile.conf
 .coqdeps.d
+.lia.cache
 *.vo
 *.vok
 *.vos
