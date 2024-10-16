@@ -34,7 +34,6 @@ models/IntSpec.v
 models/Coherence.v
 models/IntStrat.v
 examples/CAL.v
-examples/CompCertSem.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
