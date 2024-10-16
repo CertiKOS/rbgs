@@ -651,6 +651,12 @@ Section STRAT.
         apply Ht.
         reflexivity.
     Qed.
+
+    Lemma has_next_iff (σ : strat _) (s: play j):
+      Downset.has σ (pcons e s) <-> Downset.has (next σ) s.
+    Proof.
+      split; eauto.
+    Qed.
   End NEXT.
 End STRAT.
 
@@ -745,6 +751,164 @@ End EMOR_STRAT.
 
 Arguments eready {_ _ _}.
 Arguments esuspended {_ _ _}.
+
+(** *** Definition 3.3 (Regular strategy) *)
+
+(** **** Sequential composition *)
+
+Section SEQ_COMP.
+  Obligation Tactic := cbn.
+  Context {E F: esig}.
+
+  Inductive seq_comp_has: forall {i}, @play E F i -> @play E F ready -> @play E F i -> Prop :=
+    | seq_comp_ready t:
+      seq_comp_has pnil_ready t t
+    | seq_comp_oq q s t w:
+      seq_comp_has s t w ->
+      seq_comp_has (oq q :: s) t (oq q :: w)
+    | seq_comp_pq q m s t w:
+      seq_comp_has s t w ->
+      @seq_comp_has (running q) (pq m :: s) t (pq m :: w)
+    | seq_comp_suspend q m t:
+      seq_comp_has (pnil_suspended q m) t (pnil_suspended q m)
+    | seq_comp_oa q m n s t w:
+      seq_comp_has s t w ->
+      @seq_comp_has (suspended q m) (oa n :: s) t (oa n :: w)
+    | seq_comp_pa q r s t w:
+      seq_comp_has s t w ->
+      @seq_comp_has (running q) (pa r :: s) t (pa r :: w).
+
+  Hint Constructors seq_comp_has.
+  Hint Constructors pref.
+  Hint Resolve (fun E F i => reflexivity (R := @pref E F i)).
+
+  Lemma seq_comp_has_pref {i} (s: @play E F i) t w :
+    seq_comp_has s t w ->
+    forall w', w' [= w -> exists s' t', s' [= s /\ t' [= t /\ seq_comp_has s' t' w'.
+  Proof.
+    induction 1; cbn in *.
+    - intros w' Hw'. dependent destruction Hw'; eauto 10.
+    - intros w' Hw'.
+      dependent destruction w'; eauto. dependent destruction Hw'.
+      edestruct IHseq_comp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
+    - intros w' Hw'.
+      dependent destruction w'. dependent destruction Hw'.
+      edestruct IHseq_comp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
+    - intros w' Hw'. dependent destruction Hw'; eauto 10.
+    - intros w' Hw'.
+      dependent destruction w'; eauto. dependent destruction Hw'.
+      edestruct IHseq_comp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
+    - intros w' Hw'.
+      dependent destruction w'; eauto. dependent destruction Hw'.
+      edestruct IHseq_comp_has as (s' & t' & Hs' & Ht' & Hw''); eauto 10.
+  Qed.
+
+  Program Definition seq_compose {i} (σ : strat E F i) (τ : strat E F ready) : strat E F i :=
+    {| Downset.has w :=
+        exists s t, Downset.has σ s /\ Downset.has τ t /\ seq_comp_has s t w |}.
+  Next Obligation.
+    intros i σ τ x y Href (s & t & Hs & Ht & Hw).
+    edestruct @seq_comp_has_pref as (s' & t' & Hs' & Ht' & Hw''); eauto.
+    eauto 10 using Downset.closed.
+  Qed.
+
+  (** Properties *)
+
+  Lemma seq_comp_has_exists i (s1: @play E F i) s2:
+    exists (s: @play E F i), seq_comp_has s1 s2 s.
+  Proof.
+    revert s2. dependent induction s1; intros s2. 1-2:eexists; eauto.
+    edestruct IHs1 as (s & Hs).
+    exists (m :: s). dependent destruction m; eauto.
+  Qed.
+
+  Lemma seq_comp_assoc {i} (s1: @play E F i) s2 s3 s12 s123:
+    seq_comp_has s1 s2 s12 -> seq_comp_has s12 s3 s123 ->
+    exists s23, seq_comp_has s1 s23 s123 /\ seq_comp_has s2 s3 s23.
+  Proof.
+    intros Ha Hb. revert s3 s123 Hb. dependent induction Ha; intros;
+      try (dependent destruction Hb; edestruct IHHa as (s23 & A & B); eauto).
+    - eexists _. split; eauto.
+    - dependent destruction Hb.
+      edestruct seq_comp_has_exists as (s23 & A).
+      eexists. split; eauto.
+  Qed.
+End SEQ_COMP.
+
+(** **** Closure operator *)
+
+Section CLOSURE.
+  Obligation Tactic := cbn.
+  Context {E F: esig}.
+
+  Inductive closure_has: @strat E F ready -> play ready -> Prop :=
+  | closure_has_nil σ: closure_has σ pnil_ready
+  | closure_has_cons σ s t w:
+    Downset.has σ s -> closure_has σ t -> seq_comp_has s t w ->
+    closure_has σ w.
+
+  Hint Constructors closure_has : core.
+
+  Program Definition closure (σ : strat E F ready) : strat E F ready :=
+    {| Downset.has w := closure_has σ w |}.
+  Next Obligation.
+    intros σ x y H1 H2. revert x H1. induction H2.
+    - intros. dependent destruction H1; eauto.
+    - intros x Hx.
+      edestruct @seq_comp_has_pref as (s' & t' & Hs' & Ht' & Hw''); eauto.
+      specialize (IHclosure_has _ Ht').
+      eauto 10 using Downset.closed.
+  Qed.
+
+  (** Properties *)
+
+  Lemma closure_unfold (σ: strat E F ready):
+    seq_compose σ (closure σ) [= closure σ .
+  Proof.
+    intros w Hw. cbn in *.
+    destruct Hw as (s & t & Hs & Ht & Hw).
+    econstructor; eauto.
+  Qed.
+
+  Lemma closure_seq_comp (σ: strat E F ready) s t w:
+    closure_has σ s -> closure_has σ t -> seq_comp_has s t w ->
+    closure_has σ w.
+  Proof.
+    intros Hs Ht Hw. revert t w Ht Hw. dependent induction Hs.
+    - intros. dependent destruction Hw; eauto.
+    - intros. edestruct @seq_comp_assoc as (x & A & B).
+      apply H0. apply Hw. eauto.
+  Qed.
+End CLOSURE.
+                               
+(** **** Regular strategies *)
+
+Section REGULAR.
+
+  Inductive play_suspended {E F}: forall i, @play E F i -> Prop :=
+  | play_suspended_nil q m: play_suspended (suspended q m) (pnil_suspended q m)
+  | play_suspended_cons i j (m: move j i) s:
+    play_suspended i s -> play_suspended j (m :: s).
+
+  Arguments play_suspended {E F i}.
+
+  Inductive no_reentrancy_play {E F}: forall {i}, @play E F i -> Prop :=
+  | no_reentrancy_ready: no_reentrancy_play pnil_ready
+  | no_reentrancy_suspended q m: no_reentrancy_play (pnil_suspended q m)
+  | no_reentrancy_oq q s:
+    no_reentrancy_play s -> no_reentrancy_play (oq q :: s)
+  | no_reentrancy_pq q m s:
+    no_reentrancy_play s -> no_reentrancy_play (@pq _ _ q m :: s)
+  | no_reentrancy_oa q m n s:
+    no_reentrancy_play s -> no_reentrancy_play (@oa _ _ q m n :: s)
+  | no_reentrancy_pa q r: no_reentrancy_play (@pa _ _ q r :: pnil_ready).
+  Definition no_reentrancy {E F i} (σ: strat E F i): Prop :=
+    forall s, Downset.has σ s -> no_reentrancy_play s.
+
+  Class Regular {E F} (σ: strat E F ready) :=
+    { regular_closure: exists σ0, σ = closure σ0 /\ no_reentrancy σ0 }.
+
+End REGULAR.
 
 (** ** §3.2 Layered Composition *)
 
@@ -2620,11 +2784,71 @@ End VID.
 
 Section ID_RSQ.
   Context {E F : esig}.
-
-  (*
-    rsq vid vid p σ τ <-> σ [= τ
-    rsq R S p id id <-> S [= R
-  *)
+  Hint Constructors rsp : core.
+  
+  Lemma rsq_id_conv {i} p (σ τ: strat E F i):
+    rsq_when vid vid p σ τ <-> σ [= τ.
+  Proof.
+    split.
+    - intros H x Hx. specialize (H _ Hx).
+      revert Hx. dependent induction H; eauto.
+      + intros. apply has_next_iff. eapply H1; eauto.
+        reflexivity. eapply has_next_iff. eauto.
+      + intros. cbn in H. subst.
+        apply has_next_iff. eapply IHrsp; try reflexivity.
+        eapply has_next_iff. eauto.
+      + intros. apply has_next_iff. eapply H1; try reflexivity.
+        * intros [? X]. apply X. apply JMeq_refl.
+        * rewrite rcnext_vid. apply JMeq_refl.
+        * eapply has_next_iff. eauto.
+      + intros. cbn in H.
+        apply not_and_or in H as [H|H]. congruence.
+        assert (r1 = r2). { apply JMeq_eq. apply NNPP. eauto. }
+        subst.
+        apply has_next_iff. eapply IHrsp; try reflexivity.
+        rewrite rcnext_vid. apply JMeq_refl.
+        eapply has_next_iff. eauto.
+    - intros. rewrite H. clear H σ.
+      intros x Hx. revert τ p Hx.
+      induction x.
+      + intros. dependent destruction p. eauto.
+      + intros. dependent destruction p. eauto.
+      + intros. dependent destruction p.
+        * dependent destruction m. apply rsp_oq.
+          { eapply Downset.closed; eauto. constructor. }
+          intros q2 Hq2. cbn in Hq2. subst. eauto.
+        * dependent destruction m.
+          -- eapply rsp_pq. reflexivity. eauto.
+          -- eapply rsp_pa with (r2 := r).
+             { intros [? X]. apply X. apply JMeq_refl. }
+             rewrite rcnext_vid. eauto.
+        * dependent destruction m. apply rsp_oa.
+          { eapply Downset.closed; eauto. constructor. }
+          intros n2 Hn2. cbn in Hn2.
+          apply not_and_or in Hn2 as [Hn2|Hn2]. congruence.
+          assert (n = n2). { apply JMeq_eq. apply NNPP. eauto. }
+          subst. rewrite rcnext_vid. eauto.
+  Qed.
+    
+  Lemma rsq_id_strat {i j} (pi: epos eid i) (pj: epos eid j) (p: rspos i j) (R S: conv E F):
+    R [= S -> rsq_when S R p (emor_when eid pi) (emor_when eid pj).
+  Proof.
+    intros H. intros c Hc. revert j p pj R S H.
+    cbn in Hc. dependent induction Hc; intros; eauto.
+    + dependent destruction p. dependent destruction pj.
+      apply rsp_ready. constructor.
+    + dependent destruction p. dependent destruction pj.
+      apply rsp_oq. constructor.
+      intros q2 Hq2. eapply rsp_pq. eauto.
+      setoid_rewrite (emor_next_question eid q2). eauto.
+    + dependent destruction p. dependent destruction pj.
+      apply rsp_suspended. constructor.
+    + dependent destruction p. dependent destruction pj.
+      apply rsp_oa. { constructor. }
+      intros n2 Hn2. eapply rsp_pa. eauto.
+      setoid_rewrite (emor_next_answer eid q2 n2).
+      apply IHHc. cbn. eauto.
+  Qed.
 End ID_RSQ.
 
 (** ** §4.4 Vertical Composition *)
@@ -3706,6 +3930,95 @@ Infix "+" := (fcomp_rsq _ _ _ _ _ _ _ _) : rsq_scope.
 
 Coercion emor_rc : emor >-> conv.
 
+(** ** Regular stratgies *)
+
+(** To reason about strategies constructed with [closure], we can use
+  the following definitions and properties *)
+
+Class RegularConv {E F} (R : conv E F) :=
+  {
+    regular_conv m1 m2 n1 n2:
+    Downset.has R (rcp_allow m1 m2) ->
+    ~ Downset.has R (rcp_forbid m1 m2 n1 n2) ->
+    rcnext m1 m2 n1 n2 R = R;
+  }.
+
+Section RSQ_CLOSURE.
+  Hint Constructors pref comp_has seq_comp_has : core.
+
+  Lemma rsp_seq_comp {E1 E2 F1 F2} (R S: conv _ _)
+    `{!RegularConv R} `{!RegularConv S}
+    i1 j1 (pi: rspos i1 j1) (s: @play E1 F1 i1)
+    (τ1: @strat E2 F2 j1) (τ2: @strat E2 F2 ready):
+    (exists s1 s2, seq_comp_has s1 s2 s /\
+      rsp R S pi s1 τ1 /\ rsp R S rs_ready s2 τ2) ->
+    match pi with
+    | rs_suspended q1 q2 m1 m2 =>
+         Downset.has S (rcp_allow q1 q2) ->
+         Downset.has R (rcp_allow m1 m2) ->
+         rsp R S pi s (seq_compose τ1 τ2)
+    | rs_running q1 q2 =>
+        Downset.has S (rcp_allow q1 q2) ->
+        rsp R S pi s (seq_compose τ1 τ2)
+    | rs_ready => rsp R S pi s (seq_compose τ1 τ2)
+    end.
+  Proof.
+    intros (s1 & s2 & Hs & Hs1 & Hs2).
+    revert j1 pi τ1 τ2 Hs1 Hs2.
+    dependent induction Hs.
+    - intros. dependent destruction Hs1. rename τ into τ1.
+      assert (Ht : τ2 [= seq_compose τ1 τ2).
+      { intros k Hk. exists pnil_ready, k. eauto. }
+      rewrite <- Ht. eauto.
+    - intros. dependent destruction Hs1. rename τ into τ1. constructor.
+      + dependent destruction Hs2; cbn; eauto.
+      + intros q2 Hq.
+        assert (Ht: seq_compose (next (oq q2) τ1) τ2 [= next (oq q2) (seq_compose τ1 τ2)).
+        { intros k (k1 & k2 & Hk1 & Hk2 & Hk3). cbn in *; eauto 10. }
+        rewrite <- Ht.
+        specialize (IHHs _ (rs_running q q2)); eauto.
+    - intros. dependent destruction Hs1. rename τ into τ1. econstructor; eauto.
+      assert (Ht: seq_compose (next (pq m2) τ1) τ2 [= next (pq m2) (seq_compose τ1 τ2)).
+      { intros k (k1 & k2 & Hk1 & Hk2 & Hk3). cbn in *; eauto 10. }
+      rewrite <- Ht.
+      specialize (IHHs _ (rs_suspended q q2 m m2)). eauto.
+    - intros. dependent destruction Hs1. rename τ into τ1.
+      intros HS HR. eapply rsp_suspended.
+      exists (pnil_suspended q2 m2), pnil_ready. repeat apply conj; eauto.
+      dependent destruction Hs2; eauto.
+    - intros. dependent destruction Hs1. rename τ into τ1.
+      intros HR. econstructor.
+      + dependent destruction Hs2; cbn; eauto.
+      + intros n2 Hn.
+        assert (Ht: seq_compose (next (oa n2) τ1) τ2 [= next (oa n2) (seq_compose τ1 τ2)).
+        { intros k (k1 & k2 & Hk1 & Hk2 & Hk3). cbn in *; eauto 10. }
+        rewrite <- Ht. specialize (H0 _ Hn).
+        rewrite regular_conv in *; eauto.
+        specialize (IHHs _ (rs_running q q2)); eauto.
+    - intros. dependent destruction Hs1. rename τ into τ1.
+      intros HS. econstructor; eauto.
+      assert (Ht: seq_compose (next (pa r2) τ1) τ2 [= next (pa r2) (seq_compose τ1 τ2)).
+      { intros k (k1 & k2 & Hk1 & Hk2 & Hk3). cbn in *; eauto 10. }
+      rewrite <- Ht. rewrite regular_conv in *; eauto.
+      specialize (IHHs _ rs_ready); eauto.
+  Qed.
+
+  Lemma rsq_closure {E1 E2 F1 F2} (R S: conv _ _)
+    `{!RegularConv R} `{!RegularConv S}
+    (σ: @strat E1 F1 ready) (τ: @strat E2 F2 ready):
+    rsq R S σ τ ->
+    rsq R S (closure σ) (closure τ).
+  Proof.
+    intros Hr. cbn. intros s Hs. cbn in Hs.
+    revert τ Hr.
+    dependent induction Hs.
+    - intros. repeat constructor.
+    - intros. specialize (IHHs _ Hr).
+      unfold rsq in Hr. specialize (Hr _ H).
+      rewrite <- closure_unfold.
+      eapply rsp_seq_comp with (pi := rs_ready); eauto.
+  Qed.
+End RSQ_CLOSURE.
 
 (** * §5 SPATIAL COMPOSITION *)
 
@@ -5060,6 +5373,100 @@ Lemma encap_prod {U V} (u : U) (v : V) :
 Proof.
 Abort.
 
+(** **** Representation independence *)
+
+(** To formulate the representation independence property,
+  we can lift a simple relation into a refinement convention
+  as follows. *)
+
+Section REL.
+  Obligation Tactic := cbn.
+  Context (U V: Type) (R: rel U V).
+
+  Canonical glob.
+  Inductive rel_conv_has : rcp (glob U) (glob V) -> Prop :=
+  | rel_conv_has_allow uq vq (HQ: R uq vq):
+    rel_conv_has (rcp_allow uq vq)
+  | rel_conv_has_forbid uq vq (HQ: R uq vq) ua va (HA: ~ R ua va):
+    rel_conv_has (rcp_forbid uq vq ua va)
+  | rel_conv_has_cont uq vq (HQ: R uq vq) ua va k (HK: R ua va -> rel_conv_has k):
+    rel_conv_has (rcp_cont uq vq ua va k).
+  Hint Constructors rel_conv_has.
+
+  Program Definition rel_conv : conv (glob U) (glob V) :=
+    {| Downset.has s := rel_conv_has s |}.
+  Next Obligation.
+    intros x y H1. induction H1; intros Hx; try (dependent destruction Hx; eauto).
+    econstructor; eauto.
+    intros. exfalso. eauto.
+  Qed.
+
+  (** Properties *)
+
+  Lemma rel_conv_rcnext m1 m2 n1 n2:
+    R m1 m2 -> R n1 n2 -> rcnext m1 m2 n1 n2 rel_conv = rel_conv.
+  Proof.
+    intros * Hm Hn. apply antisymmetry.
+    - intros x Hx. cbn in *.
+      dependent destruction Hx. eauto.
+    - intros x Hx. cbn in *. econstructor; eauto.
+  Qed.
+End REL.
+
+Coercion rel_conv : rel >-> conv.
+
+(** We can now establish the representation independence property. *)
+
+Section REPR_IND.
+  Hint Constructors lens_has : core.
+
+  Lemma representation_independence0 {S T: Type} {i1 i2} s t
+    (p: rspos i1 i2) (p1: lpos (IntStrat.encap s) i1) (p2: lpos (IntStrat.encap t) i2) (R: rel S T) :
+    R (match p1 with lready _ w | lrunning _ _ _ w | lsuspended _ _ _ w => w end)
+      (match p2 with lready _ w | lrunning _ _ _ w | lsuspended _ _ _ w => w end) ->
+    rsq_when (rel_conv _ _ R) vid p
+      (lens_strat_when (encap s) p1)
+      (lens_strat_when (encap t) p2).
+  Proof.
+    intros HR. intros c Hc. cbn in Hc.
+    revert i2 s t p p1 p2 Hc HR. induction c; intros.
+    - dependent destruction p. constructor.
+      dependent destruction p2. cbn. eauto.
+    - dependent destruction p. constructor.
+      dependent destruction p2. cbn. eauto.
+    - dependent destruction p.
+      + dependent destruction m; dependent destruction p1; dependent destruction p2.
+        apply rsp_oq. { cbn; eauto. }
+        intros q2 Hq2. cbn in Hq2. subst.
+        dependent destruction Hc.
+        setoid_rewrite lens_strat_next_oq; eauto.
+      + dependent destruction m.
+        * dependent destruction Hc. dependent destruction p2. 
+          eapply rsp_pq. cbn. econstructor. apply HR.
+          setoid_rewrite lens_strat_next_pq; eauto.
+        * dependent destruction Hc. dependent destruction p2. 
+          eapply rsp_pa. cbn. intros [HX1 HX2]. apply HX2. apply JMeq_refl.
+          setoid_rewrite lens_strat_next_pa; cbn; eauto.
+          destruct q1. destruct q2. rewrite rcnext_vid.
+          eapply IHc; eauto. 
+      + dependent destruction m.
+        dependent destruction Hc. dependent destruction p2. 
+        apply rsp_oa; cbn; eauto.
+        intros n2 Hn2. rewrite rel_conv_rcnext; eauto.
+        setoid_rewrite lens_strat_next_oa.
+        eapply IHc; eauto. cbn.
+        all: apply NNPP; intros HX; apply Hn2;
+          econstructor; eauto.
+  Qed.
+
+  Lemma representation_independence {S T: Type} s t (R: rel S T) :
+    R s t ->
+    lsq (rel_conv _ _ R) vid (IntStrat.encap s) (IntStrat.encap t).
+  Proof.
+    intros HR. apply representation_independence0. apply HR.
+  Qed.
+End REPR_IND.
+
 (** **** Companion and conjoint of a stateful lens *)
 
 Section LENS_RC.
@@ -5689,7 +6096,6 @@ Section SCOMP_COMPOSE.
         as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto using set_get.
       exists (oq q :: st1), (oq w :: st2).
       repeat (split; eauto).
-      constructor; auto.
     - (* left question *)
       dependent destruction Hs12.
       dependent destruction Hs2.
@@ -5713,8 +6119,6 @@ Section SCOMP_COMPOSE.
       edestruct IHHst12 with (p := scc_suspended pg pf q w pf' v m u x)
         as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto.
       exists (pq x :: st1), (pq u :: st2); eauto 20.
-      repeat split; eauto.
-      constructor; eauto.
     - (* suspended *)
       dependent destruction Ht12.
       dependent destruction Ht2.
@@ -5724,7 +6128,6 @@ Section SCOMP_COMPOSE.
         s into s12, p0 into pf'.
       exists (pnil_suspended _ _), (pnil_suspended _ _).
       repeat split; eauto.
-      constructor; eauto.
     - (* environment answer *)
       simple inversion Ht12; clear Ht12; xsubst. intros Ht12.
       dependent destruction H2. xsubst.
@@ -5738,8 +6141,6 @@ Section SCOMP_COMPOSE.
       edestruct IHHst12 with (p := scc_right pg pf q w pf' v m u')
         as (st1 & st2 & Hst1 & Hst2 & Hst12'); eauto.
       exists (oa y :: st1), (oa u' :: st2); eauto 20.
-      repeat split; eauto.
-      constructor; eauto.
     - (* right answer *)
       simple inversion Ht12; clear Ht12; xsubst. intros Ht12.
       dependent destruction H2. xsubst.
@@ -5777,7 +6178,6 @@ Section SCOMP_COMPOSE.
       + econstructor; eauto. cbn.
         setoid_rewrite Hp. cbn.
         setoid_rewrite H. cbn. auto.
-      + constructor. auto.
   Qed.
 End SCOMP_COMPOSE.
 
