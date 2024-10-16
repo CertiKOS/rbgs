@@ -1,8 +1,9 @@
 From compcert Require Import
      AST Coqlib Maps Values Integers Errors Events
-     Globalenvs Memory Floats Join Ctypes Values Cop Clight.
+     Globalenvs Memory Floats Ctypes Values Cop Clight.
 Require Import Lia.
 Require SimplLocalsproof.
+Require Import Join.
 
 (** ------------------------------------------------------------------------- *)
 (** PVal and PEnv  *)

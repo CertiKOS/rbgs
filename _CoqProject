@@ -11,9 +11,6 @@
 -R compcert/flocq Flocq
 -R compcert/MenhirLib MenhirLib
 
--R compcertoe/clightp clightp
--R compcertoe/process process
-
 -R coqrel coqrel
 -R structures structures
 -R lattices lattices
@@ -48,24 +45,25 @@ interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
 interfaces/ConcreteCategory.v
-compcertoe/clightp/CategoricalComp.v
-compcertoe/clightp/FlatComp.v
-compcertoe/clightp/AbRel.v
-compcertoe/clightp/CModule.v
-compcertoe/clightp/ClightP.v
-compcertoe/clightp/ClightPComp.v
-compcertoe/clightp/ClightPLink.v
-compcertoe/clightp/Composition.v
-compcertoe/clightp/Encapsulation.v
-compcertoe/clightp/Example.v
-compcertoe/clightp/Lifting.v
-compcertoe/clightp/PEnv.v
-compcertoe/clightp/SkelLinking.v
-compcertoe/clightp/TensorComp.v
-compcertoe/process/CAsm.v
-compcertoe/process/InitMem.v
-compcertoe/process/Load.v
-compcertoe/process/Pipe.v
-compcertoe/process/Process.v
-compcertoe/process/Secret.v
-compcertoe/process/With.v
+examples/clightp/CategoricalComp.v
+examples/clightp/FlatComp.v
+examples/clightp/AbRel.v
+examples/clightp/CModule.v
+examples/clightp/ClightP.v
+examples/clightp/ClightPComp.v
+examples/clightp/ClightPLink.v
+examples/clightp/Composition.v
+examples/clightp/Encapsulation.v
+examples/clightp/Example.v
+examples/clightp/Lifting.v
+examples/clightp/PEnv.v
+examples/clightp/SkelLinking.v
+examples/clightp/TensorComp.v
+examples/clightp/Join.v
+examples/process/CAsm.v
+examples/process/InitMem.v
+examples/process/Load.v
+examples/process/Pipe.v
+examples/process/Process.v
+examples/process/Secret.v
+examples/process/With.v

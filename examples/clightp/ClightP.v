@@ -4,7 +4,7 @@ From compcert Require Import
 Require Import Ctypes Cop Clight.
 Require Import Lia.
 Require Import Join.
-From clightp Require Import Lifting AbRel PEnv.
+Require Import Lifting AbRel PEnv.
 
 (** ------------------------------------------------------------------------- *)
 Hypothesis external_call_join:

@@ -7,7 +7,7 @@ From compcert Require Import
      Events Globalenvs
      Smallstep.
 Require Import CategoricalComp.
-From clightp Require Import
+Require Import
   Lifting Encapsulation
   ClightP PEnv ClightPLink ClightPComp.
 Import ListNotations.

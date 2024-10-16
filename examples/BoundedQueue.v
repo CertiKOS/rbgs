@@ -13,7 +13,7 @@ Require Import Util.
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
-From clightp Require Import Example.
+Require Import Example.
 Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.
 Close Scope list.
