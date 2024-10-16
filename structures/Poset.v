@@ -1,5 +1,4 @@
-Require Export coqrel.LogicalRelations.
-
+From coqrel Require Export LogicalRelations.
 
 (** * Partially ordered sets *)
 
@@ -28,3 +27,13 @@ Delimit Scope poselt_scope with poselt.
 Bind Scope poselt_scope with poset_carrier.
 
 Notation "x [=  y" := (ref x%poselt y%poselt) (at level 70).
+
+Lemma pos_comp_morphism {A B C : poset} (f: A -> B) (g: B -> C):
+  PosetMorphism f -> PosetMorphism g ->
+  PosetMorphism (fun a => g (f a)).
+Proof.
+  intros Hf Hg. split. intros x y H.
+  destruct Hf as [Hf]. specialize (Hf _ _ H).
+  destruct Hg as [Hg]. specialize (Hg _ _ Hf).
+  auto.
+Qed.
