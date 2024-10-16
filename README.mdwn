@@ -1,6 +1,61 @@
-# Refinement-based game semantics
+# Unifying Compositional Verification and Certified Compilation with a Three-Dimensional Refinement Algebra
 
-## Setup
+This is a mechanized proof artifact to accompany the POPL 2025 paper
+with the title above, in the form of Coq source code. It includes:
+
+  * CompCertO, a version of CompCert with open semantics;
+  * the `coqrel` library, to help with relational reasoning;
+  * some support code to deal with the free sup-lattice construction
+    (downward closed sets);
+  * a mechanization in `models/IntStrat.v` of the framework described
+    in the paper (§2–5);
+  * some of the experiments described in §6.
+
+This README file outlines how to build the proofs and the correspondence
+between the paper and the code.
+
+
+## Supported claims
+
+The claims in our submitted paper when it comes to mechanization are
+unfortunately rather non-specific, simply stating "Our work has been
+mechanized in the Coq proof assistant" at the end of §1.4. We plan to
+discuss the implementation in more details in our revised paper,
+including the following description of what has been implemented.
+
+### Main framework (§2–5)
+
+The code in this artifact mechanizes every definition and theorem
+appearing in the main part of the paper (§2–5), which describes our
+refinement framework. This has been formalized in the file
+`models/IntStrat.v`, which follows the structure of the paper exactly
+and cross-references all sections, definitions and theorems by name.
+
+There are two small discrepancies between the submitted version of our
+paper and the mechanized version:
+
+  * Definition 3.3: the definition in the submitted paper should be
+    amended to state that a *regular* strategy is the closure σ* of a
+    strategy σ *which handles only a single incoming question*. We will
+    make this change in our revised paper.
+
+  * Theorem 4.5: although the submitted paper states an equivalence,
+    we have only proved that refinement squares can be obtained from
+    inclusion properties. We will update the theorem in our revised
+    paper to match our mechanization.
+
+Everything else should match what is described in the paper exactly.
+
+### Applications
+
+In addition, we have provided code for some (but not all) of the
+applications described in §6, including our embedding of CompCertO
+semantics (§6.1) and the example shown in the introduction (§6.3).
+
+
+## Setting up the build environment
+
+XXX update
 
 You will need a version of Coq and various other tools supported by
 CompCert v3.6. If you are using `opam` (recommended),
@@ -29,4 +84,18 @@ parallel jobs as CompCert will take a while to build otherwise.
 For example on my 8-cores machine:
 
     $ make -j8
+
+
+## Evaluation instructions
+
+After verifying that the proofs compile successfully, we suggest that
+the reviewers look through the paper and the development side-by-side.
+
+To this end, it may be helpful to run `make html`. This will generate
+`coqdoc` web pages in the `html/` subdirectory. In particular, the file
+`html/toc.html` will offer an overview of the development's structure,
+including hyperlinked references to the code corresponding to specific
+sections, definitions and theorems found in the paper.
+
+XXX help with applications here ?
 
