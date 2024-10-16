@@ -19,7 +19,6 @@
 -R lattices lattices
 -R models models
 -R examples examples
--R interfaces interfaces
 
 structures/Poset.v
 structures/Lattice.v
