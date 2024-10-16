@@ -6035,3 +6035,5 @@ Section SRU_NATURAL.
     apply sru_natural.
   Qed.
 End SRU_NATURAL.
+
+Open Scope strat_scope.
