@@ -66,6 +66,10 @@ Once Coq and Menhir have been installed, run the script
 
     $ ./configure
 
+(For macos users, you may need to edit the `configure` script to replace
+`x86_64-linux` with `x86_64-macos` on line 22 before executing the script.)
+
+
 At this point make sure there were no error messages. In particular
 if your versions of Coq, Menhir, etc. are not suitable to build
 CompCert or `coqrel`, this is when things will break. Warnings about
