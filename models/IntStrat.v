@@ -135,6 +135,7 @@ Proof.
   reflexivity.
 Qed.
 
+Coercion eid : esig >-> emor.
 Infix "∘" := ecomp : emor_scope.
 
 (** ** §2.6 Combining Effect Signatures *)
@@ -5850,33 +5851,6 @@ Proof.
     setoid_rewrite (@tassocr_tassoc E (glob U) (glob V)). auto.
 Qed.
 
-(** **** Coherence diagrams *)
-
-(** XXX could need some property that
-
-      id @ bij_lens f = id ⊗ bij_emor f
-
- and reuse anything that uses the bijection f.
- The subtlety is that [bij_lens f] yields a nondeterministic strategy
- with all ask/answer choices whereas [bij_emor f] would yield a sig
- homomorphism style of strategy with the 4-move OQ PQ OA PA shape.
- But once synchronized with [id] the nondeterminism should reduce and
- leave only the 4 moves. *)
-
-Open Scope strat_scope.
-Coercion eid : esig >-> emor.
-
-Lemma slu_passoc {E : esig} {U : Type} :
-  E @ (@plu U) ⊙ (@sassoc E unit U) = (@sru E) @ U.
-Proof.
-Admitted.
-
-Lemma sassoc_sassoc {E : esig} {U V W : Type} :
-  @sassoc E U (V * W) ⊙ @sassoc (E @ U) V W =
-  E @ (@passoc U V W) ⊙ @sassoc E (U * V) W ⊙ (@sassoc E U V) @ W.
-Proof.
-Admitted.
-
 (** **** Additional properties of embedded structural isomorphisms *)
 
 (** Naturality of [sru] *)
@@ -6061,3 +6035,5 @@ Section SRU_NATURAL.
     apply sru_natural.
   Qed.
 End SRU_NATURAL.
+
+Open Scope strat_scope.
