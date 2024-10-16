@@ -1,8 +1,7 @@
 From Coq Require Import
      Relations RelationClasses
      List FinFun.
-From clightp Require Import
-     Lifting AbRel.
+Require Import Lifting AbRel.
 From compcert.lib Require Import
      Coqlib.
 From compcert.common Require Import

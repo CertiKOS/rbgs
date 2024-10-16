@@ -1,4 +1,5 @@
 COQDOCEXTRAFLAGS := -g --parse-comments
+COQEXTRAFLAGS := -w -implicit-core-hint-db,-deprecated-instance-without-locality
 
 pre-all::
 	+make -C coqrel

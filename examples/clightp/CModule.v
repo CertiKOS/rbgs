@@ -2,8 +2,7 @@ From Coq Require Import
      Relations
      RelationClasses
      List.
-From clightp Require Import
-     Lifting AbRel.
+Require Import Lifting AbRel.
 From compcert.lib Require Import
      Coqlib Maps.
 From compcert.common Require Import

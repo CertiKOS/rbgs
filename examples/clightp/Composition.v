@@ -12,7 +12,7 @@ From compcert.common Require Import
      CallconvAlgebra.
 From compcert.cfrontend Require Import
      Clight Ctypes.
-From clightp Require Import
+Require Import
      Lifting AbRel CModule
      TensorComp SkelLinking.
 Require Import CategoricalComp FlatComp.

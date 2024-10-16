@@ -5,8 +5,7 @@ From compcert Require Import
      AST Coqlib Maps Values Integers Errors Events
      LanguageInterface Smallstep Globalenvs Memory Floats.
 Require Import CategoricalComp.
-From clightp Require Import
-     TensorComp Lifting.
+Require Import TensorComp Lifting.
 Require Import RelClasses.
 
 Set Asymmetric Patterns.

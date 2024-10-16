@@ -13,9 +13,10 @@ Require Import Util.
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
-From clightp Require Import Example.
+Require Import Example.
 Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.
+Require Import BQUtil.
 Close Scope list.
 
 (** * Example *)
@@ -249,6 +250,8 @@ Proof.
     + cbn in Hs. destruct Hs as (f & c1 & c2 & i & v & Hs).
       eapply non_recur_play_ref; eauto. unfold L_set_play. eauto.
 Qed.
+
+Local Hint Constructors seq_comp_has closure_has : core.
 
 (* L_bq ⊑ (M_bq @ S_rb) ∘ L_rb *)
 Lemma ϕ1 :

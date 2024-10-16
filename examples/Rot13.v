@@ -12,12 +12,35 @@ Require Import Determ.
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
-From process Require Import Process.
+Require Import Process.
 Require Import Asm.
 Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.
 Close Scope list.
 Close Scope Z_scope.
+
+(** * §6.3 Modeling loading and the execution environments *)
+
+(** This file contains the verification of the secret and rot13 example using
+    the strategy framework presented in the paper. There is also a legacy
+    version of this example which can be found in `examples/process/*.v` is
+    proved purely using CompCertO structures. The legacy version is not
+    presented in the paper but provides some useful infrastructures.
+
+    Particularly, this file depends on:
+
+    - models/IntStrat.v: the stratgy model used as the verification framework;
+
+    - examples/SecretAsm.v: manual verification of assembly program secret.s,
+      which corresponds to
+
+        π'_secret : L_secret ≤ Asm(secret.s)
+
+      in the paper;
+
+    - examples/Util.v: various utilities about the CompCertO correctness theorem
+
+ *)
 
 Axiom (Hwin: Archi.win64 = false).
 

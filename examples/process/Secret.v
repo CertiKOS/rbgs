@@ -149,8 +149,6 @@ Section CODE_PROOF.
   Import Asm.
   Require Import Lifting.       (* eprod_crush *)
 
-  Search Mem.inject Mem.unchanged_on.
-
   Inductive secret_match_state: ccworld (cc_c injp @ cc_c_asm) -> secret_state * mem -> block * Asm.state -> Prop :=
   | secret_match_state1 rs nb b sg j m1 m2 Hm se
       (HPC: rs PC = Vptr b Ptrofs.zero)
