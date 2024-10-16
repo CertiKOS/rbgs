@@ -62,13 +62,12 @@ versions of CompCert and `coqrel` we are using. If you are using `opam`
     $ eval $(opam env --switch=default)  # as instructed by opam init
     $ opam install coq.8.15.2 menhir.20240715
 
-Once Coq and Menhir have been installed, run the script
+Once Coq and Menhir have been installed, run the `configure` script.
+Note that macOS users will need to edit the script before running it
+to replace `x86_64-linux` with `x86_64-macos` on line 22.
 
+    $ sed -i s/-linux/-macos/ configure  # macOS users only
     $ ./configure
-
-(For macos users, you may need to edit the `configure` script to replace
-`x86_64-linux` with `x86_64-macos` on line 22 before executing the script.)
-
 
 At this point make sure there were no error messages. In particular
 if your versions of Coq, Menhir, etc. are not suitable to build
