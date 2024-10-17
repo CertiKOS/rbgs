@@ -33,15 +33,19 @@ and cross-references all sections, definitions and theorems by name.
 There are two small discrepancies between the submitted version of our
 paper and the mechanized version:
 
-  * Definition 3.3: the definition in the submitted paper should be
-    amended to state that a *regular* strategy is the closure σ* of a
+  * Definition 3.3: The definition in the submitted paper should be
+    amended to state that a *regular* strategy is the closure of a
     strategy σ *which handles only a single incoming question*. We will
     make this change in our revised paper.
 
-  * Theorem 4.5: although the submitted paper states an equivalence,
+  * Theorem 4.5: Although the submitted paper states an equivalence,
     we have only proved that refinement squares can be obtained from
     inclusion properties. We will update the theorem in our revised
-    paper to match our mechanization.
+    paper to match our mechanized proof.
+
+  * Theorem 4.7: Vertical composition of refinement squares requires
+    target strategies to be deterministic. We make this condition
+    explicit in the revised paper.
 
 Everything else should match what is described in the paper exactly.
 
