@@ -87,6 +87,10 @@ Arguments rc : clear implicits.
 Arguments rc_ready {E1 E2}.
 Arguments rc_pending {E1 E2} _ _.
 
+Lemma after_question_sup {E1 E2} {I: Type} q1 q2 (R: I -> rc E1 E2 rc_ready):
+  after_question (lsup R) q1 q2 = lsup (fun i => after_question (R i) q1 q2).
+Proof. apply antisymmetry; cbn; eauto. Qed.
+
 Section RSQ.
 
 Section VCOMP.
@@ -97,8 +101,8 @@ Section VCOMP.
     | vpos_pending (m1: op E1) (m2: op E2) (m3: op E3):
         vpos (rc_pending m1 m2) (rc_pending m2 m3) (rc_pending m1 m3).
 
-  Inductive vcomp_has :
-    forall {i j k} (p: vpos i j k), rc E1 E2 i -> rc E2 E3 j -> rcplay k -> Prop :=
+  Inductive vcomp_has:
+    forall {i j k} (p: vpos i j k), rc E1 E2 i -> rc E2 E3 j -> rcplay k -> Prop := 
   | vcomp_question_bot R S m1 m2 m3:
     Downset.has R (rc_question_bot m1 m2) ->
     Downset.has S (rc_question_bot m2 m3) ->
@@ -123,36 +127,101 @@ Section VCOMP.
     {| Downset.has w := vcomp_has p R S w |}.
   Next Obligation. Admitted.
 
-  Inductive vcomp_at_has (m2: op E2):
-    forall {i j k} (p: vpos i j k), rc E1 E2 i -> rc E2 E3 j -> rcplay k -> Prop :=
-  | vcomp_at_question_bot R S m1 m3:
+  Inductive vcomp_at_question_has (m2: op E2):
+    forall {i j k}, rc E1 E2 i -> rc E2 E3 j -> rcplay k -> Prop :=
+  | vcomp_at_question_question_bot R S m1 m3:
     Downset.has R (rc_question_bot m1 m2) ->
     Downset.has S (rc_question_bot m2 m3) ->
-    vcomp_at_has m2 vpos_ready R S (rc_question_bot m1 m3)
-  | vcomp_at_question R S m1 m3 v:
+    vcomp_at_question_has m2 R S (rc_question_bot m1 m3)
+  | vcomp_at_question_question R S m1 m3 v:
     Downset.has R (rc_question_bot m1 m2) ->
     Downset.has S (rc_question_bot m2 m3) ->
     vcomp_has (vpos_pending m1 m2 m3) (after_question R m1 m2) (after_question S m2 m3) v ->
-    vcomp_at_has m2 vpos_ready R S (rc_question m1 m3 v)
-  | vcomp_at_answer_top m1 m3 R S n1 n3:
-    (forall n2, Downset.has R (rc_answer_top m1 m2 n1 n2) \/
+    vcomp_at_question_has m2 R S (rc_question m1 m3 v).
+
+  Inductive vcomp_at_answer_has m1 m2 m3 (xn2: option (ar m2)):
+    forall {i j k}, rc E1 E2 i -> rc E2 E3 j -> rcplay k -> Prop :=
+  | vcomp_at_answer_answer_top R S n1 n3:
+    (forall n2, xn2 = Some n2 ->
+             Downset.has R (rc_answer_top m1 m2 n1 n2) \/
              Downset.has S (rc_answer_top m2 m3 n2 n3)) ->
-    vcomp_at_has m2 (vpos_pending m1 m2 m3) R S (rc_answer_top m1 m3 n1 n3)
-  | vcomp_at_answer m1 m3 R S n1 n3 v:
-    (forall n2, Downset.has R (rc_answer_top m1 m2 n1 n2) \/
+    vcomp_at_answer_has m1 m2 m3 xn2 R S (rc_answer_top m1 m3 n1 n3)
+  | vcomp_at_answer_answer R S n1 n3 v:
+    (forall n2, xn2 = Some n2 ->
+             Downset.has R (rc_answer_top m1 m2 n1 n2) \/
              Downset.has S (rc_answer_top m2 m3 n2 n3) \/
              vcomp_has vpos_ready (after_answer R n1 n2) (after_answer S n2 n3) v) ->
-    vcomp_at_has m2 (vpos_pending m1 m2 m3) R S (rc_answer m1 m3 n1 n3 v).
+    vcomp_at_answer_has m1 m2 m3 xn2 R S (rc_answer m1 m3 n1 n3 v).
 
+  Program Definition vcomp_at_question m2 {i j k}
+    (R: rc E1 E2 i) (S: rc E2 E3 j) : rc E1 E3 k :=
+    {| Downset.has w := vcomp_at_question_has m2 R S w |}.
+  Next Obligation. Admitted.
+
+  Lemma vcomp_after_question m1 m2 m3 R S:
+    match_question R m1 m2 ->
+    match_question S m2 m3 ->
+    after_question (vcomp_at_question m2 R S) m1 m3 =
+      vcomp_when (vpos_pending m1 m2 m3) (after_question R m1 m2) (after_question S m2 m3).
+  Admitted.
+
+  Program Definition vcomp_at_answer m1 m2 m3 (n2: option (ar m2))
+    {i j k} (R: rc E1 E2 i) (S: rc E2 E3 j) : rc E1 E3 k :=
+    {| Downset.has w := vcomp_at_answer_has m1 m2 m3 n2 R S w |}.
+  Next Obligation. Admitted.
+
+  Lemma vcomp_after_answer m1 m2 m3 (n1: ar m1) (n2: ar m2) (n3: ar m3) R S :
+    match_answer R n1 n2 ->
+    match_answer S n2 n3 ->
+    after_answer (vcomp_at_answer m1 m2 m3 (Some n2) R S) n1 n3 =
+      vcomp_when vpos_ready (after_answer R n1 n2) (after_answer S n2 n3).
+  Admitted.
+
+  Lemma vcomp_expand {i j k} (p: vpos i j k) R S :
+    vcomp_when p R S =
+      match p with
+      | vpos_ready => sup m2, vcomp_at_question m2 R S
+      | vpos_pending m1 m2 m3 => inf xn2, vcomp_at_answer m1 m2 m3 xn2 R S
+      end.
+  Admitted.
+
+  Hint Constructors vcomp_has : core.
+
+  Lemma vcomp_sup_l {i j k} (p: vpos i j k) {I} (R: I -> _) S c:
+    (exists i, vcomp_has p (R i) S c) -> vcomp_has p (lsup R) S c.
+  Proof. Admitted.
+
+  Lemma vcomp_sup_r {i j k} (p: vpos i j k) {I} R (S: I -> _) c:
+    (exists i, vcomp_has p R (S i) c) -> vcomp_has p R (lsup S) c.
+  Proof. Admitted.
+
+  Lemma vcomp_at_question_sup_l m2 {i j k} {I} (R: I -> _) S c:
+    @vcomp_at_question_has m2 i j k (lsup R) S c ->
+    exists i, vcomp_at_question_has m2 (R i) S c.
+  Proof.
+    dependent induction c; intros Hc.
+    - dependent destruction Hc. cbn in H.
+      destruct H as (i & H). exists i. constructor; eauto.
+    - dependent destruction Hc. cbn in H.
+      destruct H as (i & H). exists i. constructor.
+  Admitted.
 
 End VCOMP.
 
 Notation vcomp := (vcomp_when vpos_ready).
 
+Ltac refold :=
+  repeat
+    match goal with
+    | |- context C[vcomp_has ?p ?R ?S ?s] =>
+        let P := context C[Downset.has (vcomp_when p R S) s] in change P
+    | [ H: context C[vcomp_has ?p ?R ?S ?s] |- _ ] =>
+        let P := context C[Downset.has (vcomp_when p R S) s] in change P in H
+    end.
+
 Section VCOMP_ASSOC.
 
   Context {E1 E2 E3 E4: esig}.
-  (* E F G H *)
   Variant vvpos :
     forall {p1 p2 p3 p12 p23 p123}, @vpos E1 E2 E3 p1 p2 p12 ->
                                     @vpos E2 E3 E4 p2 p3 p23 ->
@@ -163,58 +232,74 @@ Section VCOMP_ASSOC.
         vvpos (vpos_pending m1 m2 m3) (vpos_pending m2 m3 m4)
               (vpos_pending m1 m3 m4) (vpos_pending m1 m2 m4).
 
-  Hint Constructors rcplay_ref vcomp_has : core.
-
-(*   Lemma vcomp_has_assoc_1 *)
-(*     {p1 p2 p3 p12 p23 p123} *)
-(*     {vp12: vpos p1 p2 p12} *)
-(*     {vp23: vpos p2 p3 p23} *)
-(*     {vp12_3: vpos p12 p3 p123} *)
-(*     {vp1_23: vpos p1 p23 p123} c1 c2 c12 c3 c123 *)
-(*     (p: vvpos vp12 vp23 vp12_3 vp1_23): *)
-(*     vcomp_has vp12 c1 c2 c12 -> *)
-(*     vcomp_has vp12_3 c12 c3 c123 -> *)
-
-(* . *)
-(*   Proof. *)
-(*     intros HA HB. *)
-(*     revert p3 p23 p123 vp23 vp12_3 vp1_23 p c3 c123 HB. *)
-(*     induction HA; intros; cbn. *)
-(*     - dependent destruction p; dependent destruction HB. *)
-(*       dependent destruction HC0; eauto. *)
-(*     - dependent destruction p; dependent destruction HB. *)
-(*       + dependent destruction HC1; eauto. *)
-(*       + rename m5 into m4. *)
-(*         specialize (IHHA _ _ _ _ _ _ (vvpos_pending m1 m2 m3 m4) _ _ HB) *)
-(*           as (c23 & Hc23). *)
-(*         dependent destruction v12; eauto. *)
-(*         * dependent destruction Hc23. *)
-(*           -- eexists (rc_question m2 m4 (rc_answer_top m2 m4 _ _)). split; eauto. *)
-(*         * destruct Hc23; eauto. *)
-(*     - dependent destruction p; dependent destruction HB; eauto. *)
-(*       rename m6 into m4, n0 into n1', n2 into n4. *)
-(*       destruct HC as [HC|HC]; dependent destruction HC. *)
-(*         destruct HC0 as [HC0|HC0]; dependent destruction HC0; eauto. *)
-(*       +  *)
-
-(*     - dependent destruction p; dependent destruction HB; eauto 10. *)
-(*     - dependent destruction p; dependent destruction HB; eauto 10. *)
-(*     - *)
-(*   Admitted. *)
+  Hint Constructors vcomp_has : core.
 
   Lemma vcomp_assoc_when p1 p2 p3 p12 p23 p123
                          (vp12: vpos p1 p2 p12)
                          (vp23: vpos p2 p3 p23)
                          (vp12_3: vpos p12 p3 p123)
                          (vp1_23: vpos p1 p23 p123)
-    (R1: rc E1 E2 p1) (R2: rc E2 E3 p2) (R3: rc E3 E4 p3):
+    (R1: rc E1 E2 p1) (R2: rc E2 E3 p2) (R3: rc E3 E4 p3)
+    (p: vvpos vp12 vp23 vp12_3 vp1_23):
     vcomp_when vp12_3 (vcomp_when vp12 R1 R2) R3 =
       vcomp_when vp1_23 R1 (vcomp_when vp23 R2 R3).
   Proof.
     apply antisymmetry.
-    - intros c Hc. cbn in *.
-      destruct Hc as (c12 & c3 & (c1 & c2 & H1 & H2 & H12) & H3 & H123).
-      cbn.
+    - intros c Hc. rewrite !vcomp_expand. rewrite !vcomp_expand in Hc.
+      revert p1 p2 p3 p12 p23 vp12 vp23 vp12_3 vp1_23 p R1 R2 R3 Hc.
+      induction c.
+      + intros. dependent destruction p. rename m2 into m4.
+        destruct Hc as (m3 & Hc). cbn in Hc. dependent destruction Hc.
+        destruct H as (m2 & H). cbn in H. dependent destruction H.
+        exists m2. econstructor; eauto. exists m3. econstructor; eauto.
+      + intros. dependent destruction p. rename m2 into m4.
+        destruct Hc as (m3 & Hc). cbn -[lsup] in Hc. dependent destruction Hc.
+        (* apply vcomp_at_question_sup_l in Hc as (m2 & Hc). *)
+        destruct H as (m2 & H). cbn in H. dependent destruction H.
+        rewrite after_question_sup in H2.
+        exists m2. econstructor; eauto.
+        exists m3. econstructor; eauto.
+        rewrite after_question_sup.
+        specialize (IHc _ _ _ _ _ _ _ _ _ (vvpos_pending m1 m2 m3 m4)).
+        cbn iota in IHc.
+        specialize (IHc (after_question R1 m1 m2) (after_question R2 m2 m3) (after_question R3 m3 m4)).
+        refold. rewrite !vcomp_expand.
+
+        rewrite after_question_sup. apply vcomp_sup_r. exists m3.
+        rewrite vcomp_after_question; eauto.
+        refold. rewrite !vcomp_expand. apply IHc. clear IHc.
+        rewrite vcomp_after_question in H2; eauto.
+        rewrite !vcomp_expand in H2. eauto.
+      + intros. dependent destruction p.
+        rename m2 into m4, m4 into m3, m3 into m2. rename n2 into n4.
+        intros [n2|].
+        2: { constructor; intros; easy. }
+        constructor. intros n2' Hn2. inversion Hn2. subst n2'. clear Hn2.
+        destruct (classic (Downset.has R1 (rc_answer_top m1 m2 n1 n2))). left; eauto.
+        right. intros [n3|].
+        2: { constructor; intros; easy. }
+        constructor. intros n3' Hn3. inversion Hn3. subst n3'. clear Hn3.
+        specialize (Hc (Some n3)). cbn -[linf] in Hc.
+        dependent destruction Hc. specialize (H _ eq_refl). destruct H; eauto.
+        specialize (H (Some n2)). cbn in H.
+        dependent destruction H. specialize (H _ eq_refl). destruct H; eauto. easy.
+      + intros. dependent destruction p.
+        rename m2 into m4, m4 into m3, m3 into m2. rename n2 into n4.
+        specialize (IHc _ _ _ _ _ _ _ _ _ vvpos_ready). cbn iota in IHc.
+        intros [n2|].
+        2: { constructor; intros; easy. }
+        constructor. intros n2' Hn2. inversion Hn2. subst n2'. clear Hn2.
+        destruct (classic (Downset.has R1 (rc_answer_top m1 m2 n1 n2))) as [|A].
+        left; easy. right.
+        destruct (classic (Downset.has (inf xn2 : option (ar m3), vcomp_at_answer m2 m3 m4 xn2 R2 R3) (rc_answer_top m2 m4 n2 n4))) as [|B].
+        left; easy. right.
+        cbn in B. apply not_all_ex_not in B as (xn3 & B). destruct xn3 as [n3|].
+        2: { exfalso. apply B. constructor. intros. easy. }
+        specialize (Hc (Some n3)). cbn -[linf] in Hc.
+        dependent destruction Hc. specialize (H _ eq_refl). destruct H as [H|[H|H]].
+        { cbn in H. admit. }
+        { admit. }
+
 
   Lemma vcomp_assoc
     (R1: rc E1 E2 rc_ready) (R2: rc E2 E3 rc_ready) (R3: rc E3 E4 rc_ready):
