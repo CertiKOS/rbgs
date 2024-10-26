@@ -17,12 +17,12 @@ Section RC.
     | rc_pending (m1: op E1) (m2: op E2).
 
   Inductive rcplay : rcpos -> Type :=
-  | rc_question_bot (m1: op E1) (m2: op E2): rcplay rc_ready
-  | rc_question (m1: op E1) (m2: op E2):
+  | rc_question_bot (m1: op E1) (m2: op E2): rcplay rc_ready (* m1m2\bot *)
+  | rc_question (m1: op E1) (m2: op E2):                     (* m1m2t *)
     rcplay (rc_pending m1 m2) -> rcplay rc_ready
-  | rc_answer_top m1 m2 (n1: ar m1) (n2: ar m2): rcplay (rc_pending m1 m2)
+  | rc_answer_top m1 m2 (n1: ar m1) (n2: ar m2): rcplay (rc_pending m1 m2) (* n1n2\top *)
   | rc_answer m1 m2 (n1: ar m1) (n2: ar m2):
-    rcplay rc_ready -> rcplay (rc_pending m1 m2).
+    rcplay rc_ready -> rcplay (rc_pending m1 m2). (* n1n2s *)
 
   Inductive rcplay_ref : forall {p: rcpos}, rcplay p -> rcplay p -> Prop :=
   | rcplay_question_ref1 m1 m2:
@@ -107,19 +107,24 @@ Section VCOMP.
     Downset.has R (rc_question_bot m1 m2) ->
     Downset.has S (rc_question_bot m2 m3) ->
     vcomp_has vpos_ready R S (rc_question_bot m1 m3)
-  | vcomp_question R S m1 m2 m3 v:
-    Downset.has R (rc_question_bot m1 m2) ->
-    Downset.has S (rc_question_bot m2 m3) ->
-    vcomp_has (vpos_pending m1 m2 m3) (after_question R m1 m2) (after_question S m2 m3) v ->
+  | vcomp_question R S m1 m2 m3 v R' S':
+    R' = after_question R m1 m2 ->
+    S' = after_question S m2 m3 ->
+    (R' = bot -> Downset.has R (rc_question_bot m1 m2)) ->
+    (S' = bot -> Downset.has S (rc_question_bot m2 m3)) ->
+    vcomp_has (vpos_pending m1 m2 m3) R' S' v ->
     vcomp_has vpos_ready R S (rc_question m1 m3 v)
   | vcomp_answer_top m1 m2 m3 R S n1 n3:
     (forall n2, Downset.has R (rc_answer_top m1 m2 n1 n2) \/
              Downset.has S (rc_answer_top m2 m3 n2 n3)) ->
     vcomp_has (vpos_pending m1 m2 m3) R S (rc_answer_top m1 m3 n1 n3)
   | vcomp_answer m1 m2 m3 R S n1 n3 v:
-    (forall n2, Downset.has R (rc_answer_top m1 m2 n1 n2) \/
-             Downset.has S (rc_answer_top m2 m3 n2 n3) \/
-             vcomp_has vpos_ready (after_answer R n1 n2) (after_answer S n2 n3) v) ->
+    (forall n2 R' S',
+        R' = after_answer R n1 n2 ->
+        S' = after_answer S n2 n3 ->
+        (R' = top -> ~ Downset.has R (rc_answer_top m1 m2 n1 n2)) ->
+        (S' = top -> ~ Downset.has S (rc_answer_top m2 m3 n2 n3)) ->
+        vcomp_has vpos_ready R' S' v) ->
     vcomp_has (vpos_pending m1 m2 m3) R S (rc_answer m1 m3 n1 n3 v).
 
   Program Definition vcomp_when {i j k} (p: vpos i j k)
@@ -133,10 +138,12 @@ Section VCOMP.
     Downset.has R (rc_question_bot m1 m2) ->
     Downset.has S (rc_question_bot m2 m3) ->
     vcomp_at_question_has m2 R S (rc_question_bot m1 m3)
-  | vcomp_at_question_question R S m1 m3 v:
-    Downset.has R (rc_question_bot m1 m2) ->
-    Downset.has S (rc_question_bot m2 m3) ->
-    vcomp_has (vpos_pending m1 m2 m3) (after_question R m1 m2) (after_question S m2 m3) v ->
+  | vcomp_at_question_question R S m1 m3 v R' S':
+    R' = after_question R m1 m2 ->
+    S' = after_question S m2 m3 ->
+    (R' = bot -> Downset.has R (rc_question_bot m1 m2)) ->
+    (S' = bot -> Downset.has S (rc_question_bot m2 m3)) ->
+    vcomp_has (vpos_pending m1 m2 m3) R' S' v ->
     vcomp_at_question_has m2 R S (rc_question m1 m3 v).
 
   Inductive vcomp_at_answer_has m1 m2 m3 (xn2: option (ar m2)):
@@ -147,11 +154,20 @@ Section VCOMP.
              Downset.has S (rc_answer_top m2 m3 n2 n3)) ->
     vcomp_at_answer_has m1 m2 m3 xn2 R S (rc_answer_top m1 m3 n1 n3)
   | vcomp_at_answer_answer R S n1 n3 v:
-    (forall n2, xn2 = Some n2 ->
-             Downset.has R (rc_answer_top m1 m2 n1 n2) \/
-             Downset.has S (rc_answer_top m2 m3 n2 n3) \/
-             vcomp_has vpos_ready (after_answer R n1 n2) (after_answer S n2 n3) v) ->
+    (forall n2 R' S',
+        xn2 = Some n2 ->
+        R' = after_answer R n1 n2 ->
+        S' = after_answer S n2 n3 ->
+        (R' = top -> ~ Downset.has R (rc_answer_top m1 m2 n1 n2)) ->
+        (S' = top -> ~ Downset.has S (rc_answer_top m2 m3 n2 n3)) ->
+        vcomp_has vpos_ready R' S' v) ->
     vcomp_at_answer_has m1 m2 m3 xn2 R S (rc_answer m1 m3 n1 n3 v).
+  (* | vcomp_at_answer_answer R S n1 n3 v: *)
+  (*   (forall n2, xn2 = Some n2 -> *)
+  (*            Downset.has R (rc_answer_top m1 m2 n1 n2) \/ *)
+  (*            Downset.has S (rc_answer_top m2 m3 n2 n3) \/ *)
+  (*            vcomp_has vpos_ready (after_answer R n1 n2) (after_answer S n2 n3) v) -> *)
+  (*   vcomp_at_answer_has m1 m2 m3 xn2 R S (rc_answer m1 m3 n1 n3 v). *)
 
   Program Definition vcomp_at_question m2 {i j k}
     (R: rc E1 E2 i) (S: rc E2 E3 j) : rc E1 E3 k :=
@@ -188,23 +204,51 @@ Section VCOMP.
   Hint Constructors vcomp_has : core.
 
   Lemma vcomp_sup_l {i j k} (p: vpos i j k) {I} (R: I -> _) S c:
-    (exists i, vcomp_has p (R i) S c) -> vcomp_has p (lsup R) S c.
-  Proof. Admitted.
+    (exists i, vcomp_has p (R i) S c) <-> vcomp_has p (lsup R) S c.
+  Proof.
+    split; intros H.
+    - revert p R S H. induction c; intros.
+      + destruct H as (x & H). dependent destruction H.
+        econstructor; cbn; eauto.
+      + admit.
+      + admit.
+      + admit.
+    - revert i j p R S H. induction c; intros.
+      + dependent destruction H. destruct H as (x & H). eauto.
+      + dependent destruction H. 
+        destruct (classic (after_question (sup j, R j) m1 m3 = bot)).
+        * setoid_rewrite H in H3.
+          specialize (H1 H) as (x & H1). exists x.
+          econstructor; eauto. admit.
+        * rewrite after_question_sup in H3.
+          edestruct (IHc _ _ _ _ _ H3) as (x & Hx).
+          exists x. econstructor; eauto. intros. admit.
+      + dependent destruction H.
+        admit.
+      + admit.
+  Admitted.
 
   Lemma vcomp_sup_r {i j k} (p: vpos i j k) {I} R (S: I -> _) c:
     (exists i, vcomp_has p R (S i) c) -> vcomp_has p R (lsup S) c.
   Proof. Admitted.
 
-  Lemma vcomp_at_question_sup_l m2 {i j k} {I} (R: I -> _) S c:
-    @vcomp_at_question_has m2 i j k (lsup R) S c ->
-    exists i, vcomp_at_question_has m2 (R i) S c.
-  Proof.
-    dependent induction c; intros Hc.
-    - dependent destruction Hc. cbn in H.
-      destruct H as (i & H). exists i. constructor; eauto.
-    - dependent destruction Hc. cbn in H.
-      destruct H as (i & H). exists i. constructor.
-  Admitted.
+  (* Lemma vcomp_at_question_sup_l m2 {i j k} {I} (R: I -> _) S c: *)
+  (*   @vcomp_at_question_has m2 i j k (lsup R) S c -> *)
+  (*   exists i, vcomp_at_question_has m2 (R i) S c. *)
+  (* Proof. *)
+  (*   revert m2 R S. dependent induction c; intros. *)
+  (*   - dependent destruction H. *)
+  (*     destruct H as (i & H). exists i. constructor; eauto. *)
+  (*   - dependent destruction H. *)
+  (*     rewrite after_question_sup in H3. *)
+  (*     match goal with *)
+  (*     | [ H: context C[vcomp_has ?p ?R ?S ?s] |- _ ] => *)
+  (*       let P := context C[Downset.has (vcomp_when p R S) s] in change P in H *)
+  (*     end. *)
+  (*     (* edestruct IHc as (i & Hi). *) *)
+  (*   (* - dependent destruction Hc. cbn in H. *) *)
+  (*   (*   destruct H as (i & H). exists i. constructor. *) *)
+  (* Admitted. *)
 
 End VCOMP.
 
@@ -254,22 +298,20 @@ Section VCOMP_ASSOC.
         exists m2. econstructor; eauto. exists m3. econstructor; eauto.
       + intros. dependent destruction p. rename m2 into m4.
         destruct Hc as (m3 & Hc). cbn -[lsup] in Hc. dependent destruction Hc.
-        (* apply vcomp_at_question_sup_l in Hc as (m2 & Hc). *)
-        destruct H as (m2 & H). cbn in H. dependent destruction H.
-        rewrite after_question_sup in H2.
+        rewrite after_question_sup in H3. apply vcomp_sup_l in H3 as (m2 & H3).
+        destruct (classic (after_question (sup m2 : E2, vcomp_at_question m2 R1 R2) m1 m3 = bot)) as [HX|HX].
+        { admit. }
         exists m2. econstructor; eauto.
-        exists m3. econstructor; eauto.
-        rewrite after_question_sup.
+        { admit. }
+        { admit. }
+        rewrite after_question_sup. apply vcomp_sup_r.
+        exists m3. rewrite vcomp_after_question. 2-3: admit.
         specialize (IHc _ _ _ _ _ _ _ _ _ (vvpos_pending m1 m2 m3 m4)).
         cbn iota in IHc.
         specialize (IHc (after_question R1 m1 m2) (after_question R2 m2 m3) (after_question R3 m3 m4)).
-        refold. rewrite !vcomp_expand.
-
-        rewrite after_question_sup. apply vcomp_sup_r. exists m3.
-        rewrite vcomp_after_question; eauto.
         refold. rewrite !vcomp_expand. apply IHc. clear IHc.
-        rewrite vcomp_after_question in H2; eauto.
-        rewrite !vcomp_expand in H2. eauto.
+        rewrite vcomp_after_question in H3. 2-3: admit.
+        rewrite !vcomp_expand in H3. eauto.
       + intros. dependent destruction p.
         rename m2 into m4, m4 into m3, m3 into m2. rename n2 into n4.
         intros [n2|].

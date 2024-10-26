@@ -266,11 +266,6 @@ Section RSQ.
 
   Context {E1 E2 F1 F2 : esig}.
 
-  Variant rspos {I1 I2: Type} : @position E1 F1 -> @position E2 F2 -> Type :=
-    | rs_ready : rspos ready ready
-    | rs_running (iq: I2) q1 q2 : rspos (running q1) (running q2)
-    | rs_suspended (iq: I2) q1 q2 (im: I1) m1 m2 : rspos (suspended q1 m1) (suspended q2 m2).
-
   Section RSP.
 
     Context {I1 I2: Type} {J1: I1 -> Type} {J2: I2 -> Type}.
@@ -283,30 +278,28 @@ Section RSQ.
     | rsp_oq q1 s τ :
       Downset.has τ pnil_ready ->
       (forall iq q2, Downset.has S (ircp_allow iq q1 q2) ->
-                rsp R S (rs_running iq q1 q2) s (next (oq q2) τ)) ->
+                rsp R S (rs_running q1 q2) s (next (oq q2) τ)) ->
       rsp R S rs_ready (oq q1 :: s) τ
-    | rsp_pq iq q1 q2 im m1 m2 s τ :
+    | rsp_pq q1 q2 im m1 m2 s τ :
       Downset.has R (ircp_allow im m1 m2) ->
-      rsp R S (rs_suspended iq q1 q2 im m1 m2) s (next (pq m2) τ) ->
-      rsp R S (rs_running iq q1 q2) (pq m1 :: s) τ
-    | rsp_suspended iq q1 q2 im m1 m2 τ :
+      rsp R S (rs_suspended q1 q2 m1 m2) s (next (pq m2) τ) ->
+      rsp R S (rs_running q1 q2) (pq m1 :: s) τ
+    | rsp_suspended q1 q2 m1 m2 τ :
       Downset.has τ (pnil_suspended q2 m2) ->
-      rsp R S (rs_suspended iq q1 q2 im m1 m2) (pnil_suspended q1 m1) τ
-    | rsp_oa iq q1 q2 im m1 m2 n1 s τ :
+      rsp R S (rs_suspended q1 q2 m1 m2) (pnil_suspended q1 m1) τ
+    | rsp_oa q1 q2 m1 m2 n1 s τ :
       Downset.has τ (pnil_suspended q2 m2) ->
-      (forall jn n2,
-          ~ Downset.has R (ircp_forbid im m1 m2 jn n1 n2) ->
-          rsp (ircnext im m1 m2 jn n1 n2 R) S (rs_running iq q1 q2) s (next (oa n2) τ)) ->
-      rsp R S (rs_suspended iq q1 q2 im m1 m2) (oa n1 :: s) τ
-    | rsp_pa iq q1 q2 jr r1 r2 s τ :
-      ~ Downset.has S (ircp_forbid iq q1 q2 jr r1 r2) ->
-      rsp R (ircnext iq q1 q2 jr r1 r2 S) rs_ready s (next (pa r2) τ) ->
-      rsp R S (rs_running iq q1 q2) (pa r1 :: s) τ.
+      (forall im jn n2, ~ Downset.has R (ircp_forbid im m1 m2 jn n1 n2) ->
+         rsp (sup im, inf jn, ircnext im m1 m2 jn n1 n2 R) S (rs_running q1 q2) s (next (oa n2) τ)) ->
+      rsp R S (rs_suspended q1 q2 m1 m2) (oa n1 :: s) τ
+    | rsp_pa q1 q2 r1 s τ :
+      (forall iq, exists jr r2, ~ Downset.has S (ircp_forbid iq q1 q2 jr r1 r2) /\
+      rsp R (sup iq, inf jr, ircnext iq q1 q2 jr r1 r2 S) rs_ready s (next (pa r2) τ)) ->
+      rsp R S (rs_running q1 q2) (pa r1 :: s) τ.
 
     Definition rsq_when (R: irc E1 E2 I1 J1) (S: irc F1 F2 I2 J2)
       {p1 p2} p (σ : strat E1 F1 p1) (τ : strat E2 F2 p2) : Prop :=
       forall s, Downset.has σ s -> rsp R S p s τ.
-
 
     Lemma rsp_ready_inv_nil R S s τ :
       rsp R S rs_ready s τ ->
@@ -315,8 +308,8 @@ Section RSQ.
       intro H. dependent destruction H; auto.
     Qed.
 
-    Lemma rsp_suspended_inv_nil R S iq q1 q2 im m1 m2 s τ :
-      rsp R S (rs_suspended iq q1 q2 im m1 m2) s τ ->
+    Lemma rsp_suspended_inv_nil R S q1 q2 m1 m2 s τ :
+      rsp R S (rs_suspended q1 q2 m1 m2) s τ ->
       Downset.has τ (pnil_suspended q2 m2).
     Proof.
       intro H. dependent destruction H; auto.
@@ -327,7 +320,7 @@ Section RSQ.
     Lemma rsq_next_oq {R: irc E1 E2 I1 J1} {S: irc F1 F2 I2 J2} {σ τ} i q1 q2 :
       rsq_when R S rs_ready σ τ ->
       Downset.has S (ircp_allow i q1 q2) ->
-      rsq_when R S (rs_running i q1 q2) (next (oq q1) σ) (next (oq q2) τ).
+      rsq_when R S (rs_running q1 q2) (next (oq q1) σ) (next (oq q2) τ).
     Proof.
       intros Hστ Hq s Hs. cbn in *.
       specialize (Hστ _ Hs).
@@ -335,13 +328,13 @@ Section RSQ.
       eauto.
     Qed.
 
-    Lemma rsq_next_pq {R S iq q1 q2 σ τ} `{!Deterministic τ} m1 :
-      rsq_when R S (rs_running iq q1 q2) σ τ ->
+    Lemma rsq_next_pq {R S q1 q2 σ τ} `{!Deterministic τ} m1 :
+      rsq_when R S (rs_running q1 q2) σ τ ->
       Downset.has σ (pq m1 :: pnil_suspended q1 m1) ->
       exists im m2,
         Downset.has R (ircp_allow im m1 m2) /\
           Downset.has τ (pq m2 :: pnil_suspended q2 m2) /\
-          rsq_when R S (rs_suspended iq q1 q2 im m1 m2) (next (pq m1) σ) (next (pq m2) τ).
+          rsq_when R S (rs_suspended q1 q2 m1 m2) (next (pq m1) σ) (next (pq m2) τ).
     Proof.
       intros Hστ H.
       apply Hστ in H.
@@ -352,36 +345,38 @@ Section RSQ.
       dependent destruction Hs.
       determinism m2 m3.
       subst. auto.
-    Admitted.
+    Qed.
 
-    Lemma rsq_next_oa {R S iq q1 q2 im m1 m2 σ τ} jn n1 n2 :
-      rsq_when R S (rs_suspended iq q1 q2 im m1 m2) σ τ ->
+    Lemma rsq_next_oa {R S q1 q2 im m1 m2 σ τ} jn n1 n2 :
+      rsq_when R S (rs_suspended q1 q2 m1 m2) σ τ ->
       ~ Downset.has R (ircp_forbid im m1 m2 jn n1 n2) ->
-      rsq_when (ircnext im m1 m2 jn n1 n2 R) S (rs_running iq q1 q2) (next (oa n1) σ) (next (oa n2) τ).
+      rsq_when (ircnext im m1 m2 jn n1 n2 R) S (rs_running q1 q2) (next (oa n1) σ) (next (oa n2) τ).
     Proof.
       intros Hστ Hn s Hs.
       specialize (Hστ _ Hs).
       dependent destruction Hστ.
       eauto.
-    Qed.
+    (* Qed. *)
+    Admitted.
 
-    Lemma rsq_next_pa {R S iq q1 q2 σ τ} `{!Deterministic τ} r1 :
-      rsq_when R S (rs_running iq q1 q2) σ τ ->
+    Lemma rsq_next_pa {R S q1 q2 σ τ} `{!Deterministic τ} r1 :
+      rsq_when R S (rs_running q1 q2) σ τ ->
       Downset.has σ (pa r1 :: pnil_ready) ->
-      exists jr r2,
+      forall iq, exists jr r2,
         ~ Downset.has S (ircp_forbid iq q1 q2 jr r1 r2) /\
           Downset.has τ (pa r2 :: pnil_ready) /\
           rsq_when R (ircnext iq q1 q2 jr r1 r2 S) rs_ready (next (pa r1) σ) (next (pa r2) τ).
     Proof.
       intros Hστ H.
       apply Hστ in H.
-      dependent destruction H. exists jr, r2. split; auto.
-      dependent destruction H0. cbn in H0. split; auto.
-      intros s Hs. cbn in Hs.
-      apply Hστ in Hs.
-      dependent destruction Hs.
-    (*   determinism r2 r3. *)
-    (*   assumption. *)
+      dependent destruction H.
+      (* exists iq, jr, r2. split; auto. *)
+      (* dependent destruction H0. cbn in H0. split; auto. *)
+      (* intros s Hs. cbn in Hs. *)
+      (* apply Hστ in Hs. *)
+      (* dependent destruction Hs. *)
+      (* determinism r2 r3. *)
+      (* assumption. *)
     (* Qed. *)
     Admitted.
 
@@ -395,62 +390,25 @@ End RSQ.
 Section RSVCOMP.
   Context {E1 F1 E2 F2 E3 F3 : esig}.
 
-  Variant rsvpos {I12 I23 J12 J23} :
-    forall {p1 p2 p3}, @rspos E1 E2 F1 F2 I12 J12 p1 p2 ->
-                  @rspos E2 E3 F2 F3 I23 J23 p2 p3 ->
-                  @rspos E1 E3 F1 F3 (I12 * I23 * E2) (J12 * J23 * F2) p1 p3 -> Type :=
+  Variant rsvpos:
+    forall {p1 p2 p3}, @rspos E1 E2 F1 F2 p1 p2 ->
+                  @rspos E2 E3 F2 F3 p2 p3 ->
+                  @rspos E1 E3 F1 F3 p1 p3 -> Type :=
     | rsv_ready :
-        rsvpos rs_ready
-               rs_ready
-               rs_ready
-    | rsv_running iq12 iq23 q1 q2 q3 :
-        rsvpos (rs_running iq12 q1 q2)
-               (rs_running iq23 q2 q3)
-               (rs_running (iq12, iq23, q2) q1 q3)
-    | rsv_suspended iq12 iq23 q1 q2 q3 im12 im23 m1 m2 m3 :
-        rsvpos (rs_suspended iq12 q1 q2 im12 m1 m2)
-               (rs_suspended iq23 q2 q3 im23 m2 m3)
-               (rs_suspended (iq12, iq23, q2) q1 q3 (im12, im23, m2) m1 m3).
+        rsvpos rs_ready rs_ready rs_ready
+    | rsv_running q1 q2 q3 :
+        rsvpos (rs_running q1 q2)
+               (rs_running q2 q3)
+               (rs_running q1 q3)
+    | rsv_suspended q1 q2 q3 m1 m2 m3 :
+        rsvpos (rs_suspended q1 q2 m1 m2)
+               (rs_suspended q2 q3 m2 m3)
+               (rs_suspended q1 q3 m1 m3).
 
   Section VCOMP.
     Context {I1 J1 I1' J1' I2 J2 I2' J2'}
         (R : irc E1 E2 I1 J1) (R' : irc E2 E3 I1' J1')
         (S : irc F1 F2 I2 J2) (S' : irc F2 F3 I2' J2').
-
-    (* Definition rsq_when (R: irc E1 E2 I1 J1) (S: irc F1 F2 I2 J2) *)
-    (*   {p1 p2} p (σ : strat E1 F1 p1) (τ : strat E2 F2 p2) : Prop := *)
-    (*   forall s, Downset.has σ s -> rsp R S p s τ. *)
-
-    Definition vcomp_prop
-      {p1 p2 p3}
-      {p12: @rspos E1 E2 F1 F2 I1 I2 p1 p2 }
-      {p23: @rspos E2 E3 F2 F3 I1' I2' p2 p3} {p13: rspos p1 p3}
-      (p : rsvpos p12 p23 p13) : Prop.
-    Proof.
-      destruct p.
-      - refine
-          (forall (s1 : @play E1 F1 ready) (σ2 : strat E2 F2 ready),
-           rsp R S rs_ready s1 σ2 ->
-           forall (σ3 : strat E3 F3 ready),
-           rsq_when R' S' rs_ready σ2 σ3 ->
-           rsp (irc_vcomp R R') (irc_vcomp S S') rs_ready s1 σ3).
-      - refine
-          (forall (s1 : @play E1 F1 (running q1)) (σ2 : strat E2 F2 (running q2)),
-           rsp R S (rs_running iq12 q1 q2) s1 σ2 ->
-           forall (σ3 : strat E3 F3 (running q3)),
-           rsq_when R' S' (rs_running iq23 q2 q3) σ2 σ3 ->
-           rsp (irc_vcomp R R') (irc_vcomp S S') (rs_running (iq12, iq23, q2) q1 q3) s1 σ3).
-      - refine
-          (forall (s1 : @play E1 F1 (suspended q1 m1)) (σ2 : strat E2 F2 (suspended q2 m2)),
-           rsp R S (rs_suspended iq12 q1 q2 im12 m1 m2) s1 σ2 ->
-           Downset.has R (ircp_allow im12 m1 m2) ->
-           forall s, Downset.has σ2 s ->
-           exists m3' im23' (σ3 : strat E3 F3 (suspended q3 m3')),
-           rsq_when R' S' (rs_suspended iq23 q2 q3 im23' m2 m3') σ2 σ3 ->
-           Downset.has R' (ircp_allow im23' m2 m3') ->
-           rsp (irc_vcomp R R') (irc_vcomp S S')
-             (rs_suspended (iq12, iq23, q2) q1 q3 (im12, im23', m2) m1 m3') s1 σ3).
-    Defined.
 
     Lemma rsp_vcomp
       {p1 p2 p3 p12 p23 p13} (p : rsvpos p12 p23 p13) :
@@ -460,11 +418,11 @@ Section RSVCOMP.
         rsq_when R' S' p23 σ2 σ3 ->
         match p with
         | rsv_ready
-        | rsv_running _ _ _ _ _ =>
+        | rsv_running _ _ _ =>
             rsp (irc_vcomp R R') (irc_vcomp S S') p13 s1 σ3
-        | rsv_suspended _ _ _ _ _ im12 im23 m1 m2 m3 =>
-            Downset.has R (ircp_allow im12 m1 m2) ->
-            Downset.has R' (ircp_allow im23 m2 m3) ->
+        | rsv_suspended _ _ _ m1 m2 m3 =>
+            (exists im12, Downset.has R (ircp_allow im12 m1 m2)) ->
+            (exists im23, Downset.has R' (ircp_allow im23 m2 m3)) ->
             rsp (irc_vcomp R R') (irc_vcomp S S') p13 s1 σ3
         end.
     Proof.
@@ -480,7 +438,7 @@ Section RSVCOMP.
         dependent destruction Hnil.
         constructor; auto.
         intros [[i2 i2'] q2] q3 [Hq12 Hq13].
-        eapply (H1 i2 q2 Hq12 _ _ _ (rsv_running _ _ q1 q2 q3)); eauto with typeclass_instances.
+        eapply (H1 i2 q2 Hq12 _ _ _ (rsv_running q1 q2 q3)); eauto with typeclass_instances.
         eapply rsq_next_oq; eauto.
       - (* outgoing question *)
         rename q4 into q3.
@@ -488,7 +446,7 @@ Section RSVCOMP.
           by (dependent destruction H12; cbn in *; auto).
         edestruct @rsq_next_pq as (i1' & m3 & Hm23 & Hm3 & Hnext); eauto.
         econstructor. { instantiate (2 := (_, _, _)). cbn. eauto. }
-        eapply (IHrsp _ _ _ (rsv_suspended _ _ q1 q2 q3 _ _ m1 m2 m3));
+        eapply (IHrsp _ _ _ (rsv_suspended q1 q2 q3 m1 m2 m3));
           eauto with typeclass_instances.
       - (* suspended *)
         rename q4 into q3, m4 into m3.
@@ -499,12 +457,12 @@ Section RSVCOMP.
         rename q4 into q3, m4 into m3.
         pose proof (Hσ23 _ H) as Hnil.
         dependent destruction Hnil.
-        intros Hm12 Hm23.
+        intros (im12 & Hm12) (im23 & Hm23).
         (* apply (rsp_inf (rs_suspended q1 q3 m1 m3)). { typeclasses eauto. } *)
         (* split. { eauto using None. } *)
         (* intros xn2. *)
         constructor; auto.
-        intros [[j1 j1'] n2] n3 Hn13. cbn in Hn13.
+        intros [[i1 i1'] m2x] [[j1 j1'] n2] n3 Hn13. cbn in Hn13.
         apply not_and_or in Hn13 as [ | Hn13]; try tauto.
         apply not_and_or in Hn13 as [ | Hn13]; try tauto.
         (* apply not_all_ex_not in Hn13 as [n2 Hn13]. *)
