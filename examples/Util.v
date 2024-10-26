@@ -217,6 +217,7 @@ Notation tint := (Tint I32 Unsigned noattr).
 Notation tchar := (Tint I8 Unsigned noattr).
 Notation tlong := (Tlong Unsigned noattr).
 Notation tptr := (fun ty => Tpointer ty noattr).
+Notation tarray := (fun ty size => Tarray ty size noattr).
 
 Definition rw_parameters := Tcons tint (Tcons (tptr tchar) (Tcons tint Tnil)).
 Definition rw_type :=
@@ -359,6 +360,206 @@ Section FIND_FUNCT.
   Qed.
 
 End FIND_FUNCT.
+
+(* ----------------------------------------------------------------- *)
+(** ** Some more process example utilities *)
+
+Ltac destruct_or H :=
+  match type of H with
+  | _ \/ _ => destruct H as [H|H]; [ |destruct_or H]
+  | _ => idtac
+  end.
+
+Section FUNCT_SYMBOL.
+Import Maps Values Integers.
+Lemma genv_funct_symbol se id b f (p: Clight.program):
+  Genv.find_symbol se id = Some b ->
+  (prog_defmap p) ! id = Some (Gfun f) ->
+  Genv.find_funct (globalenv se p) (Vptr b Ptrofs.zero) = Some f.
+Proof.
+  intros H1 H2.
+  unfold Genv.find_funct, Genv.find_funct_ptr.
+  destruct Ptrofs.eq_dec; try congruence.
+  apply Genv.find_invert_symbol in H1. cbn.
+  rewrite Genv.find_def_spec. rewrite H1.
+  rewrite H2. reflexivity.
+Qed.
+End FUNCT_SYMBOL.
+
+Section NTH.
+  Import Memory Maps Values Integers.
+  Inductive nth {A}: list A -> nat -> A -> Prop :=
+  | nth_this a l: nth (a :: l) 0%nat a
+  | nth_next a b n l:
+    nth l n b -> nth (a :: l) (Datatypes.S n) b.
+
+  Open Scope Z_scope.
+  Local Transparent Mem.loadbytes Mem.load Mem.store.
+
+Lemma getN_nth' len start i bytes byte memvals:
+  Mem.getN len start memvals = map Byte bytes ->
+  (0 <= i < len)%nat ->
+  nth bytes i byte ->
+  ZMap.get (start + (Z.of_nat i)) memvals = Byte byte.
+Proof.
+  (* TODO: cleanup *)
+  revert start len i byte memvals. induction bytes.
+  - intros. inv H1.
+  - intros. inv H1.
+    + cbn. destruct len. lia. cbn in H. inv H.
+      rewrite Z.add_0_r. reflexivity.
+    + cbn. destruct len. lia. cbn in H. inv H.
+      exploit IHbytes. 1,3: eauto. lia.
+      intros Hx.
+      assert (Z.pos (Pos.of_succ_nat n) = 1 + Z.of_nat n). lia.
+      rewrite H. rewrite Z.add_assoc. apply Hx.
+Qed.
+
+Lemma getN_nth len i bytes byte memvals:
+  Mem.getN len 0 memvals = map Byte bytes ->
+  (i < len)%nat ->
+  nth bytes i byte ->
+  ZMap.get (Z.of_nat i) memvals = Byte byte.
+Proof. intros. exploit getN_nth'; eauto. lia. Qed.
+
+Lemma loadbyte' m b bytes i len byte:
+  Mem.loadbytes m b 0 len = Some (map Byte bytes) ->
+  0 <= i < len ->
+  nth bytes (Z.to_nat i) byte ->
+  Mem.load Mint8unsigned m b i = Some (Vint (Int.repr (Byte.unsigned byte))).
+Proof.
+  intros H Hi Hb. unfold Mem.loadbytes in H. unfold Mem.load.
+  destruct Mem.range_perm_dec eqn: Hp; try congruence. clear Hp.
+  destruct Mem.valid_access_dec.
+  2: { exfalso. apply n. unfold Mem.valid_access. split; cbn.
+       - intros x Hx. apply r. lia.
+       - apply Z.divide_1_l. }
+  inv H. f_equal. cbn. change (Pos.to_nat 1) with 1%nat.
+  unfold Mem.getN.
+  exploit getN_nth. 1,3: eauto. lia. intros A.
+  rewrite Z_to_nat_max in A. rewrite Z.max_l in A. 2: lia. rewrite A. cbn.
+  f_equal. unfold Int.zero_ext.
+  rewrite Zbits.Zzero_ext_mod. 2: lia.
+  pose proof (Byte.unsigned_range_2 byte) as Hx; cbn in Hx.
+  rewrite Int.unsigned_repr.
+  2: { unfold decode_int, rev_if_be. destruct Archi.big_endian; cbn; lia. }
+  change (two_p 8) with 256.
+  f_equal. rewrite Z.mod_small.
+  unfold decode_int, rev_if_be. destruct Archi.big_endian; cbn; lia.
+  unfold decode_int, rev_if_be. destruct Archi.big_endian; cbn; lia.
+Qed.
+
+End NTH.
+
+Import Maps.
+Ltac prove_norepet H :=
+  match type of H with
+  | False => inversion H
+  | (?a = ?b) \/ _ =>
+      destruct H as [H|H]; [inversion H|prove_norepet H]
+  end.
+
+Ltac solve_list_norepet :=
+  simpl;
+  match goal with
+  | |- list_norepet nil =>  apply list_norepet_nil
+  | |- list_norepet (?x :: ?l) =>
+      apply list_norepet_cons;
+      [simpl; let H := fresh "H" in intro H; prove_norepet H |solve_list_norepet]
+  end.
+
+Ltac solve_list_disjoint :=
+  simpl; unfold list_disjoint; simpl; red;
+  let x := fresh "x" in
+  let y := fresh "y" in
+  let Lx := fresh "Lx" in
+  let Ly := fresh "Ly" in
+  let xyEq := fresh "xyEq" in
+  intros x y Lx Ly xyEq; try rewrite xyEq in *; clear xyEq;
+  destruct_or Lx; destruct_or Ly; subst; try solve [inversion Lx]; try solve [inversion Ly].
+
+Ltac ptree_tac :=
+  cbn -[PTree.get];
+  lazymatch goal with
+  | [ |- PTree.get ?x (PTree.set ?x _ _) = _ ] =>
+      rewrite PTree.gss; reflexivity
+  | [ |- PTree.get ?x (PTree.set ?y _ _) = _ ] =>
+      rewrite PTree.gso by (unfold x, y; lia); eauto; ptree_tac
+  end.
+
+Ltac solve_ptree := solve [ eauto | ptree_tac ].
+
+Ltac crush_eval_expr :=
+  cbn;
+  lazymatch goal with
+  | [ |- eval_expr _ _ _ _ (Etempvar _ _) _ ] =>
+      apply eval_Etempvar; try solve [ reflexivity | eassumption | solve_ptree ]
+  | [ |- eval_expr _ _ _ _ (Econst_int _ _) _ ] => apply eval_Econst_int
+  | [ |- eval_expr _ _ _ _ (Econst_long _ _) _ ] => apply eval_Econst_long
+  | [ |- eval_expr _ _ _ _ (Ebinop _ _ _ _) _ ] => eapply eval_Ebinop
+  | [ |- eval_expr _ _ _ _ (Evar _ _) _ ] => eapply eval_Elvalue
+  | [ |- eval_expr _ _ _ _ (Ederef _ _) _ ] => eapply eval_Elvalue
+  | [ |- eval_expr _ _ _ _ (Eaddrof _ _) _ ] => eapply eval_Eaddrof
+  | [ |- eval_expr _ _ _ _ (Esizeof _ _) _ ] => eapply eval_Esizeof
+  end.
+Ltac crush_eval_lvalue :=
+  cbn;
+  lazymatch goal with
+  | [ |- eval_lvalue _ _ _ _ (Evar _ _) _ _ _ ] =>
+      solve [ apply eval_Evar_local; reflexivity
+            | apply eval_Evar_global; [ reflexivity | eassumption ] ]
+  | _ => constructor
+  end.
+Ltac crush_deref :=
+  cbn;
+  lazymatch goal with
+  | [ |- deref_loc (Tarray _ _ _) _ _ _ _ _] => eapply deref_loc_reference; reflexivity
+  | [ |- deref_loc (Tfunction _ _ _) _ _ _ _ _] => eapply deref_loc_reference; reflexivity
+  | [ |- deref_loc (Tint _ _ _) _ _ _ _ _] => eapply deref_loc_value; [ reflexivity | ]
+  end.
+
+Ltac crush_expr :=
+  repeat (cbn;
+    match goal with
+    | [ |- eval_expr _ _ _ _ _ _ ] => crush_eval_expr
+    | [ |- eval_lvalue _ _ _ _ _ _ _ _ ] => crush_eval_lvalue
+    | [ |- eval_exprlist _ _ _ _ _ _ _ ] => econstructor
+    | [ |- deref_loc _ _ _ _ _ _ ] => crush_deref
+    | [ |- Cop.sem_binary_operation _ _ _ _ _ _ _ = Some _] => try reflexivity
+    | [ |- Cop.sem_cast _ ?ty ?ty _ = Some _ ] =>
+        apply Cop.cast_val_casted; eauto
+    | [ |- assign_loc _ (Tint _ _ _) _ _ _ _ _ _ ] =>
+        eapply assign_loc_value; [ reflexivity | ]
+    | _ => try solve [ easy | eassumption ]
+    end).
+
+Ltac crush_step := cbn;
+  match goal with
+  | [ |- Step _ (Callstate _ _ _ _) _ _ ] =>
+      eapply step_internal_function;
+      [ eauto | econstructor; cbn
+        (* [ solve_list_norepet *)
+        (* | solve_list_norepet *)
+        (* | solve_list_disjoint *)
+        (* | repeat (econstructor; simpl; auto) *)
+        (* | reflexivity | eauto ] *) ]
+  | [ |- Step _ (State _ (Ssequence _ _) _ _ _ _) _ _ ] => apply step_seq
+  | [ |- Step _ (State _ (Sassign _ _) _ _ _ _) _ _ ] => eapply step_assign
+  | [ |- Step _ (State _ (Sset _ _) _ _ _ _) _ _ ] => apply step_set
+  | [ |- Step _ (State _ (Scall _ _ _) _ _ _ _) _ _ ] => eapply step_call
+  | [ |- Step _ (Returnstate _ _ _) _ _ ] => eapply step_returnstate
+  | [ |- Step _ (State _ Sskip (Kseq _ _) _ _ _) _ _ ] => apply step_skip_seq
+  | [ |- Step _ (State _ Sskip (Kloop1 _ _ _) _ _ _) _ _ ] => apply step_skip_or_continue_loop1; left; reflexivity
+  | [ |- Step _ (State _ Sskip (Kloop2 _ _ _) _ _ _) _ _ ] => apply step_skip_loop2
+  | [ |- Step _ (State _ Sbreak (Kseq _ _) _ _ _) _ _ ] => apply step_break_seq
+  | [ |- Step _ (State _ Sbreak (Kloop1 _ _ _) _ _ _) _ _ ] => apply step_break_loop1
+  | [ |- Step _ (State _ (Sreturn None) _ _ _ _) _ _ ] => eapply step_return_0
+  | [ |- Step _ (State _ (Sreturn (Some _)) _ _ _ _) _ _ ] => eapply step_return_1
+  | [ |- Step _ (State _ (Sloop _ _) _ _ _ _) _ _ ] => eapply step_loop
+  | [ |- Step _ (State _ (Sifthenelse _ _ _) _ _ _ _) _ _ ] => eapply step_ifthenelse
+  | [ |- Step _ (State _ Sbreak _ _ _ _) _ _ ] => eapply step_break_loop1
+  | [ |- Step _ (State _ ?s _ _ _ _) _ _ ] => is_const s; unfold s; crush_step
+  end.
 
 (* ----------------------------------------------------------------- *)
 (** ** An auxiliary callconv used in the BQ example *)

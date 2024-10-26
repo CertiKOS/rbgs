@@ -12,7 +12,6 @@ Require Import Determ.
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
-Require Import Process.
 Require Import Asm.
 Import Memory Values Integers ListNotations.
 Require Import CompCertStrat.
@@ -56,6 +55,8 @@ Close Scope Z_scope.
 *)
 
 Axiom (Hwin: Archi.win64 = false).
+Notation hello_bytes := [ Byte.repr 104; Byte.repr 101; Byte.repr 108; Byte.repr 108; Byte.repr 111 ]%list.
+Notation uryyb_bytes := [ Byte.repr 117; Byte.repr 114; Byte.repr 121; Byte.repr 121; Byte.repr 98]%list.
 
 (** ** Strategy-level definitions *)
 
@@ -74,7 +75,7 @@ Arguments compose_when {E F G}%esig_scope {i j k} p (σ τ)%strat_scope.
     module Γ_secret, and the Γ_decode. *)
 
 Section STRATEGY.
-
+  Obligation Tactic := cbn.
   Context (sk_secret sk_decode: AST.program unit unit).
 
   (** *** Example 2.4 (Command Specifications) *)
@@ -1403,7 +1404,7 @@ Definition decode_body : statement :=
   in
   let write_buf :=
     (* write(1, buf, n) *)
-    Scall None (Evar rot13_write_id rw_type) [ one; buf; n ]
+    Scall None (Evar decode_write_id rw_type) [ one; buf; n ]
   in
   Ssequence read_buf
     (Ssequence rot_buf

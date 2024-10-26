@@ -36,7 +36,6 @@ examples/clightp/ClightPComp.v
 examples/clightp/ClightPLink.v
 examples/clightp/Composition.v
 examples/clightp/Encapsulation.v
-examples/clightp/Example.v
 examples/clightp/Lifting.v
 examples/clightp/PEnv.v
 examples/clightp/SkelLinking.v
@@ -45,7 +44,3 @@ examples/clightp/Join.v
 examples/process/CAsm.v
 examples/process/InitMem.v
 examples/process/Load.v
-examples/process/Pipe.v
-examples/process/Process.v
-examples/process/Secret.v
-examples/process/With.v
