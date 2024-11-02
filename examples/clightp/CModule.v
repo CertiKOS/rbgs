@@ -2,7 +2,7 @@ From Coq Require Import
      Relations
      RelationClasses
      List.
-Require Import Lifting AbRel.
+Require Import Lifting.
 From compcert.lib Require Import
      Coqlib Maps.
 From compcert.common Require Import
@@ -252,34 +252,6 @@ Section APP.
   End FLAT_APP.
 
 End APP.
-
-Lemma cmodule_abrel {Ks Kf} (R: abrel Ks Kf) M:
-  forward_simulation R R (semantics M @ Ks) (semantics M @ Kf).
-Proof.
-  eapply open_fsim_ccref. apply cc_compose_id_left.
-  unfold flip. apply cc_compose_id_left.
-  eapply compose_forward_simulations.
-  apply lift_horizontal_comp1.
-
-  eapply open_fsim_ccref. apply cc_compose_id_right.
-  unfold flip. apply cc_compose_id_right.
-  eapply compose_forward_simulations.
-  2: { apply lift_horizontal_comp2. }
-
-  apply semantics_simulation'.
-  - intros. induction (cmod_progs M) as [| p ps]; try easy.
-    destruct i.
-    + cbn. apply clight_sim.
-    + apply IHps.
-  - cbn. destruct M as [ps sk Hsk].
-    intros i. cbn in *. induction ps as [| p ps].
-    + inv i.
-    + cbn in *. destruct i.
-      * rewrite -> Forall_forall in Hsk. apply Hsk. apply in_eq.
-      * apply IHps.
-        rewrite -> Forall_forall in *.
-        intros x Hx. apply Hsk. now apply in_cons.
-Qed.
 
 Require Import Integers.
 

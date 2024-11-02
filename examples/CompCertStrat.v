@@ -1449,3 +1449,13 @@ Proof.
 Qed.
 
 Global Instance compose_params : Params (@compose_when) 2 := { }.
+
+Global Instance tstrat_when_monotonic {E1 E2 F1 F2 i1 i2 i p}:
+  Monotonic (@tstrat_when E1 E2 F1 F2 i1 i2 i p)
+    (Poset.ref ++> Poset.ref ++> Poset.ref).
+Proof.
+  intros s1 s2 Hs t1 t2 Ht st (u1 & u2 & Hu1 & Hu2 & Hu). cbn in *.
+  eexists _, _. repeat apply conj; eauto.
+Qed.
+
+Global Instance tstrat_when_params : Params (@tstrat_when) 2 := { }.

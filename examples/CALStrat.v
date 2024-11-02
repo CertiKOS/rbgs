@@ -10,10 +10,49 @@ Require Import Coqlib.
 Require Import CompCertStrat.
 
 Require Import BQUtil.
-
+Require Import CModule.
 Require Import Memory Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
+Require CallconvAlgebra.
+
+(** Some auxiliary lemmas *)
+
+Section FRAME_PROPERTY.
+
+  Existing Instance CallconvAlgebra.open_fsim_ccref.
+
+  Lemma frame_property_cmodule M sk:
+    Linking.linkorder (cmod_skel M) sk ->
+    Smallstep.determinate (semantics M) ->
+    rsq join_conv join_conv (lts_strat_sk sk (semantics M) @ mem) (lts_strat_sk sk (semantics M)).
+  Proof.
+    intros Hlink HM.
+    unfold join_conv. eapply rsq_vcomp.
+    3: apply rsq_lift_convert.
+    1-2: eauto using lts_strat_determ, Determ.lifting_determinate.
+    apply fsim_rsq_sk; eauto.
+    eapply CallconvAlgebra.open_fsim_ccref.
+    1-2: apply CallconvAlgebra.cc_compose_id_left.
+    eapply Smallstep.compose_forward_simulations.
+    apply Lifting.lift_horizontal_comp.
+    apply SmallstepLinking.semantics_simulation'.
+    - intros i. edestruct (cmodule_program M i) as (p & ? & Hp). rewrite Hp.
+      apply frame_property.
+    - intros i. edestruct (cmodule_program M i) as (p & Hp1 & Hp2). rewrite Hp2.
+      pose proof (cmod_skel_order M).
+      eapply Forall_forall in H; cbn; eauto.
+  Qed.
+
+End FRAME_PROPERTY.
+
+Lemma lsp_id {U: Type}:
+  lsq (emor_rc (glob U)) (emor_rc (glob U)) lid lid.
+Proof.
+  rewrite emor_rc_id. apply rsq_id_conv. reflexivity.
+Qed.
+
+(** ** Abstraction Relation *)
 
 Section ABREL.
   Context {D2 D1: Type}.
@@ -54,95 +93,7 @@ End ABREL.
 
 Arguments abrel : clear implicits.
 
-Notation "0" := E0_conv : conv_scope.
-
-Require Import CModule.
-Require Import CompCertStrat.
-
-Section LAYER.
-
-  Context {D2 D1} (L1: 0 ->> li_c @ D1) (R: abrel D2 D1) (M: cmodule) (L2: 0 ->> li_c @ D2).
-
-  (** L1 ⊢_R M : L2 ⇔ L2 ≤_{0 ↠ R} (Clight(M) @ D1) ⊙ L1 *)
-  Definition layer_correctness sk :=
-    rsq 0 (abrel_rc R) L2 (lts_strat_sk sk (semantics M) @ D1 ⊙ L1).
-
-End LAYER.
-
-Section ABREL_COMP.
-
-  Context {D3 D2 D1} (R: abrel D2 D1) (S: abrel D3 D2).
-
-  (** R ⋅ S := S ;; (mem @ R) ;; (Y @ D1) *)
-  Definition abrel_comp : abrel D3 D1 :=
-    {|
-      abrel_rel se d3 '(m, d1) :=
-        exists d2 m2 m1, R se d2 (m1, d1) /\ S se d3 (m2, d2) /\ Join.join m1 m2 m;
-    |}.
-
-  Lemma abrel_rc_comp :
-    abrel_rc abrel_comp = vcomp (abrel_rc S) (abrel_rc R).
-  Proof.
-    unfold abrel_rc.
-    rewrite <- vcomp_assoc. f_equal.
-  Admitted.
-
-End ABREL_COMP.
-
-Infix "⋅" := abrel_comp (at level 50, left associativity).
-
-Require CallconvAlgebra.
-
-Global Existing Instance CallconvAlgebra.open_fsim_ccref.
-
-Lemma cmod_pos M (i: pos M):
-  exists p, In p M /\ ref M i = Clight.semantics2 p.
-Proof.
-  revert i. induction M.
-  - intros [].
-  - intros i. destruct i.
-    + exists a. split; try easy. constructor. easy.
-    + specialize (IHM p) as (px & Hp1 & Hp2).
-      exists px. split; eauto. now right.
-Qed.
-
-Lemma frame_property_cmodule M sk:
-  Linking.linkorder (cmod_skel M) sk ->
-  Smallstep.determinate (semantics M) ->
-  rsq join_conv join_conv (lts_strat_sk sk (semantics M) @ mem) (lts_strat_sk sk (semantics M)).
-Proof.
-  intros Hlink HM.
-  unfold join_conv. eapply rsq_vcomp.
-  3: apply rsq_lift_convert.
-  1-2: eauto using lts_strat_determ, Determ.lifting_determinate.
-  apply fsim_rsq_sk; eauto.
-  eapply CallconvAlgebra.open_fsim_ccref.
-  1-2: apply CallconvAlgebra.cc_compose_id_left.
-  eapply Smallstep.compose_forward_simulations.
-  apply Lifting.lift_horizontal_comp.
-  apply SmallstepLinking.semantics_simulation'.
-  - intros i. edestruct (cmod_pos M i) as (p & ? & Hp). rewrite Hp.
-    apply frame_property.
-  - intros i. edestruct (cmod_pos M i) as (p & Hp1 & Hp2). rewrite Hp2.
-    pose proof (cmod_skel_order M).
-    eapply Forall_forall in H; cbn; eauto.
-Qed.
-
-Global Instance tstrat_when_monotonic {E1 E2 F1 F2 i1 i2 i p}:
-  Monotonic (@tstrat_when E1 E2 F1 F2 i1 i2 i p)
-    (Poset.ref ++> Poset.ref ++> Poset.ref).
-Proof.
-  intros s1 s2 Hs t1 t2 Ht st (u1 & u2 & Hu1 & Hu2 & Hu). cbn in *.
-  eexists _, _. repeat apply conj; eauto.
-Qed.
-
-Global Instance tstrat_when_params : Params (@tstrat_when) 2 := { }.
-
-Lemma lsp_id {U: Type}:
-  lsq (emor_rc (glob U)) (emor_rc (glob U)) lid lid.
-Proof.
-  rewrite emor_rc_id. apply rsq_id_conv. reflexivity.
-Qed.
+(** ** Property of abstraction relation *)
 
 Section ABREL_RSQ.
 
@@ -219,10 +170,50 @@ Section ABREL_RSQ.
 
 End ABREL_RSQ.
 
+(** ** Definition of layer correctness *)
+
+Notation "0" := E0_conv : conv_scope.
+
+Section LAYER.
+
+  Context {D2 D1} (L1: 0 ->> li_c @ D1) (R: abrel D2 D1) (M: cmodule) (L2: 0 ->> li_c @ D2).
+
+  (** L1 ⊢_R M : L2 ⇔ L2 ≤_{0 ↠ R} (Clight(M) @ D1) ⊙ L1 *)
+  Definition layer_correctness sk :=
+    rsq 0 (abrel_rc R) L2 (lts_strat_sk sk (semantics M) @ D1 ⊙ L1).
+
+End LAYER.
+
+(** ** Composition of abstraction relation *)
+
+Section ABREL_COMP.
+
+  Context {D3 D2 D1} (R: abrel D2 D1) (S: abrel D3 D2).
+
+  (** R ⋅ S := S ;; (mem @ R) ;; (Y @ D1) *)
+  Definition abrel_comp : abrel D3 D1 :=
+    {|
+      abrel_rel se d3 '(m, d1) :=
+        exists d2 m2 m1, R se d2 (m1, d1) /\ S se d3 (m2, d2) /\ Join.join m1 m2 m;
+    |}.
+
+  Lemma abrel_rc_comp :
+    abrel_rc abrel_comp = vcomp (abrel_rc S) (abrel_rc R).
+  Proof.
+    unfold abrel_rc.
+    rewrite <- vcomp_assoc. f_equal.
+  Admitted.
+
+End ABREL_COMP.
+
+Infix "⋅" := abrel_comp (at level 50, left associativity).
+
+(** ** Layer composition *)
+
 Section LAYER_COMP.
 
   Context N M MN (Hmod: cmod_app N M = Some MN).
-  Context `{!CategoricalComp.CategoricalLinkable (semantics N) (semantics M)}.
+  Context `{!cmodule_vertical_linkable N M}.
   Context `{Smallstep.determinate (semantics N)}
     `{Smallstep.determinate (semantics M)} `{Smallstep.determinate (semantics MN)}.
   Let sk := cmod_skel MN.
@@ -263,7 +254,8 @@ Section LAYER_COMP.
       eapply rsq_id_conv.
       rewrite <- cc_conv_id.
       eapply fsim_rsq. eauto.
-      apply cmodule_categorical_comp_simulation; eauto. }
+      apply cmodule_categorical_comp_simulation; eauto.
+      apply cmodule_vertical_linkable_cond; eauto. }
     unfold scomp_strat. rewrite <- HMN.
     rewrite <- (lcomp_lid_r (bij_lens (@bid D1))).
     setoid_rewrite scomp_compose.
