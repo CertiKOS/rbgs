@@ -1096,145 +1096,109 @@ End CLOSURE_SCOMP.
 
 (** ** Theorem 6.2 (The frame property for Clight)  *)
 
-(** A handy way to built stateless refinement convention from the relation on
-    questions and answers *)
+Require Clight Join Memory ClightPComp Lifting Determ.
 
-Record esig_rel {E F: esig} : Type :=
-  {
-    match_query : op E -> op F -> Prop;
-    match_reply (m1: op E) (m2: op F) : ar m1 -> ar m2 -> Prop;
-  }.
-Arguments esig_rel : clear implicits.
+(** An auxiliary structure that converts between CompCertO's spacial composition
+    and strategy's spacial composition. This is useful for us to reuse some
+    properties provided by CompCertO *)
 
-Section ESIG_REL_CONV.
-  Obligation Tactic := cbn.
-  Context {E F: esig} (R: esig_rel E F).
-
-  Inductive esig_rel_conv_has : rcp E F -> Prop :=
-  | esig_rel_conv_has_allow m1 m2 (HM: match_query R m1 m2):
-    esig_rel_conv_has (rcp_allow m1 m2)
-  | esig_rel_conv_has_forbid m1 m2 (HM: match_query R m1 m2)
-      n1 n2 (HA: ~ match_reply R m1 m2 n1 n2):
-    esig_rel_conv_has (rcp_forbid m1 m2 n1 n2)
-  | esig_rel_conv_has_cont m1 m2 (HM: match_query R m1 m2)
-      n1 n2 k (HK: match_reply R m1 m2 n1 n2 -> esig_rel_conv_has k):
-    esig_rel_conv_has (rcp_cont m1 m2 n1 n2 k).
-  Hint Constructors esig_rel_conv_has : core.
-
-  Program Definition esig_rel_conv : conv E F :=
-    {| Downset.has s := esig_rel_conv_has s |}.
-  Next Obligation.
-    intros x y H1. induction H1; intros Hx; try (xinv Hx; eauto).
-    econstructor; eauto.
-    intros. exfalso. eauto.
-  Qed.
-
-  Lemma esig_rel_mr_elim q1 q2:
-    match_query R q1 q2 ->
-    forall r1 r2, ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2) ->
-             match_reply R q1 q2 r1 r2.
-  Proof.
-    intros Hse Hq * Hr.
-    apply NNPP. intros Hnr.
-    apply Hr. econstructor; eauto 10.
-  Qed.
-
-  Lemma esig_rel_mr_intro q1 q2 r1 r2:
-    match_reply R q1 q2 r1 r2 ->
-    ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2).
-  Proof.
-    intros Hr Hx. dependent destruction Hx; eauto.
-  Qed.
-
-End ESIG_REL_CONV.
-
-Coercion esig_rel_conv : esig_rel >-> conv.
-
-Global Instance esig_rel_conv_regular {E F} (R: esig_rel E F): RegularConv R.
+Global Instance emor_rc_regular {E F} (f: emor E F):
+  RegularConv f.
 Proof.
   split. intros * Hm Hn. apply antisymmetry.
   - intros x Hx. cbn in *.
     dependent destruction Hx.
-    apply HK. eapply esig_rel_mr_elim in Hn; eauto.
+    apply H.
+    destruct (classic (operand (f m2) n1 = n2)); eauto.
+    exfalso. apply Hn. constructor; eauto.
   - intros x Hx. cbn in *.
     dependent destruction Hm.
     econstructor; eauto.
 Qed.
 
-Require Clight Join Memory ClightPComp Lifting Determ.
+Lemma emor_rc_allow_intro {E1 E2} (f: emor E1 E2) m1 m2:
+  m1 = operator (f m2) ->
+  emor_rc_has f (rcp_allow m1 m2).
+Proof. intros. subst. eapply emor_rc_allow. Qed.
 
 Section LIFT_CONVERT.
 
-  Context (li: language_interface) (S: Type).
+  Context {li: language_interface} {S: Type}.
 
-  Inductive lift_convert_mq: op (li @ S) -> op (Lifting.lifted_li S li) -> Prop :=
-  | lift_convert_mq_intro q se (s: S):
-    lift_convert_mq ((se, q)%embed, s) (se, Datatypes.pair q s)%embed.
-  Inductive lift_convert_mr: forall (m1: op (li @ S)) (m2: op (Lifting.lifted_li S li)), ar m1 -> ar m2 -> Prop :=
-  | lift_convert_mr_intro m1 m2 r s:
-    lift_convert_mr m1 m2 (r, s) (r, s).
+  Program Definition lift_emor : emor (li @ S) (Lifting.lifted_li S li) :=
+    fun q =>
+      match q with
+      | (se, Datatypes.pair q s)%embed =>
+          econs ((se, q)%embed, s) (fun '(r, s) => (r, s))
+      end.
 
-  Definition lift_convert_rel:
-    esig_rel (li @ S) (Lifting.lifted_li S li) :=
-      {| CompCertStrat.match_query := lift_convert_mq;
-         CompCertStrat.match_reply := lift_convert_mr |}.
+  Lemma lift_emor_operator se q s:
+    ((se, q)%embed, s) = operator (lift_emor (se, Datatypes.pair q s))%embed.
+  Proof. intros. reflexivity. Qed.
 
-End LIFT_CONVERT.
-
-Lemma rsq_lift_convert sk {li S} L:
-  rsq (lift_convert_rel li S) (lift_convert_rel li S)
+  Lemma rsq_lift_convert sk L:
+    rsq lift_emor lift_emor
       ((lts_strat_sk sk L) @ S)
       (lts_strat_sk sk (Lifting.lifted_semantics S L)).
-Proof.
-  Ltac split_evar := instantiate (1 := (_, _)).
-  setoid_rewrite <- closure_lift.
-  apply rsq_closure; eauto with typeclass_instances.
-  intros p (s & t & Hs & Ht & Hst). cbn in *.
-  dependent destruction Ht. { xinv Hs. apply rsp_ready. constructor. }
-  dependent destruction Hs. apply rsp_oq. { constructor. }
-  intros qx Hq. xinv Hq. inv HM. rename q2 into d1.
-  simple inversion Hst; try congruence. xsubst; congruence.
-  clear Hst. xsubst. inv H2. inv H3. xsubst. intros Hst Hu.
-  eapply rsp_ref. 1-3: reflexivity.
-  { instantiate (1 := state_strat _ _ _ _ _).
-    cbn. intros. econstructor; eauto.
-    split. split_evar.
-    instantiate (1 := u).
-    all: cbn; eauto. } clear Hu.
-  (* assert ((IntStrat.get slens_id (d1, tt)) = d1). reflexivity. *)
-  (* setoid_rewrite H in Hst. clear H. *)
-  clear HVF INIT. revert d1 u s2 s Hs Hst.
-  dependent induction HS; intros.
-  - dependent destruction Hs. eapply rsp_pq. { repeat constructor. }
-    dependent destruction Hs. apply rsp_suspended.
-    econstructor. split; cbn; eauto.
-    xinv Hst. easy.
-  - dependent destruction Hs. eapply rsp_pq. { repeat constructor. }
-    dependent destruction Hs. apply rsp_oa.
-    { econstructor. split; cbn; eauto. xinv Hst. easy. }
-    cbn. intros [r xs] Hr. eapply esig_rel_mr_elim in Hr.
-    2: { constructor. } inv Hr. xinv Hst.
-    rewrite regular_conv.
-    2: { repeat constructor. }
-    2: { intros Hr. xinv Hr. apply HA. inv HM. constructor. }
-    dependent destruction H1.
+  Proof.
+    Ltac split_evar := instantiate (1 := (_, _)).
+    setoid_rewrite <- closure_lift.
+    apply rsq_closure; eauto with typeclass_instances.
+    intros p (s & t & Hs & Ht & Hst). cbn in *.
+    dependent destruction Ht. { xinv Hs. apply rsp_ready. constructor. }
+    dependent destruction Hs. apply rsp_oq. { constructor. }
+    intros qx Hq. xinv Hq. destruct qx as (se1 & q1 & s1).
+    cbn in H0. inv H0. rename q2 into d1.
+    simple inversion Hst; try congruence. xsubst; congruence.
+    clear Hst. xsubst. inv H2. inv H3. xsubst. intros Hst Hu.
     eapply rsp_ref. 1-3: reflexivity.
-    2: { eapply IHHS; eauto. }
-    intros p Hp. cbn. econstructor 2.
-    { split; eauto. }
-    { split. split_evar. all: cbn; eauto. }
-    apply Hp.
-  - dependent destruction Hs. dependent destruction Hs.
-    dependent destruction Hst.
-    eapply rsp_pa.
-    { intros Hr. xinv Hr. apply HA. constructor. }
-    apply rsp_ready. cbn.
-    econstructor 3. split; eauto.
-  - eapply rsp_ref. 1-3: reflexivity.
-    2: { eapply IHHS; eauto. }
-    intros p Hp. econstructor 4. split_evar. 2: apply Hp.
-    apply Lifting.lifting_step_star; eauto.
-Qed.
+    { instantiate (1 := state_strat _ _ _ _ _).
+      cbn. intros. econstructor; eauto.
+      split. split_evar.
+      instantiate (1 := u).
+      all: cbn; eauto. } clear Hu.
+    (* assert ((IntStrat.get slens_id (d1, tt)) = d1). reflexivity. *)
+    (* setoid_rewrite H in Hst. clear H. *)
+    clear HVF INIT. revert d1 u s2 s Hs Hst.
+    dependent induction HS; intros.
+    - dependent destruction Hs. eapply rsp_pq.
+      { instantiate (1 := (_, _)%embed). split_evar.
+        rewrite lift_emor_operator. constructor. }
+      dependent destruction Hs. apply rsp_suspended.
+      econstructor. split; cbn; eauto.
+      xinv Hst. easy.
+    - dependent destruction Hs. eapply rsp_pq.
+      { instantiate (1 := (_, _)%embed). split_evar.
+        rewrite lift_emor_operator. constructor. }
+      dependent destruction Hs. apply rsp_oa.
+      { econstructor. split; cbn; eauto. xinv Hst. easy. }
+      cbn. intros [r xs] Hr.
+      destruct (classic ((n, n2) = (r, xs))).
+      2: { exfalso. apply Hr.
+           rewrite lift_emor_operator. constructor. eauto. }
+      inv H.
+      rewrite regular_conv; eauto.
+      2: { rewrite lift_emor_operator. constructor. }
+      xinv Hst. dependent destruction H1.
+      eapply rsp_ref. 1-3: reflexivity.
+      2: { eapply IHHS; eauto. }
+      intros p Hp. cbn. econstructor 2.
+      { split; eauto. }
+      { split. split_evar. all: cbn; eauto. }
+      apply Hp.
+    - dependent destruction Hs. dependent destruction Hs.
+      dependent destruction Hst.
+      eapply rsp_pa.
+      { intros Hr. xinv Hr. apply H0. constructor. }
+      apply rsp_ready. cbn.
+      econstructor 3. split; eauto.
+    - eapply rsp_ref. 1-3: reflexivity.
+      2: { eapply IHHS; eauto. }
+      intros p Hp. econstructor 4. split_evar. 2: apply Hp.
+      apply Lifting.lifting_step_star; eauto.
+  Qed.
+
+End LIFT_CONVERT.
 
 Section FRAME.
   Import Clight Join Memory.Mem ClightPComp.
@@ -1340,8 +1304,7 @@ Section FRAME.
     - apply well_founded_ltof.
   Qed.
 
-  Definition join_conv : conv (li_c @ mem) li_c :=
-    lift_convert_rel li_c mem ;; join_cc.
+  Definition join_conv : conv (li_c @ mem) li_c := lift_emor ;; join_cc.
 
   Import Determ.
 
@@ -1365,6 +1328,72 @@ Section FRAME.
   Qed.
 
 End FRAME.
+
+(* ------------------------------------------------------------------------ *)
+(** A handy way to built stateless refinement convention from the relation on
+    questions and answers *)
+
+Record esig_rel {E F: esig} : Type :=
+  {
+    match_query : op E -> op F -> Prop;
+    match_reply (m1: op E) (m2: op F) : ar m1 -> ar m2 -> Prop;
+  }.
+Arguments esig_rel : clear implicits.
+
+Section ESIG_REL_CONV.
+  Obligation Tactic := cbn.
+  Context {E F: esig} (R: esig_rel E F).
+
+  Inductive esig_rel_conv_has : rcp E F -> Prop :=
+  | esig_rel_conv_has_allow m1 m2 (HM: match_query R m1 m2):
+    esig_rel_conv_has (rcp_allow m1 m2)
+  | esig_rel_conv_has_forbid m1 m2 (HM: match_query R m1 m2)
+      n1 n2 (HA: ~ match_reply R m1 m2 n1 n2):
+    esig_rel_conv_has (rcp_forbid m1 m2 n1 n2)
+  | esig_rel_conv_has_cont m1 m2 (HM: match_query R m1 m2)
+      n1 n2 k (HK: match_reply R m1 m2 n1 n2 -> esig_rel_conv_has k):
+    esig_rel_conv_has (rcp_cont m1 m2 n1 n2 k).
+  Hint Constructors esig_rel_conv_has : core.
+
+  Program Definition esig_rel_conv : conv E F :=
+    {| Downset.has s := esig_rel_conv_has s |}.
+  Next Obligation.
+    intros x y H1. induction H1; intros Hx; try (xinv Hx; eauto).
+    econstructor; eauto.
+    intros. exfalso. eauto.
+  Qed.
+
+  Lemma esig_rel_mr_elim q1 q2:
+    match_query R q1 q2 ->
+    forall r1 r2, ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2) ->
+             match_reply R q1 q2 r1 r2.
+  Proof.
+    intros Hse Hq * Hr.
+    apply NNPP. intros Hnr.
+    apply Hr. econstructor; eauto 10.
+  Qed.
+
+  Lemma esig_rel_mr_intro q1 q2 r1 r2:
+    match_reply R q1 q2 r1 r2 ->
+    ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2).
+  Proof.
+    intros Hr Hx. dependent destruction Hx; eauto.
+  Qed.
+
+End ESIG_REL_CONV.
+
+Coercion esig_rel_conv : esig_rel >-> conv.
+
+Global Instance esig_rel_conv_regular {E F} (R: esig_rel E F): RegularConv R.
+Proof.
+  split. intros * Hm Hn. apply antisymmetry.
+  - intros x Hx. cbn in *.
+    dependent destruction Hx.
+    apply HK. eapply esig_rel_mr_elim in Hn; eauto.
+  - intros x Hx. cbn in *.
+    dependent destruction Hm.
+    econstructor; eauto.
+Qed.
 
 (* --------------------------------------------------------------- *)
 (** Some useful RegularConv instances *)
