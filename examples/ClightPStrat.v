@@ -1,9 +1,9 @@
-(* Require Import Classical. *)
-(* Require Import Program.Equality. *)
+Require Import Classical.
+Require Import Program.Equality.
 (* Require Import LogicalRelations. *)
 Require Import Poset.
 (* Require Import Lattice. *)
-(* Require Import Downset. *)
+Require Import Downset.
 (* Require Import IntStrat. *)
 (* Require Import Classical_Prop. *)
 (* Require Import Coqlib. *)
@@ -49,11 +49,96 @@ Section LIFT_CONVERT.
 
 End LIFT_CONVERT.
 
+Require Import Coqlib Memory.
+
+Ltac emor_change :=
+  match goal with
+  | [ |- emor_rc_has ?f (rcp_allow ?m1 ?m2) ] =>
+      replace m1 with (operator (f m2)) by reflexivity
+  | [ |- emor_rc_has ?f (rcp_forbid ?m1 ?m2 _ _) ] =>
+      replace m1 with (operator (f m2)) by reflexivity
+  end.
+
+Section POUT.
+
+  (** C@mem⊛⟨mem]^* *)
+  Definition pout : li_c <=> li_c := trur ;; li_c @ lcp ldrop ;; join_conv.
+  Lemma pout_ref : cc_conv ClightP.pout [= pout.
+  Proof.
+    rewrite cc_conv_expand.
+    intros p [w Hp]. destruct w as [w|].
+    2: { inv Hp. }
+    cbn in w. revert w Hp. induction p; intros w Hp.
+    - cbn in *. dependent destruction Hp.
+      cbn in *. subst.
+      eexists ((_, _)%embed, tt). split.
+      { emor_change. constructor. }
+      eexists ((_, _)%embed, _). split.
+      { split; eauto. emor_change. constructor. }
+      eexists (_, Datatypes.pair _ _)%embed. split.
+      { emor_change. constructor. }
+      econstructor. reflexivity. inv HM. constructor. eauto.
+    - cbn in *. dependent destruction Hp.
+      cbn in *. subst. inv HM.
+      eexists ((_, _)%embed, tt). split.
+      { emor_change. constructor. }
+      split.
+      { eexists ((_, _)%embed, _). split.
+        { split; eauto. emor_change. constructor. }
+        eexists (_, Datatypes.pair _ _)%embed. split.
+        { emor_change. constructor. }
+        econstructor. reflexivity. constructor. eauto. }
+      intros [n []].
+      destruct (classic (n1 = n)).
+      2: { left. emor_change. constructor. cbn. congruence. }
+      subst. right. eexists ((_, _)%embed, _).
+      split.
+      { split; eauto. emor_change. constructor. }
+      split.
+      { eexists (_, Datatypes.pair _ _)%embed. split.
+        { emor_change. constructor. }
+        econstructor. reflexivity. constructor. eauto. }
+      intros [nr mr].
+      destruct (classic (w = mr /\ n = nr)) as [[<- <-]|].
+      2: { admit. }
+      right.
+      eexists (_, Datatypes.pair _ _)%embed. split.
+      { emor_change. constructor. }
+      split.
+      { econstructor. reflexivity. constructor. eauto. }
+      intros [nr mr].
+      destruct (classic (w = mr /\ n = nr)) as [[<- <-]|].
+      2: { admit. }
+      right. econstructor. reflexivity.
+      constructor. eauto. intros Hn. apply HN.
+      inv Hn. constructor. eauto.
+    - cbn in *. dependent destruction Hp.
+      cbn in *. subst. inv HM.
+      eexists ((_, _)%embed, tt). split.
+      { emor_change. constructor. }
+      split.
+      { eexists ((_, _)%embed, _). split.
+        { split; eauto. emor_change. constructor. }
+        eexists (_, Datatypes.pair _ _)%embed. split.
+        { emor_change. constructor. }
+        econstructor. reflexivity. constructor. eauto. }
+      intros [n []].
+      destruct (classic (n1 = n)).
+      2: { left. emor_change. constructor. cbn. congruence. }
+      subst. right.
+  Admitted.
+
+  Lemma pout_pout : pout ;; pout [= pout.
+  Proof.
+    unfold pout.
+  Admitted.
+
+End POUT.
+
 (** Embed ClightP semantics into strategies *)
 Section CLIGHTP.
 
   Definition pin vars ce : li_c <=> li_c := de (p0 vars) ;; lift_emor ;; pin ce.
-  Definition pout : li_c <=> li_c := pout.
 
   Context (p: ClightP.program).
   Let ce := p.(ClightP.prog_comp_env).
@@ -92,7 +177,7 @@ Section CLIGHTP.
     - rewrite vcomp_vid_l.
       erewrite <- (vcomp_vid_l pout).
       eapply rsq_vcomp.
-      4: apply Hp.
+      4: rewrite <- pout_ref; apply Hp.
       apply lts_strat_determ. apply Determ.clightp_determinate.
       apply lts_strat_determ. apply Determ.clight_determinate.
       apply clightp_rsq.
@@ -103,7 +188,34 @@ End CLIGHTP.
 Section POUT_POUT.
 
   Lemma pout_pout : pout ;; pout [= pout.
-  Admitted.
+  Proof.
+    intros p. induction p.
+    - rename m2 into m3.
+      intros (m2 & Hm1 & Hm2). cbn in *.
+      dependent destruction Hm1.
+      dependent destruction Hm2. cbn in *. subst.
+      inv HM. inv HM0.
+      apply join_commutative in MJOIN.
+      apply join_commutative in MJOIN0.
+      edestruct join_associative_exist as (mx & X & Y).
+      apply MJOIN. apply MJOIN0.
+      econstructor. reflexivity.
+      econstructor. apply join_commutative. eauto.
+    - rename m2 into m3, n2 into n3.
+      intros (m2 & Hm1 & Hm2 & Hn). cbn in *.
+      dependent destruction Hm1.
+      dependent destruction Hm2. cbn in *. subst.
+      inv HM. inv HM0.
+      apply join_commutative in MJOIN.
+      apply join_commutative in MJOIN0.
+      edestruct join_associative_exist as (mx & X & Y).
+      apply MJOIN. apply MJOIN0.
+      econstructor. instantiate (1:=mx). reflexivity.
+      + constructor. apply join_commutative. eauto.
+      + intros Hx. inv Hx.
+        specialize (Hn (cr rv mx)) as [Hn|Hn].
+        * inv Hn. inv HM. apply HN. constructor.
+          dependent destruction
 
 End POUT_POUT.
 
