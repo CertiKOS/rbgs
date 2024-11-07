@@ -58,6 +58,7 @@ examples/clightp/PEnv.v
 examples/clightp/SkelLinking.v
 examples/clightp/TensorComp.v
 examples/clightp/Join.v
+examples/clightp/Example.v
 examples/process/CAsm.v
 examples/process/InitMem.v
 examples/process/Load.v
