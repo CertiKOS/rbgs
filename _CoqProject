@@ -42,6 +42,7 @@ examples/BoundedQueue.v
 examples/SecretAsm.v
 examples/Rot13.v
 examples/CALStrat.v
+examples/ClightPStrat.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
