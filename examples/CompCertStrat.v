@@ -1123,6 +1123,8 @@ Proof. intros. subst. eapply emor_rc_allow. Qed.
 
 Section LIFT_CONVERT.
 
+  Import FunctionalExtensionality.
+
   Context {li: language_interface} {S: Type}.
 
   Program Definition lift_emor : emor (li @ S) (Lifting.lifted_li S li) :=
@@ -1131,12 +1133,51 @@ Section LIFT_CONVERT.
       | (se, Datatypes.pair q s)%embed =>
           econs ((se, q)%embed, s) (fun '(r, s) => (r, s))
       end.
+  Program Definition liftr_emor : emor (Lifting.lifted_li S li) (li @ S) :=
+    fun q =>
+      match q with
+      | ((se, q)%embed, s) =>
+          econs (se, Datatypes.pair q s)%embed (fun '(r, s) => (r, s))
+      end.
+
+  Lemma liftr_lift: ecomp lift_emor liftr_emor = eid.
+  Proof.
+    apply functional_extensionality_dep. intros [se [q s]].
+    unfold eid, ecomp. cbn. f_equal.
+    apply functional_extensionality. intros [r s']. reflexivity.
+  Qed.
+  Lemma lift_liftr: ecomp liftr_emor lift_emor = eid.
+  Proof.
+    apply functional_extensionality_dep. intros [[se q] s].
+    unfold eid, ecomp. cbn. f_equal.
+    apply functional_extensionality. intros [r s']. reflexivity.
+  Qed.
+
+  Lemma rsq_lift_emor_1: rsq vid lift_emor liftr_emor (id _).
+  Proof.
+    rewrite <- (compose_id_l liftr_emor).
+    rewrite <- liftr_lift.
+    rewrite emor_strat_ecomp.
+    eapply rsq_comp.
+    - apply emor_strat_intro.
+    - apply rsq_id_conv. reflexivity.
+  Qed.
+
+  Lemma rsq_lift_emor_2:  rsq lift_emor vid (id _) liftr_emor.
+  Proof.
+    rewrite <- (compose_id_r liftr_emor).
+    rewrite <- lift_liftr at 1.
+    rewrite emor_strat_ecomp.
+    eapply rsq_comp.
+    - apply rsq_id_conv. reflexivity.
+    - apply emor_strat_elim.
+  Qed.
 
   Lemma lift_emor_operator se q s:
     ((se, q)%embed, s) = operator (lift_emor (se, Datatypes.pair q s))%embed.
   Proof. intros. reflexivity. Qed.
 
-  Lemma rsq_lift_convert sk L:
+  Lemma rsq_lift_emor sk L:
     rsq lift_emor lift_emor
       ((lts_strat_sk sk L) @ S)
       (lts_strat_sk sk (Lifting.lifted_semantics S L)).
@@ -1313,7 +1354,7 @@ Section FRAME.
     rsq join_conv join_conv (lts_strat_sk sk (semantics2 p) @ mem) (lts_strat_sk sk (semantics2 p)).
   Proof.
     intros Hlink. unfold join_conv. eapply rsq_vcomp.
-    3: apply rsq_lift_convert.
+    3: apply rsq_lift_emor.
     apply lts_strat_determ. apply lifting_determinate. apply clight_determinate.
     apply lts_strat_determ. apply clight_determinate.
     apply fsim_rsq_sk. apply clight_determinate.
@@ -1333,39 +1374,39 @@ End FRAME.
 (** A handy way to built stateless refinement convention from the relation on
     questions and answers *)
 
-Record esig_rel {E F: esig} : Type :=
+Record erel {E F: esig} : Type :=
   {
     match_query : op E -> op F -> Prop;
     match_reply (m1: op E) (m2: op F) : ar m1 -> ar m2 -> Prop;
   }.
-Arguments esig_rel : clear implicits.
+Arguments erel : clear implicits.
 
 Section ESIG_REL_CONV.
   Obligation Tactic := cbn.
-  Context {E F: esig} (R: esig_rel E F).
+  Context {E F: esig} (R: erel E F).
 
-  Inductive esig_rel_conv_has : rcp E F -> Prop :=
-  | esig_rel_conv_has_allow m1 m2 (HM: match_query R m1 m2):
-    esig_rel_conv_has (rcp_allow m1 m2)
-  | esig_rel_conv_has_forbid m1 m2 (HM: match_query R m1 m2)
+  Inductive erel_conv_has : rcp E F -> Prop :=
+  | erel_conv_has_allow m1 m2 (HM: match_query R m1 m2):
+    erel_conv_has (rcp_allow m1 m2)
+  | erel_conv_has_forbid m1 m2 (HM: match_query R m1 m2)
       n1 n2 (HA: ~ match_reply R m1 m2 n1 n2):
-    esig_rel_conv_has (rcp_forbid m1 m2 n1 n2)
-  | esig_rel_conv_has_cont m1 m2 (HM: match_query R m1 m2)
-      n1 n2 k (HK: match_reply R m1 m2 n1 n2 -> esig_rel_conv_has k):
-    esig_rel_conv_has (rcp_cont m1 m2 n1 n2 k).
-  Hint Constructors esig_rel_conv_has : core.
+    erel_conv_has (rcp_forbid m1 m2 n1 n2)
+  | erel_conv_has_cont m1 m2 (HM: match_query R m1 m2)
+      n1 n2 k (HK: match_reply R m1 m2 n1 n2 -> erel_conv_has k):
+    erel_conv_has (rcp_cont m1 m2 n1 n2 k).
+  Hint Constructors erel_conv_has : core.
 
-  Program Definition esig_rel_conv : conv E F :=
-    {| Downset.has s := esig_rel_conv_has s |}.
+  Program Definition erel_conv : conv E F :=
+    {| Downset.has s := erel_conv_has s |}.
   Next Obligation.
     intros x y H1. induction H1; intros Hx; try (xinv Hx; eauto).
     econstructor; eauto.
     intros. exfalso. eauto.
   Qed.
 
-  Lemma esig_rel_mr_elim q1 q2:
+  Lemma erel_mr_elim q1 q2:
     match_query R q1 q2 ->
-    forall r1 r2, ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2) ->
+    forall r1 r2, ~ erel_conv_has (rcp_forbid q1 q2 r1 r2) ->
              match_reply R q1 q2 r1 r2.
   Proof.
     intros Hse Hq * Hr.
@@ -1373,23 +1414,23 @@ Section ESIG_REL_CONV.
     apply Hr. econstructor; eauto 10.
   Qed.
 
-  Lemma esig_rel_mr_intro q1 q2 r1 r2:
+  Lemma erel_mr_intro q1 q2 r1 r2:
     match_reply R q1 q2 r1 r2 ->
-    ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2).
+    ~ erel_conv_has (rcp_forbid q1 q2 r1 r2).
   Proof.
     intros Hr Hx. dependent destruction Hx; eauto.
   Qed.
 
 End ESIG_REL_CONV.
 
-Coercion esig_rel_conv : esig_rel >-> conv.
+Coercion erel_conv : erel >-> conv.
 
-Global Instance esig_rel_conv_regular {E F} (R: esig_rel E F): RegularConv R.
+Global Instance erel_conv_regular {E F} (R: erel E F): RegularConv R.
 Proof.
   split. intros * Hm Hn. apply antisymmetry.
   - intros x Hx. cbn in *.
     dependent destruction Hx.
-    apply HK. eapply esig_rel_mr_elim in Hn; eauto.
+    apply HK. eapply erel_mr_elim in Hn; eauto.
   - intros x Hx. cbn in *.
     dependent destruction Hm.
     econstructor; eauto.
@@ -1458,6 +1499,29 @@ Proof.
     rewrite !regular_conv; eauto.
 Qed.
 
+Lemma regular_conv_ref {E F} (R S: E <=> F)
+  (HR: RegularConv R) (HS: RegularConv S):
+  (forall m1 m2, Downset.has R (rcp_allow m1 m2) ->
+            Downset.has S (rcp_allow m1 m2)) ->
+  (forall m1 m2 n1 n2, Downset.has R (rcp_forbid m1 m2 n1 n2) ->
+                  Downset.has S (rcp_forbid m1 m2 n1 n2)) ->
+  R [= S.
+Proof.
+  intros Hm Hn s Hs. induction s; eauto.
+  destruct (classic (Downset.has S (rcp_forbid m1 m2 n1 n2))) as [A|A].
+  - eapply Downset.closed; eauto. constructor.
+  - assert (Downset.has R (rcp_allow m1 m2)) as B.
+    { eapply Downset.closed; eauto. constructor. }
+    assert (~ Downset.has R (rcp_forbid m1 m2 n1 n2)) as C by eauto.
+    assert (Downset.has (rcnext m1 m2 n1 n2 R) s) as D by easy.
+    rewrite regular_conv in D; eauto.
+    specialize (IHs D).
+    erewrite <- regular_conv in IHs.
+    + apply IHs.
+    + eauto.
+    + eauto.
+Qed.
+
 (* --------------------------------------------------------------- *)
 (** Some useful Monotonic instances *)
 
@@ -1488,3 +1552,75 @@ Proof.
 Qed.
 
 Global Instance tstrat_when_params : Params (@tstrat_when) 2 := { }.
+
+(* --------------------------------------------------------------- *)
+(** Embedded CompCert semantics are deterministic *)
+
+Global Instance clightp_deterministic sk p:
+  Deterministic (lts_strat_sk sk (ClightP.ClightP.clightp2 p)).
+Proof. apply lts_strat_determ. apply Determ.clightp_determinate. Qed.
+
+Global Instance clight_deterministic sk p:
+ Deterministic (lts_strat_sk sk (Clight.semantics2 p)).
+Proof. apply lts_strat_determ. apply Determ.clight_determinate. Qed.
+
+Require Asm.
+
+Global Instance asm_deterministic sk p:
+  Deterministic (lts_strat_sk sk (Asm.semantics p)).
+Proof. apply lts_strat_determ. apply Asm.semantics_determinate. Qed.
+
+(* --------------------------------------------------------------- *)
+(** Properties about LTS and the symbol table *)
+
+Inductive play_preserve_se : forall p, @play li_c li_c p -> Prop :=
+| play_preserve_se_ready: play_preserve_se ready pnil_ready
+| play_preserve_se_suspended q m: play_preserve_se (suspended q m) (pnil_suspended q m)
+| play_preserve_se_oq q s:
+  play_preserve_se (running q) s ->
+  play_preserve_se ready (oq q :: s)
+| play_preserve_se_pq se q m s:
+  play_preserve_se (suspended (se, q)%embed (se, m)%embed) s ->
+  play_preserve_se (running (se, q)%embed) (pq (se, m)%embed :: s)
+| play_preserve_se_oa q m n s:
+  play_preserve_se (running q) s ->
+  play_preserve_se (suspended q m) (oa n :: s)
+| play_preserve_se_pa q r s:
+  play_preserve_se ready s ->
+  play_preserve_se (running q) (pa r :: s).
+
+Arguments play_preserve_se {_} _.
+Definition strat_preserve_se {p} (σ: strat li_c li_c p) :=
+  forall s, Downset.has σ s -> play_preserve_se s.
+
+Lemma seq_comp_preserve_se {p} s1 s2 (s: @play _ _ p):
+  seq_comp_has s1 s2 s ->
+  play_preserve_se s1 -> play_preserve_se s2 -> play_preserve_se s.
+Proof.
+  induction 1; intros; eauto;
+    dependent destruction H0; constructor; eauto.
+Qed.
+
+Lemma closure_preserve_se σ:
+  strat_preserve_se σ -> strat_preserve_se (closure σ).
+Proof.
+  intros H s Hs. cbn in *. induction Hs.
+  { apply play_preserve_se_ready. }
+  eapply seq_comp_preserve_se; eauto.
+Qed.
+
+Lemma lts_preserve_se (L: semantics li_c li_c) sk:
+  strat_preserve_se (lts_strat_sk sk L).
+Proof.
+  apply closure_preserve_se. intros s Hs.
+  cbn in *. dependent destruction Hs.
+  { apply play_preserve_se_ready. }
+  apply play_preserve_se_oq. clear HVF INIT.
+  induction HS; eauto; repeat constructor; eauto.
+Qed.
+
+Lemma next_strat_preserve_se {i j} (σ: strat li_c li_c i) (m: move i j):
+  strat_preserve_se σ -> strat_preserve_se (next m σ).
+Proof.
+  intros H s Hs. cbn in *. specialize (H _ Hs). inv H; eauto.
+Qed.

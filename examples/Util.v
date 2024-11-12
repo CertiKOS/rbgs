@@ -562,34 +562,6 @@ Ltac crush_step := cbn;
   end.
 
 (* ----------------------------------------------------------------- *)
-(** ** An auxiliary callconv used in the BQ example *)
-
-Require Memory PEnv.
-
-Section PIN_NO_JOIN.
-
-  Import Lifting PEnv Memory.Mem.
-  Inductive pin_query R: Memory.mem * Genv.symtbl -> query (li_c @ penv) -> query (li_c @ mem) -> Prop :=
-  | pin_query_intro se m q pe (MPE: R se pe m):
-    pin_query R (m, se) (q, pe) (q, m).
-  Inductive pin_reply R: Memory.mem * Genv.symtbl -> reply (li_c @ penv) -> reply (li_c @ mem) -> Prop :=
-  | pin_reply_intro se r m pe (MPE: R se pe m):
-    pin_reply R (m, se) (r, pe) (r, m).
-  Program Definition pin_no_join ce: callconv (li_c @ penv) (li_c @ mem) :=
-    {|
-      ccworld := Memory.mem * Genv.symtbl;
-      match_senv '(_, se) se1 se2 := se = se1 /\ se = se2;
-      LanguageInterface.match_query := pin_query (penv_mem_match ce);
-      LanguageInterface.match_reply '(_, se) r1 r2 := exists m, pin_reply (penv_mem_match ce) (m, se) r1 r2;
-    |}.
-  Next Obligation. intros. destruct w. cbn in *. destruct H. subst. easy.  Qed.
-  Next Obligation. intros. destruct w. cbn in *. destruct H. subst. easy.  Qed.
-  Next Obligation. intros. destruct w. cbn in *. destruct H. inv H0. easy. Qed.
-  Next Obligation. intros. destruct w. cbn in *. inv H. easy. Qed.
-
-End PIN_NO_JOIN.
-
-(* ----------------------------------------------------------------- *)
 (** ** Misc utilities *)
 
 Require ClightPLink.

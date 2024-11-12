@@ -17,40 +17,6 @@ Require Import BQUtil.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
 
-Section LIFT_CONVERT.
-
-  Context {li: language_interface} {S: Type}.
-
-  Program Definition liftr_emor : emor (Lifting.lifted_li S li) (li @ S) :=
-    fun q =>
-      match q with
-      | ((se, q)%embed, s) =>
-          econs (se, Datatypes.pair q s)%embed (fun '(r, s) => (r, s))
-      end.
-
-  Lemma liftr_lift:
-    ecomp lift_emor liftr_emor = eid.
-  Proof.
-    apply functional_extensionality_dep. intros [se [q s]].
-    unfold eid, ecomp. cbn. f_equal.
-    apply functional_extensionality. intros [r s']. reflexivity.
-  Qed.
-
-  Lemma liftr_emor_property:
-    rsq vid lift_emor liftr_emor (id (Lifting.lifted_li S li)).
-  Proof.
-    rewrite <- (compose_id_l liftr_emor).
-    rewrite <- liftr_lift.
-    rewrite emor_strat_ecomp.
-    eapply rsq_comp.
-    - apply emor_strat_intro.
-    - apply rsq_id_conv. reflexivity.
-  Qed.
-
-(* rsq rb_cc (lift_emor ;; rb_cc ;; liftr_emor) liftr_emor liftr_emor *)
-
-End LIFT_CONVERT.
-
 Require Import Coqlib Memory.
 
 (* Ltac emor_change := *)
@@ -156,7 +122,7 @@ Section CLIGHTP.
     unfold clightp_strat.
     rewrite <- compose_id_l.
     eapply rsq_comp.
-    - apply liftr_emor_property.
+    - apply rsq_lift_emor_1.
     - eapply rsq_id_conv. reflexivity.
   Qed.
 
@@ -166,7 +132,7 @@ Section CLIGHTP.
     unfold clightp_strat.
     rewrite <- compose_id_l.
     eapply rsq_comp.
-    - apply liftr_emor_property.
+    - apply rsq_lift_emor_1.
     - eapply rsq_id_conv. reflexivity.
   Qed.
 

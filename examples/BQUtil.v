@@ -24,12 +24,12 @@ Proof.
   - intros x Hx. cbn in *. destruct x; xinv Hx; easy.
 Qed.
 
+Global Instance E0_conv_regular {E}:
+  RegularConv (@E0_conv E).
+Proof. split. intros. easy. Qed.
+
 Global Hint Constructors rsp : core.
 Global Hint Constructors pcoh : core.
-
-Lemma vcomp_assoc {E F G H} (σ: conv E F) (τ: conv F G) (υ: conv G H):
-  vcomp (vcomp σ τ) υ = vcomp σ (vcomp τ υ).
-Admitted.
 
 Global Instance emor_determinisitc {E F} f i p:
   Deterministic (@emor_when E F f i p).

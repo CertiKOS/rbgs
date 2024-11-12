@@ -8,7 +8,6 @@ Require Import IntStrat.
 Require Import Classical_Prop.
 Require Import Coqlib.
 Require Import Determ.
-Require Import Util.
 
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
@@ -182,7 +181,7 @@ Qed.
 
 Local Hint Constructors seq_comp_has closure_has : core.
 
-(* L_bq ⊑ (M_bq @ S_rb) ∘ L_rb *)
+(** Theorem ϕ₁: L_bq ⊑ (M_bq @ S_rb) ∘ L_rb in Example 5.4 *)
 Lemma ϕ1 :
   rsq vid (tconv vid bq_rb_rel) L_bq ((M_bq @ S_rb) ⊙ L_rb).
 Proof.
@@ -275,7 +274,7 @@ Definition bq0: bq_state := nil.
 Definition Π_rb := encap rb0 L_rb.
 Definition Π_bq := encap bq0 L_bq.
 
-(* Π_bq ⊑ M_bq ∘ Π_rb *)
+(** Theorem ϕ'₁: Π_bq ⊑ M_bq ∘ Π_rb in Example 5.6 *)
 Lemma ϕ1' : Π_bq [= M_bq ⊙ Π_rb.
 Proof.
   unfold Π_bq, Π_rb. unfold encap.
@@ -293,6 +292,8 @@ Qed.
 
 
 (** * Proving strategies are implemented by Clight programs *)
+
+(** ** Some preliminary definitions and properties *)
 
 Import Maps Clight Ctypes AST Linking.
 
@@ -422,21 +423,16 @@ Local Instance bq_spec_deterministic: Deterministic bq_spec.
   - intros * Hf1 Hf2. inv Hf1; inv Hf2. easy.
 Qed.
 
-Local Instance clightp_deterministic sk p:
-  Deterministic (lts_strat_sk sk (ClightP.ClightP.clightp2 p)).
-Proof. apply lts_strat_determ. apply clightp_determinate. Qed.
-
-Local Instance clight_deterministic sk p:
- Deterministic (lts_strat_sk sk (semantics2 p)).
-Proof. apply lts_strat_determ. apply clight_determinate. Qed.
-
-(** ** Bq correctness *)
+(** ** Refinement conventions between effects and languague interfaces *)
 
 Section C_CONV.
   Import ListNotations.
   Local Open Scope embed_scope.
   Import Values Integers Memory.
 
+  (** The definition is essentially:
+        E_bq@⟨mem]* : E_bq <=> C@mem
+      because we didn't set apart the memory from the C language interface *)
   Inductive E_bq_conv_mq : op E_bq -> op li_c -> Prop :=
   | E_bq_conv_mq_enq v vf sg (se: Genv.symtbl) m b
     (HVF: vf = Vptr b Ptrofs.zero) (HB: Genv.find_symbol se enq_id = Some b)
@@ -450,6 +446,7 @@ Section C_CONV.
     (HSE1: se_valid1 se) (HSE2: se_valid2 se) (HFLAG: Mem.alloc_flag m = true):
     E_bq_conv_mq deq (se, cq vf sg [ ] m).
 
+  (** The condition [HM] corresponds to the ⟨mem]* part *)
   Inductive E_bq_conv_mr : forall (m1: op E_bq) (m2: op li_c), ar m1 -> ar m2 -> Prop :=
   | E_bq_conv_mr_enq v se q m (HM: m = cq_mem q):
     E_bq_conv_mr (enq v) (se, q) tt (cr Vundef m)
@@ -495,13 +492,12 @@ Section C_CONV.
 
 End C_CONV.
 
-Definition E_bq_conv : esig_rel E_bq li_c :=
+Definition E_bq_conv : erel E_bq li_c :=
   {| match_query := E_bq_conv_mq; match_reply := E_bq_conv_mr |}.
-Definition E_rb_conv : esig_rel E_rb li_c :=
+Definition E_rb_conv : erel E_rb li_c :=
   {| match_query := E_rb_conv_mq; match_reply := E_rb_conv_mr |}.
 
-(* ------------------------------------------------- *)
-(** Direct relation between S_rb and mem *)
+(** ** Relation between S_rb and mem *)
 
 Inductive rb_m_mq : op (li_c @ S_rb) -> op (li_c @ mem) -> Prop :=
 | rb_m_mq_intro rb m q se pe
@@ -512,60 +508,8 @@ Inductive rb_m_mr (m1: op (li_c @ S_rb)) (m2: op (li_c @ mem)): ar m1 -> ar m2 -
     (HRB: rb_penv_rel rb pe) (HM: PEnv.penv_mem_match ce se pe m):
     (se, q)%embed = fst m1 ->
   rb_m_mr m1 m2 (r, rb) (r, m).
-Definition rb_m_erel : esig_rel (li_c @ S_rb) (li_c @ mem) :=
+Definition rb_m_erel : erel (li_c @ S_rb) (li_c @ mem) :=
   {| match_query := rb_m_mq; match_reply := rb_m_mr |}.
-
-Inductive play_preserve_se : forall p, @play li_c li_c p -> Prop :=
-| play_preserve_se_ready: play_preserve_se ready pnil_ready
-| play_preserve_se_suspended q m: play_preserve_se (suspended q m) (pnil_suspended q m)
-| play_preserve_se_oq q s:
-  play_preserve_se (running q) s ->
-  play_preserve_se ready (oq q :: s)
-| play_preserve_se_pq se q m s:
-  play_preserve_se (suspended (se, q)%embed (se, m)%embed) s ->
-  play_preserve_se (running (se, q)%embed) (pq (se, m)%embed :: s)
-| play_preserve_se_oa q m n s:
-  play_preserve_se (running q) s ->
-  play_preserve_se (suspended q m) (oa n :: s)
-| play_preserve_se_pa q r s:
-  play_preserve_se ready s ->
-  play_preserve_se (running q) (pa r :: s).
-
-Arguments play_preserve_se {_} _.
-Definition strat_preserve_se {p} (σ: strat li_c li_c p) :=
-  forall s, Downset.has σ s -> play_preserve_se s.
-
-Lemma seq_comp_preserve_se {p} s1 s2 (s: @play _ _ p):
-  seq_comp_has s1 s2 s ->
-  play_preserve_se s1 -> play_preserve_se s2 -> play_preserve_se s.
-Proof.
-  induction 1; intros; eauto;
-    dependent destruction H0; constructor; eauto.
-Qed.
-
-Lemma closure_preserve_se σ:
-  strat_preserve_se σ -> strat_preserve_se (closure σ).
-Proof.
-  intros H s Hs. cbn in *. induction Hs.
-  { apply play_preserve_se_ready. }
-  eapply seq_comp_preserve_se; eauto.
-Qed.
-
-Lemma lts_preserve_se (L: semantics li_c li_c) sk:
-  strat_preserve_se (lts_strat_sk sk L).
-Proof.
-  apply closure_preserve_se. intros s Hs.
-  cbn in *. dependent destruction Hs.
-  { apply play_preserve_se_ready. }
-  apply play_preserve_se_oq. clear HVF INIT.
-  induction HS; eauto; repeat constructor; eauto.
-Qed.
-
-Lemma next_strat_preserve_se {i j} (σ: strat li_c li_c i) (m: move i j):
-  strat_preserve_se σ -> strat_preserve_se (next m σ).
-Proof.
-  intros H s Hs. cbn in *. specialize (H _ Hs). inv H; eauto.
-Qed.
 
 Local Hint Resolve next_strat_preserve_se : core.
 
@@ -671,7 +615,7 @@ Proof.
       inv x0.
       intros [r mr] Hr. cbn in *.
       rewrite regular_conv; eauto. 2: { constructor; eauto. }
-      apply esig_rel_mr_elim in Hr. 2: { cbn. eauto. }
+      apply erel_mr_elim in Hr. 2: { cbn. eauto. }
       inv Hr. 
       setoid_rewrite tstrat_next_oa.
       setoid_rewrite lens_strat_next_oa.
@@ -710,7 +654,7 @@ Proof.
     split. { constructor. }
     intros cr1. apply or_commut. apply not_imply_or. intros Hr1.
     specialize (Ha cr1) as [Ha|Ha]; eauto.
-    eapply esig_rel_mr_elim in Hr.
+    eapply erel_mr_elim in Hr.
     2: { econstructor; eauto. xinv HM; eauto. }
     xinv Hr. cbn in *. inv H2.
     xinv Ha. constructor. cbn. eauto.
@@ -722,7 +666,7 @@ Proof.
     split. { constructor. econstructor; eauto. xinv HM; eauto. }
     intros [cr rb1]. apply not_imply_or. intros Hr.
     apply not_imply_or. intros Hr1.
-    eapply esig_rel_mr_elim in Hr1.
+    eapply erel_mr_elim in Hr1.
     2: { econstructor; eauto. xinv HM; eauto. }
     xinv Hr1. cbn in *. inv H2.
     specialize (Ha cr) as [Ha|[Ha|Ha]].
@@ -779,7 +723,7 @@ Proof.
           apply not_imply_or. intros Hxb.
           assert (cr = cr1).
           { apply NNPP. intros HA. apply Hxb. constructor. congruence. }
-          eapply esig_rel_mr_elim in Hxa.
+          eapply erel_mr_elim in Hxa.
           2: { cbn. eauto. } subst cr1.
           rewrite Hrc3. setoid_rewrite Hrc4. apply Hd. }
       setoid_rewrite Hrc5. eapply IHc; eauto.
@@ -791,6 +735,8 @@ Proof.
       rewrite <- Hb. apply se_valid2_in_penv_agree; eauto.
       eapply match_rb_id_in_penv; eauto.
 Qed.
+
+(** ** Bq correctness *)
 
 Local Hint Constructors E_rb_conv_mq E_rb_conv_mr : core.
 Local Hint Constructors bq_initial_state bq_at_external bq_final_state bq_step bq_after_external : core.
@@ -813,11 +759,11 @@ Proof.
       eapply state_strat_has_internal. { apply star_one. cbn; eauto. }
       eapply state_strat_has_external_suspend; cbn; eauto. }
     cbn. intros r Hr. destruct r as [c_i rm].
-    apply esig_rel_mr_elim in Hr; cbn; eauto.
+    apply erel_mr_elim in Hr; cbn; eauto.
     cbn in Hr. dependent destruction Hr.
     rewrite regular_conv; eauto.
     2: { constructor. econstructor; eauto. }
-    2: { apply esig_rel_mr_intro. constructor; eauto. }
+    2: { apply erel_mr_intro. constructor; eauto. }
     exploit set_block. apply se_valid_sk_bq. apply HSE1.
     intros (b2 & Hb2 & Hbb2).
     eapply rsp_pq with
@@ -830,10 +776,10 @@ Proof.
       eapply state_strat_has_internal. { apply star_one. cbn; eauto. }
       eapply state_strat_has_external_suspend; cbn; eauto. }
     cbn. intros r2 Hr2.
-    apply esig_rel_mr_elim in Hr2. 2: { cbn; eauto. }
+    apply erel_mr_elim in Hr2. 2: { cbn; eauto. }
     cbn in Hr2. dependent destruction Hr2.
     eapply rsp_pa with (cr Vundef rm).
-    { apply esig_rel_mr_intro. cbn; econstructor. eauto. }
+    { apply erel_mr_intro. cbn; econstructor. eauto. }
     apply rsp_ready. cbn.
     eapply lts_strat_has_intro; cbn; eauto.
     eapply state_strat_has_internal. { apply star_one. cbn; eauto. }
@@ -856,11 +802,11 @@ Proof.
       eapply state_strat_has_internal. { apply star_one. cbn; eauto. }
       eapply state_strat_has_external_suspend; cbn; eauto. }
     cbn. intros r Hr. destruct r as [c_i rm].
-    apply esig_rel_mr_elim in Hr; cbn; eauto.
+    apply erel_mr_elim in Hr; cbn; eauto.
     cbn in Hr. dependent destruction Hr.
     rewrite regular_conv; eauto.
     2: { constructor. econstructor; eauto. }
-    2: { apply esig_rel_mr_intro. constructor; eauto. }
+    2: { apply erel_mr_intro. constructor; eauto. }
     exploit get_block. apply se_valid_sk_bq. apply HSE1.
     intros (b2 & Hb2 & Hbb2).
     eapply rsp_pq with
@@ -873,10 +819,10 @@ Proof.
       eapply state_strat_has_internal. { apply star_one. cbn; eauto. }
       eapply state_strat_has_external_suspend; cbn; eauto. }
     cbn. intros r2 Hr2.
-    apply esig_rel_mr_elim in Hr2. 2: { cbn; eauto. }
+    apply erel_mr_elim in Hr2. 2: { cbn; eauto. }
     cbn in Hr2. dependent destruction Hr2.
     eapply rsp_pa with (cr v rm).
-    { apply esig_rel_mr_intro. cbn; econstructor. eauto. }
+    { apply erel_mr_intro. cbn; econstructor. eauto. }
     apply rsp_ready. cbn.
     eapply lts_strat_has_intro; cbn; eauto.
     eapply state_strat_has_internal. { apply star_one. cbn; eauto. }
@@ -914,33 +860,10 @@ Proof.
   apply lts_preserve_se.
 Qed.
 
-(* eapply rsq_vcomp. *)
-(*   4: { apply frame_property_ref_sk. apply linkorder_bq. } *)
-(*   1-2: typeclasses eauto.  *)
-
-(*   eapply rsq_vcomp. *)
-(*   4: apply rsq_de. *)
-(*   1-2,4: typeclasses eauto. *)
-
-(*   rewrite <- (vcomp_vid_r E_rb_conv). *)
-(*   rewrite <- (vcomp_vid_r E_bq_conv). *)
-(*   eapply rsq_vcomp.  *)
-(*   3: apply ϕ_bq0. 1-2: typeclasses eauto. *)
-
-(*   rewrite <- !cc_conv_id. *)
-(*   apply fsim_rsq_sk. apply clight_determinate. *)
-(*   apply BQ.bq_correct0. apply linkorder_bq. *)
-(* Qed. *)
-(* Admitted. *)
-
 (** ** Rb correctness *)
 
 Definition E_rb_S_rb_conv : conv (E_rb @ S_rb) (Lifting.lifted_li rb_state li_c) :=
   tconv E_rb_conv vid ;; lift_emor.
-
-Global Instance E0_conv_regular {E}:
-  RegularConv (@E0_conv E).
-Proof. split. intros. easy. Qed.
 
 Local Opaque N.
 
@@ -1035,34 +958,8 @@ Qed.
 
 Definition rb_spec' : li_c ->> li_c @ S_rb := liftr_emor ⊙ rb_spec.
 
-(* Local Instance rb_spec_deterministic': Deterministic rb_spec. *)
-(* Proof. *)
-(* Admitted. *)
-
-(* Definition E_rb_S_rb_conv' : conv (E_rb @ S_rb) (li_c @ S_rb) := *)
-(*   E_rb_conv @ glob S_rb. *)
-
 Definition E_rb_S_rb_conv' : conv (E_rb @ S_rb) (li_c @ S_rb) :=
   E_rb_conv * vid.
-
-Lemma lift_liftr {li S}:
-    ecomp liftr_emor (@lift_emor li S) = eid.
-Proof.
-  apply functional_extensionality_dep. intros [[se q] s].
-  unfold eid, ecomp. cbn. f_equal.
-  apply functional_extensionality. intros [r s']. reflexivity.
-Qed.
-
-Lemma liftr_emor_property2 {li S}:
-  rsq lift_emor vid (IntStrat.id _) (@liftr_emor li S).
-Proof.
-  rewrite <- (compose_id_r liftr_emor).
-  rewrite <- lift_liftr at 1.
-  rewrite emor_strat_ecomp.
-  eapply rsq_comp.
-  - apply rsq_id_conv. reflexivity.
-  - apply emor_strat_elim.
-Qed.
 
 Lemma ϕ_rb0' : rsq E0_conv E_rb_S_rb_conv' L_rb rb_spec'.
 Proof.
@@ -1076,13 +973,10 @@ Proof.
   eapply rsq_vcomp.
   3: { apply rsq_id_strat. reflexivity. }
   1-2: typeclasses eauto.
-  apply liftr_emor_property2.
+  apply rsq_lift_emor_2.
 Qed.
 
-
 Definition E_rb_rb0_conv : conv E_rb (li_c @ S_rb) := deencap rb0 E_rb_conv.
-(* Definition E_rb_rb0_conv' : conv E_rb (Lifting.lifted_li S_rb li_c) := *)
-(*   E_rb_rb0_conv ;; lift_emor. *)
 
 Lemma de_rcnext {E U} (m: op E) n (u u': U):
   rcnext m (m, u) n (n, u') (de u) = de u'.
@@ -1144,31 +1038,7 @@ Proof.
   1-2: typeclasses eauto.
 Qed.
 
-(* Definition rb_cc' : li_c @ S_rb <=> li_c @ PEnv.penv. Admitted. *)
-(* Lemma rb_cc_eq: rb_cc' = lift_emor ;; rb_cc ;; liftr_emor. *)
-(* Admitted. *)
-(* Definition pin' (ce: Ctypes.composite_env) : li_c @ PEnv.penv <=> li_c. Admitted. *)
-(* Lemma pin_eq ce: pin' ce = lift_emor ;; ClightP.pin ce. *)
-(* Admitted. *)
-
-(* Local Instance rb_spec_deterministic': Deterministic rb_spec'. *)
-(* Admitted. *)
-
 Definition ϕ_rb_conv := E_rb_rb0_conv ;; lift_emor ;; rb_cc ;; ClightP.pin ce.
-
-(* Lemma rb_correct2': *)
-(*   rsq vid rb_cc' rb_spec' (clightp_strat_sk rb_program sk). *)
-(* Proof. *)
-(*   pose proof rb_correct2. *)
-(*   rewrite rb_cc_eq. *)
-(*   unfold rb_spec', clightp_strat. *)
-(*   eapply rsq_comp with (S := cc_conv rb_cc). *)
-(*   2: { rewrite <- cc_conv_id. *)
-(*        eapply fsim_rsq_sk; eauto. *)
-(*        apply clightp_determinate. *)
-(*        cbn. erewrite ClightP.clightp_skel_correct. *)
-(*        apply linkorder_rb. apply HT2. } *)
-(* Admitted. *)
 
 Lemma ϕ_rb_with_internals : rsq E0_conv ϕ_rb_conv Π_rb (Clight.semantics2 rbc).
 Proof.
@@ -1179,7 +1049,7 @@ Proof.
   eapply rsq_vcomp.
   3: {
     unfold rb_spec'. eapply rsq_comp.
-    - apply liftr_emor_property.
+    - apply rsq_lift_emor_1.
     - eapply rsq_id_conv. reflexivity.
   }
   1-2: typeclasses eauto.
@@ -1199,176 +1069,9 @@ Proof.
   apply linkorder_rb. apply HT2.
 Qed.
 
-  (* 3: apply rb_correct2'. *)
-  (* 3: { *)
-  (*   rewrite pin_eq. unfold ce. *)
-  (*   eapply clightp_correct_sk. *)
-  (*   apply HT2. *)
-  (*   erewrite ClightP.clightp_skel_correct. *)
-  (*   apply linkorder_rb. apply HT2. } *)
-  (* 1-2: admit. *)
-
-
-(*   unfold ϕ_rb_conv. erewrite E0_conv_vcomp. *)
-(*   eapply rsq_vcomp. *)
-(*   4: { *)
-(*        eapply fsim_rsq_sk. apply clight_determinate. *)
-(*        apply ClightP.transl_program_correct. apply HT2. *)
-(*        cbn. erewrite ClightP.clightp_skel_correct. *)
-(*        apply linkorder_rb. apply HT2. } *)
-(*   1-2: typeclasses eauto. *)
-(*   erewrite E0_conv_vcomp. eapply rsq_vcomp.  *)
-(*   4: { eapply fsim_rsq_sk. apply clightp_determinate. *)
-(*        apply rb_correct2. *)
-(*        cbn. erewrite ClightP.clightp_skel_correct. *)
-(*        apply linkorder_rb. apply HT2. } *)
-(*   1-2: typeclasses eauto. *)
-(*   apply ϕ_rb1. *)
-(* Qed. *)
-
-(** ** Putting things together *)
+(** * Putting everything together *)
 
 Local Opaque ce.
-
-Lemma pin_join_ref :
-  pin_no_join ce ;; join_cc [= cc_conv (ClightP.pin ce).
-Proof.
-  intros c Hc. induction c.
-  - cbn in *. eprod_crush. xinv H. xinv H0.
-    xinv HM. xinv HM0. xinv HSE0. xinv HSE.
-    econstructor. instantiate (1 := (m, s)).
-    cbn. easy. constructor; eauto.
-  - cbn in *. eprod_crush. xinv H. xinv H0.
-    xinv HM. xinv HM0. xinv HSE0. xinv HSE.
-    econstructor. instantiate (1 := (m, s)).
-    cbn. easy. constructor; eauto.
-    intros Hr. xinv Hr. inv H. cbn in *.
-    destruct (H1 (cr rv msrc0, x)) as [Hr|Hr].
-    + xinv Hr. destruct w. destruct HSE. subst.
-      apply HN. econstructor. econstructor. eauto.
-    + xinv Hr. apply HN. constructor. eauto.
-  -  cbn in *. eprod_crush. xinv H. xinv H0.
-    xinv HM. xinv HM0. xinv HSE0. xinv HSE.
-    econstructor. instantiate (1 := (m, s)).
-    cbn. easy. constructor; eauto.
-    intros Hr. xinv Hr. inv H. cbn in *.
-    apply IHc. clear IHc.
-    destruct (H1 (cr rv msrc0, x)) as [Hr|[Hr|Hr]].
-    + exfalso. xinv Hr. destruct w. destruct HSE. subst.
-      apply HN. econstructor. econstructor. eauto.
-    + exfalso. xinv Hr. apply HN. constructor. eauto.
-    + erewrite !regular_conv in Hr; eauto.
-      * econstructor. econstructor. econstructor; eauto.
-      * intros Hx. xinv Hx. apply HN. econstructor. eauto.
-      * econstructor. instantiate (1 := (m, s)).
-        constructor; eauto. constructor. eauto.
-      * intros Hx. xinv Hx. apply HN.
-        destruct w. inv HSE. econstructor. econstructor. eauto.
-        Unshelve.
-        cbn. exact tt.
-Qed.
-
-(* Section JOIN_CONV. *)
-
-(*   Inductive join_erel_mq : op (li_c @ mem) -> op li_c -> Prop := *)
-(*   | join_erel_mq_intro se vf sg vargs msrc mtgt m *)
-(*       (MJOIN: Join.join m msrc mtgt): *)
-(*     join_erel_mq ((se, cq vf sg vargs msrc)%embed, m) *)
-(*       (se, cq vf sg vargs mtgt)%embed. *)
-
-(*   Inductive join_erel_mr: op (li_c @ mem) -> op li_c -> reply li_c * mem -> reply li_c -> Prop := *)
-(*   | join_erel_mr_intro q1 q2 rv m msrc mtgt *)
-(*       (MJOIN: Join.join m msrc mtgt): *)
-(*     join_erel_mr q1 q2 (cr rv msrc, m) (cr rv mtgt). *)
-
-(*   Definition join_erel : esig_rel (li_c @ mem) li_c := *)
-(*     {| match_query := join_erel_mq; match_reply := join_erel_mr |}. *)
-
-(*   Lemma join_erel_eq: join_conv = join_erel. *)
-(*   Proof. *)
-(*     apply antisymmetry. *)
-(*     - intros s Hs. induction s; cbn in *; eprod_crush. *)
-(*       + inv H. cbn in *. inv H2. inv H0. *)
-(*         cbn in *. subst. inv HM. *)
-(*         econstructor. econstructor. eauto. *)
-(*       + inv H. cbn in *. inv H3. inv H0. *)
-(*         econstructor. *)
-(*         { cbn in *. subst. inv HM. econstructor. eauto. } *)
-(*         specialize (H1 (c, m)). destruct H1 as [H1|H1]. *)
-(*         * exfalso. inv H1. cbn in *. easy. *)
-(*         * dependent destruction H1. *)
-(*           intros Hr. apply HN. *)
-(*           cbn in Hr.  inv Hr. econstructor. eauto. *)
-(*       + admit. *)
-(*     - intros s Hs. induction s; cbn in *; eprod_crush. *)
-(*       + inv Hs. eexists (_, Datatypes.pair _ _)%embed. *)
-(*         split. rewrite lift_emor_operator. econstructor. *)
-(*         inv HM. econstructor. reflexivity. cbn. *)
-(*         constructor. eauto. *)
-(*       + inv Hs. admit. *)
-(*       + admit. *)
-(*   Admitted. *)
-
-(* End JOIN_CONV. *)
-
-(* Section ASSOC. *)
-
-(*   Lemma assoc1 {E} (R: conv E _): *)
-(*     (R ;; rb_m_erel) ;; join_conv [= R ;; rb_m_erel ;; join_conv. *)
-(*   Proof. *)
-(*     rewrite join_erel_eq. *)
-(*     intros s Hs. induction s. *)
-(*     - cbn in *. destruct m2 as [se q4]. *)
-(*       destruct Hs as ([[se' q3] mx] & Hq2 & Hq3). *)
-(*       inv Hq3. cbn in HM. *)
-(*       destruct Hq2 as ([[se'' q2] srb] & Hq1 & Hq2). *)
-(*       inv Hq2. cbn in HM0. *)
-(*       exists ((se'', q2)%embed, srb). split; eauto. *)
-(*       exists ((se', q3)%embed, mx). split; constructor; eauto. *)
-(*     - cbn in *. destruct m2 as [se q4]. *)
-(*       destruct Hs as ([[se' q3] mx] & Hq2 & Hq3 & Hr). *)
-(*       inv Hq3. cbn in HM. *)
-(*       destruct Hq2 as ([[se'' q2] srb] & Hq1 & Hq2). *)
-(*       inv Hq2. cbn in HM0. *)
-(*       exists ((se'', q2)%embed, srb). split; eauto. *)
-(*       split. exists ((se', q3)%embed, mx). split; constructor; eauto. *)
-(*       assert (se = se'). { inv HM. eauto. } subst se'. *)
-(*       assert (se = se''). { inv HM0. eauto. } subst se''. *)
-(*       intros [rx rbx]. apply not_imply_or. intros Hr1. *)
-(*       exists ((se, q3)%embed, mx). *)
-(*       split. constructor. eauto. *)
-(*       split. constructor. eauto. *)
-(*       intros [crx mxx]. *)
-(*       specialize (Hr (crx, mxx)) as [Hr|Hr]. *)
-(*       + admit. *)
-(*       + right. eauto. *)
-(*     - admit. *)
-(*   Admitted. *)
-
-(* End ASSOC. *)
-
-Lemma regular_conv_ref {E F} (R S: E <=> F)
-  (HR: RegularConv R) (HS: RegularConv S):
-  (forall m1 m2, Downset.has R (rcp_allow m1 m2) ->
-            Downset.has S (rcp_allow m1 m2)) ->
-  (forall m1 m2 n1 n2, Downset.has R (rcp_forbid m1 m2 n1 n2) ->
-                  Downset.has S (rcp_forbid m1 m2 n1 n2)) ->
-  R [= S.
-Proof.
-  intros Hm Hn s Hs. induction s; eauto.
-  destruct (classic (Downset.has S (rcp_forbid m1 m2 n1 n2))) as [A|A].
-  - eapply Downset.closed; eauto. constructor.
-  - assert (Downset.has R (rcp_allow m1 m2)) as B.
-    { eapply Downset.closed; eauto. constructor. }
-    assert (~ Downset.has R (rcp_forbid m1 m2 n1 n2)) as C by eauto.
-    assert (Downset.has (rcnext m1 m2 n1 n2 R) s) as D by easy.
-    rewrite regular_conv in D; eauto.
-    specialize (IHs D).
-    erewrite <- regular_conv in IHs.
-    + apply IHs.
-    + eauto.
-    + eauto.
-Qed.
 
 Lemma ϕ_rb_conv_ref1_helper:
   rb_m_erel ;; join_conv [= lift_emor ;; rb_cc ;; ClightP.pin ce.
@@ -1434,102 +1137,13 @@ Qed.
 
 Lemma ϕ_rb_conv_ref1: ϕ_bq_conv_1 [= ϕ_rb_conv.
 Proof.
-  unfold ϕ_bq_conv_1, ϕ_rb_conv, E_rb_rb0_conv, deencap.
-  (* rewrite m_rb_ref. *)
-  (* rewrite assoc1. *)
-  (* rewrite vcomp_assoc. *)
   apply vcomp_ref. reflexivity.
   apply ϕ_rb_conv_ref1_helper.
 Qed.
-(*   rewrite <- pin_join_ref. *)
-(*   rewrite <- !vcomp_assoc. *)
-(*   rewrite !vcomp_assoc. *)
-(*   apply vcomp_ref. reflexivity. *)
-(*   apply vcomp_ref. reflexivity. *)
-(*   intros c Hc. induction c. *)
-(*   - cbn in *. eprod_crush. xinv H. xinv HM. xinv H0. *)
-(*     cbn in H1. inv H1. rename s1 into s. rename c1 into c. *)
-(*     exists (s, Datatypes.pair c r)%embed. split. repeat constructor. *)
-(*     rewrite lift_emor_operator. constructor. *)
-(*     exists (s, Datatypes.pair c pe)%embed. split. *)
-(*     + econstructor; econstructor; eauto. *)
-(*     + econstructor. instantiate (1 := (_, s)). cbn. easy. *)
-(*       cbn. econstructor; eauto. *)
-(*   - cbn in *. eprod_crush. xinv H. xinv HM. xinv H0. *)
-(*     cbn in H2. symmetry in H2. inv H2.  *)
-(*     exists (s, Datatypes.pair c1 r0)%embed. split. repeat constructor. *)
-(*     rewrite lift_emor_operator. constructor. *)
-(*     split. exists (s, Datatypes.pair c1 pe)%embed. split. *)
-(*     { econstructor; econstructor; eauto. } *)
-(*     { econstructor. instantiate (1 := (_, s)). cbn. easy. *)
-(*       cbn. econstructor; eauto. } *)
-(*     intros [cr rb1]. apply not_imply_or. intros Hr. *)
-(*     exists (s, Datatypes.pair c1 pe)%embed. split. *)
-(*     { econstructor; econstructor; eauto. } split. *)
-(*     { econstructor. instantiate (1 := (_, s)). cbn. easy. *)
-(*       cbn. econstructor; eauto. } *)
-(*     intros [cr1 p1]. apply not_imply_or. intros Hr1. *)
-(*     econstructor. instantiate (1 := (_, s)). cbn. easy. *)
-(*     cbn. constructor. eauto. *)
-(*     intros Hr2. cbn in *. destruct Hr2 as (mx & Hmx). inv Hmx. *)
-(*     destruct (classic ((c0, r) = (cr, rb1))) as [Hrr|]. *)
-(*     2: { apply Hr. rewrite lift_emor_operator. constructor. eauto. } *)
-(*     eapply @rcp_forbid_mr with (w := tt) in Hr1. *)
-(*     2: { cbn. easy. } 2: { constructor. eauto. } *)
-(*     xinv Hrr. xinv Hr1. *)
-(*     specialize (H1 (c, m)) as [H1 | H1]. *)
-(*     + xinv H1. apply HA. econstructor; eauto. reflexivity. *)
-(*     + xinv H1. cbn in *. easy. *)
-(*   - cbn in *. eprod_crush. xinv H. xinv HM. xinv H0. *)
-(*     cbn in H2. symmetry in H2. inv H2. *)
-(*     exists (s, Datatypes.pair c2 r0)%embed. split. repeat constructor. *)
-(*     rewrite lift_emor_operator. constructor. *)
-(*     split. exists (s, Datatypes.pair c2 pe)%embed. split. *)
-(*     { econstructor; econstructor; eauto. } *)
-(*     { econstructor. instantiate (1 := (_, s)). cbn. easy. *)
-(*       cbn. econstructor; eauto. } *)
-(*     intros [cr rb1]. apply not_imply_or. intros Hr. *)
-(*     destruct (classic ((c1, r) = (cr, rb1))) as [Hrr|]. *)
-(*     2: { exfalso. apply Hr. rewrite lift_emor_operator. constructor. eauto. } *)
-(*     xinv Hrr. apply not_imply_or. intros Hx. *)
-(*     eapply not_ex_all_not with (n := (s, Datatypes.pair c2 pe)%embed) in Hx. *)
-(*     apply not_and_or in Hx as [Hx | Hx]. *)
-(*     { exfalso. apply Hx. econstructor. now cbn. *)
-(*       cbn. econstructor; eauto. } *)
-(*     apply not_and_or in Hx as [Hx | Hx]. *)
-(*     { exfalso. apply Hx. econstructor. *)
-(*       instantiate (1 := (_, s)). now cbn. *)
-(*       cbn. econstructor; eauto. } *)
-(*     apply not_all_ex_not in Hx as ((cr3 & p3) & Hx). *)
-(*     apply not_or_and in Hx as [Hx1 Hx2]. *)
-(*     eapply @rcp_forbid_mr with (w := tt) in Hx1. xinv Hx1. *)
-(*     2: { now cbn. } 2: { constructor; eauto. } *)
-(*     eapply @rcp_forbid_mr with (w := (_, s)) in Hx2. xinv Hx2. inv H. *)
-(*     2: { now cbn. } 2: { constructor; eauto. } *)
-(*     specialize (H1 (c0, m)) as [H1|[H1|H1]]. *)
-(*     + exfalso. xinv H1. apply HA. *)
-(*       econstructor; eauto. reflexivity. *)
-(*     + exfalso. xinv H1. cbn in *. easy. *)
-(*     + rewrite !regular_conv in H1. *)
-(*       rewrite !regular_conv. eauto. *)
-(*       * econstructor. split. econstructor. cbn. eauto. *)
-(*         constructor. eauto. econstructor. *)
-(*         instantiate (1 := (_, s)). now cbn. constructor. eauto. *)
-(*       * intros HA. cbn in HA. *)
-(*         eprod_crush. specialize (H2 (c0, p3)) as [A | B]. *)
-(*         xinv A. apply HN. constructor. eauto. *)
-(*         xinv B. apply HN. destruct w. econstructor. *)
-(*         constructor. eauto. cbn in HSE. destruct HSE. subst. eauto. *)
-(*       * rewrite lift_emor_operator. constructor. *)
-(*       * intros HA. xinv HA. cbn in *. easy. *)
-(*       * rewrite lift_emor_operator. constructor. *)
-(*       * intros Hx. xinv Hx. cbn in *. easy. *)
-(*       * constructor. econstructor; eauto. *)
-(*       * intros HA. xinv HA. apply HA0. *)
-(*         cbn. econstructor; eauto. reflexivity. *)
-(*         Unshelve. all: cbn; exact tt. *)
-(* Qed. *)
 
+(** For asm semantics and compcert compiler correctness *)
+Require Import Util.
+(** For layered composition *)
 Import CategoricalComp.
 
 Lemma ϕ_bq_rb:
@@ -1544,9 +1158,6 @@ Proof.
   - rewrite ϕ_rb_conv_ref1.
     apply ϕ_rb_with_internals.
 Qed.
-
-Global Instance asm_deterministic p: Deterministic (Asm.semantics p).
-Proof. apply lts_strat_determ. apply Asm.semantics_determinate. Qed.
 
 Section ASM.
 
