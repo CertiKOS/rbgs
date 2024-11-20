@@ -75,6 +75,7 @@ Definition M_deq_play (v: val) (i: nat): @play E_rb E_bq ready :=
   @pa _ _ deq v :: pnil_ready.
 Definition M_enq_strat: strat E_rb E_bq ready := sup v, sup {i | (i < N)%nat}, down (M_enq_play v i).
 Definition M_deq_strat: strat E_rb E_bq ready := sup {v | Cop.val_casted v tint}, sup { i | (i < N)%nat}, down (M_deq_play v i).
+(** The strategy of implement for the bounded queue *)
 Definition M_bq : strat E_rb E_bq ready := closure (join M_enq_strat M_deq_strat).
 
 Definition S_bq : Type := bq_state.
@@ -89,6 +90,7 @@ Definition L_enq_strat: strat 0 (E_bq @ S_bq) ready :=
   sup {v | Cop.val_casted v tint}, sup {q | (List.length q < N)%nat}, down (L_enq_play v q).
 Definition L_deq_strat: strat 0 (E_bq @ S_bq) ready :=
   sup {v | Cop.val_casted v tint}, sup q, down (L_deq_play v q).
+(** The strategy of specification for the bounded queue *)
 Definition L_bq : strat 0 (E_bq @ S_bq) ready := closure (join L_enq_strat L_deq_strat).
 
 Import Datatypes.
@@ -105,7 +107,11 @@ Definition L_inc1_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, d
 Definition L_inc2_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, down (L_inc2_play f c1 c2).
 Definition L_get_strat: strat 0 (E_rb @ S_rb) ready := sup { f | forall n, Cop.val_casted (f n) tint }, sup c1, sup c2, sup i, down (L_get_play f c1 c2 i).
 Definition L_set_strat: strat 0 (E_rb @ S_rb) ready := sup f, sup c1, sup c2, sup i, sup v, down (L_set_play f c1 c2 i v).
+(** The strategy of specification for the ring buffer *)
 Definition L_rb : strat 0 (E_rb @ S_rb) ready := closure (join (join L_inc1_strat L_inc2_strat) (join L_get_strat L_set_strat)).
+
+(** ------------------------------------------------------------------------- *)
+(** Properties of these strategies *)
 
 Local Hint Constructors no_reentrancy_play : core.
 
@@ -181,6 +187,7 @@ Qed.
 
 Local Hint Constructors seq_comp_has closure_has : core.
 
+(** ------------------------------------------------------------------------- *)
 (** Theorem ϕ₁: L_bq ⊑ (M_bq @ S_rb) ∘ L_rb in Example 5.4 *)
 Lemma ϕ1 :
   rsq vid (tconv vid bq_rb_rel) L_bq ((M_bq @ S_rb) ⊙ L_rb).
@@ -502,137 +509,145 @@ Definition E_rb_conv : erel E_rb li_c :=
 (** ------------------------------------------------------------------------- *)
 (** ** Relation between S_rb and mem *)
 
-Inductive rb_m_mq : op (li_c @ S_rb) -> op (li_c @ mem) -> Prop :=
-| rb_m_mq_intro rb m q se pe
-    (HRB: rb_penv_rel rb pe) (HM: PEnv.penv_mem_match ce se pe m):
-  rb_m_mq ((se, q)%embed, rb) ((se, q)%embed, m).
-Inductive rb_m_mr (m1: op (li_c @ S_rb)) (m2: op (li_c @ mem)): ar m1 -> ar m2 -> Prop :=
-| rb_m_mr_intro rb m r se q pe
-    (HRB: rb_penv_rel rb pe) (HM: PEnv.penv_mem_match ce se pe m):
+Section RB_M.
+  Inductive rb_m_mq : op (li_c @ S_rb) -> op (li_c @ mem) -> Prop :=
+  | rb_m_mq_intro rb m q se pe
+      (HRB: rb_penv_rel rb pe) (HM: PEnv.penv_mem_match ce se pe m):
+    rb_m_mq ((se, q)%embed, rb) ((se, q)%embed, m).
+  Inductive rb_m_mr (m1: op (li_c @ S_rb)) (m2: op (li_c @ mem)): ar m1 -> ar m2 -> Prop :=
+  | rb_m_mr_intro rb m r se q pe
+      (HRB: rb_penv_rel rb pe) (HM: PEnv.penv_mem_match ce se pe m):
     (se, q)%embed = fst m1 ->
-  rb_m_mr m1 m2 (r, rb) (r, m).
-Definition rb_m_erel : erel (li_c @ S_rb) (li_c @ mem) :=
-  {| match_query := rb_m_mq; match_reply := rb_m_mr |}.
+    rb_m_mr m1 m2 (r, rb) (r, m).
+  Definition rb_m_erel : erel (li_c @ S_rb) (li_c @ mem) :=
+    {| match_query := rb_m_mq; match_reply := rb_m_mr |}.
 
-Local Hint Resolve next_strat_preserve_se : core.
+  Local Hint Resolve next_strat_preserve_se : core.
 
-Lemma rb_m_erel_rsq_when
-  t1 ti2 i (ti: tpos t1 ti2 i)
-     tj2 j (tj: tpos t1 tj2 j)
-  (l1: lpos _ ti2) (l2: lpos _ tj2)
-  (p: rspos i j) σ (Hσ: strat_preserve_se σ):
-  match p with
-  | rs_ready => True
-  | rs_running ((se, q1)%embed, rb) ((se2, q2)%embed, m) =>
-      rb_m_mq ((se, q1)%embed, rb) ((se2, q2)%embed, m) /\
-      match l1, l2 with
-      | lrunning _ _ _ rb, lrunning _ _ _ m =>
-          exists pe, rb_penv_rel rb pe /\ PEnv.penv_mem_match ce se pe m
-      | _, _ => False
-      end
-  | rs_suspended ((se, q1)%embed, rb) ((se2, q2)%embed, m)
-      ((mse, m1)%embed, mrb) m2 =>
-      rb_m_mq ((se, q1)%embed, rb) ((se2, q2)%embed, m) /\
-      rb_m_mq ((mse, m1)%embed, mrb) m2 /\
-      mse = se /\
-      match l1, l2 with
-      | lsuspended _ _ _ rb, lsuspended _ _ _ m =>
-          exists pe, rb_penv_rel rb pe /\ PEnv.penv_mem_match ce se pe m
-      | _, _ => False
-      end
-  end ->
-  rsq_when rb_m_erel rb_m_erel p
-    (tstrat_when ti σ (lens_strat_when lid l1))
-    (tstrat_when tj σ (lens_strat_when lid l2)).
-Proof.
-  intros Hp s (s1 & s2 & Hs1 & Hs2 & Hs). cbn in *.
-  revert ti2 i ti tj2 j tj l1 l2 p Hp σ s s2 Hs1 Hs2 Hs Hσ.
-  induction s1.
-  - intros. dependent destruction Hs1. dependent destruction p.
-    eapply rsp_ready. dependent destruction tj.
-    exists pnil_ready, pnil_ready.
-    repeat split; eauto. constructor. cbn.
-    dependent destruction l2. constructor.
-  - intros. dependent destruction Hs1. dependent destruction p.
-    eapply rsp_suspended. dependent destruction tj.
-    eexists (pnil_suspended _ _), (pnil_suspended _ _).
-    repeat split; eauto. constructor. cbn.
-    dependent destruction l2. constructor.
-  - intros.
-    dependent destruction p;
-      dependent destruction ti;
-      dependent destruction tj;
-      dependent destruction m.
-    + (* oq *)
-      dependent destruction l1; dependent destruction l2.
-      dependent destruction Hs1. dependent destruction Hs.
-      apply rsp_oq.
-      { exists pnil_ready, pnil_ready. repeat apply conj.
-        - constructor.
-        - eapply Downset.closed; eauto. constructor.
-        - constructor. }
-      intros [qx mx] Hq. cbn in Hq. dependent destruction Hq.
-      inv HM.
-      setoid_rewrite tstrat_next_oq.
-      setoid_rewrite lens_strat_next_oq.
-      eapply IHs1; eauto. 2: reflexivity.
-      split. { econstructor; eauto. }
-      cbn. exists pe. split; eauto.
-    + (* pq *)
-      dependent destruction l1; dependent destruction l2.
-      dependent destruction Hs1. dependent destruction Hs.
-      destruct q0. destruct Hp as (Hq & pe & Hpe1 & Hpe2).
-      destruct m. assert (s0 = s) as ->.
-      { specialize (Hσ _ Hs2). inv Hσ. eauto. }
-      eapply rsp_pq. instantiate (1 := ((_, _)%embed, u0)).
-      { constructor. econstructor; eauto. }
-      setoid_rewrite tstrat_next_pq.
-      setoid_rewrite lens_strat_next_pq.
-      eapply IHs1; eauto. repeat split; eauto.
-      econstructor; eauto.
-    + (* pa *)
-      dependent destruction l1; dependent destruction l2.
-      dependent destruction Hs1. dependent destruction Hs.
-      destruct q0. destruct Hp as (Hq & pe & Hpe1 & Hpe2).
-      eapply rsp_pa. instantiate (1 := (r, u0)).
-      { intros Hr. inv Hr. apply HA. econstructor; eauto. reflexivity. }
-      inv x0.
-      (* XXX I don't understand when this can't work without [inv x0] *)
-      setoid_rewrite (tstrat_next_pa (s, q)%embed q4 r u0).
-      setoid_rewrite lens_strat_next_pa. 2: reflexivity.
-      rewrite regular_conv.
-      2: { constructor. apply Hq. }
-      2: { cbn. intros Hr. inv Hr. apply HA.
-           cbn. econstructor; eauto. reflexivity. }
-      eapply IHs1; eauto.
-    + (* oa *)
-      dependent destruction l1; dependent destruction l2.
-      dependent destruction Hs1. dependent destruction Hs.
-      destruct q0. destruct m2.
-      destruct Hp as (Hq & Hm & Hse & pe & Hpe1 & Hpe2). subst s0.
-      eapply rsp_oa.
-      { eexists (pnil_suspended _ _), (pnil_suspended _ _). repeat split.
-        - constructor.
-        - eapply Downset.closed; eauto. constructor.
-        - constructor. }
-      inv x0.
-      intros [r mr] Hr. cbn in *.
-      rewrite regular_conv; eauto. 2: { constructor; eauto. }
-      apply erel_mr_elim in Hr. 2: { cbn. eauto. }
-      inv Hr. 
-      setoid_rewrite tstrat_next_oa.
-      setoid_rewrite lens_strat_next_oa.
-      eapply IHs1; eauto.
-      split. eauto.
-      exists pe0. split; eauto. cbn in *. inv H0. eauto.
-Qed.
+  Lemma rb_m_erel_rsq_when
+    t1 ti2 i (ti: tpos t1 ti2 i)
+    tj2 j (tj: tpos t1 tj2 j)
+    (l1: lpos _ ti2) (l2: lpos _ tj2)
+    (p: rspos i j) σ (Hσ: strat_preserve_se σ):
+    match p with
+    | rs_ready => True
+    | rs_running ((se, q1)%embed, rb) ((se2, q2)%embed, m) =>
+        rb_m_mq ((se, q1)%embed, rb) ((se2, q2)%embed, m) /\
+          match l1, l2 with
+          | lrunning _ _ _ rb, lrunning _ _ _ m =>
+              exists pe, rb_penv_rel rb pe /\ PEnv.penv_mem_match ce se pe m
+          | _, _ => False
+          end
+    | rs_suspended ((se, q1)%embed, rb) ((se2, q2)%embed, m)
+        ((mse, m1)%embed, mrb) m2 =>
+        rb_m_mq ((se, q1)%embed, rb) ((se2, q2)%embed, m) /\
+          rb_m_mq ((mse, m1)%embed, mrb) m2 /\
+          mse = se /\
+          match l1, l2 with
+          | lsuspended _ _ _ rb, lsuspended _ _ _ m =>
+              exists pe, rb_penv_rel rb pe /\ PEnv.penv_mem_match ce se pe m
+          | _, _ => False
+          end
+    end ->
+    rsq_when rb_m_erel rb_m_erel p
+      (tstrat_when ti σ (lens_strat_when lid l1))
+      (tstrat_when tj σ (lens_strat_when lid l2)).
+  Proof.
+    intros Hp s (s1 & s2 & Hs1 & Hs2 & Hs). cbn in *.
+    revert ti2 i ti tj2 j tj l1 l2 p Hp σ s s2 Hs1 Hs2 Hs Hσ.
+    induction s1.
+    - intros. dependent destruction Hs1. dependent destruction p.
+      eapply rsp_ready. dependent destruction tj.
+      exists pnil_ready, pnil_ready.
+      repeat split; eauto. constructor. cbn.
+      dependent destruction l2. constructor.
+    - intros. dependent destruction Hs1. dependent destruction p.
+      eapply rsp_suspended. dependent destruction tj.
+      eexists (pnil_suspended _ _), (pnil_suspended _ _).
+      repeat split; eauto. constructor. cbn.
+      dependent destruction l2. constructor.
+    - intros.
+      dependent destruction p;
+        dependent destruction ti;
+        dependent destruction tj;
+        dependent destruction m.
+      + (* oq *)
+        dependent destruction l1; dependent destruction l2.
+        dependent destruction Hs1. dependent destruction Hs.
+        apply rsp_oq.
+        { exists pnil_ready, pnil_ready. repeat apply conj.
+          - constructor.
+          - eapply Downset.closed; eauto. constructor.
+          - constructor. }
+        intros [qx mx] Hq. cbn in Hq. dependent destruction Hq.
+        inv HM.
+        setoid_rewrite tstrat_next_oq.
+        setoid_rewrite lens_strat_next_oq.
+        eapply IHs1; eauto. 2: reflexivity.
+        split. { econstructor; eauto. }
+        cbn. exists pe. split; eauto.
+      + (* pq *)
+        dependent destruction l1; dependent destruction l2.
+        dependent destruction Hs1. dependent destruction Hs.
+        destruct q0. destruct Hp as (Hq & pe & Hpe1 & Hpe2).
+        destruct m. assert (s0 = s) as ->.
+        { specialize (Hσ _ Hs2). inv Hσ. eauto. }
+        eapply rsp_pq. instantiate (1 := ((_, _)%embed, u0)).
+        { constructor. econstructor; eauto. }
+        setoid_rewrite tstrat_next_pq.
+        setoid_rewrite lens_strat_next_pq.
+        eapply IHs1; eauto. repeat split; eauto.
+        econstructor; eauto.
+      + (* pa *)
+        dependent destruction l1; dependent destruction l2.
+        dependent destruction Hs1. dependent destruction Hs.
+        destruct q0. destruct Hp as (Hq & pe & Hpe1 & Hpe2).
+        eapply rsp_pa. instantiate (1 := (r, u0)).
+        { intros Hr. inv Hr. apply HA. econstructor; eauto. reflexivity. }
+        inv x0.
+        (* XXX I don't understand when this can't work without [inv x0] *)
+        setoid_rewrite (tstrat_next_pa (s, q)%embed q4 r u0).
+        setoid_rewrite lens_strat_next_pa. 2: reflexivity.
+        rewrite regular_conv.
+        2: { constructor. apply Hq. }
+        2: { cbn. intros Hr. inv Hr. apply HA.
+             cbn. econstructor; eauto. reflexivity. }
+        eapply IHs1; eauto.
+      + (* oa *)
+        dependent destruction l1; dependent destruction l2.
+        dependent destruction Hs1. dependent destruction Hs.
+        destruct q0. destruct m2.
+        destruct Hp as (Hq & Hm & Hse & pe & Hpe1 & Hpe2). subst s0.
+        eapply rsp_oa.
+        { eexists (pnil_suspended _ _), (pnil_suspended _ _). repeat split.
+          - constructor.
+          - eapply Downset.closed; eauto. constructor.
+          - constructor. }
+        inv x0.
+        intros [r mr] Hr. cbn in *.
+        rewrite regular_conv; eauto. 2: { constructor; eauto. }
+        apply erel_mr_elim in Hr. 2: { cbn. eauto. }
+        inv Hr.
+        setoid_rewrite tstrat_next_oa.
+        setoid_rewrite lens_strat_next_oa.
+        eapply IHs1; eauto.
+        split. eauto.
+        exists pe0. split; eauto. cbn in *. inv H0. eauto.
+  Qed.
 
-Lemma rb_m_erel_rsq σ:
-  strat_preserve_se σ ->
-  rsq rb_m_erel rb_m_erel (σ @ lid) (σ @ lid).
-Proof.
-  intro. eapply rb_m_erel_rsq_when; eauto. 
-Qed.
+  (** The refinement square for the relation between rb state and the memory *)
+  Lemma rb_m_erel_rsq σ:
+    strat_preserve_se σ ->
+    rsq rb_m_erel rb_m_erel (σ @ lid) (σ @ lid).
+  Proof.
+    intro. eapply rb_m_erel_rsq_when; eauto.
+  Qed.
+
+End RB_M.
+
+(** ------------------------------------------------------------------------- *)
+(** The relation between rb state and memory can be used to connect the
+    refinement conventions for de-encapsulating the rb state and memory *)
 
 Definition m_rb_ref:
   E_rb_conv ;; (de m0) [= (E_rb_conv ;; (de rb0)) ;; rb_m_erel.
@@ -844,7 +859,7 @@ Definition ϕ_bq_conv_2 :=
 
 Global Existing Instance tstrat_when_monotonic.
 
-Lemma ϕ_bq_with_internals : rsq ϕ_bq_conv_1 ϕ_bq_conv_2 M_bq (Clight.semantics2 BQ.bq_program).
+Lemma ϕ_bq : rsq ϕ_bq_conv_1 ϕ_bq_conv_2 M_bq (Clight.semantics2 BQ.bq_program).
 Proof.
   eapply rsq_vcomp.
   3: { eapply rsq_vcomp.
@@ -1046,7 +1061,7 @@ Qed.
 
 Definition ϕ_rb_conv := E_rb_rb0_conv ;; lift_emor ;; rb_cc ;; ClightP.pin ce.
 
-Lemma ϕ_rb_with_internals : rsq E0_conv ϕ_rb_conv Π_rb (Clight.semantics2 rbc).
+Lemma ϕ_rb : rsq E0_conv ϕ_rb_conv Π_rb (Clight.semantics2 rbc).
 Proof.
   unfold ϕ_rb_conv. erewrite E0_conv_vcomp.
   eapply rsq_vcomp. 3: apply ϕ_rb1.
@@ -1161,9 +1176,9 @@ Proof.
   unfold embed_lts_with_sk.
   setoid_rewrite <- cc_comp_ref. rewrite ϕ1'.
   eapply rsq_comp_when. constructor.
-  - apply ϕ_bq_with_internals.
+  - apply ϕ_bq.
   - rewrite ϕ_rb_conv_ref1.
-    apply ϕ_rb_with_internals.
+    apply ϕ_rb.
 Qed.
 
 Section ASM.
@@ -1180,7 +1195,7 @@ Section ASM.
   Lemma ϕ2_1 : rsq (ϕ_bq_conv_1 ;; cc) (ϕ_bq_conv_2 ;; cc) M_bq (Asm.semantics bq_asm).
   Proof.
     eapply rsq_vcomp.
-    3: apply ϕ_bq_with_internals.
+    3: apply ϕ_bq.
     3: {
       eapply fsim_rsq_sk.
       - apply Asm.semantics_determinate.
@@ -1195,7 +1210,7 @@ Section ASM.
   Lemma ϕ2_2 : rsq (E0_conv ;; cc) (ϕ_rb_conv ;; cc) Π_rb (Asm.semantics rb_asm).
   Proof.
     eapply rsq_vcomp.
-    3: apply ϕ_rb_with_internals.
+    3: apply ϕ_rb.
     3: {
       eapply fsim_rsq_sk.
       - apply Asm.semantics_determinate.

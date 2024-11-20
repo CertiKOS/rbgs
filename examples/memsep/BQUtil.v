@@ -8,9 +8,6 @@ Require Import IntStrat.
 Require Import Classical_Prop.
 Require Import Coqlib.
 Require Import CompCertStrat.
-(* From compcert Require Import Smallstep Globalenvs. *)
-(* Require LanguageInterface. *)
-(* Import -(notations) LanguageInterface. *)
 
 (* ------------------------------------------------------------------- *)
 (** ** Various miscellaneous properties *)

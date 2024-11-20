@@ -3,6 +3,8 @@ From compcert Require Import
      LanguageInterface Smallstep Globalenvs Memory Floats.
 Require Import Ctypes Cop Clight.
 
+(** * The join operator on CompCert memory *)
+
 Local Notation "a # b" := (PMap.get b a) (at level 1).
 
 Require Import LogicalRelations.
