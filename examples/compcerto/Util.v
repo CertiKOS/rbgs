@@ -208,160 +208,6 @@ Proof.
 Qed.
 
 (* ----------------------------------------------------------------- *)
-(** ** Find_funct utilities, used in Rot13 example *)
-
-Require Import AST Ctypes.
-
-Notation tvoid := (Tvoid).
-Notation tint := (Tint I32 Unsigned noattr).
-Notation tchar := (Tint I8 Unsigned noattr).
-Notation tlong := (Tlong Unsigned noattr).
-Notation tptr := (fun ty => Tpointer ty noattr).
-Notation tarray := (fun ty size => Tarray ty size noattr).
-
-Definition rw_parameters := Tcons tint (Tcons (tptr tchar) (Tcons tint Tnil)).
-Definition rw_type :=
-  Tfunction rw_parameters tint cc_default.
-Definition rw_sig : signature :=
-  signature_of_type rw_parameters tint cc_default.
-Definition write : Clight.fundef :=
-  External (EF_external "write" rw_sig) rw_parameters tint cc_default.
-Definition read : Clight.fundef :=
-  External (EF_external "read" rw_sig) rw_parameters tint cc_default.
-Definition read_asm : Asm.fundef := AST.External (EF_external "read" rw_sig).
-Definition write_asm : Asm.fundef := AST.External (EF_external "write" rw_sig).
-Definition main_sig := signature_of_type Tnil tint cc_default.
-
-Require Load.
-
-Section FIND_FUNCT.
-  Import Coqlib Linking AST Clight Values.
-
-  Lemma compcert_match_program_gen p tp:
-    match_prog p tp ->
-    exists (C: Type) (LC: Linker C) (c: C) mf mv,
-      match_program_gen mf mv c p tp /\
-      forall x t def params ret cc, mf x (Ctypes.External def params ret cc) t ->
-                               t = AST.External def.
-  Proof.
-    intros H. cbn in *. eprod_crush. subst.
-    repeat match goal with
-    | [ H: match_if _ ?m _ _ |- _] => unfold match_if, m in H; rewrite Load.if_commute in H
-    end.
-    (* destruct H as (A & A1). red in A.  *)
-    pose proof (Load.match_program_gen_compose H H0) as B. clear H H0.
-    pose proof (Load.match_program_gen_compose B H1) as C. clear B H1.
-    pose proof (Load.match_program_gen_compose C H2) as D. clear C H2.
-    pose proof (Load.match_program_gen_compose_match_if D H3) as E. clear D H3.
-    pose proof (Load.match_program_gen_compose E H4) as F. clear E H4.
-    pose proof (Load.match_program_gen_compose F H5) as G. clear F H5.
-    pose proof (Load.match_program_gen_compose_match_if G H6) as H. clear G H6.
-    pose proof (Load.match_program_gen_compose_match_if H H7) as I. clear H H7.
-    pose proof (Load.match_program_gen_compose_match_if I H8) as J. clear I H8.
-    pose proof (Load.match_program_gen_compose_match_if J H9) as K. clear J H9.
-    pose proof (Load.match_program_gen_compose K H10) as L. clear K H10.
-    pose proof (Load.match_program_gen_compose L H11) as M. clear L H11.
-    pose proof (Load.match_program_gen_compose M H12) as N. clear M H12.
-    pose proof (Load.match_program_gen_compose N H13) as O. clear N H13.
-    pose proof (Load.match_program_gen_compose_match_if O H14) as P. clear O H14.
-    pose proof (Load.match_program_gen_compose P H15) as Q. clear P H15.
-    pose proof (Load.match_program_gen_compose Q H16) as R. clear Q H16.
-
-    match goal with
-    | [ H: @match_program_gen ?C ?F1 ?V1 ?F2 ?V2 ?LC ?mf ?mv ?c ?p1 ?p2 |- _ ] =>
-        exists C, LC, c, mf, mv
-    end.
-    split; eauto.
-    intros c t * Hx.
-    repeat match goal with
-           | [ H: Load.compose_match_fundef _ _ _ _ _ |- _ ] => inv H
-           end.
-    (* clear S. *)
-    repeat match goal with
-    | [ H: (if ?x then _ else _) _ _ _ |- _ ] => destruct x; subst
-    end.
-    all: repeat match goal with
-    | [H: SimplLocals.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Cshmgenproof.match_fundef _ _ _ |- _ ] => inv H
-    | [H: Cminorgen.transl_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Selectionproof.match_fundef _ _ _ |- _ ] =>
-        let H1 := fresh "H" in
-        destruct H as (? & ? & H1); inv H1
-    | [H: RTLgen.transl_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Inlining.transf_fundef _ _ = Errors.OK _ |- _] => inv H
-    | [H: CSE.transf_fundef _ _ = Errors.OK _ |- _] => inv H
-    | [H: Deadcode.transf_fundef _ _ = Errors.OK _ |- _] => inv H
-    | [H: Allocation.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Linearize.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Debugvar.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Renumber.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Stacking.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Asmgen.transf_fundef _ = Errors.OK _ |- _] => inv H
-           end.
-    all: reflexivity.
-  Qed.
-
-  Lemma match_prog_read p tp f se tse vf tvf:
-    match_prog p tp ->
-    Genv.match_stbls f se tse ->
-    Val.inject f vf tvf ->
-    Genv.find_funct (Clight.globalenv se p) vf = Some read ->
-    Genv.find_funct (Genv.globalenv tse tp) tvf = Some read_asm.
-  Proof.
-    intros HP HS HI HF.
-    eapply compcert_match_program_gen in HP
-        as (C & LC & c & mf & mv & H & HX); eauto.
-    eapply Genv.find_funct_match in H as (c0 & tfd & HW & HY & HZ); eauto.
-    rewrite HW. f_equal. eapply HX; eauto.
-  Qed.
-
-  Lemma match_prog_write p tp f se tse vf tvf:
-    match_prog p tp ->
-    Genv.match_stbls f se tse ->
-    Val.inject f vf tvf ->
-    Genv.find_funct (Clight.globalenv se p) vf = Some write ->
-    Genv.find_funct (Genv.globalenv tse tp) tvf = Some write_asm.
-  Proof.
-    intros HP HS HI HF.
-    eapply compcert_match_program_gen in HP
-        as (C & LC & c & mf & mv & H & HX); eauto.
-    eapply Genv.find_funct_match in H as (c0 & tfd & HW & HY & HZ); eauto.
-    rewrite HW. f_equal. eapply HX; eauto.
-  Qed.
-
-  Import CallconvAlgebra CKLR Compiler Inject.
-
-  Lemma ca_find_funct_read p tp i se1 se2 se3 vf1 vf2 vf3 wn:
-    Util.match_prog p tp ->
-    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
-    Load.mv_cklrs wn vf1 vf2 ->
-    inj_stbls i se2 se3 ->
-    Val.inject i vf2 vf3 ->
-    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some read ->
-    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some read_asm.
-  Proof.
-    intros HMP HSE HVF HI HVF2 HF.
-    eapply Load.cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
-    eapply match_prog_read; eauto. apply HI. apply HF.
-  Qed.
-
-  Lemma ca_find_funct_write p tp i se1 se2 se3 vf1 vf2 vf3 wn:
-    Util.match_prog p tp ->
-    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
-    Load.mv_cklrs wn vf1 vf2 ->
-    inj_stbls i se2 se3 ->
-    Val.inject i vf2 vf3 ->
-    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some write ->
-    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some write_asm.
-  Proof.
-    intros HMP HSE HVF HI HVF2 HF.
-    eapply Load.cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
-    eapply match_prog_write; eauto. apply HI. apply HF.
-  Qed.
-
-End FIND_FUNCT.
-
-(* ----------------------------------------------------------------- *)
 (** ** Some more process example utilities *)
 
 Ltac destruct_or H :=
@@ -371,7 +217,7 @@ Ltac destruct_or H :=
   end.
 
 Section FUNCT_SYMBOL.
-Import Maps Values Integers.
+Import Maps Values Integers Ctypes AST.
 Lemma genv_funct_symbol se id b f (p: Clight.program):
   Genv.find_symbol se id = Some b ->
   (prog_defmap p) ! id = Some (Gfun f) ->
@@ -422,6 +268,8 @@ Lemma getN_nth len i bytes byte memvals:
   ZMap.get (Z.of_nat i) memvals = Byte byte.
 Proof. intros. exploit getN_nth'; eauto. lia. Qed.
 
+Import AST.
+
 Lemma loadbyte' m b bytes i len byte:
   Mem.loadbytes m b 0 len = Some (map Byte bytes) ->
   0 <= i < len ->
@@ -451,7 +299,7 @@ Qed.
 
 End NTH.
 
-Import Maps.
+Import Maps Ctypes.
 Ltac prove_norepet H :=
   match type of H with
   | False => inversion H
@@ -564,7 +412,7 @@ Ltac crush_step := cbn;
 (* ----------------------------------------------------------------- *)
 (** ** Misc utilities *)
 
-Require Import Maps ClightP.
+Require Import Maps ClightP AST.
 
 Lemma linkorder_erase_asm (p1 p2: Asm.program):
   Linking.linkorder p1 p2 ->

@@ -1,8 +1,9 @@
 Require Import Coqlib Integers.
 
-Require Import Events LanguageInterface Smallstep Globalenvs Values Memory.
+Require Import Events Smallstep Globalenvs Values Memory.
+Require LanguageInterface.
+Import -(notations) LanguageInterface.
 Require Import AST Ctypes Clight.
-Require Import Lifting.
 
 Require Import List Maps.
 Import ListNotations.
@@ -10,6 +11,42 @@ Require Import Conventions Mach Asm.
 
 Require Import InitMem.
 Require Import CAsm.
+
+Require Import Classical.
+
+Axiom (Hwin: Archi.win64 = false).
+
+Ltac subst_dep :=
+  subst;
+  lazymatch goal with
+  | H: existT ?P ?x _ = existT ?P ?x _ |- _ =>
+      apply inj_pair2 in H; subst_dep
+  | _ => idtac
+  end.
+
+Ltac eprod_crush :=
+  repeat
+    (match goal with
+     | [ H: ?a * ?b |- _ ] => destruct H;cbn [fst snd] in *; subst
+     | [ H: (?a, ?b) = (?c, ?d) |- _ ] => inv H
+     | [ H: ?x /\ ?y |- _] => destruct H
+     | [ H: (exists _, _) |- _] => destruct H
+     | [ H: unit |- _] => destruct H
+     end).
+
+Ltac inv_inj:=
+  match goal with
+  | [ H: Val.inject_list _ _ _ |- _ ] => inv H
+  | [ H: Val.inject _ (Vint _) _ |- _ ] => inv H
+  | [ H: Val.inject _ (Vlong _) _ |- _ ] => inv H
+  | [ H: Val.inject _ (Vptr _ _) _ |- _ ] => inv H
+  end.
+
+Ltac inv_lessdef:=
+  match goal with
+  | [ H: Val.lessdef_list _ _ |- _ ] => inv H
+  | [ H: Val.lessdef _ _ |- _ ] => inv H
+  end.
 
 Section WRITE_EMPTY.
 
@@ -259,12 +296,13 @@ Notation tvoid := (Tvoid).
 Notation tchar := (Tint I8 Unsigned noattr).
 Notation tlong := (Tlong Unsigned noattr).
 Notation tptr := (fun ty => Tpointer ty noattr).
+Notation tarray := (fun ty size => Tarray ty size noattr).
 
-Definition rw_parameters := Tcons tint (Tcons (tptr tchar) (Tcons tlong Tnil)).
+Definition rw_parameters := Tcons tint (Tcons (tptr tchar) (Tcons tint Tnil)).
 Definition rw_type :=
   Tfunction rw_parameters tint cc_default.
 Definition rw_sig : signature :=
-  signature_of_type rw_parameters tvoid cc_default.
+  signature_of_type rw_parameters tint cc_default.
 Definition write : Clight.fundef :=
   External (EF_external "write" rw_sig) rw_parameters tint cc_default.
 Definition read : Clight.fundef :=
@@ -375,84 +413,6 @@ Section FIND_FUNCT.
     (if P then r1 else r2) a b = (if P then r1 a b else r2 a b).
   Proof. destruct P; reflexivity. Qed.
 
-  Import Compiler.
-
-  Lemma compcert_match_program_gen p tp:
-    match_prog p tp ->
-    exists (C: Type) (LC: Linker C) (c: C) mf mv,
-      match_program_gen mf mv c p tp /\
-      forall x t def params ret cc, mf x (Ctypes.External def params ret cc) t ->
-                               t = AST.External def.
-  Proof.
-    intros H. cbn in *. eprod_crush. subst.
-    repeat match goal with
-    | [ H: match_if _ ?m _ _ |- _] => unfold match_if, m in H; rewrite if_commute in H
-    end.
-    destruct H as (A & A1). red in A.
-    pose proof (match_program_gen_compose A H0) as B. clear A H0.
-    pose proof (match_program_gen_compose B H1) as C. clear B H1.
-    pose proof (match_program_gen_compose C H2) as D. clear C H2.
-    pose proof (match_program_gen_compose D H3) as E. clear D H3.
-    pose proof (match_program_gen_compose_match_if E H4) as F. clear E H4.
-    pose proof (match_program_gen_compose F H5) as G. clear F H5.
-    pose proof (match_program_gen_compose G H6) as H. clear G H6.
-    pose proof (match_program_gen_compose_match_if H H7) as I. clear H H7.
-    pose proof (match_program_gen_compose_match_if I H8) as J. clear I H8.
-    pose proof (match_program_gen_compose_match_if J H9) as K. clear J H9.
-    pose proof (match_program_gen_compose_match_if K H10) as L. clear K H10.
-    pose proof (match_program_gen_compose L H11) as M. clear L H11.
-    pose proof (match_program_gen_compose M H12) as N. clear M H12.
-    pose proof (match_program_gen_compose N H13) as O. clear N H13.
-    pose proof (match_program_gen_compose O H14) as P. clear O H14.
-    pose proof (match_program_gen_compose_match_if P H15) as Q. clear P H15.
-    pose proof (match_program_gen_compose Q H16) as R. clear Q H16.
-    pose proof (match_program_gen_compose R H17) as S. clear R H17.
-
-    match goal with
-    | [ H: @match_program_gen ?C ?F1 ?V1 ?F2 ?V2 ?LC ?mf ?mv ?c ?p1 ?p2 |- _ ] =>
-        exists C, LC, c, mf, mv
-    end.
-    split; eauto.
-    intros c t * Hx.
-    repeat match goal with
-           | [ H: compose_match_fundef _ _ _ _ _ |- _ ] => inv H
-           end.
-    clear S.
-    repeat match goal with
-    | [ H: (if ?x then _ else _) _ _ _ |- _ ] => destruct x; subst
-    end.
-    all: repeat match goal with
-    | [H: SimplLocals.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Cshmgenproof.match_fundef _ _ _ |- _ ] => inv H
-    | [H: Cminorgen.transl_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Selectionproof.match_fundef _ _ _ |- _ ] =>
-        let H1 := fresh "H" in
-        destruct H as (? & ? & H1); inv H1
-    | [H: RTLgen.transl_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Inlining.transf_fundef _ _ = Errors.OK _ |- _] => inv H
-    | [H: CSE.transf_fundef _ _ = Errors.OK _ |- _] => inv H
-    | [H: Deadcode.transf_fundef _ _ = Errors.OK _ |- _] => inv H
-    | [H: Allocation.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Linearize.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Debugvar.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Renumber.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Stacking.transf_fundef _ = Errors.OK _ |- _] => inv H
-    | [H: Asmgen.transf_fundef _ = Errors.OK _ |- _] => inv H
-           end.
-    all: reflexivity.
-  Qed.
-
-  Lemma match_program_gen_id {F V} (p: AST.program F V):
-    match_program_gen (fun _ => eq) eq tt p p.
-  Proof.
-    split. 2: eauto.
-    generalize (prog_defs p) as l.
-    induction l; intros; constructor; eauto.
-    constructor. reflexivity.
-    destruct a. cbn. destruct g; repeat econstructor; eauto.
-    destruct v. constructor. reflexivity.
-    Unshelve. exact tt.
-  Qed.
 End FIND_FUNCT.
 
 Obligation Tactic := idtac.
@@ -729,30 +689,6 @@ Section SYS_C_ASM.
         mv_cklr w v1 v2 -> mv_cklrs (existT _ n wn) v2 v3 ->
         mv_cklrs (existT _ (S n) (se, w, wn)) v1 v3.
 
-  Require Import Classical.
-
-  Ltac subst_dep :=
-    subst;
-    lazymatch goal with
-    | H: existT ?P ?x _ = existT ?P ?x _ |- _ =>
-        apply inj_pair2 in H; subst_dep
-    | _ => idtac
-    end.
-
-  Ltac inv_inj:=
-    match goal with
-    | [ H: Val.inject_list _ _ _ |- _ ] => inv H
-    | [ H: Val.inject _ (Vint _) _ |- _ ] => inv H
-    | [ H: Val.inject _ (Vlong _) _ |- _ ] => inv H
-    | [ H: Val.inject _ (Vptr _ _) _ |- _ ] => inv H
-    end.
-
-  Ltac inv_lessdef:=
-    match goal with
-    | [ H: Val.lessdef_list _ _ |- _ ] => inv H
-    | [ H: Val.lessdef _ _ |- _ ] => inv H
-    end.
-
   Lemma cklr_match_query_inv (w: ccworld cc_cklrs) b ofs len m q vf i:
     match_query cc_cklrs w
                 (cq vf rw_sig [Vint i; Vptr b ofs; Vlong len] m)
@@ -883,50 +819,50 @@ Section SYS_C_ASM.
     mp_cklr w1 b1 ofs1 b2 ofs2 -> acc_cklr w1 w2 -> mp_cklr w2 b1 ofs1 b2 ofs2.
   Proof. intros HP HW. inv HP; inv HW; constructor; rauto. Qed.
 
-  Lemma cklr_find_funct p se1 se2 vf1 vf2 w f:
-    match_senv cc_cklrs w se1 se2 ->
-    mv_cklr w vf1 vf2 ->
-    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f ->
-    Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f.
-  Proof.
-    intros HSE HVF HF. pose proof (match_program_gen_id p) as H.
-    inv HVF.
-    - cbn in *. inv HSE. cbn in HV. inv HV; eauto.
-      + unfold inj_of_bc in H2.
-        destruct (bc b1); inv H2;
-          rewrite Ptrofs.add_zero; eauto.
-      + unfold Genv.find_funct in HF. inv HF.
-    - destruct w0. cbn in *. destruct HSE as [-> HSE]. inv HSE.
-      eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm);
-       subst; eauto.
-    - destruct w0. inv HSE. cbn in HV. inv HV; eauto.
-      + inv H0. rewrite Ptrofs.add_zero. eauto.
-      + unfold Genv.find_funct in HF. inv HF.
-    - destruct w0. inv HSE. cbn in *.
-      eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm);
-       subst; eauto.
-    - destruct w0. inv HSE. cbn in *.
-      eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm');
-       subst; eauto.
-  Qed.
+  (* Lemma cklr_find_funct p se1 se2 vf1 vf2 w f: *)
+  (*   match_senv cc_cklrs w se1 se2 -> *)
+  (*   mv_cklr w vf1 vf2 -> *)
+  (*   Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f -> *)
+  (*   Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f. *)
+  (* Proof. *)
+  (*   intros HSE HVF HF. pose proof (match_program_gen_id p) as H. *)
+  (*   inv HVF. *)
+  (*   - cbn in *. inv HSE. cbn in HV. inv HV; eauto. *)
+  (*     + unfold inj_of_bc in H2. *)
+  (*       destruct (bc b1); inv H2; *)
+  (*         rewrite Ptrofs.add_zero; eauto. *)
+  (*     + unfold Genv.find_funct in HF. inv HF. *)
+  (*   - destruct w0. cbn in *. destruct HSE as [-> HSE]. inv HSE. *)
+  (*     eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm); *)
+  (*      subst; eauto. *)
+  (*   - destruct w0. inv HSE. cbn in HV. inv HV; eauto. *)
+  (*     + inv H0. rewrite Ptrofs.add_zero. eauto. *)
+  (*     + unfold Genv.find_funct in HF. inv HF. *)
+  (*   - destruct w0. inv HSE. cbn in *. *)
+  (*     eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm); *)
+  (*      subst; eauto. *)
+  (*   - destruct w0. inv HSE. cbn in *. *)
+  (*     eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm'); *)
+  (*      subst; eauto. *)
+  (* Qed. *)
 
-  Lemma cklrs_find_funct p se1 se2 vf1 vf2 wn f:
-    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
-    mv_cklrs wn vf1 vf2 ->
-    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f ->
-    Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f.
-  Proof.
-    destruct wn. revert se1 se2 vf1 vf2. induction x.
-    - cbn. intros. subst. inv H0. eauto.
-    - intros * HSE HV.
-      destruct c as [[se w] wn].
-      destruct HSE as (Hse1 & Hsen).
-      simple inversion HV. inv H. subst.
-      exploit eq_sigT_fst. apply H1. intros HNat. inv HNat.
-      subst_dep. inv H1. intros Hv1 Hvn Hf.
-      eapply IHx. 1, 2: cbn; eauto.
-      eapply cklr_find_funct; eauto.
-  Qed.
+  (* Lemma cklrs_find_funct p se1 se2 vf1 vf2 wn f: *)
+  (*   match_senv (cc_cklrs ^ {*}) wn se1 se2 -> *)
+  (*   mv_cklrs wn vf1 vf2 -> *)
+  (*   Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f -> *)
+  (*   Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f. *)
+  (* Proof. *)
+  (*   destruct wn. revert se1 se2 vf1 vf2. induction x. *)
+  (*   - cbn. intros. subst. inv H0. eauto. *)
+  (*   - intros * HSE HV. *)
+  (*     destruct c as [[se w] wn]. *)
+  (*     destruct HSE as (Hse1 & Hsen). *)
+  (*     simple inversion HV. inv H. subst. *)
+  (*     exploit eq_sigT_fst. apply H1. intros HNat. inv HNat. *)
+  (*     subst_dep. inv H1. intros Hv1 Hvn Hf. *)
+  (*     eapply IHx. 1, 2: cbn; eauto. *)
+  (*     eapply cklr_find_funct; eauto. *)
+  (* Qed. *)
 
   Lemma cklrs_loadbytes w m b ofs m' b' ofs' len bytes:
     mm_cklrs w m m' ->
@@ -1037,3 +973,920 @@ Section SYS_C_ASM.
   Proof. cbn. destruct Archi.win64; cbn; lia. Qed.
 
 End SYS_C_ASM.
+
+
+
+(** ** C and Asm Loader definitions *)
+
+Require Import CAsm InitMem Maps AST.
+Require Import Conventions Mach Asm.
+Require Import Ctypes.
+
+(* ----------------------------------------------------------------- *)
+(** ** Find_funct utilities, used in Rot13 example *)
+
+Require Import AST Ctypes.
+Require Import Util.
+
+Definition read_asm : Asm.fundef := AST.External (EF_external "read" rw_sig).
+Definition write_asm : Asm.fundef := AST.External (EF_external "write" rw_sig).
+
+
+Section FIND_FUNCT.
+  Import Coqlib Linking AST Clight Values.
+
+  Lemma compcert_match_program_gen p tp:
+    match_prog p tp ->
+    exists (C: Type) (LC: Linker C) (c: C) mf mv,
+      match_program_gen mf mv c p tp /\
+      forall x t def params ret cc, mf x (Ctypes.External def params ret cc) t ->
+                               t = AST.External def.
+  Proof.
+    intros H. cbn in *. eprod_crush. subst.
+    repeat match goal with
+    | [ H: Compiler.match_if _ ?m _ _ |- _] => unfold Compiler.match_if, m in H; rewrite Load.if_commute in H
+    end.
+    (* destruct H as (A & A1). red in A.  *)
+    pose proof (Load.match_program_gen_compose H H0) as B. clear H H0.
+    pose proof (Load.match_program_gen_compose B H1) as C. clear B H1.
+    pose proof (Load.match_program_gen_compose C H2) as D. clear C H2.
+    pose proof (Load.match_program_gen_compose_match_if D H3) as E. clear D H3.
+    pose proof (Load.match_program_gen_compose E H4) as F. clear E H4.
+    pose proof (Load.match_program_gen_compose F H5) as G. clear F H5.
+    pose proof (Load.match_program_gen_compose_match_if G H6) as H. clear G H6.
+    pose proof (Load.match_program_gen_compose_match_if H H7) as I. clear H H7.
+    pose proof (Load.match_program_gen_compose_match_if I H8) as J. clear I H8.
+    pose proof (Load.match_program_gen_compose_match_if J H9) as K. clear J H9.
+    pose proof (Load.match_program_gen_compose K H10) as L. clear K H10.
+    pose proof (Load.match_program_gen_compose L H11) as M. clear L H11.
+    pose proof (Load.match_program_gen_compose M H12) as N. clear M H12.
+    pose proof (Load.match_program_gen_compose N H13) as O. clear N H13.
+    pose proof (Load.match_program_gen_compose_match_if O H14) as P. clear O H14.
+    pose proof (Load.match_program_gen_compose P H15) as Q. clear P H15.
+    pose proof (Load.match_program_gen_compose Q H16) as R. clear Q H16.
+
+    match goal with
+    | [ H: @match_program_gen ?C ?F1 ?V1 ?F2 ?V2 ?LC ?mf ?mv ?c ?p1 ?p2 |- _ ] =>
+        exists C, LC, c, mf, mv
+    end.
+    split; eauto.
+    intros c t * Hx.
+    repeat match goal with
+           | [ H: Load.compose_match_fundef _ _ _ _ _ |- _ ] => inv H
+           end.
+    (* clear S. *)
+    repeat match goal with
+    | [ H: (if ?x then _ else _) _ _ _ |- _ ] => destruct x; subst
+    end.
+    all: repeat match goal with
+    | [H: SimplLocals.transf_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Cshmgenproof.match_fundef _ _ _ |- _ ] => inv H
+    | [H: Cminorgen.transl_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Selectionproof.match_fundef _ _ _ |- _ ] =>
+        let H1 := fresh "H" in
+        destruct H as (? & ? & H1); inv H1
+    | [H: RTLgen.transl_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Inlining.transf_fundef _ _ = Errors.OK _ |- _] => inv H
+    | [H: CSE.transf_fundef _ _ = Errors.OK _ |- _] => inv H
+    | [H: Deadcode.transf_fundef _ _ = Errors.OK _ |- _] => inv H
+    | [H: Allocation.transf_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Linearize.transf_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Debugvar.transf_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Renumber.transf_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Stacking.transf_fundef _ = Errors.OK _ |- _] => inv H
+    | [H: Asmgen.transf_fundef _ = Errors.OK _ |- _] => inv H
+           end.
+    all: reflexivity.
+  Qed.
+
+  Lemma match_program_gen_id {F V} (p: AST.program F V):
+    match_program_gen (fun _ => eq) eq tt p p.
+  Proof.
+    split. 2: eauto.
+    generalize (prog_defs p) as l.
+    induction l; intros; constructor; eauto.
+    constructor. reflexivity.
+    destruct a. cbn. destruct g; repeat econstructor; eauto.
+    destruct v. constructor. reflexivity.
+    Unshelve. exact tt.
+  Qed.
+
+  Lemma match_prog_read p tp f se tse vf tvf:
+    match_prog p tp ->
+    Genv.match_stbls f se tse ->
+    Val.inject f vf tvf ->
+    Genv.find_funct (Clight.globalenv se p) vf = Some read ->
+    Genv.find_funct (Genv.globalenv tse tp) tvf = Some read_asm.
+  Proof.
+    intros HP HS HI HF.
+    eapply compcert_match_program_gen in HP
+        as (C & LC & c & mf & mv & H & HX); eauto.
+    eapply Genv.find_funct_match in H as (c0 & tfd & HW & HY & HZ); eauto.
+    rewrite HW. f_equal. eapply HX; eauto.
+  Qed.
+
+  Lemma match_prog_write p tp f se tse vf tvf:
+    match_prog p tp ->
+    Genv.match_stbls f se tse ->
+    Val.inject f vf tvf ->
+    Genv.find_funct (Clight.globalenv se p) vf = Some write ->
+    Genv.find_funct (Genv.globalenv tse tp) tvf = Some write_asm.
+  Proof.
+    intros HP HS HI HF.
+    eapply compcert_match_program_gen in HP
+        as (C & LC & c & mf & mv & H & HX); eauto.
+    eapply Genv.find_funct_match in H as (c0 & tfd & HW & HY & HZ); eauto.
+    rewrite HW. f_equal. eapply HX; eauto.
+  Qed.
+
+  Import CallconvAlgebra CKLR Compiler Inject.
+  Import ValueDomain.
+
+  Lemma cklr_find_funct p se1 se2 vf1 vf2 w f:
+    match_senv cc_cklrs w se1 se2 ->
+    mv_cklr w vf1 vf2 ->
+    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f ->
+    Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f.
+  Proof.
+    intros HSE HVF HF. pose proof (match_program_gen_id p) as H.
+    inv HVF.
+    - cbn in *. inv HSE. cbn in HV. inv HV; eauto.
+      + unfold inj_of_bc in H2.
+        destruct (bc b1); inv H2;
+          rewrite Ptrofs.add_zero; eauto.
+      + unfold Genv.find_funct in HF. inv HF.
+    - destruct w0. cbn in *. destruct HSE as [-> HSE]. inv HSE.
+      eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm);
+       subst; eauto.
+    - destruct w0. inv HSE. cbn in HV. inv HV; eauto.
+      + inv H0. rewrite Ptrofs.add_zero. eauto.
+      + unfold Genv.find_funct in HF. inv HF.
+    - destruct w0. inv HSE. cbn in *.
+      eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm);
+       subst; eauto.
+    - destruct w0. inv HSE. cbn in *.
+      eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm');
+       subst; eauto.
+  Qed.
+
+  Lemma cklrs_find_funct p se1 se2 vf1 vf2 wn f:
+    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
+    mv_cklrs wn vf1 vf2 ->
+    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f ->
+    Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f.
+  Proof.
+    destruct wn. revert se1 se2 vf1 vf2. induction x.
+    - cbn. intros. subst. inv H0. eauto.
+    - intros * HSE HV.
+      destruct c as [[se w] wn].
+      destruct HSE as (Hse1 & Hsen).
+      simple inversion HV. inv H. subst.
+      exploit eq_sigT_fst. apply H1. intros HNat. inv HNat.
+      subst_dep. inv H1. intros Hv1 Hvn Hf.
+      eapply IHx. 1, 2: cbn; eauto.
+      eapply cklr_find_funct; eauto.
+  Qed.
+
+
+  Lemma ca_find_funct_read p tp i se1 se2 se3 vf1 vf2 vf3 wn:
+    Util.match_prog p tp ->
+    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
+    Load.mv_cklrs wn vf1 vf2 ->
+    inj_stbls i se2 se3 ->
+    Val.inject i vf2 vf3 ->
+    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some read ->
+    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some read_asm.
+  Proof.
+    intros HMP HSE HVF HI HVF2 HF.
+    eapply cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
+    eapply match_prog_read; eauto. apply HI. apply HF.
+  Qed.
+
+  Lemma ca_find_funct_write p tp i se1 se2 se3 vf1 vf2 vf3 wn:
+    Util.match_prog p tp ->
+    match_senv (cc_cklrs ^ {*}) wn se1 se2 ->
+    Load.mv_cklrs wn vf1 vf2 ->
+    inj_stbls i se2 se3 ->
+    Val.inject i vf2 vf3 ->
+    Genv.find_funct (Clight.globalenv se1 p) vf1 = Some write ->
+    Genv.find_funct (Genv.globalenv se3 tp) vf3 = Some write_asm.
+  Proof.
+    intros HMP HSE HVF HI HVF2 HF.
+    eapply cklrs_find_funct in HF. 2, 3: eauto. clear HSE HVF.
+    eapply match_prog_write; eauto. apply HI. apply HF.
+  Qed.
+
+End FIND_FUNCT.
+
+(** ------------------------------------------------------------------------- *)
+(** Strategy definitions *)
+
+Require Import Poset Lattice Downset Program.Equality.
+Require Import IntStrat CompCertStrat.
+
+Module STRAT.
+
+Definition P : esig := {| op := Genv.symtbl; ar _ := Integers.int |}.
+Inductive F_op : Type := F_read : int -> F_op | F_write : list byte -> F_op.
+Definition F : esig :=
+  {|
+    op := F_op;
+    ar m := match m with F_read _ => list byte | F_write _ => Integers.int end;
+  |}.
+Definition S : esig := F + F.
+
+Section C_LOADER.
+  Import Ctypes Clight.
+  Context (prog: Clight.program).
+  Let sk := AST.erase_program prog.
+
+  (** *** The entry part of the C Loader *)
+  Definition entry_c_play (se: Genv.symtbl) q r i : @play li_c P ready :=
+    @oq li_c P se ::
+    @pq li_c P se (se, q)%embed ::
+    @oa li_c P se (se, q)%embed r ::
+    @pa li_c P se i :: pnil_ready.
+  Inductive valid_entry_c: Genv.symtbl -> c_query -> c_reply -> int -> Prop :=
+  | valid_entry_c_intro se b m main f q r i m'
+    (HM: init_mem se sk = Some m)
+    (HB: Genv.find_symbol se main = Some b)
+    (HMAIN: prog_main prog = Some main)
+    (HF: (prog_defmap prog) ! main = Some (Gfun f))
+    (HQ: q = cq (Vptr b Ptrofs.zero) main_sig []%list m)
+    (HR: r = cr (Vint i) m') :
+    valid_entry_c se q r i.
+  Definition entry_c : li_c ->> P :=
+    sup se, sup q, sup r, sup i, sup (_: valid_entry_c se q r i), down (entry_c_play se q r i).
+
+  (** *** The runtime part of the C Loader *)
+  Definition read_c_play se q n bytes r : @play S li_c ready :=
+    @oq S li_c (se, q)%embed ::
+    @pq S li_c (se, q)%embed (inl (F_read n)) ::
+    @oa S li_c (se, q)%embed (inl (F_read n)) bytes ::
+    @pa S li_c (se, q)%embed r :: pnil_ready.
+  Inductive valid_read_c: Genv.symtbl -> c_query -> int -> list byte -> c_reply -> Prop :=
+  | valid_read_c_intro se q r vf b ofs n m bytes m'
+    (HVF: Genv.find_funct (Clight.globalenv se prog) vf = Some read)
+    (HREAD: Mem.storebytes m b (Ptrofs.unsigned ofs) (map Byte bytes) = Some m')
+    (HLEN: (Z.of_nat (length bytes) <= Int.unsigned n)%Z)
+    (HQ: q = cq vf rw_sig [Vint (Int.repr 0); Vptr b ofs; Vint n]%list m)
+    (HR: r = cr (Vint (Int.repr (Z.of_nat (length bytes)))) m') :
+    valid_read_c se q n bytes r.
+  Definition read_c : S ->> li_c :=
+    sup se, sup q, sup n, sup bytes, sup r, sup (_: valid_read_c se q n bytes r), down (read_c_play se q n bytes r).
+  Definition write_c_play se q bytes n r : @play S li_c ready :=
+    @oq S li_c (se, q)%embed ::
+    @pq S li_c (se, q)%embed (inr (F_write bytes)) ::
+    @oa S li_c (se, q)%embed (inr (F_write bytes)) n ::
+    @pa S li_c (se, q)%embed r :: pnil_ready.
+  Inductive valid_write_c: Genv.symtbl -> c_query -> list byte -> Int.int -> c_reply -> Prop :=
+  | valid_write_c_intro se q r vf b ofs len n m bytes
+    (HVF: Genv.find_funct (Clight.globalenv se prog) vf = Some write)
+    (HWRITE: Mem.loadbytes m b (Ptrofs.unsigned ofs) len = Some (map Byte bytes))
+    (HI: (0 <= len < Int.modulus - 1)%Z)
+    (HQ: q = cq vf rw_sig [Vint (Int.repr 1); Vptr b ofs; Vint (Int.repr len)]%list m)
+    (HR: r = cr (Vint n) m) :
+    valid_write_c se q bytes n r.
+  Definition write_c : S ->> li_c :=
+    sup se, sup q, sup bytes, sup n, sup r, sup (_: valid_write_c se q bytes n r), down (write_c_play se q bytes n r).
+  Definition runtime_c : S ->> li_c := join read_c write_c.
+  Definition load_c_prog : S ->> P :=
+    entry_c ⊙ (lts_strat (Clight.semantics1 prog)) ⊙ closure runtime_c.
+  Definition load_c_sem (L: Smallstep.semantics li_c li_c) : S ->> P :=
+    entry_c ⊙ (lts_strat L) ⊙ closure runtime_c.
+
+End C_LOADER.
+
+Section ASM_LOADER.
+  Import Asm.
+  Context (prog: Asm.program).
+  Let sk := erase_program prog.
+
+  (** *** The entry part of the Asm Loader *)
+  Definition entry_asm_play (se: Genv.symtbl) q r rv : @play li_asm P ready :=
+    @oq li_asm P se ::
+    @pq li_asm P se (se, q)%embed ::
+    @oa li_asm P se (se, q)%embed r ::
+    @pa li_asm P se rv :: pnil_ready.
+  Inductive valid_entry_asm: Genv.symtbl -> (regset * Mem.mem) -> (regset * Mem.mem) -> int -> Prop :=
+  | valid_entry_asm_intro se rs m rs' m' i vf b f main
+    (HM: init_mem se sk = Some m)
+    (HMAIN: AST.prog_main prog = Some main)
+    (HF: (prog_defmap prog) ! main = Some (Gfun f))
+    (HB: Genv.find_symbol se main = Some b)
+    (HVF: vf = Vptr b Ptrofs.zero)
+    (HRS: rs = (((Pregmap.init Vundef) # PC <- vf) # RSP <- vf) # RA <- Vnullptr)
+    (HRS': rs'#(IR RAX) = Vint i) :
+    valid_entry_asm se (rs, m) (rs', m') i.
+  Definition entry_asm : li_asm ->> P :=
+    sup se, sup q, sup r, sup i, sup (_: valid_entry_asm se q r i), down (entry_asm_play se q r i).
+
+  (** *** The runtime part of the Asm Loader *)
+  Definition read_asm_play se q n bytes r : @play S li_asm ready :=
+    @oq S li_asm (se, q)%embed ::
+    @pq S li_asm (se, q)%embed (inl (F_read n)) ::
+    @oa S li_asm (se, q)%embed (inl (F_read n)) bytes ::
+    @pa S li_asm (se, q)%embed r :: pnil_ready.
+  Inductive valid_read_asm: Genv.symtbl -> (regset * Mem.mem) -> Int.int -> list byte -> (regset * Mem.mem) -> Prop :=
+  | valid_read_asm_intro se (rs: regset) m n bytes rs' m' b ofs
+      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some read_asm)
+      (HDI: rs#RDI = Vint (Int.repr 0))
+      (HSI: rs#RSI = Vptr b ofs)
+      (HDX: rs#RDX = Vint n)
+      (HN: (Z.of_nat (length bytes) <= Int.unsigned n)%Z)
+      (HM: Mem.storebytes m b (Ptrofs.unsigned ofs) (map Byte bytes) = Some m')
+      (HAX: rs' = (rs#RAX <- (Vint (Int.repr (Z.of_nat (length bytes)))))#PC <- (rs#RA)) :
+    valid_read_asm se (rs, m) n bytes (rs', m').
+  Definition read_asm : S ->> li_asm :=
+    sup se, sup q, sup n, sup bytes, sup r, sup (_: valid_read_asm se q n bytes r), down (read_asm_play se q n bytes r).
+  Definition write_asm_play se q bytes n r : @play S li_asm ready :=
+    @oq S li_asm (se, q)%embed ::
+    @pq S li_asm (se, q)%embed (inr (F_write bytes)) ::
+    @oa S li_asm (se, q)%embed (inr (F_write bytes)) n ::
+    @pa S li_asm (se, q)%embed r :: pnil_ready.
+  Inductive valid_write_asm: Genv.symtbl -> (regset * Mem.mem) -> list byte -> Int.int -> (regset * Mem.mem) -> Prop :=
+  | valid_write_asm_intro se (rs: regset) m bytes n rs' b ofs r
+      (HVF: Genv.find_funct (Genv.globalenv se prog) rs#PC = Some write_asm)
+      (HDI: rs#RDI = Vint (Int.repr 1))
+      (HSI: rs#RSI = Vptr b ofs)
+      (HDX: rs#RDX = Vint (Int.repr n))
+      (* HI is for determinism *)
+      (HI: (0 <= n < Int.modulus - 1)%Z)
+      (HM: Mem.loadbytes m b (Ptrofs.unsigned ofs) n = Some (map Byte bytes))
+      (HAX: rs' = (rs#RAX <- (Vint r))#PC <- (rs#RA)) :
+    valid_write_asm se (rs, m) bytes r (rs', m).
+  Definition write_asm : S ->> li_asm :=
+    sup se, sup q, sup bytes, sup n, sup r, sup (_: valid_write_asm se q bytes n r), down (write_asm_play se q bytes n r).
+  Definition runtime_asm : S ->> li_asm := join read_asm write_asm.
+  Definition load_asm_prog : S ->> P :=
+    entry_asm ⊙ (lts_strat (Asm.semantics prog)) ⊙ closure runtime_asm.
+  Definition load_asm_sem (L: Smallstep.semantics li_asm li_asm) : S ->> P :=
+    entry_asm ⊙ (lts_strat L) ⊙ closure runtime_asm.
+
+End ASM_LOADER.
+
+Local Hint Constructors pcoh : core.
+
+(** Deterministic property of the asm runtime *)
+
+Instance runtime_asm_determ tp: Deterministic (runtime_asm tp).
+Proof.
+  Ltac dd := dependent destruction Hs; dependent destruction Ht; eauto.
+  Ltac om := match goal with
+    | [ |- pcoh (oq ?x :: _) (oq ?y :: _) ] =>
+        let H := fresh "H" in
+        destruct (classic (x = y)); [ inv H | ]; eauto
+    | [ |- pcoh (oa ?x :: _) (oa ?y :: _) ] =>
+        let H := fresh "H" in
+        destruct (classic (x = y)); [ inv H | ]; eauto
+    end.
+  split. intros s t Hs Ht.
+  unfold runtime_asm in *.
+  destruct Hs as [[|] (?&?&?&?&?&Hs1&Hs)];
+    destruct Ht as [[|] (?&?&?&?&?&Ht1&Ht)]; cbn in *; dd.
+  - om. constructor. dd.
+    assert (x1 = x6) as ->.
+    { inv Hs1. inv Ht1. congruence. }
+    constructor. dd.
+    om. constructor. dd.
+    inv Hs1. inv Ht1.
+    rewrite HSI in HSI0. inv HSI0.
+    rewrite HM in HM0. inv HM0. repeat constructor. dd.
+  - inv Ht1. inv Hs1. eapply pcons_pcoh_oq; eauto.
+    intros A. inv A. rewrite HDI in HDI0. inv HDI0.
+  - inv Ht1. inv Hs1. eapply pcons_pcoh_oq; eauto.
+    intros A. inv A. rewrite HDI in HDI0. inv HDI0.
+  - om. constructor. dd.
+    assert (x1 = x6) as <-.
+    { inv Hs1. inv Ht1. rewrite HSI in HSI0. inv HSI0.
+      rewrite HDX in HDX0.
+      exploit int_repr_inj. apply HI. apply HI0. congruence.
+      intros <-. rewrite HM in HM0.
+      inv HM0. eapply map_inj; eauto.
+      intros. inv H. easy. }
+    constructor. dd.
+    om. constructor. dd. dd.
+    inv Hs1. inv Ht1. repeat constructor.
+Qed.
+
+(** ** Loader correctness *)
+
+Section LOADER_CORRECT.
+  Context p tp (Hp: match_prog p tp).
+
+  Lemma Hsk: erase_program p = erase_program tp.
+  Proof.
+    apply clight2_semantic_preservation in Hp.
+    destruct Hp. destruct X. apply fsim_skel.
+  Qed.
+
+  Transparent Archi.ptr64.
+  Opaque match_prog.
+
+  Lemma entry_correct: rsq CAsm.cc_compcert vid (entry_c p) (entry_asm tp).
+  Proof.
+    intros x (se & q & r & i & H & Hx). inv H. cbn in Hx. rewrite Hx. clear Hx.
+    assert (Hmain: (prog_defmap (erase_program p)) ! main = Some (Gfun tt)).
+    { rewrite erase_program_defmap. unfold option_map. setoid_rewrite HF. reflexivity. }
+    assert (exists tf, (prog_defmap tp) ! main = Some (Gfun tf)) as (tf & Htf).
+    { rewrite Hsk in Hmain. rewrite erase_program_defmap in Hmain.
+      unfold option_map in Hmain.
+      destruct (prog_defmap tp) ! main as [[tf|]|] eqn: Htf; inv Hmain.
+      exists tf. split; eauto. }
+    assert (Htpmain: AST.prog_main tp = Some main).
+    { replace (AST.prog_main tp) with (AST.prog_main (erase_program tp)) by reflexivity.
+      rewrite <- Hsk. apply HMAIN. }
+    unfold entry_c_play. apply rsp_oq. {
+      cbn. eexists se, (_, m), ((Pregmap.init Vundef)#RAX <- (Vint i), m'), i.
+      eexists. econstructor; eauto.
+      - rewrite <- Hsk. eauto.
+      - constructor. }
+    intros q Hq. cbn in Hq. subst q.
+    set (rs :=  (((Pregmap.init Vundef) # PC <- (Vptr b Ptrofs.zero)) # RSP <- (Vptr b Ptrofs.zero)) # RA <- Vnullptr).
+    eapply rsp_pq with (m2 := (se, Datatypes.pair rs m)%embed).
+
+    assert (exists w, LanguageInterface.match_query cc_compcert w
+      {| cq_vf := Vptr b Ptrofs.zero; cq_sg := main_sig; cq_args := []; cq_mem := m |} (rs, m) /\ match_senv cc_compcert w se se).
+    {
+      eexists. split.
+      - unfold cc_compcert.
+        (* cklr *)
+        cbn. instantiate (1 := (se, existT _ 0%nat _, _)).
+        exists (cq (Vptr b Ptrofs.zero) main_sig [] m). split.
+        { reflexivity. }
+        (* inv wt_c *)
+        instantiate (1 := (se, (se, main_sig), _)).
+        exists (cq (Vptr b Ptrofs.zero) main_sig [] m). split.
+        { repeat constructor. }
+        (* lessdef_c *)
+        instantiate (1 := (se, tt, _)).
+        exists (cq (Vptr b Ptrofs.zero) main_sig [] m). split.
+        { repeat constructor. }
+        (* cc_c_asm *)
+        instantiate (1 := (se, caw main_sig
+                    (((Pregmap.init Vundef) # PC
+                      <- (Vptr b Ptrofs.zero)# RSP
+                      <- (Vptr b Ptrofs.zero))# RA
+                     <- Vnullptr) m, _)).
+        eexists ((((Pregmap.init Vundef) # PC
+                   <- (Vptr b Ptrofs.zero)) # RSP
+                  <- (Vptr b Ptrofs.zero)) # RA
+                 <- Vnullptr, m). split.
+        { econstructor; cbn; try constructor; eauto.
+          - destruct Archi.win64; cbn; try easy.
+          - repeat constructor. red. unfold size_arguments.
+            cbn. destruct Archi.win64; reflexivity.
+          - erewrite init_mem_nextblock; eauto.
+            exploit @Genv.genv_symb_range; eauto.
+          - easy.
+          - easy. }
+        (* cc_asm vainj *)
+        instantiate (1 := (se, Inject.injw (Mem.flat_inj (Mem.nextblock m)) (Mem.nextblock m) (Mem.nextblock m))).
+        repeat apply conj; cbn; eauto; try easy.
+        + intros.
+          assert (Val.inject (Mem.flat_inj (Mem.nextblock m)) (Vptr b Ptrofs.zero) (Vptr b Ptrofs.zero)).
+          { eapply Val.inject_ptr. unfold Mem.flat_inj.
+             destruct plt. reflexivity.
+             exfalso. apply n. erewrite init_mem_nextblock; eauto.
+             eapply Genv.genv_symb_range; eauto.
+             reflexivity. }
+          destruct r; eauto; cbn; try constructor; eauto.
+          destruct i0; eauto; cbn.
+        + constructor; cbn.
+          * erewrite init_mem_nextblock; eauto. reflexivity.
+          * eapply InitMem.init_mem_romatch. eauto.
+          * constructor. eapply initmem_inject; eauto.
+      - cbn. repeat apply conj; eauto. constructor. eauto.
+        constructor; cbn; erewrite init_mem_nextblock; eauto; try easy.
+        apply Load.match_stbls_flat_inj.
+    }
+
+    destruct H as (w & Hq & Hse).  econstructor; eauto.
+    eapply rsp_oa. {
+      cbn. eexists se, (_, m), ((Pregmap.init Vundef)#RAX <- (Vint i), m'), i.
+      eexists. econstructor; eauto.
+      - rewrite <- Hsk. eauto.
+      - repeat constructor. }
+    intros [rs1 m1] Hr. eapply rcp_forbid_mr in Hr; eauto.
+    3: {
+      unfold cc_compcert.
+      (* cklr *)
+      cbn. instantiate (1 := (se, existT _ 0%nat _, _)).
+      exists (cq (Vptr b Ptrofs.zero) main_sig [] m). split.
+      { reflexivity. }
+      (* inv wt_c *)
+      instantiate (1 := (se, (se, main_sig), _)).
+      exists (cq (Vptr b Ptrofs.zero) main_sig [] m). split.
+      { repeat constructor. }
+      (* lessdef_c *)
+      instantiate (1 := (se, tt, _)).
+      exists (cq (Vptr b Ptrofs.zero) main_sig [] m). split.
+      { repeat constructor. }
+      (* cc_c_asm *)
+      instantiate (1 := (se, caw main_sig
+                               (((Pregmap.init Vundef) # PC
+                                 <- (Vptr b Ptrofs.zero)# RSP
+                                 <- (Vptr b Ptrofs.zero))# RA
+                                <- Vnullptr) m, _)).
+      eexists ((((Pregmap.init Vundef) # PC
+                 <- (Vptr b Ptrofs.zero)) # RSP
+                <- (Vptr b Ptrofs.zero)) # RA
+               <- Vnullptr, m). split.
+      { econstructor; cbn; try constructor; eauto.
+        - destruct Archi.win64; cbn; try easy.
+        - repeat constructor. red. unfold size_arguments.
+          cbn. destruct Archi.win64; reflexivity.
+        - erewrite init_mem_nextblock; eauto.
+          exploit @Genv.genv_symb_range; eauto.
+        - easy.
+        - easy. }
+      (* cc_asm vainj *)
+      instantiate (1 := (se, Inject.injw (Mem.flat_inj (Mem.nextblock m)) (Mem.nextblock m) (Mem.nextblock m))).
+      repeat apply conj; cbn; eauto; try easy.
+      + intros.
+        assert (Val.inject (Mem.flat_inj (Mem.nextblock m)) (Vptr b Ptrofs.zero) (Vptr b Ptrofs.zero)).
+        { eapply Val.inject_ptr. unfold Mem.flat_inj.
+          destruct plt. reflexivity.
+          exfalso. apply n. erewrite init_mem_nextblock; eauto.
+          eapply Genv.genv_symb_range; eauto.
+          reflexivity. }
+        destruct r; eauto; cbn; try constructor; eauto.
+        destruct i0; eauto; cbn.
+      + constructor; cbn.
+        * erewrite init_mem_nextblock; eauto. reflexivity.
+        * eapply InitMem.init_mem_romatch. eauto.
+        * constructor. eapply initmem_inject; eauto.
+    }
+    2: {
+      cbn. repeat apply conj; eauto. constructor. eauto.
+      constructor; cbn; erewrite init_mem_nextblock; eauto; try easy.
+      apply Load.match_stbls_flat_inj.
+    }
+    cbn in Hr. destruct Hr as (r3 & Hr3 & HR). inv Hr3.
+    destruct HR as (r3 & Hr3 & HR). inv Hr3.
+    destruct HR as (r3 & Hr3 & HR). inv Hr3. inv H3.
+    destruct HR as (r3 & Hr3 & HR). inv Hr3. cbn in *.
+    destruct HR as ((? & ?) & ? & Hr).
+    inv Hr. specialize (H1 RAX). rewrite <- H5 in H1.
+    cbn in H1. inv H1.
+
+    eapply rsp_pa with (r2 := i).
+    { intros Hx. inv Hx. apply H3. apply JMeq_refl. }
+    apply rsp_ready. cbn. eexists _, (rs, _), (rs1, _), _. eexists.
+    { econstructor; eauto.
+      * rewrite <- Hsk. eauto.
+      * subst rs. cbn. rewrite H12. easy. }
+    unfold entry_asm_play. reflexivity.
+    Unshelve. all: cbn; exact tt.
+  Qed.
+
+  Import Compiler CKLR VAInject Inject.
+  Import -(notations) CallconvAlgebra.
+  Definition inj_state := (block * ptrofs * Mem.mem)%type.
+  Inductive match_inj_state:
+    ccworld (cc_star cc_cklrs) -> world vainj -> cc_ca_world -> inj_state -> inj_state -> Prop :=
+  | match_inj_state_intro wn wi b1 ofs1 m1 b2 ofs2 m2 caw se
+      (HM: Load.mm_ca wn (se, wi) (caw_m caw) m1 m2) (HP: Load.mp_ca wn wi b1 ofs1 b2 ofs2):
+      match_inj_state wn (se, wi) caw (b1, ofs1, m1) (b2, ofs2, m2).
+
+  Lemma runtime_correct: rsq vid CAsm.cc_compcert (runtime_c p) (runtime_asm tp).
+  Proof.
+    setoid_rewrite cc_conv_expand. apply rsq_sup. apply runtime_asm_determ.
+    { constructor. apply None. }
+    intros [w|].
+    2: { intros s ([|] & Hs).
+         - destruct Hs as (se & q & n & bs & r & H & Hs). rewrite Hs. clear Hs.
+           unfold read_c_play. apply rsp_oq. {
+             exists true. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, (_, m').
+             eexists. 2: constructor.
+             econstructor; cbn; eauto.
+             eapply match_prog_read. 4: eauto.
+             apply Hp.
+             apply Genv.match_stbls_id.
+             apply val_inject_refl. }
+           intros q2 Hq2. xinv Hq2.
+         - destruct Hs as (se & q & bs & n & r & H & Hs). rewrite Hs. clear Hs.
+           unfold write_c_play. apply rsp_oq. {
+             exists false. cbn. inv H. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, (_, m).
+             eexists. 2: constructor.
+             econstructor; cbn; eauto.
+             eapply match_prog_write. 4: eauto.
+             apply Hp.
+             apply Genv.match_stbls_id.
+             apply val_inject_refl. }
+           intros q2 Hq2. xinv Hq2. }
+    intros s (i & Hs). destruct i; cbn in Hs.
+    Ltac inv_lessdef:=
+      match goal with
+      | [ H: Val.lessdef_list _ _ |- _ ] => inv H
+      | [ H: Val.lessdef _ _ |- _ ] => inv H
+      end.
+    - destruct Hs as (se & q & n & bs & r & H & Hs). rewrite Hs. clear Hs.
+      inv H. unfold read_c_play. apply rsp_oq. {
+        exists true. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 0))#RSI <- (Vptr b ofs))#RDX <- (Vint n)), m), n, bs, (_, m').
+        eexists. 2: constructor.
+        econstructor; cbn; eauto.
+        eapply match_prog_read. 4: eauto.
+        apply Hp.
+        apply Genv.match_stbls_id.
+        apply val_inject_refl. }
+      intros q Hq. cbn in Hq. dependent destruction Hq.
+      eapply rsp_pq with (m2 := inl (F_read n)). reflexivity.
+      eapply rsp_oa. {
+        exists true. cbn.
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
+      unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
+      eprod_crush. destruct s7.
+      match goal with
+      | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
+      end.
+      (* cklrs *)
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
+          (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
+      (* lessdef *)
+      inv H1. repeat inv_lessdef.
+      (* cc_c_asm: need to show args_removed changes nothing *)
+      inv H2. inv HRM. inv H.
+      2: { match goal with
+          | [ H: size_arguments _ > 0 |- _ ] => rewrite rw_sig_size_arguments in H  end.
+           lia. apply Hwin. }
+      (* cc_asm vainj *)
+      destruct m2. destruct H3 as (Hreg & Hpc & Him).
+      (* arguments *)
+      match goal with
+      | [ H: cons _ _ = _ |- _ ] => cbn in H; rewrite Hwin in H; cbn in H; inv H
+      end.
+
+      assert (exists b' ofs', r0#RSI = Vptr b' ofs' /\ Val.inject i (Vptr bx ofsx) (Vptr b' ofs')) as (b' & ofs' & Hofs & Hb').
+      { specialize (Hreg RSI). rewrite <- H2 in Hreg. inv Hreg.
+        eexists _, _. split; eauto. }
+
+      assert (HMS: match_inj_state w1 w2 w3 (b, ofs, m) (b', ofs', m0)).
+      { econstructor.
+        (* mem *)
+        - inv Him. econstructor; eauto. reflexivity.
+          cbn. apply Mem.unchanged_on_refl.
+        (* ptr *)
+        - econstructor; eauto. inv Hb'. constructor; eauto. }
+      inv HMS.
+      exploit Load.ca_storebytes; eauto. intros (mx1 & Hs & Hm).
+      inv Hm.
+
+        eexists _, _, _, _, (_, _).
+        eexists.
+        2: { unfold read_asm_play. repeat constructor. }
+        econstructor; eauto.
+      + cbn in HVF. cbn in HSE.  eprod_crush. inv H8.
+        eapply ca_find_funct_read; eauto.
+        apply H7. apply HVF.
+      + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
+      + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
+      }
+      intros r2 H2. cbn in H2. apply not_and_or in H2 as [H2|H2]. easy.
+      assert (bs = r2) as <-.
+      { apply NNPP. intros Hx. apply H2. intros Hy. apply Hx.
+        apply JMeq_eq; eauto. } clear H2.
+
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
+      unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
+      eprod_crush. destruct s7.
+      match goal with
+      | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
+      end.
+      (* cklrs *)
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
+          (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
+      (* lessdef *)
+      inv H1. repeat inv_lessdef.
+      (* cc_c_asm: need to show args_removed changes nothing *)
+      inv H2. inv HRM. inv H.
+      2: { match goal with
+          | [ H: size_arguments _ > 0 |- _ ] => rewrite rw_sig_size_arguments in H  end.
+           lia. apply Hwin. }
+      (* cc_asm vainj *)
+      destruct m2. destruct H3 as (Hreg & Hpc & Him).
+      (* arguments *)
+      match goal with
+      | [ H: cons _ _ = _ |- _ ] => cbn in H; rewrite Hwin in H; cbn in H; inv H
+      end.
+
+      assert (exists b' ofs', r0#RSI = Vptr b' ofs' /\ Val.inject i (Vptr bx ofsx) (Vptr b' ofs')) as (b' & ofs' & Hofs & Hb').
+      { specialize (Hreg RSI). rewrite <- H2 in Hreg. inv Hreg.
+        eexists _, _. split; eauto. }
+
+      assert (HMS: match_inj_state w1 w2 w3 (b, ofs, m) (b', ofs', m0)).
+      { econstructor.
+        (* mem *)
+        - inv Him. econstructor; eauto. reflexivity.
+          cbn. apply Mem.unchanged_on_refl.
+        (* ptr *)
+        - econstructor; eauto. inv Hb'. constructor; eauto. }
+      inv HMS.
+      exploit Load.ca_storebytes; eauto. intros (mx1 & Hs & Hm).
+      inv Hm.
+      set (v := (Vint (Int.repr (Z.of_nat (length bs))))).
+      eapply rsp_pa with (r2 := ((r0#RAX <- v)#PC <- (r0#RA), mx1)).
+      {
+        intros HR. cbn in HR. dependent destruction HR. apply HN0. clear HM0 HN0.
+
+        (* m --store--> m'
+           |            |
+           |          mm_cklr
+           |            |
+         mm_ca          m2
+           |            |
+           |           inj
+           |            |
+          m0 --store--> mx1
+         *)
+
+        eexists (cr v m2). split.
+        { eapply Load.cklrs_match_reply_intro; eauto. }
+        eexists (cr v m2). split.
+        (* need sig *)
+        { constructor. easy. }
+        eexists (cr v m2). split.
+        { constructor. constructor. }
+        exists ((r#RAX <- v)#PC <- (r#RA), m2). split.
+        { cbn in Hreg |- *.
+          (* destruct w3; cbn in HSG, HRS |- *. *)
+          (* subst caw_sg.  *)
+          constructor; eauto.
+          - intros r1. destruct r1; cbn; eauto. easy.
+          - apply Mem.unchanged_on_refl.
+          - rewrite rw_sig_size_arguments.
+            replace (loc_init_args 0 (r RSP))
+              with (fun (_: block) (_: Z) => False); eauto.
+            repeat (apply Axioms.functional_extensionality; intros).
+            apply PropExtensionality.propositional_extensionality.
+            split; try easy. intros HX. inv HX. lia. apply Hwin.
+          - rewrite rw_sig_size_arguments.
+            intros * HX. inv HX. lia. apply Hwin. }
+        { exists (s0, wj). split. split; eauto. split.
+          - intros. cbn in Hreg. apply (mi_acc inj) in HJ.
+            destruct r1; cbn; eauto.
+            destruct i0; cbn; eauto.
+            subst v. eauto.
+          - constructor; eauto. }
+      }
+
+      apply rsp_ready. exists true.
+      eexists _, (r0, m0), _, _, ((r0#RAX <- v)#PC <- (r0#RA), mx1).
+      eexists.
+      { econstructor; eauto.
+      + cbn in HVF. cbn in HSE.  eprod_crush. inv r1.
+        eapply ca_find_funct_read; eauto.
+        apply m1. apply HVF.
+      + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
+      + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
+      }
+      cbn. reflexivity.
+    - destruct Hs as (se & q & bs & n & r & H & Hs). rewrite Hs. clear Hs.
+      inv H. unfold write_c_play. apply rsp_oq. {
+        exists false. cbn. eexists se, (((((Pregmap.init Vundef)#PC <- vf)#RDI <- (Vint (Int.repr 1))#RSI <- (Vptr b ofs))#RDX <- (Vint (Int.repr len))), m), bs, n, (_, m).
+        eexists. 2: constructor.
+        econstructor; cbn; eauto.
+        eapply match_prog_write. 4: eauto.
+        apply Hp.
+        apply Genv.match_stbls_id.
+        apply val_inject_refl.
+      }
+      intros q Hq. cbn in Hq. dependent destruction Hq.
+      eapply rsp_pq with (m2 := inr (F_write bs)). reflexivity.
+      eapply rsp_oa. {
+        exists false. cbn.
+
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
+      destruct m2 as [rs mt].
+      unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
+      destruct HI as [HI1 HI2].
+      eprod_crush. destruct s7.
+      match goal with
+      | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
+      end.
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
+          (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
+      (* lessdef *)
+      inv H1. repeat inv_lessdef.
+      (* cc_c_asm: need to show args_removed changes nothing *)
+      inv H2. inv HRM. inv H.
+      2: { match goal with
+        | [ H: size_arguments _ > 0 |- _ ] =>
+            rewrite rw_sig_size_arguments in H; try lia  end. apply Hwin. }
+      (* cc_asm vainj *)
+      destruct H3 as (Hreg & Hpc & Him).
+      (* arguments *)
+      match goal with
+      | [ H: cons _ _ = _ |- _ ] => cbn in H; rewrite Hwin in H; cbn in H; inv H
+      end.
+      assert (exists b' ofs', rs#RSI = Vptr b' ofs' /\ Val.inject i (Vptr bx ofsx) (Vptr b' ofs')) as (b' & ofs' & Hofs & Hb').
+      { specialize (Hreg RSI). rewrite <- H2 in Hreg. inv Hreg.
+        eexists _, _. split; eauto. }
+      assert (HCA: Load.mm_ca w1 w2 (caw_m w3) m mt).
+      { inv Him. econstructor; eauto. reflexivity.
+        apply Mem.unchanged_on_refl. }
+
+        eexists _, _, _, _, (_, _).
+        exists. 2: { repeat constructor. }
+         econstructor; cbn; eauto.
+        + cbn in HVF. cbn in HSE.  eprod_crush. inv H8.
+          eapply ca_find_funct_write; eauto.
+          apply H7. apply HVF.
+        + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
+        + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
+        + inv Him. eapply Load.ca_loadbytes; eauto.
+          econstructor; eauto. inv Hb'. constructor; eauto.
+      }
+      intros r2 H2. cbn in H2. apply not_and_or in H2 as [H2|H2]. easy.
+      assert (n = r2) as <-.
+      { apply NNPP. intros Hx. apply H2. intros Hy. apply Hx.
+        apply JMeq_eq; eauto. } clear H2.
+      set (w1 := (Load.nw_of_world w)). set (w2 := (Load.injw_of_world w)). set (w3 := (Load.caw_of_world w)).
+      destruct m2 as [rs mt].
+      unfold CAsm.cc_compcert in *. cbn in w, HM |- *.
+      destruct HI as [HI1 HI2].
+      eprod_crush. destruct s7.
+      match goal with
+      | [ H: Invariant.rel_inv _ _ _ |- _ ] => inv H; eprod_crush; subst
+      end.
+      eapply (Load.cklrs_match_query_inv' (existT _ x2 c0)) in H as
+          (mx & bx & ofsx & vfx & Hqx & Hmx & Hpx & Hvx). subst x0. cbn in *.
+      (* lessdef *)
+      inv H1. repeat inv_lessdef.
+      (* cc_c_asm: need to show args_removed changes nothing *)
+      inv H2. inv HRM. inv H.
+      2: { match goal with
+        | [ H: size_arguments _ > 0 |- _ ] =>
+            rewrite rw_sig_size_arguments in H; try lia  end. apply Hwin. }
+      (* cc_asm vainj *)
+      destruct H3 as (Hreg & Hpc & Him).
+      (* arguments *)
+      match goal with
+      | [ H: cons _ _ = _ |- _ ] => cbn in H; rewrite Hwin in H; cbn in H; inv H
+      end.
+      assert (exists b' ofs', rs#RSI = Vptr b' ofs' /\ Val.inject i (Vptr bx ofsx) (Vptr b' ofs')) as (b' & ofs' & Hofs & Hb').
+      { specialize (Hreg RSI). rewrite <- H2 in Hreg. inv Hreg.
+        eexists _, _. split; eauto. }
+
+      set (v := (Vint n)).
+      eapply rsp_pa with (r2 := ((rs#RAX <- v)#PC <- (rs#RA), mt)).
+      {
+        intros HR. cbn in HR. dependent destruction HR. apply HN. clear HM HN.
+        eexists (cr v mx). split.
+        { eapply Load.cklrs_match_reply_intro; eauto. }
+        eexists (cr v mx). split.
+        (* need sig *)
+        { constructor. easy. }
+        eexists (cr v mx). split.
+        { constructor. constructor. }
+        exists ((r#RAX <- v)#PC <- (r#RA), mx). split.
+        { cbn in Hreg |- *. constructor; eauto.
+          - intros r1. destruct r1; cbn; eauto. easy.
+          - apply Mem.unchanged_on_refl.
+          - apply Mem.unchanged_on_refl.
+          - rewrite rw_sig_size_arguments.
+            intros * HX. inv HX. lia. apply Hwin. }
+        { exists (s0, i). split. reflexivity. split; eauto.
+          intros. cbn in Hreg. destruct r0; cbn; eauto. destruct i0; cbn; eauto.
+          subst v. eauto. }
+      }
+
+      assert (HCA: Load.mm_ca w1 w2 (caw_m w3) m mt).
+      { inv Him. econstructor; eauto. reflexivity.
+        apply Mem.unchanged_on_refl. }
+
+      apply rsp_ready. exists false.
+      eexists _, (rs, mt), _, _, ((rs#RAX <- v)#PC <- (rs#RA), mt).
+      eexists.
+      { econstructor; eauto.
+        + cbn in HVF. cbn in HSE.  eprod_crush. inv r0.
+          eapply ca_find_funct_write; eauto.
+          apply m0. apply HVF.
+        + specialize (Hreg RDI). rewrite <- H0 in Hreg. inv Hreg; eauto.
+        + specialize (Hreg RDX). rewrite <- H3 in Hreg. inv Hreg; eauto.
+        + inv Him. eapply Load.ca_loadbytes; eauto.
+          econstructor; eauto. inv Hb'. constructor; eauto.
+        + cbn. reflexivity. }
+      cbn. reflexivity.
+      Unshelve. exact (Int.repr 0).
+  Qed.
+
+  Lemma load_sem_correct L_c L_asm:
+    determinate L_asm ->
+    forward_simulation CAsm.cc_compcert CAsm.cc_compcert L_c L_asm ->
+    load_c_sem p L_c [= load_asm_sem tp L_asm.
+  Proof.
+    intros HD HL. eapply rsq_id_conv with (p := rs_ready).
+    eapply rsq_comp_when. constructor. apply entry_correct.
+    eapply rsq_comp_when. constructor.
+    2: { apply rsq_closure. 3: apply runtime_correct.
+         1-2: eauto with typeclass_instances. }
+    apply fsim_rsq; eauto.
+  Qed.
+
+  (* Lemma load_prog_correct : *)
+  (*   load_c_prog p [= load_asm_prog tp. *)
+  (* Abort. *)
+End LOADER_CORRECT.
+
+End STRAT.

@@ -2,6 +2,8 @@ Require Import Maps Coqlib Integers List.
 Require Import AST Globalenvs Memory Values.
 Import ListNotations.
 
+(** The construction of initial memory state when loading a process *)
+
 Section INIT_MEM.
   Context (se: Genv.symtbl).
 
