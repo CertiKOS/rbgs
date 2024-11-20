@@ -14,7 +14,7 @@ From compcert.common Require Import
      CallconvAlgebra.
 From compcert.cfrontend Require Import
      Clight Ctypes.
-Require Import CategoricalComp FlatComp.
+Require Import CategoricalComp.
 
 
 (* A module is a list of compilation units. Specifically, they are Clight
@@ -231,26 +231,6 @@ Section APP.
     Qed.
   End CAT_APP.
 
-  Section FLAT_APP.
-    Context `{!FlatLinkable L}.
-
-    Lemma cmodule_flat_comp_simulation:
-      flat_comp_semantics' L (cmod_skel MN) ≤ semantics MN.
-    Proof.
-      etransitivity.
-      apply flat_composition_approximation;
-        [ intros [|]; typeclasses eauto
-        | eauto | decide equality ].
-      rewrite Leq.
-      fold @SmallstepLinking.semantics.
-      etransitivity. apply level_simulation1.
-      etransitivity. eapply bijective_map_simulation1 with (F := F).
-      apply FG_bij. unfold semantics.
-      rewrite cmod_app_progs. rewrite <- LFeq.
-      reflexivity.
-    Qed.
-  End FLAT_APP.
-
 End APP.
 
 Require Import Integers.
@@ -361,66 +341,5 @@ Section LINKABLE.
     eapply H; eauto.
   Qed.
 
-  Lemma cmodule_horizontal_linkable_cond M N:
-    cmodule_horizontal_linkable M N ->
-    FlatLinkable (fun (i: bool) => if i then semantics M else semantics N).
-  Proof.
-    intros H. unfold FlatLinkable.
-    intros [|] [|] * Ht Hvq; auto; exfalso.
-    - assert (Hl: CategoricalLinkable (semantics N) (semantics M)).
-      { apply cmodule_vertical_linkable_cond. intros p1 p2 Hp1 Hp2. apply H; eauto. }
-      exploit Hl; eauto.
-    - assert (Hl: CategoricalLinkable (semantics M) (semantics N)).
-      { apply cmodule_vertical_linkable_cond. intros p1 p2 Hp1 Hp2. specialize (H p1 p2). apply H; eauto. }
-      exploit Hl; eauto.
-  Qed.
-
 End LINKABLE.
 
-(* Deal with dependent rewriting *)
-Section XXX.
-
-  Variable A : Type.
-  Variable B : Type.
-  Variable comp_b : B -> B -> option B.
-  Variable prop_ab : list A -> B -> Prop.
-
-  Hypothesis comp_prop:
-    forall a1 a2 b1 b2 b,
-      prop_ab a1 b1 -> prop_ab a2 b2 ->
-      comp_b b1 b2 = Some b -> prop_ab (a1 ++ a2) b.
-
-  Record R :=
-    mk_R {
-        R_a : list A;
-        R_b : B;
-        R_prop : prop_ab R_a R_b;
-      }.
-
-  Program Definition comp_r (r1 r2: R) : option R :=
-    match comp_b (R_b r1) (R_b r2)  with
-    | Some b =>
-        Some {|
-          R_a := R_a r1 ++ R_a r2;
-          R_b := b;
-        |}
-    | None => None
-    end.
-  Next Obligation.
-    eapply comp_prop; eauto.
-    apply R_prop. apply R_prop.
-  Qed.
-
-  Lemma comp_r_a (r1 r2 r: R):
-    comp_r r1 r2 = Some r ->
-    R_a r = R_a r1 ++ R_a r2.
-  Proof.
-    unfold comp_r.
-    generalize (@eq_refl (option B) (comp_b (R_b r1) (R_b r2))).
-    generalize (comp_b (R_b r1) (R_b r2)) at 1 3.
-    intros [x|].
-    - intros H X. inv X. reflexivity.
-    - intros H X. inv X.
-  Qed.
-
-End XXX.

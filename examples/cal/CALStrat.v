@@ -7,7 +7,7 @@ Require Import Downset.
 Require Import IntStrat.
 Require Import Classical_Prop.
 Require Import Coqlib.
-Require Import CompCertStrat.
+Require Import CompCertStrat Frame.
 
 Require Import BQUtil.
 Require Import CModule.
@@ -16,7 +16,16 @@ Require LanguageInterface.
 Import -(notations) LanguageInterface.
 Require CallconvAlgebra.
 
-(** Some auxiliary lemmas *)
+(** * §6.4 Certified Abstraction Layers *)
+
+(** For certified abstraction layers, we use Clight programs as layer
+    implementations. As the layers compose, the implementation programs
+    accumulate. Therefore, we use a module of Clight program here. The
+    definitions and properties for the modules are in CModule.v *)
+
+(** ** Auxiliary definitions and properties *)
+
+(** We show the frame property applies to modules. *)
 
 Section FRAME_PROPERTY.
 
@@ -46,330 +55,213 @@ Section FRAME_PROPERTY.
 
 End FRAME_PROPERTY.
 
+(** The refinement square for refinement conventions that are relations *)
+
 Arguments rel_conv {_ _}.
 
-Lemma lsp_rel_conv_when {S1 S2} (R: S1 -> S2 -> Prop) (p1 p2: position)
-  (lp1: lpos _ p1) (lp2: lpos _ p2) (p: rspos p1 p2):
-  match lp1, lp2 with
-  | lready _ _, lready _ _ => True
-  | lrunning _ _ s1 t1, lrunning _ _ s2 t2 => R s1 s2 /\ R t1 t2
-  | lsuspended _ _ s1 t1, lsuspended _ _ s2 t2 => R s1 s2 /\ R t1 t2
-  | _, _ => False
-  end ->
-  rsq_when (rel_conv R) (rel_conv R) p (lens_strat_when lid lp1) (lens_strat_when lid lp2).
-Proof.
-  intros Hp s Hs. cbn in Hs. revert p2 lp1 lp2 p Hp Hs.
-  induction s; intros;
-    dependent destruction p;
-    dependent destruction lp1; dependent destruction lp2; cbn in *; auto.
-  - apply rsp_ready. cbn; eauto.
-  - apply rsp_suspended. cbn; eauto.
-  - dependent destruction m. dependent destruction Hs. cbn in Hs.
-    apply rsp_oq. cbn; eauto.
-    intros q2 Hq2. cbn in Hq2. inv Hq2.
-    erewrite lens_strat_next_oq; eauto. cbn. eapply IHs; eauto.
-    cbn. split; eauto.
-  - dependent destruction m; dependent destruction Hs; cbn in Hs.
-    + eapply rsp_pq. constructor. apply Hp.
-      rewrite lens_strat_next_pq. eapply IHs; eauto.
-      cbn. eauto.
-    + eapply rsp_pa. intros Hx. inv Hx. apply HA. apply Hp.
-      erewrite lens_strat_next_pa; cbn; eauto.
+Section REL_RSQ.
+  Lemma lsp_rel_conv_when {S1 S2} (R: S1 -> S2 -> Prop) (p1 p2: position)
+    (lp1: lpos _ p1) (lp2: lpos _ p2) (p: rspos p1 p2):
+    match lp1, lp2 with
+    | lready _ _, lready _ _ => True
+    | lrunning _ _ s1 t1, lrunning _ _ s2 t2 => R s1 s2 /\ R t1 t2
+    | lsuspended _ _ s1 t1, lsuspended _ _ s2 t2 => R s1 s2 /\ R t1 t2
+    | _, _ => False
+    end ->
+    rsq_when (rel_conv R) (rel_conv R) p (lens_strat_when lid lp1) (lens_strat_when lid lp2).
+  Proof.
+    intros Hp s Hs. cbn in Hs. revert p2 lp1 lp2 p Hp Hs.
+    induction s; intros;
+      dependent destruction p;
+      dependent destruction lp1; dependent destruction lp2; cbn in *; auto.
+    - apply rsp_ready. cbn; eauto.
+    - apply rsp_suspended. cbn; eauto.
+    - dependent destruction m. dependent destruction Hs. cbn in Hs.
+      apply rsp_oq. cbn; eauto.
+      intros q2 Hq2. cbn in Hq2. inv Hq2.
+      erewrite lens_strat_next_oq; eauto. cbn. eapply IHs; eauto.
+      cbn. split; eauto.
+    - dependent destruction m; dependent destruction Hs; cbn in Hs.
+      + eapply rsp_pq. constructor. apply Hp.
+        rewrite lens_strat_next_pq. eapply IHs; eauto.
+        cbn. eauto.
+      + eapply rsp_pa. intros Hx. inv Hx. apply HA. apply Hp.
+        erewrite lens_strat_next_pa; cbn; eauto.
+        rewrite rel_conv_rcnext; try easy. eapply IHs; eauto.
+        cbn. easy.
+    - dependent destruction m; dependent destruction Hs; cbn in Hs.
+      eapply rsp_oa. cbn. eauto.
+      intros n2 Hn.
+      destruct (classic (R n n2)). 2: { exfalso. apply Hn. constructor; easy. }
+                                 rewrite lens_strat_next_oa; cbn; eauto.
       rewrite rel_conv_rcnext; try easy. eapply IHs; eauto.
       cbn. easy.
-  - dependent destruction m; dependent destruction Hs; cbn in Hs.
-    eapply rsp_oa. cbn. eauto.
-    intros n2 Hn.
-    destruct (classic (R n n2)). 2: { exfalso. apply Hn. constructor; easy. }
-                               rewrite lens_strat_next_oa; cbn; eauto.
-    rewrite rel_conv_rcnext; try easy. eapply IHs; eauto.
-    cbn. easy.
-Qed.
+  Qed.
 
-Lemma lsp_rel_conv {S1 S2} (R: S1 -> S2 -> Prop):
-  lsq (rel_conv R) (rel_conv R) lid lid.
-Proof.
-  apply lsp_rel_conv_when. easy.
-Qed.
+  Lemma lsp_rel_conv {S1 S2} (R: S1 -> S2 -> Prop):
+    lsq (rel_conv R) (rel_conv R) lid lid.
+  Proof.
+    apply lsp_rel_conv_when. easy.
+  Qed.
 
-Lemma lsp_id {U: Type}:
-  lsq (emor_rc (glob U)) (emor_rc (glob U)) lid lid.
-Proof.
-  rewrite emor_rc_id. apply rsq_id_conv. reflexivity.
-Qed.
+  Lemma lsp_id {U: Type}:
+    lsq (emor_rc (glob U)) (emor_rc (glob U)) lid lid.
+  Proof.
+    rewrite emor_rc_id. apply rsq_id_conv. reflexivity.
+  Qed.
 
-(** ** Abstraction Relation *)
+End REL_RSQ.
 
-Definition scomp_emor {E S1 S2}: emor (E@(S1*S2)) (E@S1@S2) :=
-  fun '((q, s1), s2) => econs (q, (s1, s2)) (fun '(r, (s1, s2)) => ((r, s1), s2)).
+(** An associator for spacial composition and its properties *)
 
-Lemma scomp_emor_operator {E S1 S2} q s1 s2:
-  (q, (s1, s2)) = operator ((@scomp_emor E S1 S2) (q, s1, s2)).
-Proof. intros. reflexivity. Qed.
+Section SCOMP_EMOR.
 
-Lemma id_emor_operator {E} (m: E):
-  m = operator (eid m).
-Proof. reflexivity. Qed.
+  Definition scomp_emor {E S1 S2}: emor (E@(S1*S2)) (E@S1@S2) :=
+    fun '((q, s1), s2) => econs (q, (s1, s2)) (fun '(r, (s1, s2)) => ((r, s1), s2)).
 
-Lemma emor_rc_forbid_contrapos:
-  forall {E1 E2 : esig} (f : emor E1 E2) (m : E2) (n1 : ar (operator (f m))) (n2 : ar m),
-  ~ emor_rc_has f (rcp_forbid (operator (f m)) m n1 n2) -> operand (f m) n1 = n2.
-Proof.
-  intros * Hn. destruct (classic (operand (f m) n1 = n2)); try easy.
-  apply emor_rc_forbid in H. easy.
-Qed.
+  Lemma scomp_emor_operator {E S1 S2} q s1 s2:
+    (q, (s1, s2)) = operator ((@scomp_emor E S1 S2) (q, s1, s2)).
+  Proof. intros. reflexivity. Qed.
 
-Lemma pa_eq_inv {E F} (m: op E) n1 n2:
-  @pa F E m n1 = pa n2 -> n1 = n2.
-Proof.
-  intros H. injection H. intros Hx. xsubst. reflexivity.
-Qed.
+  Lemma id_emor_operator {E} (m: E):
+    m = operator (eid m).
+  Proof. reflexivity. Qed.
 
-Lemma oa_eq_inv {E F} (q: op F) (m: op E) n1 n2:
-  @oa F E m q n1 = oa n2 -> n1 = n2.
-Proof.
-  intros H. injection H. intros Hx. xsubst. reflexivity.
-Qed.
+  Lemma emor_rc_forbid_contrapos:
+    forall {E1 E2 : esig} (f : emor E1 E2) (m : E2) (n1 : ar (operator (f m))) (n2 : ar m),
+      ~ emor_rc_has f (rcp_forbid (operator (f m)) m n1 n2) -> operand (f m) n1 = n2.
+  Proof.
+    intros * Hn. destruct (classic (operand (f m) n1 = n2)); try easy.
+    apply emor_rc_forbid in H. easy.
+  Qed.
 
-Lemma rsq_scomp_emor_when {E F S1 S2} p (σ: strat E F p) p1 p2 p3
-  (lp1: lpos lid p1) (lp2: lpos lid p2) (lp3: lpos lid p3) ps pt pt'
-  (tp1: tpos p p1 ps) (tp2: tpos p p2 pt') (tp3: tpos pt' p3 pt)
-  (rp: rspos ps pt):
-  match lp1, lp2, lp3 with
-  | lready _ _, lready _ _, lready _ _ => True
-  | lrunning _ _ (s1, s2) (t1, t2), lrunning _ _ u1 v1, lrunning _ _ u2 v2 =>
-      s1 = u1 /\ s2 = u2 /\ t1 = v1 /\ t2 = v2
-  | lsuspended _ _ (s1, s2) (t1, t2), lsuspended _ _ u1 v1, lsuspended _ _ u2 v2 =>
-      s1 = u1 /\ s2 = u2 /\ t1 = v1 /\ t2 = v2
-  | _, _, _ => False
-  end ->
-  rsq_when (@scomp_emor _ S1 S2) scomp_emor rp
-  (tstrat_when tp1 σ (lens_strat_when lid lp1))
-  (tstrat_when tp3 (tstrat_when tp2 σ (lens_strat_when lid lp2)) (lens_strat_when lid lp3)).
-Proof.
-  intros Hp s Hs. cbn in *. destruct Hs as (s1 & s2 & Hs1 & Hs2 & Hs).
-  revert σ Hp s1 s2 Hs1 Hs2 Hs.
-  revert p p1 p2 p3 lp1 lp2 lp3 pt pt' tp1 tp2 tp3 rp.
-  induction s; intros;
-    dependent destruction p;
-    dependent destruction rp;
-    dependent destruction tp1;
-    dependent destruction tp2;
-    dependent destruction tp3;
-    dependent destruction lp1;
-    dependent destruction lp2;
-    dependent destruction lp3.
-  - dependent destruction Hs1.
-    eapply rsp_ready. exists pnil_ready, pnil_ready.
-    repeat split; cbn; eauto. constructor.
-  - dependent destruction Hs1.
-    destruct q3. destruct m3. destruct Hp as (?&?&?&?). subst.
-    eapply rsp_suspended. eexists (pnil_suspended _ _), (pnil_suspended _ _).
-    repeat split; cbn; eauto. constructor.
-  - dependent destruction m. dependent destruction Hs1. dependent destruction Hs.
-    cbn in *. apply rsp_oq.
-    { exists pnil_ready, pnil_ready. repeat split; cbn; eauto. constructor.
-      exists pnil_ready, pnil_ready. repeat split. constructor.
-      eapply Downset.closed; eauto. constructor.
-      constructor. }
-    intros [[? ?] ?] Hq. inv Hq. cbn in *. inv H0.
-    setoid_rewrite tstrat_next_oq. setoid_rewrite tstrat_next_oq.
-    erewrite !lens_strat_next_oq; eauto. cbn. eapply IHs; eauto.
-    cbn. easy.
-  - destruct q2. destruct u. destruct Hp as (?&?&?&?). subst.
-    dependent destruction m.
-    + dependent destruction Hs1. dependent destruction Hs. inv x.
-      eapply rsp_pq.
-      { setoid_rewrite scomp_emor_operator. constructor. }
-      setoid_rewrite tstrat_next_pq. setoid_rewrite tstrat_next_pq.
-      erewrite !lens_strat_next_pq; eauto. eapply IHs; eauto.
+  Lemma pa_eq_inv {E F} (m: op E) n1 n2:
+    @pa F E m n1 = pa n2 -> n1 = n2.
+  Proof.
+    intros H. injection H. intros Hx. xsubst. reflexivity.
+  Qed.
+
+  Lemma oa_eq_inv {E F} (q: op F) (m: op E) n1 n2:
+    @oa F E m q n1 = oa n2 -> n1 = n2.
+  Proof.
+    intros H. injection H. intros Hx. xsubst. reflexivity.
+  Qed.
+
+  Lemma rsq_scomp_emor_when {E F S1 S2} p (σ: strat E F p) p1 p2 p3
+    (lp1: lpos lid p1) (lp2: lpos lid p2) (lp3: lpos lid p3) ps pt pt'
+    (tp1: tpos p p1 ps) (tp2: tpos p p2 pt') (tp3: tpos pt' p3 pt)
+    (rp: rspos ps pt):
+    match lp1, lp2, lp3 with
+    | lready _ _, lready _ _, lready _ _ => True
+    | lrunning _ _ (s1, s2) (t1, t2), lrunning _ _ u1 v1, lrunning _ _ u2 v2 =>
+        s1 = u1 /\ s2 = u2 /\ t1 = v1 /\ t2 = v2
+    | lsuspended _ _ (s1, s2) (t1, t2), lsuspended _ _ u1 v1, lsuspended _ _ u2 v2 =>
+        s1 = u1 /\ s2 = u2 /\ t1 = v1 /\ t2 = v2
+    | _, _, _ => False
+    end ->
+    rsq_when (@scomp_emor _ S1 S2) scomp_emor rp
+      (tstrat_when tp1 σ (lens_strat_when lid lp1))
+      (tstrat_when tp3 (tstrat_when tp2 σ (lens_strat_when lid lp2)) (lens_strat_when lid lp3)).
+  Proof.
+    intros Hp s Hs. cbn in *. destruct Hs as (s1 & s2 & Hs1 & Hs2 & Hs).
+    revert σ Hp s1 s2 Hs1 Hs2 Hs.
+    revert p p1 p2 p3 lp1 lp2 lp3 pt pt' tp1 tp2 tp3 rp.
+    induction s; intros;
+      dependent destruction p;
+      dependent destruction rp;
+      dependent destruction tp1;
+      dependent destruction tp2;
+      dependent destruction tp3;
+      dependent destruction lp1;
+      dependent destruction lp2;
+      dependent destruction lp3.
+    - dependent destruction Hs1.
+      eapply rsp_ready. exists pnil_ready, pnil_ready.
+      repeat split; cbn; eauto. constructor.
+    - dependent destruction Hs1.
+      destruct q3. destruct m3. destruct Hp as (?&?&?&?). subst.
+      eapply rsp_suspended. eexists (pnil_suspended _ _), (pnil_suspended _ _).
+      repeat split; cbn; eauto. constructor.
+    - dependent destruction m. dependent destruction Hs1. dependent destruction Hs.
+      cbn in *. apply rsp_oq.
+      { exists pnil_ready, pnil_ready. repeat split; cbn; eauto. constructor.
+        exists pnil_ready, pnil_ready. repeat split. constructor.
+        eapply Downset.closed; eauto. constructor.
+        constructor. }
+      intros [[? ?] ?] Hq. inv Hq. cbn in *. inv H0.
+      setoid_rewrite tstrat_next_oq. setoid_rewrite tstrat_next_oq.
+      erewrite !lens_strat_next_oq; eauto. cbn. eapply IHs; eauto.
       cbn. easy.
-    + cbn in *. destruct r as [? [? ?]]. cbn in *.
+    - destruct q2. destruct u. destruct Hp as (?&?&?&?). subst.
+      dependent destruction m.
+      + dependent destruction Hs1. dependent destruction Hs. inv x.
+        eapply rsp_pq.
+        { setoid_rewrite scomp_emor_operator. constructor. }
+        setoid_rewrite tstrat_next_pq. setoid_rewrite tstrat_next_pq.
+        erewrite !lens_strat_next_pq; eauto. eapply IHs; eauto.
+        cbn. easy.
+      + cbn in *. destruct r as [? [? ?]]. cbn in *.
+        simple inversion Hs1; try congruence.
+        { inv H1. inv H2. xsubst. destruct m2. inv H6. }
+        inv H1. inv H2. xsubst. destruct r2.
+        (* I suspect this is a bug in Coq *)
+        assert (r1 = a).
+        {
+          apply pcons_eq_inv_l in H6.
+          apply pa_eq_inv in H6. inv H6. easy.
+        }
+        subst. inv H6. xsubst.
+        intros Hss1. dependent destruction Hs.
+        eapply rsp_pa.
+        { intros Hx. cbn in Hx. dependent destruction Hx. apply H. eauto. }
+        cbn in *.
+        setoid_rewrite tstrat_next_pa. setoid_rewrite tstrat_next_pa.
+        erewrite !lens_strat_next_pa; cbn; eauto.
+        rewrite regular_conv.
+        2: { setoid_rewrite scomp_emor_operator. constructor. }
+        2: { intros Hx. inv Hx. xsubst. cbn in *. easy. }
+        eapply IHs; eauto. easy.
+    - destruct q2. destruct m3. destruct Hp as (?&?&?&?). subst.
+      dependent destruction m. destruct n as [? [? ?]].
       simple inversion Hs1; try congruence.
-      { inv H1. inv H2. xsubst. destruct m2. inv H6. }
-      inv H1. inv H2. xsubst. destruct r2.
-      (* I suspect this is a bug in Coq *)
-      assert (r1 = a).
+      { inv H1. xsubst. inv H5. }
+      inv H1. inv H2.  xsubst. destruct n2.
+      assert (n1 = a).
       {
         apply pcons_eq_inv_l in H6.
-        apply pa_eq_inv in H6. inv H6. easy.
+        apply oa_eq_inv in H6. inv H6. easy.
       }
       subst. inv H6. xsubst.
       intros Hss1. dependent destruction Hs.
-      eapply rsp_pa.
-      { intros Hx. cbn in Hx. dependent destruction Hx. apply H. eauto. }
-      cbn in *.
-      setoid_rewrite tstrat_next_pa. setoid_rewrite tstrat_next_pa.
-      erewrite !lens_strat_next_pa; cbn; eauto.
+      apply rsp_oa.
+      { eexists (pnil_suspended _ _), (pnil_suspended _ _). repeat split.
+        - constructor.
+        - eexists (pnil_suspended _ _), (pnil_suspended _ _). repeat split; eauto.
+          + eapply Downset.closed; eauto. constructor.
+          + constructor.
+        - constructor. }
+      intros nr Hnr.
+      unfold scomp in Hnr.
+      assert (Hnr': ~ Downset.has (emor_rc scomp_emor) (rcp_forbid (operator ((@scomp_emor E S1 S2) (m0, m2, m5))) (m0, m2, m5) (a, (s0, s3)) nr)).
+      { apply Hnr. }
+      eapply emor_rc_forbid_contrapos in Hnr'. cbn in *. subst.
+      setoid_rewrite tstrat_next_oa. setoid_rewrite tstrat_next_oa.
+      erewrite !lens_strat_next_oa; cbn; eauto.
       rewrite regular_conv.
       2: { setoid_rewrite scomp_emor_operator. constructor. }
       2: { intros Hx. inv Hx. xsubst. cbn in *. easy. }
-      eapply IHs; eauto. easy. 
-  - destruct q2. destruct m3. destruct Hp as (?&?&?&?). subst.
-    dependent destruction m. destruct n as [? [? ?]].
-    simple inversion Hs1; try congruence.
-    { inv H1. xsubst. inv H5. }
-    inv H1. inv H2.  xsubst. destruct n2.
-    assert (n1 = a).
-    {
-      apply pcons_eq_inv_l in H6.
-      apply oa_eq_inv in H6. inv H6. easy.
-    }
-    subst. inv H6. xsubst.
-    intros Hss1. dependent destruction Hs. 
-    apply rsp_oa.
-    { eexists (pnil_suspended _ _), (pnil_suspended _ _). repeat split.
-      - constructor.
-      - eexists (pnil_suspended _ _), (pnil_suspended _ _). repeat split; eauto.
-        + eapply Downset.closed; eauto. constructor.
-        + constructor.
-      - constructor. }
-    intros nr Hnr.
-    unfold scomp in Hnr.
-    assert (Hnr': ~ Downset.has (emor_rc scomp_emor) (rcp_forbid (operator ((@scomp_emor E S1 S2) (m0, m2, m5))) (m0, m2, m5) (a, (s0, s3)) nr)).
-    { apply Hnr. }
-    eapply emor_rc_forbid_contrapos in Hnr'. cbn in *. subst.
-    setoid_rewrite tstrat_next_oa. setoid_rewrite tstrat_next_oa.
-    erewrite !lens_strat_next_oa; cbn; eauto.
-    rewrite regular_conv.
-    2: { setoid_rewrite scomp_emor_operator. constructor. }
-    2: { intros Hx. inv Hx. xsubst. cbn in *. easy. }
-    eapply IHs; eauto. easy.
-Qed.
-
-Lemma rsq_scomp_emor {E F S1 S2} (σ: E ->> F):
-  rsq (@scomp_emor _ S1 S2) scomp_emor (σ @ lid) (σ @ lid @ lid).
-Proof.
-  apply rsq_scomp_emor_when. easy.
-Qed.
-
-Section SE.
-
-  Context (se: Genv.symtbl).
-
-  Definition c_erel: erel li_c li_c :=
-    {|
-      CompCertStrat.match_query '(se1, q1) '(se2, q2) :=
-        se = se1 /\ se = se2 /\ q1 = q2;
-      CompCertStrat.match_reply '(se1, q1) '(se2, q2) r1 r2 :=
-        se = se1 /\ se = se2 /\ q1 = q2 /\ r1 = r2;
-    |}%embed.
-
-  Lemma rc_next_c_erel q r:
-    rcnext (se, q)%embed (se, q)%embed r r c_erel = c_erel.
-  Proof.
-    apply antisymmetry; intros p Hp; cbn in *.
-    - inv Hp. apply HK. constructor; easy.
-    - constructor; eauto. constructor; easy.
+      eapply IHs; eauto. easy.
   Qed.
 
-  Hint Resolve next_strat_preserve_se : core.
-
-  Lemma rsq_c_erel_when pi (p: rspos pi pi) (L: @strat li_c li_c pi):
-    (match pi with
-    | ready => True
-     | running (se1, _) => se = se1
-    | suspended (se1, _) (se2, _) => se = se1 /\ se = se2
-    end)%embed ->
-    strat_preserve_se L ->
-    rsq_when c_erel c_erel p L L.
+  Lemma rsq_scomp_emor {E F S1 S2} (σ: E ->> F):
+    rsq (@scomp_emor _ S1 S2) scomp_emor (σ @ lid) (σ @ lid @ lid).
   Proof.
-    intros Hp HL s Hs. revert p Hp L HL Hs. induction s; intros; dependent destruction p;
-      cbn; eauto; dependent destruction m.
-    - apply rsp_oq. eapply Downset.closed; eauto; constructor.
-      intros q2 Hq. inv Hq. destruct q. destruct q2. inv HM.
-      destruct H0; subst. eauto.
-    - destruct q1. subst.
-      pose proof (HL _ Hs) as HLs. dependent destruction HLs.
-      eapply rsp_pq. instantiate (1 := (_, _)%embed). repeat econstructor; eauto.
-      eauto.
-    - destruct q1. subst.
-      eapply rsp_pa. instantiate (1 := r). intros Hr. inv Hr. apply HA. repeat constructor.
-      rewrite rc_next_c_erel. eauto.
-    - destruct q1. destruct m1. destruct Hp. subst.
-      apply rsp_oa. eapply Downset.closed; eauto; constructor.
-      intros n2 Hn2. destruct (classic (n = n2)).
-      2: { exfalso. apply Hn2.
-           repeat econstructor; cbn; eauto.
-           intros Hx. easy. }
-      subst. rewrite rc_next_c_erel. eauto.
+    apply rsq_scomp_emor_when. easy.
   Qed.
 
-  Lemma rsq_c_erel (L: li_c ->> li_c):
-    strat_preserve_se L -> rsq c_erel c_erel L L.
-  Proof.
-    apply rsq_c_erel_when. easy.
-  Qed.
+End SCOMP_EMOR.
 
-End SE.
-
-Section ABREL.
-  Context {D2 D1: Type}.
-
-  Record abrel : Type := {
-      abrel_rel (se: Genv.symtbl) :> D2 -> mem * D1 -> Prop;
-    }.
-  Section ABREL_RC.
-    Context (se: Genv.symtbl) (R: abrel).
-
-    (** R̂ := (mem @ R) ;; (Y @ D1) *)
-    Definition abrel_rc : conv (li_c @ D2) (li_c @ D1) :=
-      (c_erel se) @ rel_conv (R se) ;; scomp_emor ;; join_conv @ glob D1.
-
-  End ABREL_RC.
-End ABREL.
-
-Arguments abrel : clear implicits.
-
-(** ** Property of abstraction relation *)
-
-Section ABREL_RSQ.
-
-(*   Local Hint Constructors tstrat_has lens_has lts_strat_has: core. *)
-
-  Hint Constructors lens_has : core.
-
-  Lemma rsq_abrel {D1 D2} (R: abrel D2 D1) M sk se
-    (HM: Smallstep.determinate (semantics M))
-    (HL: Linking.linkorder (cmod_skel M) sk):
-    rsq (abrel_rc se R) (abrel_rc se R)
-      ((lts_strat_sk sk (semantics M)) @ lid)
-      ((lts_strat_sk sk (semantics M)) @ lid).
-  Proof.
-    assert (HD: Deterministic (lts_strat_sk sk (semantics M))).
-    { apply lts_strat_determ. eauto. }
-    unfold abrel_rc. eapply rsq_vcomp.
-    3: {
-      apply scomp_rsq. apply rsq_c_erel. apply lts_preserve_se. apply lsp_rel_conv.
-    }
-    1-2: typeclasses eauto.
-    eapply rsq_vcomp.
-    4: {
-      eapply scomp_rsq.
-      apply frame_property_cmodule; eauto.
-      apply lsp_id.
-    }
-    1-2: typeclasses eauto.
-    apply rsq_scomp_emor.
-  Qed.
-
-(* End ABREL_RSQ. *)
-
-(** ** Definition of layer correctness *)
-
-Notation "0" := E0_conv : conv_scope.
-
-Section LAYER.
-
-  Context {D2 D1} (L1: 0 ->> li_c @ D1) (R: abrel D2 D1) (M: cmodule) (L2: 0 ->> li_c @ D2).
-
-  (** L1 ⊢_R M : L2 ⇔ L2 ≤_{0 ↠ R} (Clight(M) @ D1) ⊙ L1 *)
-  Definition layer_correctness sk se :=
-    rsq 0 (abrel_rc se R) L2 (lts_strat_sk sk (semantics M) @ D1 ⊙ L1).
-
-End LAYER.
-
-(** ** Composition of abstraction relation *)
+(** An auxiliary refinement convention used to simplify the composition proof. *)
 
 Section SJOIN.
 
@@ -477,6 +369,144 @@ Section SJOIN.
   Qed.
 
 End SJOIN.
+
+(** ** Abstraction Relation *)
+
+(** The abstraction relation is parametrized by the symbol table, therefore we
+    need to ensure that the symbol table used in Clight program semantics is the
+    same as the one for the abstraction relation. The following refinement
+    convention fixes a symbol table for the Clight semantics. *)
+
+Section SE.
+
+  Context (se: Genv.symtbl).
+
+  Definition c_erel: erel li_c li_c :=
+    {|
+      CompCertStrat.match_query '(se1, q1) '(se2, q2) :=
+        se = se1 /\ se = se2 /\ q1 = q2;
+      CompCertStrat.match_reply '(se1, q1) '(se2, q2) r1 r2 :=
+        se = se1 /\ se = se2 /\ q1 = q2 /\ r1 = r2;
+    |}%embed.
+
+  Lemma rc_next_c_erel q r:
+    rcnext (se, q)%embed (se, q)%embed r r c_erel = c_erel.
+  Proof.
+    apply antisymmetry; intros p Hp; cbn in *.
+    - inv Hp. apply HK. constructor; easy.
+    - constructor; eauto. constructor; easy.
+  Qed.
+
+  Hint Resolve next_strat_preserve_se : core.
+
+  Lemma rsq_c_erel_when pi (p: rspos pi pi) (L: @strat li_c li_c pi):
+    (match pi with
+    | ready => True
+     | running (se1, _) => se = se1
+    | suspended (se1, _) (se2, _) => se = se1 /\ se = se2
+    end)%embed ->
+    strat_preserve_se L ->
+    rsq_when c_erel c_erel p L L.
+  Proof.
+    intros Hp HL s Hs. revert p Hp L HL Hs. induction s; intros; dependent destruction p;
+      cbn; eauto; dependent destruction m.
+    - apply rsp_oq. eapply Downset.closed; eauto; constructor.
+      intros q2 Hq. inv Hq. destruct q. destruct q2. inv HM.
+      destruct H0; subst. eauto.
+    - destruct q1. subst.
+      pose proof (HL _ Hs) as HLs. dependent destruction HLs.
+      eapply rsp_pq. instantiate (1 := (_, _)%embed). repeat econstructor; eauto.
+      eauto.
+    - destruct q1. subst.
+      eapply rsp_pa. instantiate (1 := r). intros Hr. inv Hr. apply HA. repeat constructor.
+      rewrite rc_next_c_erel. eauto.
+    - destruct q1. destruct m1. destruct Hp. subst.
+      apply rsp_oa. eapply Downset.closed; eauto; constructor.
+      intros n2 Hn2. destruct (classic (n = n2)).
+      2: { exfalso. apply Hn2.
+           repeat econstructor; cbn; eauto.
+           intros Hx. easy. }
+      subst. rewrite rc_next_c_erel. eauto.
+  Qed.
+
+  Lemma rsq_c_erel (L: li_c ->> li_c):
+    strat_preserve_se L -> rsq c_erel c_erel L L.
+  Proof.
+    apply rsq_c_erel_when. easy.
+  Qed.
+
+End SE.
+
+(** ** Abstraction relation *)
+
+Section ABREL.
+  Context {D2 D1: Type}.
+
+  (** The abstraction relation relates the high level data [D₂] and the low
+      level data [D₁] combined with the memory state. *)
+  Record abrel : Type := {
+      abrel_rel (se: Genv.symtbl) :> D2 -> mem * D1 -> Prop;
+    }.
+  Section ABREL_RC.
+    Context (se: Genv.symtbl) (R: abrel).
+
+    (** Promoting the abstraction relation to refinement convention:
+          R̂ := (mem @ R) ;; (Y @ D1) *)
+    Definition abrel_rc : conv (li_c @ D2) (li_c @ D1) :=
+      (c_erel se) @ rel_conv (R se) ;; scomp_emor ;; join_conv @ glob D1.
+
+  End ABREL_RC.
+End ABREL.
+
+Arguments abrel : clear implicits.
+
+(** ** Property of abstraction relation *)
+
+Section ABREL_RSQ.
+
+  Hint Constructors lens_has : core.
+
+  Lemma rsq_abrel {D1 D2} (R: abrel D2 D1) M sk se
+    (HM: Smallstep.determinate (semantics M))
+    (HL: Linking.linkorder (cmod_skel M) sk):
+    rsq (abrel_rc se R) (abrel_rc se R)
+      ((lts_strat_sk sk (semantics M)) @ lid)
+      ((lts_strat_sk sk (semantics M)) @ lid).
+  Proof.
+    assert (HD: Deterministic (lts_strat_sk sk (semantics M))).
+    { apply lts_strat_determ. eauto. }
+    unfold abrel_rc. eapply rsq_vcomp.
+    3: {
+      apply scomp_rsq. apply rsq_c_erel. apply lts_preserve_se. apply lsp_rel_conv.
+    }
+    1-2: typeclasses eauto.
+    eapply rsq_vcomp.
+    4: {
+      eapply scomp_rsq.
+      apply frame_property_cmodule; eauto.
+      apply lsp_id.
+    }
+    1-2: typeclasses eauto.
+    apply rsq_scomp_emor.
+  Qed.
+
+End ABREL_RSQ.
+
+(** ** Definition of layer correctness *)
+
+Notation "0" := E0_conv : conv_scope.
+
+Section LAYER.
+
+  Context {D2 D1} (L1: 0 ->> li_c @ D1) (R: abrel D2 D1) (M: cmodule) (L2: 0 ->> li_c @ D2).
+
+  (** L1 ⊢_R M : L2 ⇔ L2 ≤_{0 ↠ R} (Clight(M) @ D1) ⊙ L1 *)
+  Definition layer_correctness sk se :=
+    rsq 0 (abrel_rc se R) L2 (lts_strat_sk sk (semantics M) @ D1 ⊙ L1).
+
+End LAYER.
+
+(** ** Composition of abstraction relations *)
 
 Section ABREL_COMP.
 

@@ -1,3 +1,4 @@
+Require Import PropExtensionality.
 From compcert Require Import Integers.
 Require Import List Coqlib.
 Require Import AST CAsm.

@@ -564,8 +564,7 @@ Ltac crush_step := cbn;
 (* ----------------------------------------------------------------- *)
 (** ** Misc utilities *)
 
-Require ClightPLink.
-Require Import Maps.
+Require Import Maps ClightP.
 
 Lemma linkorder_erase_asm (p1 p2: Asm.program):
   Linking.linkorder p1 p2 ->

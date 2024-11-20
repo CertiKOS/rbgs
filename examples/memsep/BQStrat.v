@@ -12,17 +12,16 @@ Require Import Determ.
 From compcert.common Require Import Smallstep Globalenvs.
 Require LanguageInterface.
 Import -(notations) LanguageInterface.
-Require Import Example.
 Import Memory Values Integers ListNotations.
-Require Import CompCertStrat.
-Require Import BQUtil.
+Require Import CompCertStrat Frame.
+Require Import BQUtil BQCompCert.
 Close Scope list.
 
 Require Import FunctionalExtensionality.
 
 Require Import ClightPStrat.
 
-(** * Example *)
+(** * §6.2 Memory Separation (Strategy part for the Bounded Queue example) *)
 
 Ltac eprod_crush :=
   repeat
@@ -36,10 +35,11 @@ Ltac eprod_crush :=
      | [ H: unit |- _] => destruct H
      end).
 
+(** ------------------------------------------------------------------------- *)
 (** * Strategy-level definitions *)
 
 Definition val := Values.val.
-Definition N := Example.N.
+Definition N := BQCompCert.N.
 
 Inductive bq_op := enq: val -> bq_op | deq: bq_op.
 Canonical Structure E_bq : esig :=
@@ -230,7 +230,7 @@ Proof.
     apply rsp_sup_exist. exists false.
     unfold L_deq_play. apply rsp_oq.
     { repeat econstructor. Unshelve. refine v.
-      exists 0%nat. Local Transparent N. unfold N. unfold Example.N. lia. }
+      exists 0%nat. Local Transparent N. unfold N. unfold BQCompCert.N. lia. }
     Local Opaque N.
     intros (q & rb) (Hq1 & Hq2).
     cbn in Hq1. dependent destruction Hq1.
@@ -286,11 +286,11 @@ Proof.
   apply representation_independence with (R := rb_bq).
   { eapply bq_rb_intro with (n := 0%nat).
     Local Transparent N.
-    all: eauto; unfold N, Example.N; try lia. }
+    all: eauto; unfold N, BQCompCert.N; try lia. }
   apply ϕ1.
 Qed.
 
-
+(** ------------------------------------------------------------------------- *)
 (** * Proving strategies are implemented by Clight programs *)
 
 (** ** Some preliminary definitions and properties *)
@@ -301,7 +301,7 @@ Context rbc (HT2: ClightP.transl_program rb_program = Errors.OK rbc).
 Definition bqc := BQ.bq_program.
 Context sk (Hsk: link (AST.erase_program bqc) (AST.erase_program rbc) = Some sk).
 Definition se_valid1 se := Genv.valid_for sk se.
-Definition sk_bq := skel bq_spec.
+Definition sk_bq := skel BQ.bq_spec.
 Definition sk_rb := AST.erase_program rbc.
 Lemma linkorder_bq: linkorder sk_bq sk.
 Proof. edestruct @link_linkorder. apply Hsk. apply H. Qed.
@@ -338,9 +338,9 @@ Proof.
   - intros i Hi. eexists. repeat apply conj; eauto.
     rewrite ZMap.gi. reflexivity.
   - constructor. cbn. rewrite Int.unsigned_repr; cbn; lia.
-  - unfold Example.N. lia.
+  - unfold BQCompCert.N. lia.
   - constructor. cbn. rewrite Int.unsigned_repr; cbn; lia.
-  - unfold Example.N. lia.
+  - unfold BQCompCert.N. lia.
   - intros. do 3 (rewrite PTree.gso; eauto).
 Qed.
 
@@ -371,6 +371,7 @@ Proof.
   intros (A & B & C) (D & E & F) [H1|[H1|H1]]; congruence.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Deterministic property  *)
 
 Local Hint Constructors Events.match_traces : core.
@@ -385,9 +386,9 @@ Proof.
   unfold Int.repr in H. inv H.
   rewrite !Int.Z_mod_modulus_eq in H1.
   rewrite !Zmod_small in H1.
-  2: { unfold N, Example.N in *. unfold Int.modulus. unfold Int.wordsize.
+  2: { unfold N, BQCompCert.N in *. unfold Int.modulus. unfold Int.wordsize.
        unfold Wordsize_32.wordsize. unfold two_power_nat. cbn. lia. }
-  2: { unfold N, Example.N in *. unfold Int.modulus. unfold Int.wordsize.
+  2: { unfold N, BQCompCert.N in *. unfold Int.modulus. unfold Int.wordsize.
        unfold Wordsize_32.wordsize. unfold two_power_nat. cbn. lia. }
   apply Nat2Z.inj; eauto.
 Qed.
@@ -410,7 +411,7 @@ Proof.
   - intros * Hf1 Hf2. inv Hf1; inv Hf2. easy.
 Qed.
 
-Local Instance bq_spec_deterministic: Deterministic bq_spec.
+Local Instance bq_spec_deterministic: Deterministic BQ.bq_spec.
   apply lts_strat_determ. intros se. split.
   - intros * Hs1 Hs2. inv Hs1; inv Hs2; split; eauto; easy.
   - intros s t s' H. inv H; cbn; lia.
@@ -423,6 +424,7 @@ Local Instance bq_spec_deterministic: Deterministic bq_spec.
   - intros * Hf1 Hf2. inv Hf1; inv Hf2. easy.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Refinement conventions between effects and languague interfaces *)
 
 Section C_CONV.
@@ -497,6 +499,7 @@ Definition E_bq_conv : erel E_bq li_c :=
 Definition E_rb_conv : erel E_rb li_c :=
   {| match_query := E_rb_conv_mq; match_reply := E_rb_conv_mr |}.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Relation between S_rb and mem *)
 
 Inductive rb_m_mq : op (li_c @ S_rb) -> op (li_c @ mem) -> Prop :=
@@ -736,12 +739,13 @@ Proof.
       eapply match_rb_id_in_penv; eauto.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Bq correctness *)
 
 Local Hint Constructors E_rb_conv_mq E_rb_conv_mr : core.
-Local Hint Constructors bq_initial_state bq_at_external bq_final_state bq_step bq_after_external : core.
+Local Hint Constructors BQ.bq_initial_state BQ.bq_at_external BQ.bq_final_state BQ.bq_step BQ.bq_after_external : core.
 
-Lemma ϕ_bq0 : rsq E_rb_conv E_bq_conv M_bq bq_spec.
+Lemma ϕ_bq0 : rsq E_rb_conv E_bq_conv M_bq BQ.bq_spec.
 Proof.
   apply rsq_closure; eauto with typeclass_instances.
   intros s (i & Hs). destruct i.
@@ -750,7 +754,7 @@ Proof.
     unfold M_enq_play. apply rsp_oq.
     { repeat econstructor. }
     intros cq Hq. cbn in Hq. dependent destruction Hq. inv HM.
-    exploit inc2_block. apply se_valid_sk_bq. apply HSE1.
+    exploit BQ.inc2_block. apply se_valid_sk_bq. apply HSE1.
     intros (b1 & Hb1 & Hbb1).
     eapply rsp_pq with (m2 := (se, cq (Vptr b1 Ptrofs.zero) inc2_sg nil m)%embed).
     { constructor. cbn; eauto. }
@@ -764,7 +768,7 @@ Proof.
     rewrite regular_conv; eauto.
     2: { constructor. econstructor; eauto. }
     2: { apply erel_mr_intro. constructor; eauto. }
-    exploit set_block. apply se_valid_sk_bq. apply HSE1.
+    exploit BQ.set_block. apply se_valid_sk_bq. apply HSE1.
     intros (b2 & Hb2 & Hbb2).
     eapply rsp_pq with
       (m2 := (se, cq (Vptr b2 Ptrofs.zero) set_sg [Vint (Int.repr (Z.of_nat i)); v] rm)%embed).
@@ -793,7 +797,7 @@ Proof.
     unfold M_enq_play. apply rsp_oq.
     { repeat econstructor. }
     intros cq Hq. cbn in Hq. dependent destruction Hq. inv HM.
-    exploit inc1_block. apply se_valid_sk_bq. apply HSE1. 
+    exploit BQ.inc1_block. apply se_valid_sk_bq. apply HSE1.
     intros (b1 & Hb1 & Hbb1).
     eapply rsp_pq with (m2 := (se, cq (Vptr b1 Ptrofs.zero) inc1_sg nil m)%embed).
     { constructor. cbn; eauto. }
@@ -807,7 +811,7 @@ Proof.
     rewrite regular_conv; eauto.
     2: { constructor. econstructor; eauto. }
     2: { apply erel_mr_intro. constructor; eauto. }
-    exploit get_block. apply se_valid_sk_bq. apply HSE1.
+    exploit BQ.get_block. apply se_valid_sk_bq. apply HSE1.
     intros (b2 & Hb2 & Hbb2).
     eapply rsp_pq with
       (m2 := (se, cq (Vptr b2 Ptrofs.zero) get_sg [Vint (Int.repr (Z.of_nat i))] rm)%embed).
@@ -851,15 +855,16 @@ Proof.
   eapply rsq_vcomp.
   4: { apply frame_property_ref_sk. apply linkorder_bq. }
   1-2: typeclasses eauto.
-  assert (embed_lts_with_sk bq_spec [= embed_lts_with_sk (semantics2 BQ.bq_program)).
+  assert (embed_lts_with_sk BQ.bq_spec [= embed_lts_with_sk (semantics2 BQ.bq_program)).
   { eapply rsq_id_conv.
     rewrite <- !cc_conv_id.
     apply fsim_rsq_sk. apply clight_determinate.
-    apply BQ.bq_correct0. apply linkorder_bq. }
+    apply BQ.bq_correct. apply linkorder_bq. }
   unfold scomp_strat. rewrite H. apply rb_m_erel_rsq.
   apply lts_preserve_se.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Rb correctness *)
 
 Definition E_rb_S_rb_conv : conv (E_rb @ S_rb) (Lifting.lifted_li rb_state li_c) :=
@@ -954,6 +959,7 @@ Proof.
     econstructor 3; cbn; eauto.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** A version of [ϕ_rb0] where [lift_emor] is moved to the strategy *)
 
 Definition rb_spec' : li_c ->> li_c @ S_rb := liftr_emor ⊙ rb_spec.
@@ -1058,7 +1064,7 @@ Proof.
   eapply rsq_vcomp.
   3: {
     eapply fsim_rsq_sk. apply clightp_determinate.
-    apply rb_correct2.
+    apply rb_correct.
     cbn. erewrite ClightP.clightp_skel_correct.
     apply linkorder_rb. apply HT2.
   }
@@ -1069,6 +1075,7 @@ Proof.
   apply linkorder_rb. apply HT2.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** * Putting everything together *)
 
 Local Opaque ce.

@@ -1,18 +1,16 @@
-(* TODO: cleanup imports *)
 Require Import Coqlib Integers.
-
 Require Import Events LanguageInterface Smallstep Globalenvs Values Memory.
 Require Import AST Ctypes Clight.
-Require Import Lifting Encapsulation.
-
+Require Import Lifting.
 Require Import List Maps.
 Import ListNotations.
 Require Import Conventions Mach Asm.
-
 Require Import Locations CallConv.
 Require Import Compiler.
 
-(* Conventions.cc_c_locset @ cc_locset_mach @ cc_mach_asm *)
+(** Simplifies the CompCertO's overall simulation convention by composing together
+      [cc_c_locset @ cc_locset_mach @ cc_mach_asm]
+    into a single simulation convention [cc_c_asm]. *)
 
 Section CA.
 
