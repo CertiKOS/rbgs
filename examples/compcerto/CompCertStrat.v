@@ -1094,156 +1094,43 @@ Section CLOSURE_SCOMP.
 
 End CLOSURE_SCOMP.
 
-(** ** Theorem 6.2 (The frame property for Clight)  *)
-
-Require Clight Join Memory ClightPComp Lifting.
-
-Section FRAME.
-  Import Clight Join Memory.Mem ClightPComp.
-  Import -(notations) Lifting.
-
-  Inductive join_query : query (lifted_li mem li_c) -> query li_c -> Prop :=
-  | join_query_intro vf sg vargs m msrc mtgt
-      (MJOIN: Join.join m msrc mtgt):
-    join_query (cq vf sg vargs msrc, m) (cq vf sg vargs mtgt).
-
-  Inductive join_reply: reply (lifted_li mem li_c) -> reply li_c -> Prop :=
-  | join_reply_intro rv m msrc mtgt
-      (MJOIN: Join.join m msrc mtgt):
-    join_reply (cr rv msrc, m) (cr rv mtgt).
-
-  Program Definition join_cc : callconv (lifted_li mem li_c) li_c :=
-    {|
-      ccworld := unit;
-      match_senv _ se1 se2 := se1 = se2;
-      match_query _ := join_query;
-      match_reply _ := join_reply;
-    |}.
-  Next Obligation. reflexivity. Qed.
-  Next Obligation. inv H0. reflexivity. Qed.
-  Next Obligation. inv H. reflexivity. Qed.
-
-  Context (p: program).
-  Inductive join_ms : state * mem -> state -> Prop :=
-  | clightp_ms_State:
-    forall f s k e le mx m1 m2 (HJ: join mx m1 m2),
-      join_ms (State f s k e le m1, mx) (State f s k e le m2)
-  | join_ms_Callstate:
-    forall vf args k mx m1 m2 (HJ: join mx m1 m2),
-      join_ms (Callstate vf args k m1, mx) (Callstate vf args k m2)
-  | join_ms_Returnstate:
-    forall rv k mx m1 m2 (HJ: join mx m1 m2),
-      join_ms (Returnstate rv k m1, mx) (Returnstate rv k m2).
-
-  Lemma join_step ge mx:
-    forall s1 t s1',
-    Clight.step2 ge s1 t s1' ->
-    forall s2, join_ms (s1, mx) s2 ->
-    exists s2', Clight.step2 ge s2 t s2' /\
-    join_ms (s1', mx) s2'.
-  Proof with (eexists _; split; econstructor; eauto).
-    induction 1; intros S1 HS; inv HS;
-      try solve [ eexists _; split; econstructor; eauto ].
-    - exploit clight_lvalue_join; eauto. intros A.
-      exploit clight_expr_join; eauto. intros B.
-      exploit sem_cast_join; eauto.
-      rewrite H1. intros C. inv C.
-      exploit assign_loc_join; eauto. intros (? & D & E)...
-    - exploit clight_expr_join; eauto. intros A...
-    - exploit clight_expr_join; eauto. intros A.
-      exploit clight_exprlist_join; eauto; intros B...
-    - exploit clight_exprlist_join; eauto. intros A.
-      exploit ClightP.external_call_join; eauto. intros (? & B & C)...
-    - exploit clight_expr_join; eauto. intros A.
-      exploit bool_val_join; eauto.
-      rewrite H0. intros B. inv B...
-    - exploit free_list_join; eauto.
-      rewrite H. intros A. inv A...
-    - exploit clight_expr_join; eauto. intros A.
-      exploit sem_cast_join; eauto.
-      rewrite H0. intros B. inv B.
-      exploit free_list_join; eauto.
-      rewrite H1. intros C. inv C...
-    - exploit free_list_join; eauto.
-      rewrite H0. intros A. inv A...
-    - exploit clight_expr_join; eauto. intros A...
-    - exploit clight_function_entry_join; eauto. intros (? & A & B)...
-    - exploit ClightP.external_call_join; eauto. intros (? & A & B)...
-  Qed.
-
-  Lemma frame_property :
-    forward_simulation join_cc join_cc (lifted_semantics mem (semantics2 p)) (semantics2 p).
-  Proof.
-    constructor. econstructor. reflexivity. firstorder.
-    instantiate (1 := fun _ _ _ => _). cbn beta.
-    intros se1 se2 w Hse Hse1. cbn -[semantics2] in *. subst se2.
-    rename w into mx.
-    eapply forward_simulation_step with (match_states := join_ms).
-    - intros [q1 mq] q2 [s1 ms] Hq Hi. cbn in *. eprod_crush.
-      inv Hq. inv H.
-      eexists. split; econstructor; eauto.
-      apply mjoin_nextblock in MJOIN.
-      rewrite MJOIN. unfold Ple in *.
-      etransitivity; eauto.
-      apply Pos.le_max_r.
-    - intros [s1 ms1] s2 [r1 mr1] Hjoin Hf.
-      inv Hf. cbn in *. subst. inv H. inv Hjoin.
-      eexists. split; constructor; eauto.
-    - intros [s1 ms1] s2 [q1 mq1] Hjoin He.
-      inv He. cbn in *. subst. inv H. inv Hjoin.
-      eexists tt, _. repeat apply conj; eauto.
-      + econstructor; eauto.
-      + constructor; eauto.
-      + intros [r1 mr1] r2 [s1' ms1'] Hjoin Hr.
-        eprod_crush. inv H. inv Hjoin.
-        eexists. split; constructor; eauto.
-    - intros [s1 ms1] t [s1' ms1'] [HS <-] s2 Hjoin.
-      eapply join_step; eauto.
-    - apply well_founded_ltof.
-  Qed.
-
-End FRAME.
-
-(* --------------------------------------------------------------- *)
-
-(** ** Miscellaneous properties  *)
-
+(* ------------------------------------------------------------------------ *)
 (** A handy way to built stateless refinement convention from the relation on
     questions and answers *)
 
-Record esig_rel {E F: esig} : Type :=
+Record erel {E F: esig} : Type :=
   {
     match_query : op E -> op F -> Prop;
     match_reply (m1: op E) (m2: op F) : ar m1 -> ar m2 -> Prop;
   }.
-Arguments esig_rel : clear implicits.
+Arguments erel : clear implicits.
 
 Section ESIG_REL_CONV.
   Obligation Tactic := cbn.
-  Context {E F: esig} (R: esig_rel E F).
+  Context {E F: esig} (R: erel E F).
 
-  Inductive esig_rel_conv_has : rcp E F -> Prop :=
-  | esig_rel_conv_has_allow m1 m2 (HM: match_query R m1 m2):
-    esig_rel_conv_has (rcp_allow m1 m2)
-  | esig_rel_conv_has_forbid m1 m2 (HM: match_query R m1 m2)
+  Inductive erel_conv_has : rcp E F -> Prop :=
+  | erel_conv_has_allow m1 m2 (HM: match_query R m1 m2):
+    erel_conv_has (rcp_allow m1 m2)
+  | erel_conv_has_forbid m1 m2 (HM: match_query R m1 m2)
       n1 n2 (HA: ~ match_reply R m1 m2 n1 n2):
-    esig_rel_conv_has (rcp_forbid m1 m2 n1 n2)
-  | esig_rel_conv_has_cont m1 m2 (HM: match_query R m1 m2)
-      n1 n2 k (HK: match_reply R m1 m2 n1 n2 -> esig_rel_conv_has k):
-    esig_rel_conv_has (rcp_cont m1 m2 n1 n2 k).
-  Hint Constructors esig_rel_conv_has : core.
+    erel_conv_has (rcp_forbid m1 m2 n1 n2)
+  | erel_conv_has_cont m1 m2 (HM: match_query R m1 m2)
+      n1 n2 k (HK: match_reply R m1 m2 n1 n2 -> erel_conv_has k):
+    erel_conv_has (rcp_cont m1 m2 n1 n2 k).
+  Hint Constructors erel_conv_has : core.
 
-  Program Definition esig_rel_conv : conv E F :=
-    {| Downset.has s := esig_rel_conv_has s |}.
+  Program Definition erel_conv : conv E F :=
+    {| Downset.has s := erel_conv_has s |}.
   Next Obligation.
     intros x y H1. induction H1; intros Hx; try (xinv Hx; eauto).
     econstructor; eauto.
     intros. exfalso. eauto.
   Qed.
 
-  Lemma esig_rel_mr_elim q1 q2:
+  Lemma erel_mr_elim q1 q2:
     match_query R q1 q2 ->
-    forall r1 r2, ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2) ->
+    forall r1 r2, ~ erel_conv_has (rcp_forbid q1 q2 r1 r2) ->
              match_reply R q1 q2 r1 r2.
   Proof.
     intros Hse Hq * Hr.
@@ -1251,16 +1138,27 @@ Section ESIG_REL_CONV.
     apply Hr. econstructor; eauto 10.
   Qed.
 
-  Lemma esig_rel_mr_intro q1 q2 r1 r2:
+  Lemma erel_mr_intro q1 q2 r1 r2:
     match_reply R q1 q2 r1 r2 ->
-    ~ esig_rel_conv_has (rcp_forbid q1 q2 r1 r2).
+    ~ erel_conv_has (rcp_forbid q1 q2 r1 r2).
   Proof.
     intros Hr Hx. dependent destruction Hx; eauto.
   Qed.
 
 End ESIG_REL_CONV.
 
-Coercion esig_rel_conv : esig_rel >-> conv.
+Coercion erel_conv : erel >-> conv.
+
+Global Instance erel_conv_regular {E F} (R: erel E F): RegularConv R.
+Proof.
+  split. intros * Hm Hn. apply antisymmetry.
+  - intros x Hx. cbn in *.
+    dependent destruction Hx.
+    apply HK. eapply erel_mr_elim in Hn; eauto.
+  - intros x Hx. cbn in *.
+    dependent destruction Hm.
+    econstructor; eauto.
+Qed.
 
 (* --------------------------------------------------------------- *)
 (** Some useful RegularConv instances *)
@@ -1295,17 +1193,6 @@ Proof.
   rewrite !regular_conv; eauto.
 Qed.
 
-Global Instance esig_rel_conv_regular {E F} (R: esig_rel E F): RegularConv R.
-Proof.
-  split. intros * Hm Hn. apply antisymmetry.
-  - intros x Hx. cbn in *.
-    dependent destruction Hx.
-    apply HK. eapply esig_rel_mr_elim in Hn; eauto.
-  - intros x Hx. cbn in *.
-    dependent destruction Hm.
-    econstructor; eauto.
-Qed.
-
 Lemma not_imply_or (P Q: Prop): (~ P -> Q) -> P \/ Q.
 Proof. intros. destruct (classic P); firstorder. Qed.
 
@@ -1336,6 +1223,29 @@ Proof.
     rewrite !regular_conv; eauto.
 Qed.
 
+Lemma regular_conv_ref {E F} (R S: E <=> F)
+  (HR: RegularConv R) (HS: RegularConv S):
+  (forall m1 m2, Downset.has R (rcp_allow m1 m2) ->
+            Downset.has S (rcp_allow m1 m2)) ->
+  (forall m1 m2 n1 n2, Downset.has R (rcp_forbid m1 m2 n1 n2) ->
+                  Downset.has S (rcp_forbid m1 m2 n1 n2)) ->
+  R [= S.
+Proof.
+  intros Hm Hn s Hs. induction s; eauto.
+  destruct (classic (Downset.has S (rcp_forbid m1 m2 n1 n2))) as [A|A].
+  - eapply Downset.closed; eauto. constructor.
+  - assert (Downset.has R (rcp_allow m1 m2)) as B.
+    { eapply Downset.closed; eauto. constructor. }
+    assert (~ Downset.has R (rcp_forbid m1 m2 n1 n2)) as C by eauto.
+    assert (Downset.has (rcnext m1 m2 n1 n2 R) s) as D by easy.
+    rewrite regular_conv in D; eauto.
+    specialize (IHs D).
+    erewrite <- regular_conv in IHs.
+    + apply IHs.
+    + eauto.
+    + eauto.
+Qed.
+
 (* --------------------------------------------------------------- *)
 (** Some useful Monotonic instances *)
 
@@ -1356,3 +1266,87 @@ Proof.
 Qed.
 
 Global Instance compose_params : Params (@compose_when) 2 := { }.
+
+Global Instance tstrat_when_monotonic {E1 E2 F1 F2 i1 i2 i p}:
+  Monotonic (@tstrat_when E1 E2 F1 F2 i1 i2 i p)
+    (Poset.ref ++> Poset.ref ++> Poset.ref).
+Proof.
+  intros s1 s2 Hs t1 t2 Ht st (u1 & u2 & Hu1 & Hu2 & Hu). cbn in *.
+  eexists _, _. repeat apply conj; eauto.
+Qed.
+
+Global Instance tstrat_when_params : Params (@tstrat_when) 2 := { }.
+
+(* --------------------------------------------------------------- *)
+(** Embedded CompCert semantics are deterministic *)
+
+Require ClightP Determ.
+
+Global Instance clightp_deterministic sk p:
+  Deterministic (lts_strat_sk sk (ClightP.ClightP.clightp2 p)).
+Proof. apply lts_strat_determ. apply Determ.clightp_determinate. Qed.
+
+Global Instance clight_deterministic sk p:
+ Deterministic (lts_strat_sk sk (Clight.semantics2 p)).
+Proof. apply lts_strat_determ. apply Determ.clight_determinate. Qed.
+
+Require Asm.
+
+Global Instance asm_deterministic sk p:
+  Deterministic (lts_strat_sk sk (Asm.semantics p)).
+Proof. apply lts_strat_determ. apply Asm.semantics_determinate. Qed.
+
+(* --------------------------------------------------------------- *)
+(** Properties about LTS and the symbol table *)
+
+Inductive play_preserve_se : forall p, @play li_c li_c p -> Prop :=
+| play_preserve_se_ready: play_preserve_se ready pnil_ready
+| play_preserve_se_suspended q m: play_preserve_se (suspended q m) (pnil_suspended q m)
+| play_preserve_se_oq q s:
+  play_preserve_se (running q) s ->
+  play_preserve_se ready (oq q :: s)
+| play_preserve_se_pq se q m s:
+  play_preserve_se (suspended (se, q)%embed (se, m)%embed) s ->
+  play_preserve_se (running (se, q)%embed) (pq (se, m)%embed :: s)
+| play_preserve_se_oa q m n s:
+  play_preserve_se (running q) s ->
+  play_preserve_se (suspended q m) (oa n :: s)
+| play_preserve_se_pa q r s:
+  play_preserve_se ready s ->
+  play_preserve_se (running q) (pa r :: s).
+
+Arguments play_preserve_se {_} _.
+Definition strat_preserve_se {p} (σ: strat li_c li_c p) :=
+  forall s, Downset.has σ s -> play_preserve_se s.
+
+Lemma seq_comp_preserve_se {p} s1 s2 (s: @play _ _ p):
+  seq_comp_has s1 s2 s ->
+  play_preserve_se s1 -> play_preserve_se s2 -> play_preserve_se s.
+Proof.
+  induction 1; intros; eauto;
+    dependent destruction H0; constructor; eauto.
+Qed.
+
+Lemma closure_preserve_se σ:
+  strat_preserve_se σ -> strat_preserve_se (closure σ).
+Proof.
+  intros H s Hs. cbn in *. induction Hs.
+  { apply play_preserve_se_ready. }
+  eapply seq_comp_preserve_se; eauto.
+Qed.
+
+Lemma lts_preserve_se (L: semantics li_c li_c) sk:
+  strat_preserve_se (lts_strat_sk sk L).
+Proof.
+  apply closure_preserve_se. intros s Hs.
+  cbn in *. dependent destruction Hs.
+  { apply play_preserve_se_ready. }
+  apply play_preserve_se_oq. clear HVF INIT.
+  induction HS; eauto; repeat constructor; eauto.
+Qed.
+
+Lemma next_strat_preserve_se {i j} (σ: strat li_c li_c i) (m: move i j):
+  strat_preserve_se σ -> strat_preserve_se (next m σ).
+Proof.
+  intros H s Hs. cbn in *. specialize (H _ Hs). inv H; eauto.
+Qed.

@@ -1,0 +1,72 @@
+# Section 6 Applications
+
+This directory contains the formalization of
+applications described in section 6 of the paper.
+You can run
+
+```
+make examples/Application.vo
+```
+
+in the project root
+to compile all the Coq proofs in this directory.
+
+## Section 6.1 CompCertO Semantics
+
+- [compcerto/Lifting.v](compcerto/Lifting.v):
+  Spacial composition on the CompCertO transition system,
+  which is similar to the construction mentioned in Section 5.2.
+- [compcerto/CategoricalComp.v](compcerto/CategoricalComp.v):
+  Layered composition on the CompCertO transition system.
+- [compcerto/Determ.v](compcerto/Determ.v):
+  Various deterministic properties of the CompCertO's program semantics.
+- [compcerto/CompCertStrat.v](compcerto/CompCertStrat.v):
+  Embedding of the CompCertO transition system into the
+  strategy model.
+  All the definitions and theorems in Section 6.1 can be found in this file.
+- [compcerto/Util.v](compcerto/Util.v):
+  Some auxiliary definitions and lemmas.
+
+## Section 6.2 Memory Separation
+
+- [memsep/Join.v](memsep/Join.v):
+  The join operator on the CompCertO memory shares.
+- [memsep/Frame.v](memsep/Frame.v):
+  The frame property.
+- [memsep/BQCompCert.v](memsep/BQCompCert.v):
+  The CompCertO part of the verification of the bounded queue example.
+- [memsep/BQStrat.v](memsep/BQStrat.v):
+  The strategy part of the verification of the bounded queue example.
+- [memsep/BQUtil.v](memsep/BQUtil.v):
+  Some auxiliary definitions and lemmas.
+
+## Section 6.3 Modeling loading and the execution environments
+
+- [process/CAsm.v](process/CAsm.v):
+  A simplification on CompCertO's overall simulation convention.
+- [process/InitMem.v](process/InitMem.v):
+  The construction of initial memory state that is used
+  in the loader when invoking the program.
+- [process/Load.v](process/Load.v):
+  The loader and its correctness theorem.
+- [process/SecretAsm.v](process/SecretAsm.v):
+  The verification of the assembly program secret.s directly
+  to demonstrate the multi-language interoperability.
+- [process/Rot13.v](process/Rot13.v):
+  The complete verification of the rot13 example.
+
+## Section 6.4 Certified Abstraction Layers
+
+- [cal/CModule.v](cal/CModule.v):
+  CompCert's C semantics as a module.
+- [cal/CALStrat.v](cal/CALStrat.v):
+  The certified abstraction layer and its composition.
+
+## Section 6.5 Clight with Module-Local State
+
+- [clightp/PEnv.v](clightp/PEnv.v):
+  The definitions and properties of the persistent environment.
+- [clightp/ClightP.v](clightp/ClightP.v):
+  The ClightP semantics defined using CompCertO transition system.
+- [clightp/ClightPStrat.v](clightp/ClightPStrat.v):
+  Embedding of the ClightP semantics into the strategy model.

@@ -4,7 +4,7 @@ From Coq Require Import
      List.
 From compcert.lib Require Import
      Coqlib.
-Require Import CategoricalComp FlatComp.
+Require Import CategoricalComp.
 From compcert.common Require Import
      Events
      Globalenvs
@@ -275,70 +275,6 @@ Section HCOMP_LIFT.
   Qed.
 
 End HCOMP_LIFT.
-
-(** Lifting with abstract state commutes with flat composition  *)
-Section FLAT_LIFT.
-
-  Variable K: Type.
-  Context {I li} (L: I -> Smallstep.semantics li li).
-  Variable (sk: AST.program unit unit).
-  Let LK := fun i => (L i)@K.
-
-  Inductive flat_state_match: flat_state L * K -> flat_state LK -> Prop :=
-  | flat_state_match_intro i s k:
-      flat_state_match (flat_st L i s, k) (flat_st LK i (s, k)).
-  Hint Constructors flat_state_match.
-
-  Lemma lift_flat_comp1:
-    (flat_comp_semantics' L sk)@K ≤ flat_comp_semantics' LK sk.
-  Proof.
-    constructor. econstructor. reflexivity. intros i. reflexivity.
-    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
-    eapply forward_simulation_step with (match_states := flat_state_match).
-    - intros [] [] [] Hq H. inv Hq. inv H. cbn in *; subst. inv H0.
-      eexists. split; constructor. now constructor.
-    - intros [] s [] Hs H. inv H. cbn in *; subst. inv H0.
-      inv Hs. subst_dep.
-      eexists. split; constructor. now constructor.
-    - intros [] s [] Hs H. inv H. cbn in *; subst. inv H0.
-      inv Hs. subst_dep.
-      eexists tt, (_, _). repeat apply conj; try constructor.
-      + now constructor.
-      + intros [] [] [] Hr [H1 H2]. inv Hr.
-        cbn in *; subst. inv H1. subst_dep.
-        eexists. split; constructor. now constructor.
-    - intros [] t [] Hstep s Hs.
-      inv Hstep; inv H; inv Hs. subst_dep.
-      eexists. split; constructor. now constructor.
-    - apply well_founded_ltof.
-  Qed.
-
-  Lemma lift_flat_comp2:
-    flat_comp_semantics' LK sk ≤ (flat_comp_semantics' L sk)@K.
-  Proof.
-    constructor. econstructor. reflexivity. intros i. reflexivity.
-    intros se _ [ ] [ ] Hse. instantiate (1 := fun _ _ _ => _). cbn beta.
-    eapply forward_simulation_step
-      with (match_states := fun s1 s2 => flat_state_match s2 s1).
-    - intros [] [] s Hq H. inv Hq. inv H. inv H0.
-      destruct s0. cbn in *; subst.
-      eexists (_, _). split; constructor; auto. now constructor.
-    - intros s [] [] Hs H. inv H. destruct s0. inv H0.
-      cbn in *; subst. inv Hs. subst_dep.
-      eexists (_, _). split; constructor; auto. now constructor.
-    - intros s [] [] Hs H. inv H. destruct s0. inv H0.
-      cbn in *; subst. inv Hs. subst_dep.
-      eexists tt, (_, _). repeat apply conj; try constructor; auto.
-      intros [] [] s' Hr Hx. inv Hr. inv Hx. inv H4.
-      destruct s'0.  destruct s2. subst_dep. cbn in *. subst. inv H2.
-      eexists. split; constructor; auto. now constructor.
-    - intros ? t ? Hstep [] Hs. inv Hstep. inv Hs.
-      destruct s. subst_dep. inv H4. destruct s'. inv H.
-      eexists (_, _). split; constructor; eauto. now constructor.
-    - apply well_founded_ltof.
-  Qed.
-
-End FLAT_LIFT.
 
 Lemma lifting_step_star {liA liB K} (L: Smallstep.semantics liA liB) se s1 t s2 k:
   Star (L se) s1 t s2 ->
