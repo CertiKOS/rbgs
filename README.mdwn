@@ -60,14 +60,15 @@ the certified abstraction layers (§6.4), and the ClightP semantics (§6.3).
 
 ## Setting up the build environment
 
-You will need a recent version of Coq and other tools supported by the
-versions of CompCert and `coqrel` we are using. If you are using `opam`
-(recommended), an appropriate environment can be set up as follows:
+You will need a version of Coq and other tools supported by the versions
+of CompCert and `coqrel` we are using. If you wish to use `opam`
+(recommended), the following is known to work as of 2024-11-21:
 
-    $ opam init
-    $ eval $(opam env --switch=default)  # as instructed by opam init
+    $ opam switch create rbgs ocaml-base-compiler.4.08.1
+    $ eval $(opam env --switch=rbgs)  # as instructed by previous command
     $ opam install coq.8.15.2 menhir.20240715
 
+Later versions of OCaml 4 have been reported to work as well.
 Once Coq and Menhir have been installed, run the `configure` script.
 Note that macOS users will need to edit the script before running it
 to replace `x86_64-linux` with `x86_64-macos` on line 22.
@@ -89,10 +90,10 @@ For example on an 8-cores machine:
 
 ## Evaluation instructions
 
-After verifying that the proofs compile successfully, we suggest that
+After verifying that the proofs compile successfully, we suggested that
 the reviewers look through the paper and the development side-by-side.
 
-To this end, it may be helpful to run
+To this end, it can be helpful to run
 
     $ make html
 
@@ -121,8 +122,8 @@ Overall, the artifact is structured as follows:
   * `examples/Rot13.v` contains the verification details of the rot13
     example as presented in §6.3.
   * `examples/Composition.v` formalizes the certified abstraction layers
-    as described in §6.4 and Appendix C.
+    as described in §6.4 and Appendix D.
   * `examples/clightp/ClightP.v` and `examples/clightp/ClightPComp.v`
     contain the formalization of the ClightP semantics and its
-    composition property as described in §6.5 and Appendix D.
+    composition property as described in §6.5 and Appendix E.
 
