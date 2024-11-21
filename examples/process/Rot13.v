@@ -19,6 +19,8 @@ Import Load.STRAT.
 Close Scope list.
 Close Scope Z_scope.
 
+Obligation Tactic := idtac.
+
 (** * §6.3 Modeling loading and the execution environments *)
 
 (** This file contains the verification of the secret and rot13 example using

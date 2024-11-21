@@ -16,6 +16,9 @@ Require Import Classical.
 
 Axiom (Hwin: Archi.win64 = false).
 
+(** ------------------------------------------------------------------------- *)
+(** * §6.3 The loader and its correctness *)
+
 Ltac subst_dep :=
   subst;
   lazymatch goal with
@@ -47,6 +50,8 @@ Ltac inv_lessdef:=
   | [ H: Val.lessdef_list _ _ |- _ ] => inv H
   | [ H: Val.lessdef _ _ |- _ ] => inv H
   end.
+
+(** An auxiliary operator on CompCert memory and its properties. *)
 
 Section WRITE_EMPTY.
 
@@ -232,66 +237,15 @@ Section WRITE_EMPTY.
 
 End WRITE_EMPTY.
 
-Hint Resolve injp_mem_write_empty_match
+Local Hint Resolve injp_mem_write_empty_match
   inj_mem_write_empty_match
   ext_mem_write_empty_match
   vainj_mem_write_empty_match
-  vaext_mem_write_empty_match.
+  vaext_mem_write_empty_match : core.
 
-
-Import Ctypes.                  (* shadow Tnil and Tcons from RelationClasses *)
+(** Definitions and signatures *)
 
 Notation tint := (Tint I32 Unsigned noattr).
-
-Definition main_sig := signature_of_type Tnil tint cc_default.
-
-Require Compiler.
-
-Section INIT_C_ASM.
-
-  Context p tp (Hp: Compiler.match_prog p tp).
-
-  Hypothesis
-    (Hromatch: forall se m,
-        init_mem se (AST.erase_program p) = Some m ->
-        ValueAnalysis.romatch_all se (VAInject.bc_of_symtbl se) m).
-
-  Local Transparent Archi.ptr64.
-
-  Lemma match_stbls_flat_inj se:
-    Genv.match_stbls (Mem.flat_inj (Genv.genv_next se)) se se.
-  Proof.
-    split; eauto; unfold Mem.flat_inj; intros.
-    - destruct plt; try easy. eexists. reflexivity.
-    - intros. unfold Mem.flat_inj. exists b2. destruct plt; try easy.
-    - destruct plt; try easy. inv H. reflexivity.
-    - destruct plt; try easy. inv H. reflexivity.
-    - destruct plt; try easy. inv H. reflexivity.
-  Qed.
-
-  Lemma match_prog_skel: erase_program p = erase_program tp.
-  Proof.
-    intros. edestruct Compiler.clight_semantic_preservation as [H1 ?]; eauto.
-    destruct H1. destruct X. apply fsim_skel.
-  Qed.
-
-End INIT_C_ASM.
-
-Variant sys_query :=
-  | write_query: list byte -> sys_query
-  | read_query: int64 -> sys_query.
-
-Variant sys_reply :=
-  | write_reply: int -> sys_reply
-  | read_reply: list byte -> sys_reply.
-
-Definition li_sys :=
-  {|
-    query := sys_query;
-    reply := sys_reply;
-    entry q := Vundef;
-  |}.
-
 Notation tvoid := (Tvoid).
 Notation tchar := (Tint I8 Unsigned noattr).
 Notation tlong := (Tlong Unsigned noattr).
@@ -307,206 +261,11 @@ Definition write : Clight.fundef :=
   External (EF_external "write" rw_sig) rw_parameters tint cc_default.
 Definition read : Clight.fundef :=
   External (EF_external "read" rw_sig) rw_parameters tint cc_default.
+Definition main_sig := signature_of_type Tnil tint cc_default.
 
-Section FIND_FUNCT.
-  Import Linking.
-  Import AST.
-
-  Definition link_prod {C1 C2} {LC1: Linker C1} {LC2: Linker C2}
-    '(c1, c2) '(c3, c4): option (C1 * C2) :=
-    match link c1 c3, link c2 c4 with
-    | Some c1', Some c2' => Some (c1', c2')
-    | _, _ => None
-    end.
-
-  Inductive linkorder_rel {C1 C2} {LC1: Linker C1} {LC2: Linker C2}:
-    (C1 * C2) -> (C1 * C2) -> Prop :=
-    linkorder_rel_intro c1 c2 c3 c4
-      (H1: linkorder c1 c3) (H2: linkorder c2 c4):
-      linkorder_rel (c1, c2) (c3, c4).
-
-  Program Instance linker_prod {C1 C2} {LC1 : Linker C1} {LC2 : Linker C2} : Linker (C1 * C2) :=
-    {|
-      link := link_prod;
-      linkorder := linkorder_rel;
-    |}.
-  Next Obligation. constructor; eapply linkorder_refl. Qed.
-  Next Obligation.
-    inv H. inv H0. constructor; eapply linkorder_trans; eauto.
-  Qed.
-  Next Obligation.
-    inv H. destruct link eqn: Hx; inv H1.
-    destruct (link c4 c2) eqn: Hy; inv H0.
-    apply link_linkorder in Hx. apply link_linkorder in Hy.
-    split; constructor; easy.
-  Qed.
-
-  Inductive compose_match_fundef {C1 C2 F1 F2 F3}
-    (mf1: C1 -> F1 -> F2 -> Prop) (mf2: C2 -> F2 -> F3 -> Prop): C1 * C2 -> F1 -> F3 -> Prop :=
-  | compose_match_fundef_intro c1 c2 f1 f2 f3
-      (H1: mf1 c1 f1 f2) (H2: mf2 c2 f2 f3):
-      compose_match_fundef mf1 mf2 (c1, c2) f1 f3.
-
-  Import RelOperators.
-
-  Lemma match_program_gen_compose
-    {C1 C2 F1 F2 F3 V1 V2 V3}
-    {c1: C1} {c2: C2} {mf1 mf2 mv1 mv2}
-    {p1: AST.program F1 V1} {p2: AST.program F2 V2} {p3: AST.program F3 V3}
-    {LC1: Linker C1} {LC2: Linker C2}:
-    Linking.match_program_gen mf1 mv1 c1 p1 p2 ->
-    Linking.match_program_gen mf2 mv2 c2 p2 p3 ->
-    Linking.match_program_gen (compose_match_fundef mf1 mf2)
-      (rel_compose mv1 mv2) (c1, c2) p1 p3.
-  Proof.
-    intros (A1 & A2 & A3) (B1 & B2 & B3).
-    repeat apply conj; try congruence.
-    clear - A1 B1. revert A1 B1.
-    generalize (prog_defs p1) as l1.
-    generalize (prog_defs p2) as l2.
-    generalize (prog_defs p3) as l3.
-    induction l3; intros * H1 H2; inv H1; inv H2. constructor.
-    constructor.
-    - inv H. inv H5. constructor. congruence.
-      destruct a. destruct b1. destruct a1. cbn in *. subst.
-      destruct g1.
-      + inv H2. inv H3. econstructor; eauto. split; eauto.
-        econstructor; eauto.
-      + inv H2. inv H3. econstructor; eauto.
-        inv H1. inv H2. constructor. eexists; split; eauto.
-    - eapply IHl3; eauto.
-  Defined.
-
-  Lemma match_program_gen_compose_match_if
-    {C1 F1 F2 V1 V2}
-    {c1: C1} {mf1 mf2 mv1 mv2}
-    {p1: AST.program F1 V1} {p2: AST.program F2 V2} {p3: AST.program F2 V2}
-    {LC1: Linker C1} {LF2: Linker F2} {LV2: Linker V2} {P: unit -> bool}:
-    Linking.match_program_gen mf1 mv1 c1 p1 p2 ->
-    (if (P tt) then Linking.match_program mf2 mv2 p2 p3 else p2 = p3) ->
-    Linking.match_program_gen
-      (compose_match_fundef mf1 (if P tt then mf2 else fun _ => eq))
-      (rel_compose mv1 (if P tt then mv2 else eq)) (c1, p2) p1 p3.
-  Proof.
-    intros A B.
-    destruct (P tt).
-    - unfold match_program in B.
-      eapply match_program_gen_compose; eauto.
-    - subst. destruct A as (A1 & A2 & A3).
-      repeat apply conj; try congruence.
-      clear - A1. revert A1.
-      generalize (prog_defs p1) as l1.
-      generalize (prog_defs p3) as l3.
-      induction l3; intros * H1; inv H1. constructor.
-      constructor.
-      + destruct a1 as [ ? [|] ]; destruct a as [ ? [|] ]; inv H3; inv H0.
-        * constructor; eauto. cbn.
-          econstructor; eauto. split; eauto. apply linkorder_refl.
-          econstructor; eauto.
-        * constructor; eauto. cbn.
-          constructor. inv H3. constructor.
-          eexists; split; eauto.
-      + eapply IHl3; eauto.
-  Defined.
-
-  Lemma if_commute {A B} (P: bool) (r1 r2: A -> B -> Prop) (a: A) (b: B):
-    (if P then r1 else r2) a b = (if P then r1 a b else r2 a b).
-  Proof. destruct P; reflexivity. Qed.
-
-End FIND_FUNCT.
-
-Obligation Tactic := idtac.
-
-(* The weakest condition that can be used. We can't use se1 = se2 because we
-   can't derive it from [match_senv cc_compcert w se1 se2] *)
-Definition wp_match_senv (se1 se2: Genv.symtbl) :=
-  (forall id, Genv.public_symbol se2 id = Genv.public_symbol se1 id) /\
-    (forall sk, Genv.valid_for sk se1 <-> Genv.valid_for sk se2) /\
-    (forall i, Genv.symbol_address se1 i Ptrofs.zero = Vundef <->
-         Genv.symbol_address se2 i Ptrofs.zero = Vundef).
-
-Program Definition cc_wp_id {li}: callconv li li :=
-  {|
-    ccworld := unit;
-    match_query w q1 q2 := entry q1 = Vundef /\ entry q2 = Vundef /\ q1 = q2;
-    match_senv w := wp_match_senv;
-    match_reply w := eq;
-  |}.
-Next Obligation. intros. apply H. Qed.
-Next Obligation. intros. apply H. Qed.
-Next Obligation.
-  intros. cbn in *. eprod_crush. subst.
-  rewrite H0. apply H.
-Qed.
-
-Lemma cklr_find_symbol_none (c: CKLR.cklr) w se1 se2 i:
-  match_senv (cc_c c) w se1 se2 ->
-  Genv.find_symbol se1 i = None <->
-  Genv.find_symbol se2 i = None.
-Proof.
-  split; intros.
-  - apply CKLR.match_stbls_proj in H.
-    destruct (Genv.find_symbol se2 i) eqn: Hi; try easy. exfalso.
-    destruct (plt b (Genv.genv_next se2)).
-    + eapply Genv.mge_img in p; eauto.
-      destruct p as (b1 & Hb1).
-      eapply Genv.mge_symb in Hb1; eauto.
-      unfold Genv.find_symbol in Hi.
-      rewrite <- Hb1 in Hi. unfold Genv.find_symbol in H0. congruence.
-    + apply n. eapply Genv.genv_symb_range; eauto.
-  - apply CKLR.match_stbls_proj in H.
-    destruct (Genv.find_symbol se1 i) eqn: Hi; try easy. exfalso.
-    destruct (plt b (Genv.genv_next se1)).
-    + eapply Genv.mge_dom in p; eauto.
-      destruct p as (b1 & Hb1).
-      eapply Genv.mge_symb in Hb1; eauto.
-      unfold Genv.find_symbol in Hi.
-      rewrite Hb1 in Hi. unfold Genv.find_symbol in H0. congruence.
-    + apply n. eapply Genv.genv_symb_range; eauto.
-Qed.
-
-Lemma cc_compcert_wp_match_senv' se1 se2:
-  (exists w, match_senv cc_compcert w se1 se2) ->
-       (forall i, Genv.symbol_address se1 i Ptrofs.zero = Vundef <->
-               Genv.symbol_address se2 i Ptrofs.zero = Vundef).
-Proof.
-  intros [w Hw] i. cbn in *. eprod_crush.
-  destruct s6. subst. inv H0.
-  assert (HX: Genv.find_symbol se1 i = None <-> Genv.find_symbol se2 i = None).
-  { assert (Genv.find_symbol se1 i = None <-> Genv.find_symbol s0 i = None).
-    { clear - H. revert se1 s0 H. induction x.
-      - intros; cbn in H. subst; eauto. reflexivity.
-      - intros. cbn in *. eprod_crush. etransitivity.
-        2: eapply IHx; eauto.
-        repeat destruct s1; cbn in H.
-        + eapply (cklr_find_symbol_none InjectFootprint.injp); eauto.
-        + eapply (cklr_find_symbol_none Inject.inj); eauto.
-        + eapply (cklr_find_symbol_none Extends.ext); eauto.
-        + destruct p.
-          eapply (cklr_find_symbol_none VAInject.vainj); eauto.
-          instantiate (1 := (_, _)). split; apply H.
-        + eapply (cklr_find_symbol_none VAExtends.vaext); eauto. }
-    etransitivity. eauto.
-    eapply (cklr_find_symbol_none Inject.inj); eauto. }
-  unfold Genv.symbol_address.
-  destruct (Genv.find_symbol se1 i) eqn: HA;
-    destruct (Genv.find_symbol se2 i) eqn: HB; try easy.
-  exfalso. assert (Some b = None). apply HX. easy. easy.
-  exfalso. assert (Some b = None). apply HX. easy. easy.
-  Unshelve. cbn. exact tt.
-Qed.
-
-Lemma cc_compcert_wp_match_senv se1 se2:
-  (exists w, match_senv cc_compcert w se1 se2) ->
-  wp_match_senv se1 se2.
-Proof.
-  intros [w Hw]. split; [| split].
-  - eapply match_senv_public_preserved; eauto.
-  - intros. eapply match_senv_valid_for; eauto.
-  - eapply cc_compcert_wp_match_senv'; eauto.
-Qed.
-
-Next Obligation. intros. cbn in *. easy. Qed.
+(** ------------------------------------------------------------------ *)
+(** A relation between C and Asm on memory and values that incorporates the cklr
+    and injections *)
 
 Section SYS_C_ASM.
 
@@ -792,8 +551,6 @@ Section SYS_C_ASM.
       eapply cklr_match_reply_intro; eauto.
   Qed.
 
-  Hypothesis (Hwin64: Archi.win64 = false).
-
   Import ValueDomain ValueAnalysis VAInject.
 
   Inductive mm_ca: ccworld (cc_cklrs^{*}) -> world vainj -> mem -> mem -> mem -> Prop :=
@@ -818,51 +575,6 @@ Section SYS_C_ASM.
   Lemma mp_cklr_acc w1 w2 b1 ofs1 b2 ofs2:
     mp_cklr w1 b1 ofs1 b2 ofs2 -> acc_cklr w1 w2 -> mp_cklr w2 b1 ofs1 b2 ofs2.
   Proof. intros HP HW. inv HP; inv HW; constructor; rauto. Qed.
-
-  (* Lemma cklr_find_funct p se1 se2 vf1 vf2 w f: *)
-  (*   match_senv cc_cklrs w se1 se2 -> *)
-  (*   mv_cklr w vf1 vf2 -> *)
-  (*   Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f -> *)
-  (*   Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f. *)
-  (* Proof. *)
-  (*   intros HSE HVF HF. pose proof (match_program_gen_id p) as H. *)
-  (*   inv HVF. *)
-  (*   - cbn in *. inv HSE. cbn in HV. inv HV; eauto. *)
-  (*     + unfold inj_of_bc in H2. *)
-  (*       destruct (bc b1); inv H2; *)
-  (*         rewrite Ptrofs.add_zero; eauto. *)
-  (*     + unfold Genv.find_funct in HF. inv HF. *)
-  (*   - destruct w0. cbn in *. destruct HSE as [-> HSE]. inv HSE. *)
-  (*     eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm); *)
-  (*      subst; eauto. *)
-  (*   - destruct w0. inv HSE. cbn in HV. inv HV; eauto. *)
-  (*     + inv H0. rewrite Ptrofs.add_zero. eauto. *)
-  (*     + unfold Genv.find_funct in HF. inv HF. *)
-  (*   - destruct w0. inv HSE. cbn in *. *)
-  (*     eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm); *)
-  (*      subst; eauto. *)
-  (*   - destruct w0. inv HSE. cbn in *. *)
-  (*     eapply Genv.find_funct_match in H as (c & tfd & Hw & Hf & Hm'); *)
-  (*      subst; eauto. *)
-  (* Qed. *)
-
-  (* Lemma cklrs_find_funct p se1 se2 vf1 vf2 wn f: *)
-  (*   match_senv (cc_cklrs ^ {*}) wn se1 se2 -> *)
-  (*   mv_cklrs wn vf1 vf2 -> *)
-  (*   Genv.find_funct (Clight.globalenv se1 p) vf1 = Some f -> *)
-  (*   Genv.find_funct (Genv.globalenv se2 p) vf2 = Some f. *)
-  (* Proof. *)
-  (*   destruct wn. revert se1 se2 vf1 vf2. induction x. *)
-  (*   - cbn. intros. subst. inv H0. eauto. *)
-  (*   - intros * HSE HV. *)
-  (*     destruct c as [[se w] wn]. *)
-  (*     destruct HSE as (Hse1 & Hsen). *)
-  (*     simple inversion HV. inv H. subst. *)
-  (*     exploit eq_sigT_fst. apply H1. intros HNat. inv HNat. *)
-  (*     subst_dep. inv H1. intros Hv1 Hvn Hf. *)
-  (*     eapply IHx. 1, 2: cbn; eauto. *)
-  (*     eapply cklr_find_funct; eauto. *)
-  (* Qed. *)
 
   Lemma cklrs_loadbytes w m b ofs m' b' ofs' len bytes:
     mm_cklrs w m m' ->
@@ -967,16 +679,13 @@ Section SYS_C_ASM.
   Proof. cbn in w. destruct w.
          destruct p0. destruct p0. destruct p0. exact s1. Defined.
 
-  Import ListNotations.
-
   Lemma rw_sig_size_arguments: size_arguments rw_sig = 0.
   Proof. cbn. destruct Archi.win64; cbn; lia. Qed.
 
 End SYS_C_ASM.
 
-
-
-(** ** C and Asm Loader definitions *)
+(* ----------------------------------------------------------------- *)
+(** * C and Asm Loader definitions and correctness *)
 
 Require Import CAsm InitMem Maps AST.
 Require Import Conventions Mach Asm.
@@ -993,7 +702,112 @@ Definition write_asm : Asm.fundef := AST.External (EF_external "write" rw_sig).
 
 
 Section FIND_FUNCT.
-  Import Coqlib Linking AST Clight Values.
+  Import Coqlib Linking AST Clight Values Linking.
+
+  Obligation Tactic := idtac.
+
+  Definition link_prod {C1 C2} {LC1: Linker C1} {LC2: Linker C2}
+    '(c1, c2) '(c3, c4): option (C1 * C2) :=
+    match link c1 c3, link c2 c4 with
+    | Some c1', Some c2' => Some (c1', c2')
+    | _, _ => None
+    end.
+
+  Inductive linkorder_rel {C1 C2} {LC1: Linker C1} {LC2: Linker C2}:
+    (C1 * C2) -> (C1 * C2) -> Prop :=
+  | linkorder_rel_intro c1 c2 c3 c4
+      (H1: linkorder c1 c3) (H2: linkorder c2 c4):
+      linkorder_rel (c1, c2) (c3, c4).
+
+  Program Instance linker_prod {C1 C2} {LC1 : Linker C1} {LC2 : Linker C2} : Linker (C1 * C2) :=
+    {|
+      link := link_prod;
+      linkorder := linkorder_rel;
+    |}.
+  Next Obligation. intros. eprod_crush. constructor; eapply linkorder_refl. Qed.
+  Next Obligation.
+    intros. eprod_crush.
+    inv H. inv H0. constructor; eapply linkorder_trans; eauto.
+  Qed.
+  Next Obligation.
+    intros. eprod_crush.
+    inv H. destruct link eqn: Hx; inv H1.
+    destruct (link c4 c2) eqn: Hy; inv H0.
+    apply link_linkorder in Hx. apply link_linkorder in Hy.
+    split; constructor; easy.
+  Qed.
+
+  Inductive compose_match_fundef {C1 C2 F1 F2 F3}
+    (mf1: C1 -> F1 -> F2 -> Prop) (mf2: C2 -> F2 -> F3 -> Prop): C1 * C2 -> F1 -> F3 -> Prop :=
+  | compose_match_fundef_intro c1 c2 f1 f2 f3
+      (H1: mf1 c1 f1 f2) (H2: mf2 c2 f2 f3):
+      compose_match_fundef mf1 mf2 (c1, c2) f1 f3.
+
+  Import RelOperators.
+
+  Lemma match_program_gen_compose
+    {C1 C2 F1 F2 F3 V1 V2 V3}
+    {c1: C1} {c2: C2} {mf1 mf2 mv1 mv2}
+    {p1: AST.program F1 V1} {p2: AST.program F2 V2} {p3: AST.program F3 V3}
+    {LC1: Linker C1} {LC2: Linker C2}:
+    Linking.match_program_gen mf1 mv1 c1 p1 p2 ->
+    Linking.match_program_gen mf2 mv2 c2 p2 p3 ->
+    Linking.match_program_gen (compose_match_fundef mf1 mf2)
+      (rel_compose mv1 mv2) (c1, c2) p1 p3.
+  Proof.
+    intros (A1 & A2 & A3) (B1 & B2 & B3).
+    repeat apply conj; try congruence.
+    clear - A1 B1. revert A1 B1.
+    generalize (prog_defs p1) as l1.
+    generalize (prog_defs p2) as l2.
+    generalize (prog_defs p3) as l3.
+    induction l3; intros * H1 H2; inv H1; inv H2. constructor.
+    constructor.
+    - inv H. inv H5. constructor. congruence.
+      destruct a. destruct b1. destruct a1. cbn in *. subst.
+      destruct g1.
+      + inv H2. inv H3. econstructor; eauto. split; eauto.
+        econstructor; eauto.
+      + inv H2. inv H3. econstructor; eauto.
+        inv H1. inv H2. constructor. eexists; split; eauto.
+    - eapply IHl3; eauto.
+  Defined.
+
+  Lemma match_program_gen_compose_match_if
+    {C1 F1 F2 V1 V2}
+    {c1: C1} {mf1 mf2 mv1 mv2}
+    {p1: AST.program F1 V1} {p2: AST.program F2 V2} {p3: AST.program F2 V2}
+    {LC1: Linker C1} {LF2: Linker F2} {LV2: Linker V2} {P: unit -> bool}:
+    Linking.match_program_gen mf1 mv1 c1 p1 p2 ->
+    (if (P tt) then Linking.match_program mf2 mv2 p2 p3 else p2 = p3) ->
+    Linking.match_program_gen
+      (compose_match_fundef mf1 (if P tt then mf2 else fun _ => eq))
+      (rel_compose mv1 (if P tt then mv2 else eq)) (c1, p2) p1 p3.
+  Proof.
+    intros A B.
+    destruct (P tt).
+    - unfold match_program in B.
+      eapply match_program_gen_compose; eauto.
+    - subst. destruct A as (A1 & A2 & A3).
+      repeat apply conj; try congruence.
+      clear - A1. revert A1.
+      generalize (prog_defs p1) as l1.
+      generalize (prog_defs p3) as l3.
+      induction l3; intros * H1; inv H1. constructor.
+      constructor.
+      + destruct a1 as [ ? [|] ]; destruct a as [ ? [|] ]; inv H3; inv H0.
+        * constructor; eauto. cbn.
+          econstructor; eauto. split; eauto. apply linkorder_refl.
+          econstructor; eauto.
+        * constructor; eauto. cbn.
+          constructor. inv H3. constructor.
+          eexists; split; eauto.
+      + eapply IHl3; eauto.
+  Defined.
+
+  Lemma if_commute {A B} (P: bool) (r1 r2: A -> B -> Prop) (a: A) (b: B):
+    (if P then r1 else r2) a b = (if P then r1 a b else r2 a b).
+  Proof. destruct P; reflexivity. Qed.
 
   Lemma compcert_match_program_gen p tp:
     match_prog p tp ->
@@ -1004,26 +818,26 @@ Section FIND_FUNCT.
   Proof.
     intros H. cbn in *. eprod_crush. subst.
     repeat match goal with
-    | [ H: Compiler.match_if _ ?m _ _ |- _] => unfold Compiler.match_if, m in H; rewrite Load.if_commute in H
+    | [ H: Compiler.match_if _ ?m _ _ |- _] => unfold Compiler.match_if, m in H; rewrite if_commute in H
     end.
     (* destruct H as (A & A1). red in A.  *)
-    pose proof (Load.match_program_gen_compose H H0) as B. clear H H0.
-    pose proof (Load.match_program_gen_compose B H1) as C. clear B H1.
-    pose proof (Load.match_program_gen_compose C H2) as D. clear C H2.
-    pose proof (Load.match_program_gen_compose_match_if D H3) as E. clear D H3.
-    pose proof (Load.match_program_gen_compose E H4) as F. clear E H4.
-    pose proof (Load.match_program_gen_compose F H5) as G. clear F H5.
-    pose proof (Load.match_program_gen_compose_match_if G H6) as H. clear G H6.
-    pose proof (Load.match_program_gen_compose_match_if H H7) as I. clear H H7.
-    pose proof (Load.match_program_gen_compose_match_if I H8) as J. clear I H8.
-    pose proof (Load.match_program_gen_compose_match_if J H9) as K. clear J H9.
-    pose proof (Load.match_program_gen_compose K H10) as L. clear K H10.
-    pose proof (Load.match_program_gen_compose L H11) as M. clear L H11.
-    pose proof (Load.match_program_gen_compose M H12) as N. clear M H12.
-    pose proof (Load.match_program_gen_compose N H13) as O. clear N H13.
-    pose proof (Load.match_program_gen_compose_match_if O H14) as P. clear O H14.
-    pose proof (Load.match_program_gen_compose P H15) as Q. clear P H15.
-    pose proof (Load.match_program_gen_compose Q H16) as R. clear Q H16.
+    pose proof (match_program_gen_compose H H0) as B. clear H H0.
+    pose proof (match_program_gen_compose B H1) as C. clear B H1.
+    pose proof (match_program_gen_compose C H2) as D. clear C H2.
+    pose proof (match_program_gen_compose_match_if D H3) as E. clear D H3.
+    pose proof (match_program_gen_compose E H4) as F. clear E H4.
+    pose proof (match_program_gen_compose F H5) as G. clear F H5.
+    pose proof (match_program_gen_compose_match_if G H6) as H. clear G H6.
+    pose proof (match_program_gen_compose_match_if H H7) as I. clear H H7.
+    pose proof (match_program_gen_compose_match_if I H8) as J. clear I H8.
+    pose proof (match_program_gen_compose_match_if J H9) as K. clear J H9.
+    pose proof (match_program_gen_compose K H10) as L. clear K H10.
+    pose proof (match_program_gen_compose L H11) as M. clear L H11.
+    pose proof (match_program_gen_compose M H12) as N. clear M H12.
+    pose proof (match_program_gen_compose N H13) as O. clear N H13.
+    pose proof (match_program_gen_compose_match_if O H14) as P. clear O H14.
+    pose proof (match_program_gen_compose P H15) as Q. clear P H15.
+    pose proof (match_program_gen_compose Q H16) as R. clear Q H16.
 
     match goal with
     | [ H: @match_program_gen ?C ?F1 ?V1 ?F2 ?V2 ?LC ?mf ?mv ?c ?p1 ?p2 |- _ ] =>
@@ -1032,7 +846,7 @@ Section FIND_FUNCT.
     split; eauto.
     intros c t * Hx.
     repeat match goal with
-           | [ H: Load.compose_match_fundef _ _ _ _ _ |- _ ] => inv H
+           | [ H: compose_match_fundef _ _ _ _ _ |- _ ] => inv H
            end.
     (* clear S. *)
     repeat match goal with
@@ -1179,7 +993,7 @@ Section FIND_FUNCT.
 End FIND_FUNCT.
 
 (** ------------------------------------------------------------------------- *)
-(** Strategy definitions *)
+(** ** Strategy definitions *)
 
 Require Import Poset Lattice Downset Program.Equality.
 Require Import IntStrat CompCertStrat.
@@ -1327,7 +1141,8 @@ End ASM_LOADER.
 
 Local Hint Constructors pcoh : core.
 
-(** Deterministic property of the asm runtime *)
+(** ------------------------------------------------------------------------- *)
+(** ** Deterministic property of the asm runtime *)
 
 Instance runtime_asm_determ tp: Deterministic (runtime_asm tp).
 Proof.
@@ -1369,7 +1184,19 @@ Proof.
     inv Hs1. inv Ht1. repeat constructor.
 Qed.
 
+(** ------------------------------------------------------------------------- *)
 (** ** Loader correctness *)
+
+Lemma match_stbls_flat_inj se:
+  Genv.match_stbls (Mem.flat_inj (Genv.genv_next se)) se se.
+Proof.
+  split; eauto; unfold Mem.flat_inj; intros.
+  - destruct plt; try easy. eexists. reflexivity.
+  - intros. unfold Mem.flat_inj. exists b2. destruct plt; try easy.
+  - destruct plt; try easy. inv H. reflexivity.
+  - destruct plt; try easy. inv H. reflexivity.
+  - destruct plt; try easy. inv H. reflexivity.
+Qed.
 
 Section LOADER_CORRECT.
   Context p tp (Hp: match_prog p tp).
@@ -1458,7 +1285,7 @@ Section LOADER_CORRECT.
           * constructor. eapply initmem_inject; eauto.
       - cbn. repeat apply conj; eauto. constructor. eauto.
         constructor; cbn; erewrite init_mem_nextblock; eauto; try easy.
-        apply Load.match_stbls_flat_inj.
+        apply match_stbls_flat_inj.
     }
 
     destruct H as (w & Hq & Hse).  econstructor; eauto.
@@ -1520,7 +1347,7 @@ Section LOADER_CORRECT.
     2: {
       cbn. repeat apply conj; eauto. constructor. eauto.
       constructor; cbn; erewrite init_mem_nextblock; eauto; try easy.
-      apply Load.match_stbls_flat_inj.
+      apply match_stbls_flat_inj.
     }
     cbn in Hr. destruct Hr as (r3 & Hr3 & HR). inv Hr3.
     destruct HR as (r3 & Hr3 & HR). inv Hr3.
@@ -1609,7 +1436,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
           | [ H: size_arguments _ > 0 |- _ ] => rewrite rw_sig_size_arguments in H  end.
-           lia. apply Hwin. }
+           lia. }
       (* cc_asm vainj *)
       destruct m2. destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -1662,7 +1489,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
           | [ H: size_arguments _ > 0 |- _ ] => rewrite rw_sig_size_arguments in H  end.
-           lia. apply Hwin. }
+           lia. }
       (* cc_asm vainj *)
       destruct m2. destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -1719,9 +1546,9 @@ Section LOADER_CORRECT.
               with (fun (_: block) (_: Z) => False); eauto.
             repeat (apply Axioms.functional_extensionality; intros).
             apply PropExtensionality.propositional_extensionality.
-            split; try easy. intros HX. inv HX. lia. apply Hwin.
+            split; try easy. intros HX. inv HX. lia. 
           - rewrite rw_sig_size_arguments.
-            intros * HX. inv HX. lia. apply Hwin. }
+            intros * HX. inv HX. lia. }
         { exists (s0, wj). split. split; eauto. split.
           - intros. cbn in Hreg. apply (mi_acc inj) in HJ.
             destruct r1; cbn; eauto.
@@ -1772,7 +1599,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
         | [ H: size_arguments _ > 0 |- _ ] =>
-            rewrite rw_sig_size_arguments in H; try lia  end. apply Hwin. }
+            rewrite rw_sig_size_arguments in H; try lia  end. }
       (* cc_asm vainj *)
       destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -1817,7 +1644,7 @@ Section LOADER_CORRECT.
       inv H2. inv HRM. inv H.
       2: { match goal with
         | [ H: size_arguments _ > 0 |- _ ] =>
-            rewrite rw_sig_size_arguments in H; try lia  end. apply Hwin. }
+            rewrite rw_sig_size_arguments in H; try lia  end. }
       (* cc_asm vainj *)
       destruct H3 as (Hreg & Hpc & Him).
       (* arguments *)
@@ -1845,7 +1672,7 @@ Section LOADER_CORRECT.
           - apply Mem.unchanged_on_refl.
           - apply Mem.unchanged_on_refl.
           - rewrite rw_sig_size_arguments.
-            intros * HX. inv HX. lia. apply Hwin. }
+            intros * HX. inv HX. lia. }
         { exists (s0, i). split. reflexivity. split; eauto.
           intros. cbn in Hreg. destruct r0; cbn; eauto. destruct i0; cbn; eauto.
           subst v. eauto. }
@@ -1884,9 +1711,6 @@ Section LOADER_CORRECT.
     apply fsim_rsq; eauto.
   Qed.
 
-  (* Lemma load_prog_correct : *)
-  (*   load_c_prog p [= load_asm_prog tp. *)
-  (* Abort. *)
 End LOADER_CORRECT.
 
 End STRAT.
