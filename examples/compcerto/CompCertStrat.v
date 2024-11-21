@@ -962,7 +962,7 @@ Section CC_COMP.
 
 End CC_COMP.
 
-(** The interaction between the closure operator and the spacial composition.
+(** The interaction between the closure operator and the spatial composition.
     Particularly,
 
       (σ @ U)* = σ* @ U.

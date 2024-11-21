@@ -36,8 +36,8 @@ Lemma emor_rc_allow_intro {E1 E2} (f: emor E1 E2) m1 m2:
   emor_rc_has f (rcp_allow m1 m2).
 Proof. intros. subst. eapply emor_rc_allow. Qed.
 
-(** An auxiliary structure that converts between CompCertO's spacial composition
-    and strategy's spacial composition. This is useful for us to reuse some
+(** An auxiliary structure that converts between CompCertO's spatial composition
+    and strategy's spatial composition. This is useful for us to reuse some
     properties provided by CompCertO *)
 
 Section LIFT_CONVERT.

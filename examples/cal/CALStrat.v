@@ -112,7 +112,7 @@ Section REL_RSQ.
 
 End REL_RSQ.
 
-(** An associator for spacial composition and its properties *)
+(** An associator for spatial composition and its properties *)
 
 Section SCOMP_EMOR.
 
