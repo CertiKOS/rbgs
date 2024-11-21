@@ -127,3 +127,9 @@ Overall, the artifact is structured as follows:
     contain the formalization of the ClightP semantics and its
     composition property as described in §6.5 and Appendix E.
 
+## Acknowledgments
+
+We are very grateful to the anonymous members of the POPL 2025 Artifact
+Evaluation Committee who reviewed our artifact. In particular their
+feedback and suggestions helped us significantly improve the contents
+of this file.
