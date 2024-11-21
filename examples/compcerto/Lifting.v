@@ -14,6 +14,16 @@ From compcert.common Require Import
      SmallstepLinking
      Smallstep.
 
+Ltac eprod_crush :=
+  repeat
+    (match goal with
+     | [ H: ?a * ?b |- _ ] => destruct H;cbn [fst snd] in *; subst
+     | [ H: (?a, ?b) = (?c, ?d) |- _ ] => inv H
+     | [ H: (?x * ?y)%rel _ _ |- _] => destruct H; cbn [fst snd] in *; subst
+     | [ H: ?x /\ ?y |- _] => destruct H
+     | [ H: (exists _, _) |- _] => destruct H
+     | [ H: unit |- _] => destruct H
+     end).
 
 (** ** Definitions *)
 Section Lifting.
@@ -340,90 +350,3 @@ Proof.
   intros x. apply identity_forward_simulation.
 Qed.
 
-(** ------------------------------------------------------------------------- *)
-
-Ltac eprod_crush :=
-  repeat
-    (match goal with
-     | [ H: ?a * ?b |- _ ] => destruct H;cbn [fst snd] in *; subst
-     | [ H: (?a, ?b) = (?c, ?d) |- _ ] => inv H
-     | [ H: (?x * ?y)%rel _ _ |- _] => destruct H; cbn [fst snd] in *; subst
-     | [ H: ?x /\ ?y |- _] => destruct H
-     | [ H: (exists _, _) |- _] => destruct H
-     | [ H: unit |- _] => destruct H
-     end).
-
-Generalizable Variable liA liB.
-
-Section LIFT_UNIT.
-
-  Context {li: language_interface} {S: Type}.
-  Inductive su_ms: @state (li@S) _ 1 ->
-                   @state (li@S) _ (1@S) -> Prop :=
-  | su_ms_q q s:
-    su_ms (@st_q (li@S) (q,s)) ((st_q q), s)
-  | su_ms_r r s:
-    su_ms (@st_r (li@S) (r,s)) ((st_r r), s).
-  Hint Constructors su_ms.
-  Lemma lift_unit1: forward_simulation (@cc_id (li@S)) 1 1 (1 @ S).
-  Proof.
-    constructor. econstructor.
-    reflexivity. firstorder.
-    intros. inv H.
-    apply forward_simulation_step with (match_states := su_ms).
-    - intros. inv H. inv H1. cbn in *. eprod_crush.
-      eexists (_, _). repeat split; eauto.
-    - intros. inv H1. inv H.
-      eexists (_, _). repeat split.
-    - intros. inv H1. inv H.
-      eexists tt, (_, _). repeat split.
-      intros. inv H. inv H1. cbn in *. eprod_crush.
-      eexists (_, _). repeat split; eauto.
-    - easy.
-    - apply well_founded_ltof.
-  Qed.
-
-  Lemma lift_unit2: forward_simulation (@cc_id (li@S)) 1 (1 @ S) 1.
-    constructor. econstructor.
-    reflexivity. firstorder.
-    intros. inv H.
-    apply forward_simulation_step with (match_states := flip su_ms).
-    - intros. inv H. inv H1. inv H. cbn in *. eprod_crush.
-      eexists. repeat split; eauto. constructor.
-    - intros. inv H1. inv H. inv H2. inv H2. cbn in *. eprod_crush.
-      eexists. repeat split.
-    - intros. inv H1. inv H. inv H2. cbn in *.  eprod_crush.
-      eexists tt, _. repeat split.
-      intros. inv H. inv H1. inv H. cbn in *. eprod_crush.
-      eexists. repeat split; eauto. constructor. inv H2.
-    - intros. cbn in *. eprod_crush. inv H.
-    - apply well_founded_ltof.
-  Qed.
-
-End LIFT_UNIT.
-
-Lemma fsim_lift_normalize1 {S} `(L: semantics liA liB):
-  forward_simulation 1 1 (normalize_sem (L @ S)) (normalize_sem L @ S).
-Proof.
-  setoid_rewrite <- lift_categorical_comp2.
-  eapply categorical_compose_simulation'.
-  apply lift_unit1.
-  setoid_rewrite <- lift_categorical_comp2.
-  eapply categorical_compose_simulation'.
-  reflexivity.
-  apply lift_unit1.
-  all: cbn; (apply Linking.linkorder_refl || apply CategoricalComp.id_skel_order).
-Qed.
-
-Lemma fsim_lift_normalize2 {S} `(L: semantics liA liB):
-  forward_simulation 1 1 (normalize_sem L @ S) (normalize_sem (L @ S)).
-Proof.
-  setoid_rewrite lift_categorical_comp1.
-  eapply categorical_compose_simulation'.
-  apply lift_unit2.
-  setoid_rewrite -> lift_categorical_comp1.
-  eapply categorical_compose_simulation'.
-  reflexivity.
-  apply lift_unit2.
-  all: cbn; (apply Linking.linkorder_refl || apply CategoricalComp.id_skel_order).
-Qed.
