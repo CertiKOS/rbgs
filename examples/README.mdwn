@@ -21,7 +21,7 @@ to compile all the Coq proofs in this directory.
 - [compcerto/Determ.v](compcerto/Determ.v):
   Various deterministic properties of the CompCertO's program semantics.
 - [compcerto/CompCertStrat.v](compcerto/CompCertStrat.v):
-  Embedding of the CompCertO transition system into the
+  The embedding of the CompCertO transition system into the
   strategy model.
   All the definitions and theorems in Section 6.1 can be found in this file.
 - [compcerto/Util.v](compcerto/Util.v):
@@ -60,13 +60,13 @@ to compile all the Coq proofs in this directory.
 - [cal/CModule.v](cal/CModule.v):
   CompCert's C semantics as a module.
 - [cal/CALStrat.v](cal/CALStrat.v):
-  The certified abstraction layer and its composition.
+  The formalization of the certified abstraction layer and its composition.
 
 ## Section 6.5 Clight with Module-Local State
 
 - [clightp/PEnv.v](clightp/PEnv.v):
   The definitions and properties of the persistent environment.
 - [clightp/ClightP.v](clightp/ClightP.v):
-  The ClightP semantics defined using CompCertO transition system.
+  The formalization of the ClightP semantics defined using CompCertO transition system.
 - [clightp/ClightPStrat.v](clightp/ClightPStrat.v):
-  Embedding of the ClightP semantics into the strategy model.
+  The embedding of the ClightP semantics into the strategy model.
