@@ -51,12 +51,10 @@ used in the paper and their rendering in the code:
  | Residual strategy       | m \ σ     | `next m σ`                |
  | Residual convention     | q₁q₂⋯ \ R | `rcnext q1 q2 r1 r2 R`    |
 
-### Applications
+### Applications (§6)
 
-In addition, we have provided code for some (but not all) of the
-applications described in §6, including our embedding of CompCertO
-semantics (§6.1), the example shown in the introduction (§6.3),
-the certified abstraction layers (§6.4), and the ClightP semantics (§6.3).
+In addition, we have provided code for most of the applications
+described in §6. See examples/README.mdwn for a detailed break-down.
 
 ## Setting up the build environment
 

@@ -11,7 +11,7 @@ make examples/Application.vo
 in the project root
 to compile all the Coq proofs in this directory.
 
-## Section 6.1 CompCertO Semantics
+## Section 6.2 CompCertO Semantics
 
 - [compcerto/Lifting.v](compcerto/Lifting.v):
   Spacial composition on the CompCertO transition system,
@@ -27,7 +27,7 @@ to compile all the Coq proofs in this directory.
 - [compcerto/Util.v](compcerto/Util.v):
   Some auxiliary definitions and lemmas.
 
-## Section 6.2 Memory Separation
+## Section 6.3 Memory Separation
 
 - [memsep/Join.v](memsep/Join.v):
   The join operator on the CompCertO memory shares.
@@ -40,7 +40,7 @@ to compile all the Coq proofs in this directory.
 - [memsep/BQUtil.v](memsep/BQUtil.v):
   Some auxiliary definitions and lemmas.
 
-## Section 6.3 Modeling loading and the execution environments
+## Section 6.4 Modeling loading and the execution environments
 
 - [process/CAsm.v](process/CAsm.v):
   A simplification on CompCertO's overall simulation convention.
@@ -55,14 +55,14 @@ to compile all the Coq proofs in this directory.
 - [process/Rot13.v](process/Rot13.v):
   The complete verification of the rot13 example.
 
-## Section 6.4 Certified Abstraction Layers
+## Section 6.5 Certified Abstraction Layers
 
 - [cal/CModule.v](cal/CModule.v):
   CompCert's C semantics as a module.
 - [cal/CALStrat.v](cal/CALStrat.v):
   The formalization of the certified abstraction layer and its composition.
 
-## Section 6.5 Clight with Module-Local State
+## Section 6.6 Clight with Module-Local State
 
 - [clightp/PEnv.v](clightp/PEnv.v):
   The definitions and properties of the persistent environment.
