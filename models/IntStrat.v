@@ -2629,7 +2629,7 @@ End ID_RSQ.
 
 (** ** §4.4 Vertical Composition *)
 
-(** *** Definition 4.6 (Vertical composition of refinement conventions) *)
+(** *** Definition 4.7 (Vertical composition of refinement conventions) *)
 
 Section VCOMP.
   Context {E1 E2 E3 : esig}.
@@ -2756,7 +2756,7 @@ End VCOMP.
 
 Notation "R  ;; S" := (vcomp R S) (at level 45, right associativity) : conv_scope.
 
-(** *** Theorem 4.7 (Vertical composition of refinement squares) *)
+(** *** Theorem 4.8 (Vertical composition of refinement squares) *)
 
 Section RSVCOMP.
   Context {E1 F1 E2 F2 E3 F3 : esig}.
@@ -3226,7 +3226,7 @@ Qed.
 
 (** ** §4.5 Flat Composition *)
 
-(** *** Definition 4.8 (Flat composition of refinement conventions) *)
+(** *** Definition 4.10 (Flat composition of refinement conventions) *)
 
 Section FCOMP_RC.
   Context {E1 E2 F1 F2 : esig}.
@@ -3398,7 +3398,7 @@ End FCOMP_RC.
 
 Infix "+" := fcomp_rc : conv_scope.
 
-(** *** Theorem 4.9 (Flat composition properties) *)
+(** *** Theorem 4.11 (Flat composition properties) *)
 
 (** **** Functoriality of ⊕ *)
 
