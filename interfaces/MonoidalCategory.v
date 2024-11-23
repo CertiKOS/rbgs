@@ -69,10 +69,9 @@ Module MonoidalTheory (C : Category) (M : MonoidalDefinition C).
 
 End MonoidalTheory.
 
-Module Type Monoidal :=
-  Category.Category
-    <+ MonoidalDefinition
-    <+ MonoidalTheory.
+Module Type Monoidal (C : Category) :=
+  MonoidalDefinition C <+
+  MonoidalTheory C.
 
 
 (** * Cartesian monoidal structures *)
@@ -105,13 +104,15 @@ End CartesianStructureDefinition.
 (** ** Consequences *)
 
 (** We show in particular that cartesian structures are a special case
-  of monoidal structure. *)
+  of monoidal structure. Note that we cannot include [BifunctorTheory]
+  until the [omap] field from [CartesianStructureDefinition] and the
+  [fmap] field from [CartesianStructureTheory] have been consolidated
+  into a single module. As a result we need to defer this until we
+  define the overall [CartesianStructure] interface. *)
 
-Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition C)
-    <: MonoidalStructure C.
+Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition C).
 
-  Import C.
-  Include P.
+  Import C P.
 
   Local Infix "&" := omap (at level 40, left associativity) : obj_scope.
 
@@ -173,7 +174,6 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
     - rewrite p2_pair_rewrite, compose_assoc, p2_pair, compose_assoc. auto.
   Qed.
 
-  Include BifunctorTheory C C C.
   Local Infix "&" := fmap : hom_scope.
 
   (** *** Monoidal structure *)
@@ -277,18 +277,27 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
 
 End CartesianStructureTheory.
 
+(** Once we add in the definitions provided by [BifunctorTheory], we
+  can check the result against [MonoidalStructure]. *)
+
+Module Type CartesianStructure (C : Category) <: MonoidalStructure C :=
+  CartesianStructureDefinition C <+
+  CartesianStructureTheory C <+
+  BifunctorTheory C C C.
+
 (** ** Cartesian category interface *)
 
-Module Type CartesianDef (C : Category).
+Module Type CartesianDefinition (C : Category).
   Declare Module Prod : MonoidalStructure C.
-End CartesianDef.
+End CartesianDefinition.
 
-Module CartesianTheory (C : Category) (M : CartesianDef C).
+Module CartesianTheory (C : Category) (M : CartesianDefinition C).
   Import C M.
   Notation T := Prod.unit.
   Infix "&" := Prod.omap (at level 40, left associativity) : obj_scope.
   Infix "&" := Prod.fmap : hom_scope.
 End CartesianTheory.
 
-Module Type Cartesian :=
-  Category.Category <+ CartesianDef <+ CartesianTheory.
+Module Type Cartesian (C : Category) :=
+  CartesianDefinition C <+
+  CartesianTheory C.
