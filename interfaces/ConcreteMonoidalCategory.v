@@ -58,7 +58,7 @@ Module ConcreteCartesianStructure
 
   (** Terminal object and morphisms *)
 
-  Definition unit : C.t :=
+  Canonical Structure unit : C.t :=
     C.mkt Datatypes.unit.
 
   Definition ter X : C.m X unit :=
@@ -74,17 +74,17 @@ Module ConcreteCartesianStructure
 
   (** Product and projections *)
 
-  Definition omap (A B : C.t) : C.t :=
+  Canonical Structure omap (A B : C.t) : C.t :=
     C.mkt (C.carrier A * C.carrier B).
 
   Definition p1 {A B} : C.m (omap A B) A :=
-    C.mkm (A := omap A B) fst.
+    C.mkm fst.
 
   Definition p2 {A B} : C.m (omap A B) B :=
-    C.mkm (A := omap A B) snd.
+    C.mkm snd.
 
   Definition pair {X A B} (f : C.m X A) (g : C.m X B) : C.m X (omap A B) :=
-    C.mkm (B := omap A B) (fun x => (C.apply _ _ f x, C.apply _ _ g x)).
+    C.mkm (fun x => (f x, g x)).
 
   Proposition p1_pair {X A B} (f : C.m X A) (g : C.m X B) :
     p1 @ pair f g = f.
@@ -120,6 +120,8 @@ Module ConcreteCartesianTheory
 
   Module Prod <: MonoidalStructure C :=
     ConcreteCartesianStructure C M.
+
+  Include CartesianTheory C.
 
 End ConcreteCartesianTheory.
 
