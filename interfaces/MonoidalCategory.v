@@ -17,6 +17,22 @@ Module Type MonoidalStructure (C : Category).
   Parameter lunit : forall A, C.iso (omap unit A) A.
   Parameter runit : forall A, C.iso (omap A unit) A.
 
+  (** Naturality properties *)
+
+  Axiom assoc_nat :
+    forall {A1 B1 C1 A2 B2 C2: C.t} (f: C.m A1 A2) (g: C.m B1 B2) (h: C.m C1 C2),
+      fmap (fmap f g) h @ assoc A1 B1 C1 = assoc A2 B2 C2 @ fmap f (fmap g h).
+
+  Axiom lunit_nat :
+    forall {A1 A2 : C.t} (f : C.m A1 A2),
+      f @ lunit A1 = lunit A2 @ fmap (C.id unit) f.
+
+  Axiom runit_nat :
+    forall {A1 A2 : C.t} (f : C.m A1 A2),
+      f @ runit A1 = runit A2 @ fmap f (C.id unit).
+
+  (** Pentagon identity *)
+
   Axiom assoc_coh :
     forall A B C D : C.t,
       fmap (assoc A B C) (C.id D) @
@@ -24,6 +40,8 @@ Module Type MonoidalStructure (C : Category).
         fmap (C.id A) (assoc B C D) =
       assoc (omap A B) C D @
         assoc A B (omap C D).
+
+  (** Triangle identity *)
 
   Axiom unit_coh :
     forall A B : C.t,
@@ -128,6 +146,11 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
     - apply p2_pair_rewrite.
   Qed.
 
+  Global Hint Rewrite
+    @p1_pair @p1_pair_rewrite
+    @p2_pair @p2_pair_rewrite
+    @pair_compose @compose_assoc : pair.
+
   (** *** Bifunctor structure *)
 
   Definition fmap {A1 A2 B1 B2} (f1 : m A1 B1) (f2 : m A2 B2) :=
@@ -199,6 +222,34 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
     apply p1_pair.
   Qed.
 
+  (** Naturality *)
+
+  Proposition assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
+    ((f & g) & h) @ assoc A1 B1 C1 = assoc A2 B2 C2 @ (f& (g & h)).
+  Proof.
+    unfold fmap. cbn.
+    autorewrite with pair.
+    reflexivity.
+  Qed.
+
+  Proposition lunit_nat {A1 A2 : C.t} (f : C.m A1 A2) :
+    f @ lunit A1 = lunit A2 @ fmap (C.id unit) f.
+  Proof.
+    unfold fmap. cbn.
+    autorewrite with pair.
+    reflexivity.
+  Qed.
+
+  Proposition runit_nat {A1 A2 : C.t} (f : C.m A1 A2) :
+    f @ runit A1 = runit A2 @ fmap f (C.id unit).
+  Proof.
+    unfold fmap. cbn.
+    autorewrite with pair.
+    reflexivity.
+  Qed.
+
+  (** Pentagon diagram *)
+
   Proposition assoc_coh (A B C D : t) :
     (assoc A B C & id D) @ assoc A (B & C) D @ (id A & assoc B C D) =
     assoc (A & B) C D @ assoc A B (C & D).
@@ -210,6 +261,8 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
        rewrite ?p1_pair, ?p2_pair, ?pair_compose);
       auto.
   Qed.
+
+  (** Triangle diagram *)
 
   Proposition unit_coh (A B : t) :
     (runit A & id B) @ assoc A unit B = id A & lunit B.
