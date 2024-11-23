@@ -47,8 +47,8 @@ Module Type ConcreteCategoryDefinition.
       Morphism f ->
       Morphism (fun x => g (f x)).
 
-  Existing Instance id_mor.
-  Existing Instance compose_mor.
+  Global Existing Instance id_mor.
+  Global Existing Instance compose_mor.
 
 End ConcreteCategoryDefinition.
 
@@ -60,7 +60,7 @@ Module Type ConcreteCategoryTheory (C : ConcreteCategoryDefinition) <: Category.
     example we use it below to formulate enrichment as a supplementary
     structure on an existing category. However we can also derive a
     bundled form to use in cases where the unbundled form is too
-    cumbersome, and to equip [ConcreteCategory]ies with the standard
+    cumbersome, and to equip a [ConcreteCategory] with the standard
     [Category] interface. *)
 
   (** *** Objects *)
@@ -144,7 +144,7 @@ Module Type ConcreteCategory :=
   where the structure and properties of morphisms are both trivial.
   Note however that this gives an overly contrived definition for
   [SET.t] and [SET.m], so we may want to define an instance of
-  [Category], directly where they would be convertible with [Type]
+  [Category] directly where they would be convertible with [Type]
   and function types. *)
 
 Module SET <: ConcreteCategory.
@@ -155,13 +155,13 @@ Module SET <: ConcreteCategory.
   Definition Morphism {A B} `{Structure A} `{Structure B} (f : A -> B) := True.
   Existing Class Morphism.
 
-  Instance id_mor `{Structure} :
+  Global Instance id_mor `{Structure} :
     Morphism (fun x => x).
   Proof.
     constructor.
   Qed.
 
-  Instance compose_mor {A B C} `{Structure A} `{Structure B} `{Structure C} :
+  Global Instance compose_mor {A B C} `{Structure A} `{Structure B} `{Structure C} :
     forall (g : B -> C) (f : A -> B),
       Morphism g ->
       Morphism f ->
@@ -178,7 +178,7 @@ End SET.
 (** * Enrichment *)
 
 (** Although the full-blown definition of enriched category would
-  require duplicating the [Category] interface amond other things,
+  require duplicating the [Category] interface among other things,
   by restricting it to concrete categories we can easily define
   enrichment as an add-on to the basic interface. Likewise, for the
   sake of simplicity we can specify composition as a bimorphism
@@ -187,7 +187,7 @@ End SET.
 Module Type Enriched (V : ConcreteCategoryDefinition) (C : CategoryDefinition).
 
   Parameter hom_structure : forall (X Y : C.t), V.Structure (C.m X Y).
-  Existing Instance hom_structure.
+  Global Existing Instance hom_structure.
 
   Axiom compose_mor_l :
     forall {A B C} (f : C.m A B),

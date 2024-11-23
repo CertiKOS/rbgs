@@ -11,12 +11,24 @@ Require Import Coq.Program.Tactics.
   - Composition of morphisms along a common interface.
 
   By using Coq's module system, we can ensure a uniform interface
-  across different model and maximize code reuse, without paying for
+  across different models and maximize code reuse, without paying for
   the additional complexity what would come with a first-class
   treatment of the underlying categorical concepts. *)
 
 
-(** * Categories *)
+(** * Category interface *)
+
+(** The module type [Category] defined below provides a common
+  interface that we expect to rely on no matter which model is used.
+  This interface is divided into two parts:
+
+  - the module type [CategoryDefinition] enumerates the data which
+    must be defined when we declare a new instance;
+  - the module functor [CategoryTheory] then provides common
+    definitions and proofs and can be included to finish implementing
+    the complete user-facing [Category] interface.
+
+  We will use this pattern very often as we define other interfaces. *)
 
 (** ** Definition *)
 
@@ -56,19 +68,21 @@ End CategoryDefinition.
 
 Module CategoryTheory (C : CategoryDefinition).
 
-  (** ** Notations *)
+  (** *** Notations *)
 
+  Declare Scope obj_scope.
   Delimit Scope obj_scope with obj.
   Bind Scope obj_scope with C.t.
   Open Scope obj_scope.
 
+  Declare Scope hom_scope.
   Delimit Scope hom_scope with hom.
   Bind Scope hom_scope with C.m.
   Open Scope hom_scope.
 
   Infix "@" := C.compose (at level 45, right associativity) : hom_scope.
 
-  (** ** Isomorphisms *)
+  (** *** Isomorphisms *)
 
   Structure iso {A B : C.t} :=
     {
@@ -137,14 +151,9 @@ Module Type Category.
 End Category.
 
 
+(** * Basic instances *)
 
-
-
-
-
-(** ** Basic instances *)
-
-(** *** Product category *)
+(** ** Product category *)
 
 (** This is used in particular to give bifunctors a functor interface. *)
 
