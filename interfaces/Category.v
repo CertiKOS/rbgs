@@ -271,6 +271,45 @@ Module Two <: Category.
 
 End Two.
 
+(** ** Category of types and functions *)
+
+Module SET.
+
+  (** Objects and morphisms *)
+
+  Definition t := Type.
+  Definition m (A B : t) := A -> B.
+
+  (** Composition *)
+
+  Definition id A : m A A :=
+    fun x => x.
+
+  Definition compose {A B C} (g : m B C) (f : m A B) : m A C :=
+    fun x => g (f x).
+
+  (** Proofs *)
+
+  Lemma compose_id_left {A B} (f : m A B) :
+    compose (id B) f = f.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma compose_id_right {A B} (f : m A B) :
+    compose f (id A) = f.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
+    compose (compose h g) f = compose h (compose g f).
+  Proof.
+    reflexivity.
+  Qed.
+
+End SET.
+
 (** ** Product category *)
 
 (** This is used in particular to give bifunctors a functor interface. *)

@@ -143,11 +143,10 @@ Module Type ConcreteCategory :=
 (** The simplest one possible is the category of sets and functions,
   where the structure and properties of morphisms are both trivial.
   Note however that this gives an overly contrived definition for
-  [SET.t] and [SET.m], so we may want to define an instance of
-  [Category] directly where they would be convertible with [Type]
-  and function types. *)
+  [cSET.t] and [cSET.m], so in the [Category] library we define
+  a different instance which directly uses [Type] and function types. *)
 
-Module SET <: ConcreteCategory.
+Module cSET <: ConcreteCategory.
 
   Definition Structure (X : Type) := unit.
   Existing Class Structure.
@@ -172,7 +171,7 @@ Module SET <: ConcreteCategory.
 
   Include ConcreteCategoryTheory.
 
-End SET.
+End cSET.
 
 
 (** * Enrichment *)
