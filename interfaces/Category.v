@@ -153,6 +153,124 @@ End Category.
 
 (** * Basic instances *)
 
+(** ** Trivial categories *)
+
+(** The category [0] has no objects. *)
+
+Module Zero <: Category.
+
+  Definition t : Type := Empty_set.
+  Definition m (A B : t) : Type := match A with end.
+
+  Definition id (A : t) : m A A := match A with end.
+  Definition compose {A B C} (x : m B C) (y : m A B) : m A C := match A with end.
+
+  Lemma compose_id_left {A B} (f : m A B) :
+    compose (id B) f = f.
+  Proof.
+    destruct A.
+  Qed.
+
+  Lemma compose_id_right {A B} (f : m A B) :
+    compose f (id A) = f.
+  Proof.
+    destruct A.
+  Qed.
+
+  Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
+    compose (compose h g) f = compose h (compose g f).
+  Proof.
+    destruct A.
+  Qed.
+
+  Include CategoryTheory.
+
+End Zero.
+
+(** The category [1] has a single object and morphism. *)
+
+Module One <: Category.
+
+  Definition t : Type := unit.
+  Definition m (A B : t) : Type := unit.
+
+  Definition id (A : t) : m A A := tt.
+  Definition compose {A B C} (x : m B C) (y : m A B) : m A C := tt.
+
+  Lemma compose_id_left {A B} (f : m A B) :
+    compose (id B) f = f.
+  Proof.
+    destruct f.
+    reflexivity.
+  Qed.
+
+  Lemma compose_id_right {A B} (f : m A B) :
+    compose f (id A) = f.
+  Proof.
+    destruct f.
+    reflexivity.
+  Qed.
+
+  Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
+    compose (compose h g) f = compose h (compose g f).
+  Proof.
+    reflexivity.
+  Qed.
+
+  Include CategoryTheory.
+
+End One.
+
+(** The interval category [2] contains two objects and a single
+  nontrivial morphism between them. *)
+
+Module Two <: Category.
+  Unset Program Cases.
+
+  Variant m_def : bool -> bool -> Type :=
+    | id_def A : m_def A A
+    | int : m_def false true.
+
+  Definition t : Type := bool.
+  Definition m : t -> t -> Type := m_def.
+
+  Definition id : forall A, m A A := id_def.
+
+  Program Definition compose {A B C} (g : m B C) : m A B -> m A C :=
+    match g with
+      | id_def A => fun f => f
+      | int =>
+        match A with
+          | true => _ (* this cannot happen since [m true false] is empty *)
+          | false => fun f => int
+        end
+    end.
+  Next Obligation.
+    inversion X.
+  Qed.
+
+  Lemma compose_id_left {A B} (f : m A B) :
+    compose (id B) f = f.
+  Proof.
+    destruct f; cbn; auto.
+  Qed.
+
+  Lemma compose_id_right {A B} (f : m A B) :
+    compose f (id A) = f.
+  Proof.
+    destruct f; cbn; auto.
+  Qed.
+
+  Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
+    compose (compose h g) f = compose h (compose g f).
+  Proof.
+    destruct f, h; inversion g; subst; cbn; auto.
+  Qed.
+
+  Include CategoryTheory.
+
+End Two.
+
 (** ** Product category *)
 
 (** This is used in particular to give bifunctors a functor interface. *)
