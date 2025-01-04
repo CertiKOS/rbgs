@@ -1,7 +1,17 @@
+(** In this library we define module interfaces
+  for various kind of fixed functors between category modules.
+  Note that functors can also be treated as first-order objects;
+  see the [FunctorCategory] library. *)
+
 Require Import interfaces.Category.
 
 
 (** * Functors *)
+
+(** The basic definition of functor is fairly straightforward,
+  to the point that there is barely any theory to derive
+  from the axioms below. As a result, at this time we do not introduce
+  separate [FunctorDefinition] and [FunctorTheory] components. *)
 
 Module Type Functor (C D : CategoryDefinition).
 
@@ -19,6 +29,13 @@ End Functor.
 
 
 (** * Bifunctors *)
+
+(** We also provide separate definitions for bifunctors,
+  which we use to define monoidal structures.
+  Although bifunctors can be described as functors from
+  product categories (see [BifunctorTheory] below),
+  it is much more convenient to give a direct definition
+  in terms of binary functions. *)
 
 (** ** Definition *)
 
