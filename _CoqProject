@@ -39,3 +39,4 @@ interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
 interfaces/ConcreteCategory.v
+interfaces/FunctorCategory.v

@@ -81,6 +81,7 @@ Module CategoryTheory (C : CategoryDefinition).
   Open Scope hom_scope.
 
   Infix "@" := C.compose (at level 45, right associativity) : hom_scope.
+  Infix "~~>" := C.m (at level 90, right associativity) : type_scope.
 
   (** *** Isomorphisms *)
 
