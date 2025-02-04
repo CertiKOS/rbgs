@@ -32,6 +32,7 @@ lattices/AdjoinBot.v
 models/Signature.v
 models/IntSpec.v
 models/Coherence.v
+models/DCPO.v
 models/IntStrat.v
 examples/CAL.v
 interfaces/Category.v
