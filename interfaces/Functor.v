@@ -8,6 +8,8 @@ Require Import interfaces.Category.
 
 (** * Functors *)
 
+(** ** Core definition *)
+
 (** The basic definition of functor is fairly straightforward,
   to the point that there is barely any theory to derive
   from the axioms below. As a result, at this time we do not introduce
@@ -26,6 +28,32 @@ Module Type Functor (C D : CategoryDefinition).
       fmap (C.compose g f) = D.compose (fmap g) (fmap f).
 
 End Functor.
+
+(** ** Additional properties *)
+
+Module Type Faithful (C D : CategoryDefinition) (F : Functor C D).
+
+  Axiom faithful :
+    forall {A B} (f g : C.m A B), F.fmap f = F.fmap g -> f = g.
+
+End Faithful.
+
+Module Type Full (C D : CategoryDefinition) (F : Functor C D).
+
+  Axiom full :
+    forall {A B} (d : D.m (F.omap A) (F.omap B)),
+    exists (c : C.m A B), F.fmap c = d.
+
+End Full.
+
+Module Type FullFunctor (C D : CategoryDefinition) :=
+  Functor C D <+ Full C D.
+
+Module Type FaithfulFunctor (C D : CategoryDefinition) :=
+  Functor C D <+ Faithful C D.
+
+Module Type FullAndFaithfulFunctor (C D : CategoryDefinition) :=
+  Functor C D <+ Full C D <+ Faithful C D.
 
 
 (** * Bifunctors *)
