@@ -365,6 +365,13 @@ Module Type CategoryWithEndofunctors :=
 Module Monoids (C : MonoidalCategory) <: Category.
   Import C.
 
+  (** ** Monoid objects and homomorphisms *)
+
+  (** A monoid in [C] is an object [M ∈ C] (the carrier) equipped with
+    a unit morphism [η : 1 ~~> M] and a multiplication [μ : M * M ~~> M].
+    For the monoidal category of sets under cartesian products this
+    definition reduces to the usual definition of monoid. *)
+
   Record mon :=
     {
       carrier :> C.t;
@@ -379,6 +386,10 @@ Module Monoids (C : MonoidalCategory) <: Category.
   Definition t := mon.
   Identity Coercion tmon : t >-> mon.
 
+  (** A monoid homomorphism is given by a morphism between the
+    carriers which respects some coherence conditions with respect to
+    the units and multiplications. *)
+
   Record mh (M N : mon) :=
     {
       map :> M ~~> N;
@@ -389,6 +400,10 @@ Module Monoids (C : MonoidalCategory) <: Category.
   Arguments map {M N} _.
 
   Definition m := mh.
+
+  (** The following lemma are useful when proving that monoid
+    homomorphisms are equal and when we use [map_eta] and [map_mu]
+    to rewrite inside complex expressions. *)
 
   Lemma meq {M N} (f g : m M N) :
     map f = map g -> f = g.
@@ -411,7 +426,11 @@ Module Monoids (C : MonoidalCategory) <: Category.
     reflexivity.
   Qed.
 
-  (** Compositional structure *)
+  (** ** Compositional structure *)
+
+  (** The identity and composition of monoid homomorphism are
+    inherited from the underlying category. We just need to prove
+    that coherence conditions are preserved. *)
 
   Program Definition id (M : t) : m M M :=
     {|
@@ -440,7 +459,7 @@ Module Monoids (C : MonoidalCategory) <: Category.
     reflexivity.
   Qed.
 
-  (** Properties *)
+  (** Likewise the required properties are inherited from [C]. *)
 
   Proposition compose_id_left {A B} (f : m A B) :
     compose (id B) f = f.
@@ -467,6 +486,9 @@ Module Monoids (C : MonoidalCategory) <: Category.
 
 End Monoids.
 
+(** When the underlying category is the monoidal category [C.End]
+  of endofunctors over a base category [C], then monoids in [C.End]
+  are the monads over [C]. *)
 
 Module Monads (C : CategoryWithEndofunctors).
   Import C.EndNotations.
