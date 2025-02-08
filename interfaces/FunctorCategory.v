@@ -529,6 +529,18 @@ Module SET <: CategoryWithEndofunctors.
   Include CategoryTheory.
   Include AddEndofunctors.
 
+  (** Naturality properties in [SET] are more convenient to use in the
+    following form. *)
+
+  Import (coercions) End.
+
+  Lemma natural {F G} (η : End.nt F G) {X Y} (f : X -> Y) (u : F X) :
+    η Y (End.fapply F f u) = End.fapply G f (η X u).
+  Proof.
+    change ((η Y @ End.fapply F f) u = (End.fapply G f @ η X) u).
+    rewrite End.natural. reflexivity.
+  Qed.
+
 End SET.
 
 (** ** The terms for an effect signature [E] define a monad *)
