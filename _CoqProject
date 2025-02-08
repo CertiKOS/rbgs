@@ -30,6 +30,7 @@ lattices/FCD.v
 lattices/LatticeProduct.v
 lattices/AdjoinBot.v
 models/Signature.v
+models/EffectSignatures.v
 models/IntSpec.v
 models/Coherence.v
 models/DCPO.v
