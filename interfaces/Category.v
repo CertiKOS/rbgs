@@ -139,6 +139,47 @@ Module CategoryTheory (C : CategoryDefinition).
     rewrite ?C.compose_assoc, ?bw_fw_rewrite, ?fw_bw_rewrite, ?fw_bw, ?bw_fw;
     auto.
 
+  (** *** Opposite category *)
+
+  (** Note that we cannot recursively include the whole theory,
+    so [Op] can only be a [CategoryDefinition], but that is still
+    useful in many contexts. *)
+
+  Module Op <: CategoryDefinition.
+
+    (** Objects and morphisms *)
+
+    Definition t := C.t.
+    Definition m (A B : t) : Type := C.m B A.
+
+    (** Composition *)
+
+    Definition id A : m A A := C.id A.
+    Definition compose {A B C} (g : m B C) (f : m A B) : m A C := C.compose f g.
+
+    (** Proofs *)
+
+    Lemma compose_id_left {A B} (f : m A B) :
+        compose (id B) f = f.
+    Proof.
+        apply C.compose_id_right.
+    Qed.
+
+    Lemma compose_id_right {A B} (f : m A B) :
+        compose f (id A) = f.
+    Proof.
+        apply C.compose_id_left.
+    Qed.
+
+    Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
+        compose (compose h g) f = compose h (compose g f).
+    Proof.
+        symmetry.
+        apply C.compose_assoc.
+    Qed.
+
+  End Op.
+
 End CategoryTheory.
 
 (** ** Overall interface *)
@@ -359,42 +400,3 @@ Module Prod (C D : CategoryDefinition) <: Category.
   Include CategoryTheory.
 
 End Prod.
-
-(** ** Opposite category *)
-
-Module Op (C : Category) <: Category.
-
-  (** Objects and morphisms *)
-
-  Definition t := C.t.
-  Definition m (A B : t) : Type := C.m B A.
-
-  (** Composition *)
-
-  Definition id A : m A A := C.id A.
-  Definition compose {A B C} (g : m B C) (f : m A B) : m A C := C.compose f g.
-
-  (** Proofs *)
-
-  Lemma compose_id_left {A B} (f : m A B) :
-    compose (id B) f = f.
-  Proof.
-    apply C.compose_id_right.
-  Qed.
-
-  Lemma compose_id_right {A B} (f : m A B) :
-    compose f (id A) = f.
-  Proof.
-    apply C.compose_id_left.
-  Qed.
-
-  Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
-    compose (compose h g) f = compose h (compose g f).
-  Proof.
-    symmetry.
-    apply C.compose_assoc.
-  Qed.
-
-  Include CategoryTheory.
-
-End Op.

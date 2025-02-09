@@ -288,7 +288,7 @@ Module Type CartesianStructure (C : Category) <: MonoidalStructure C :=
 (** ** Cartesian category interface *)
 
 Module Type CartesianDefinition (C : Category).
-  Declare Module Prod : MonoidalStructure C.
+  Declare Module Prod : CartesianStructure C.
 End CartesianDefinition.
 
 Module CartesianTheory (C : Category) (M : CartesianDefinition C).
@@ -301,3 +301,7 @@ End CartesianTheory.
 Module Type Cartesian (C : Category) :=
   CartesianDefinition C <+
   CartesianTheory C.
+
+Module Type CartesianCategory :=
+  Category.Category <+
+  Cartesian.
