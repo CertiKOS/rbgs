@@ -168,8 +168,12 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
 
   Include CartesianStructureTheory C.
   Include BifunctorTheory C C C.
-
 End CartesianStructureFromProducts.
+
+Module CartesianFromProducts (C : Category) (P : Products C) <: Cartesian C.
+  Module Prod := CartesianStructureFromProducts C P.
+  Include CartesianTheory C.
+End CartesianFromProducts.
 
 
 (** * Limits in general *)

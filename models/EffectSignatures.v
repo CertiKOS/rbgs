@@ -1,6 +1,8 @@
 Require Import interfaces.Category.
 Require Import interfaces.FunctorCategory.
 Require Import interfaces.Functor.
+Require Import interfaces.MonoidalCategory.
+Require Import interfaces.Limits.
 Require Import FunctionalExtensionality.
 
 
@@ -12,30 +14,60 @@ Require Import FunctionalExtensionality.
   choose to adopt the more algebraic view and terminology
   which is prevalent in computer science applications. *)
 
-Module Sig <: Category.
+Module Sig <: CartesianCategory.
 
   (** ** Definition *)
 
-  (** For now we adopt the dependent type presentation of
-    effect signatures used in the interaction trees library,
-    where in a signature [E : Type -> Type] the set [E N]
-    contains the operations with an arity set [N]. It may
-    prove easier to use an alternative presentation with a
-    flat set of operations and a separate arity operation,
-    as can be found in other parts of this library. *)
+  (** *** Basic definition *)
 
-  Definition t := Type -> Type.
+  (** A signature is a set of operations with arities,
+    given in the form of index sets denoting argument positions. *)
 
-  (** For now we provide the set [op] and arity map [ar]
-    as derived constructions. *)
-
-  Record op {E : t} :=
-    mkop {
-      ar : Type;
-      eop : E ar;
+  Record sig :=
+    {
+      op : Type;
+      ar : op -> Type;
     }.
 
-  Arguments op : clear implicits.
+  Arguments ar {_} _.
+
+  (** *** Dependent type presentation *)
+
+  (** Signatures can also be represented as dependent types.
+    This is the approach taken in the interaction trees library.
+    In that case [E N] is the set of operations of arity [N]. *)
+
+  Definition esig := Type -> Type.
+
+  (** *** Converting between the two forms *)
+
+  (** We prefer to avoid using [esig] as our working version
+    and dealing with the associated issues of dependent elimination.
+    However this form is very convenient for declaring signatures,
+    and is used in the interaction trees library, so we provide ways
+    to convert between them. *)
+
+  Variant eop (E : esig) :=
+    | mkop {X} : E X -> eop E.
+
+  Arguments mkop {E X} m.
+
+  Definition ear {E} (m : eop E) : Type :=
+    match m with @mkop _ X _ => X end.
+
+  Definition esig_sig (E : esig) : sig :=
+    {|
+      op := eop E;
+      ar := ear;
+    |}.
+
+  Variant sig_esig (E : sig) : esig :=
+    | sig_esig_op (m : op E) : sig_esig E (ar m).
+
+  (** In any case, in the remainder of this file we will
+    use the [sig] presentation as the one of interest. *)
+
+  Definition t := sig.
 
   (** ** Applications *)
 
@@ -163,14 +195,105 @@ Module Sig <: Category.
   Qed.
 
   Include CategoryTheory.
-End Sig.
+
+  (** ** Products *)
+
+  (** The operations of a product of signature contain one operation
+    from each of the components, and their arity is the sum of each one.
+    In terms of games, the player Σ provides a move in each component game,
+    but Π only chooses to reply in one of them. *)
+
+  (** *** Products of arbitrary arity *)
+
+  Record ops {I} (A : I -> t) : Type :=
+    mkops { prod_op i :> op (A i) }.
+
+  Arguments prod_op {I A}.
+
+  Canonical Structure prod {I} (A : I -> t) : t :=
+    {|
+      op := ops A;
+      ar m := {i & ar (m i)};
+    |}.
+
+  Definition pi {I A} (i : I) : prod A ~~> A i :=
+    fun m => m i >= n => existT _ i n.
+
+  Definition tuple {I X A} (f : forall i:I, X ~~> A i) : X ~~> prod A := 
+    fun x => {| prod_op i := operator (f i x) |} >=
+        n => match n with existT _ i ni => operand (f i x) ni end.
+
+  Proposition pi_tuple {I X A} (f : forall i:I, X ~~> A i) (i : I) :
+    pi i @ tuple f = f i.
+  Proof.
+    apply functional_extensionality_dep. intro m. cbn.
+    destruct (f i m) as [mi k]. cbn. auto.
+  Qed.
+
+  Proposition tuple_pi {I X A} (x : X ~~> @prod I A) :
+    tuple (fun i => compose (pi i) x) = x.
+  Proof.
+    apply functional_extensionality_dep. intro m.
+    unfold tuple, compose. destruct (x m) as [[f] k]. cbn. f_equal.
+    apply functional_extensionality. intros [i ni]. auto.
+  Qed.
+
+  Include ProductsTheory.
+
+  (** *** Binary products *)
+
+  (** For now we use this generic implementation of the [Cartesian]
+    interface, but we may want to give an explicit definition
+    based on the [unit] and [prod] types. *)
+
+  Include CartesianFromProducts.
+
+  (** ** Coproducts *)
+
+  (** In the coproduct we just choose an operation from the component
+    signatures, which retains its arity. *)
+
+  (** *** Coproducts of any arities *)
+
+  Canonical Structure coprod {I} (A : I -> t) :=
+    {|
+      op := {i:I & op (A i)};
+      ar '(existT _ i m) := ar m;
+    |}.
+
+  Definition iota {I A} (i : I) : A i ~~> coprod A :=
+    fun m => existT _ i m >= n => n.
+
+  Definition cotuple {I X A} (f : forall i:I, A i ~~> X) : coprod A ~~> X :=
+    fun '(existT _ i m) => operator (f i m) >= n => operand (f i m) n.
+
+  Proposition cotuple_iota {I X A} (f : forall i:I, A i ~~> X) (i : I) :
+    cotuple f @ iota i = f i.
+  Proof.
+    apply functional_extensionality_dep. intro m. cbn.
+    destruct (f i m) as [x k]. cbn. auto.
+  Qed.
+
+  Proposition iota_cotuple {I X A} (f : @coprod I A ~~> X) :
+    cotuple (fun i => f @ iota i) = f.
+  Proof.
+    apply functional_extensionality_dep. intros [i m]. cbn.
+    destruct f as [x k]. cbn. auto.
+  Qed.
+
+  Include CoproductsTheory.
+
+  (** *** Binary coproducts *)
+
+  (** I still need to formalize the monoidal structures associated
+    with coproducts in the [MonoidalCategory] library. *)
 
 (** TODO:
-    - products and coproducts
     - tensor product
     - composition product / before
     - dual
  *)
+End Sig.
 
 
 (** * Interpretation in [SET] endofunctors *)
