@@ -73,6 +73,10 @@ Module Type Monoidal (C : Category) :=
   MonoidalDefinition C <+
   MonoidalTheory C.
 
+Module Type MonoidalCategory :=
+  Category.Category <+
+  Monoidal.
+
 
 (** * Cartesian monoidal structures *)
 
@@ -305,3 +309,28 @@ Module Type Cartesian (C : Category) :=
 Module Type CartesianCategory :=
   Category.Category <+
   Cartesian.
+
+
+(** * Monoidal functors *)
+
+Module Type FunctorMonoidal (C D : Category) (CM : MonoidalStructure C)
+  (DM : MonoidalStructure D) (F : Functor C D).
+
+  Import (coercions, notations) D.
+
+  Parameter omap_unit :
+    D.iso DM.unit (F.omap CM.unit).
+
+  Parameter omap_prod :
+    forall X Y, D.iso (DM.omap (F.omap X) (F.omap Y)) (F.omap (CM.omap X Y)).
+
+  Parameter omap_prod_nat :
+    forall {X1 X2 Y1 Y2} (f : C.m X1 X2) (g : C.m Y1 Y2),
+      omap_prod X2 Y2 @ DM.fmap (F.fmap f) (F.fmap g) =
+      F.fmap (CM.fmap f g) @ omap_prod X1 Y1.
+
+End FunctorMonoidal.
+
+Module Type MonoidalFunctor (C D : MonoidalCategory) :=
+  Functor.Functor C D <+
+  FunctorMonoidal C D C.Tens D.Tens.
