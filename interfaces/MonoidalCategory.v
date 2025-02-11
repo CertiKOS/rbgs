@@ -294,8 +294,8 @@ End CartesianDefinition.
 Module CartesianTheory (C : Category) (M : CartesianDefinition C).
   Import C M.
   Notation T := Prod.unit.
-  Infix "&" := Prod.omap (at level 40, left associativity) : obj_scope.
-  Infix "&" := Prod.fmap : hom_scope.
+  Infix "&&" := Prod.omap (at level 40, left associativity) : obj_scope.
+  Infix "&&" := Prod.fmap : hom_scope.
 End CartesianTheory.
 
 Module Type Cartesian (C : Category) :=

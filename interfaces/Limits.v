@@ -292,9 +292,9 @@ Module CartesianStructureLimit (C : CartesianCategory).
 
   Program Canonical Structure prod_c A B : cone (prod_d A B) :=
     {|
-      vertex := A & B;
+      vertex := A && B;
       edge j :=
-        if j return A & B ~~> Diagram.oapply (prod_d A B) j
+        if j return A && B ~~> Diagram.oapply (prod_d A B) j
         then C.Prod.p1
         else C.Prod.p2;
     |}.
