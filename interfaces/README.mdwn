@@ -1,5 +1,5 @@
 The files in this directory define general categorical interfaces and
-constructions using Coq's module system. The idea is less to formalize
+constructions using Rocq's module system. The idea is less to formalize
 the categorical concepts, and more to ensure that models with similar
 structures follow a uniform interface, and that moderate amounts
 of code reuse are possible.
@@ -24,6 +24,12 @@ Then we could carry out our work independently of a concrete model:
     
     End MyThing.
 
+Below I will outline some design principles I used.
+
+# Conventions
+
+## Modules types and modules
+
 In general, for an interface `Foo` we proceed as follows:
 
   * The module type `FooDefinition` enumerates the data which must be
@@ -39,3 +45,90 @@ In general, for an interface `Foo` we proceed as follows:
 Module types and module functors which build further on top of Foo can
 depend on an instance of the `Foo` module type, or just `FooDefinition`
 in cases where that is sufficient.
+
+For example, the module type `CategoryDefinition` provides standard names
+for object and morphism types, a composition operator and its identity,
+and their expected properties. The module functor `CategoryTheory C`
+provides common definitions and proofs derived from the basic ingredients
+provided by the parameter `C : CategoryDefinition`. When `CategoryTheory`
+is used with `<+` or `Include` with the parameter left out, Rocq will
+attempt to instantiate `C` with the partially defined module into which
+`CategoryTheory` is being included. A definition for the category `SET`
+may look like the following:
+
+    Module Type Category :=
+      CategoryDefinition <+
+      CategoryTheory.
+
+    Module SET <: Category.
+
+      (* Objects *)
+      Definition t := Type.
+
+      (* Morphisms *)
+      Definition m (A B : t) : t := A -> B.
+
+      (* Identity *)
+      Definition id {A} : m A A :=
+        fun x => x.
+
+      (* Composition *)
+      Definition compose {A B C} (g : m B C) (f : m A B) : m B C :=
+        fun a => g (f a).
+
+      (* Properties *)
+      Proposition compose_id_left :
+        ...
+
+      Include CategoryTheory.
+    End SET.
+
+Note that even though this is not declared, the definitions which precede
+the `Include` command will satisfy the `CategoryDefinition` interface, so
+that they can be used by the common code in `CategoryTheory`.
+
+## Traits
+
+In most cases, in addition to a core interface designated by a noun such
+as `Category` or `Functor`, our modules will implement a number of
+auxiliary *traits* designated by adjectives such as `Cartesian`, `Enriched`,
+`Monoidal`, ... These additional traits follow the same pattern as above
+with both a `Definition` interface and `Theory` common code.
+
+Sometimes, an adjective like `Monoidal` can apply to different core
+interfaces such as `Category` or `Functor`. In this case the bare name
+will be reserved for the more fundamental interface (in this case for
+monoidal categories), and the secondary uses can be disambiguated by
+prepending the name of the core interface they relate to, as in
+`FunctorMonoidal`.
+
+In general, we will want to give names to common combinations of core
+interfaces and additional traits, such as `MonoidalCategory`:
+
+    Module Type MonoidalCategory :=
+      Category <+
+      Monoidal.
+
+    Module Type MonoidalFunctor (C D : MonoidalCategory) :=
+      Functor C D <+
+      FunctorMonoidal C D.
+
+More specialized combinations can be defined on an as-needed basis; we
+will use the name `FooSpec` for a module type which details the interface
+implemented by the module `Foo`, and `BarReq` for a module type which
+enumerates requirements for the parameter of a module functor `Bar`.
+
+## Naming files
+
+When a Rocq library (say, `Category.v`) which contains a module of the
+same name is imported, the name (`Category`) will usually refer to the
+nested module defined within the file. However, in some contexts and
+especially module expression, it will sometime be necessary to type its
+full qualified name (`Category.Category`) to refer to the inner module
+rather than the containing file.
+
+To avoid any confusion, we may want to prevent this situation by using
+different names for the containing libraries. For example, we may want
+to name files in the plural (`Categories.v`, `Functors.v`, ...) where
+applicable.
+
