@@ -86,11 +86,19 @@ Module Sig <: CartesianCategory.
   Arguments apply {E X} _ _.
 
   (** We will sometimes use the following notation for simple terms,
-    which evokes the game/effects interpretation of signatures. *)
+    which evokes the game/effects interpretation of signatures.
+    NB: The notation [>=] is traditionally used for the [bind]
+    operator of monads which feeds its left-hand side to the Kleisli
+    extension of the function on the right-hand side. The notation
+    below is very much related to this, since it basically feeds the
+    outcome of the operation [m] to the argument map [n => x];
+    it is a sort of "syntactic bind". However we may need to change
+    the notation if we want to be able to use [>=] for monads in the
+    future. One good candidate would be [>-]. *)
 
   Notation "m >= n => x" :=
     {| operator := m; operand n := x |}
-    (at level 70, n at next level).
+    (at level 70, n binder).
 
   (** We can transform an application by using a given function
     on every argument. *)
@@ -221,7 +229,7 @@ Module Sig <: CartesianCategory.
 
   Definition tuple {I X A} (f : forall i:I, X ~~> A i) : X ~~> prod A := 
     fun x => {| prod_op i := operator (f i x) |} >=
-        n => match n with existT _ i ni => operand (f i x) ni end.
+          '(existT _ i ni) => operand (f i x) ni.
 
   Proposition pi_tuple {I X A} (f : forall i:I, X ~~> A i) (i : I) :
     pi i @ tuple f = f i.
