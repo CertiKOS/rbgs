@@ -6,7 +6,7 @@ Require Import FunctionalExtensionality.
 Require Import ProofIrrelevance.
 
 
-(** * Specific limits *)
+(** * Products *)
 
 (** ** Category with all products *)
 
@@ -50,48 +50,6 @@ End ProductsTheory.
 Module Type Products (C : CategoryDefinition) :=
   ProductsDefinition C <+
   ProductsTheory C.
-
-(** ** Coproducts *)
-
-Module Type CoproductsDefinition (C : CategoryDefinition).
-
-  Parameter coprod : forall {I}, (I -> C.t) -> C.t.
-  Parameter iota : forall {I A}, forall i:I, C.m (A i) (coprod A).
-  Parameter cotuple : forall {I X A}, (forall i:I, C.m (A i) X) -> C.m (coprod A) X.
-
-  Axiom cotuple_iota :
-    forall {I X A} (f : forall i:I, C.m (A i) X),
-      forall i, C.compose (cotuple f) (iota i) = f i.
-
-  Axiom iota_cotuple :
-    forall {I X A} (x : C.m (@coprod I A) X),
-      cotuple (fun i => C.compose x (iota i)) = x.
-
-End CoproductsDefinition.
-
-Module CoproductsTheory (C : CategoryDefinition) (P : CoproductsDefinition C).
-  Import P.
-
-  Lemma cotuple_iota_rewrite {I X Y A} (f: forall i:I, C.m (A i) Y) i (g: C.m X (A i)):
-    C.compose (cotuple f) (C.compose (iota i) g) = C.compose (f i) g.
-  Proof.
-    rewrite <- C.compose_assoc, P.cotuple_iota.
-    reflexivity.
-  Qed.
-
-  Lemma cotuple_uni {I X A} (f : forall i:I, C.m (A i) X) (x : C.m (coprod A) X) :
-    (forall i, C.compose x (iota i) = f i) -> x = cotuple f.
-  Proof.
-    intros H.
-    replace f with (fun i => C.compose x (iota i)).
-    - rewrite iota_cotuple. reflexivity.
-    - apply functional_extensionality_dep; auto.
-  Qed.
-End CoproductsTheory.
-
-Module Type Coproducts (C : CategoryDefinition) :=
-  CoproductsDefinition C <+
-  CoproductsTheory C.
 
 (** ** Derived cartesian structure *)
 
@@ -174,6 +132,51 @@ Module CartesianFromProducts (C : Category) (P : Products C) <: Cartesian C.
   Module Prod := CartesianStructureFromProducts C P.
   Include CartesianTheory C.
 End CartesianFromProducts.
+
+
+(** * Coproducts *)
+
+(** ** Category with all coproducts *)
+
+Module Type CoproductsDefinition (C : CategoryDefinition).
+
+  Parameter coprod : forall {I}, (I -> C.t) -> C.t.
+  Parameter iota : forall {I A}, forall i:I, C.m (A i) (coprod A).
+  Parameter cotuple : forall {I X A}, (forall i:I, C.m (A i) X) -> C.m (coprod A) X.
+
+  Axiom cotuple_iota :
+    forall {I X A} (f : forall i:I, C.m (A i) X),
+      forall i, C.compose (cotuple f) (iota i) = f i.
+
+  Axiom iota_cotuple :
+    forall {I X A} (x : C.m (@coprod I A) X),
+      cotuple (fun i => C.compose x (iota i)) = x.
+
+End CoproductsDefinition.
+
+Module CoproductsTheory (C : CategoryDefinition) (P : CoproductsDefinition C).
+  Import P.
+
+  Lemma cotuple_iota_rewrite {I X Y A} (f: forall i:I, C.m (A i) Y) i (g: C.m X (A i)):
+    C.compose (cotuple f) (C.compose (iota i) g) = C.compose (f i) g.
+  Proof.
+    rewrite <- C.compose_assoc, P.cotuple_iota.
+    reflexivity.
+  Qed.
+
+  Lemma cotuple_uni {I X A} (f : forall i:I, C.m (A i) X) (x : C.m (coprod A) X) :
+    (forall i, C.compose x (iota i) = f i) -> x = cotuple f.
+  Proof.
+    intros H.
+    replace f with (fun i => C.compose x (iota i)).
+    - rewrite iota_cotuple. reflexivity.
+    - apply functional_extensionality_dep; auto.
+  Qed.
+End CoproductsTheory.
+
+Module Type Coproducts (C : CategoryDefinition) :=
+  CoproductsDefinition C <+
+  CoproductsTheory C.
 
 
 (** * Limits in general *)
