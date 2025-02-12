@@ -133,6 +133,31 @@ Module CartesianFromProducts (C : Category) (P : Products C) <: Cartesian C.
   Include CartesianTheory C.
 End CartesianFromProducts.
 
+(** ** Preservation *)
+
+(** Note that this only works when both the source and target category
+  have all products. It would be preferable to define product
+  preservation when particular products may or may not exist in [C]
+  and [D]; when all products do exist the definition would be
+  equivalent to the following. However this would require basing the
+  definition on a notion of an object and projection morphisms being
+  a product, which would be best defined elsewhere. *)
+
+Module Type PreservesProducts (C : CategoryDefinition) (D : Category)
+  (PC : Products C) (PD : Products D) (F : Functor C D).
+
+  Import (notations, coercions) D.
+
+  Parameter omap_prod :
+    forall {I} (A : I -> C.t),
+      D.iso (F.omap (PC.prod A)) (PD.prod (fun i => F.omap (A i))).
+
+  Parameter fmap_pi :
+    forall {I} (A : I -> C.t) (i : I),
+      F.fmap (PC.pi i) = PD.pi i @ omap_prod A.
+
+End PreservesProducts.
+
 
 (** * Coproducts *)
 
