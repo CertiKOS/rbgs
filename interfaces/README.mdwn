@@ -81,6 +81,10 @@ may look like the following:
         ...
 
       Include CategoryTheory.
+
+      (* We can have more SET-specific definitions here that
+        rely on the material provided by [CategoryTheory]. *)
+
     End SET.
 
 Note that even though this is not declared, the definitions which precede
@@ -131,4 +135,11 @@ To avoid any confusion, we may want to prevent this situation by using
 different names for the containing libraries. For example, we may want
 to name files in the plural (`Categories.v`, `Functors.v`, ...) where
 applicable.
+
+# Tips and tricks
+
+## Dealing with submodules
+
+[Should write something here about the issues that come up and ways to
+work around them]
 
