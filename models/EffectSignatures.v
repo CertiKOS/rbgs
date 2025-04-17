@@ -104,7 +104,7 @@ Module SigBase <: CartesianCategory.
     on every argument. *)
 
   Definition amap {E : t} {X Y} (f : X -> Y) : application E X -> application E Y :=
-    fun '(apply m x) => (m >= n => f (x n)).
+    fun x => operator x >= n => f (operand x n).
 
   (** This forms the morphism part of a [Set] endofunctor
     associated with [application E], as shown below. *)
@@ -137,7 +137,7 @@ Module SigBase <: CartesianCategory.
     of the signature [E] into simple terms of the signature [F]. *)
 
   Definition hmap {E F} (ϕ : m E F) X : application E X -> application F X :=
-    fun '(apply m x) => amap x (ϕ m).
+    fun x => amap (operand x) (ϕ (operator x)).
 
   (** So whereas [amap f : application E X -> application E Y] acts
     on the arguments, [hmap φ : application E X -> application F X]
@@ -148,8 +148,7 @@ Module SigBase <: CartesianCategory.
   Lemma hmap_natural {E F} (ϕ : m E F) {X Y} (f : X -> Y) (u : application E X) :
     amap f (hmap ϕ X u) = hmap ϕ Y (amap f u).
   Proof.
-    destruct u as [m x]; cbn.
-    apply amap_compose.
+    reflexivity.
   Qed.
 
   (** In fact, [application], [amap] and [hmap] together define a
@@ -234,6 +233,7 @@ Module SigBase <: CartesianCategory.
   Proposition pi_tuple {I X A} (f : forall i:I, X ~~> A i) (i : I) :
     pi i @ tuple f = f i.
   Proof.
+    unfold compose, hmap, amap, tuple, pi.
     apply functional_extensionality_dep. intro m. cbn.
     destruct (f i m) as [mi k]. cbn. auto.
   Qed.
@@ -278,6 +278,7 @@ Module SigBase <: CartesianCategory.
   Proposition cotuple_iota {I X A} (f : forall i:I, A i ~~> X) (i : I) :
     cotuple f @ iota i = f i.
   Proof.
+    unfold cotuple, iota, compose, hmap, amap.
     apply functional_extensionality_dep. intro m. cbn.
     destruct (f i m) as [x k]. cbn. auto.
   Qed.
@@ -298,7 +299,7 @@ Module SigBase <: CartesianCategory.
 
 End SigBase.
 
-(** *** Tensor product *)
+(** ** Tensor product *)
 
 Module Type SigTensReq.
   Include SigBase.
@@ -308,7 +309,7 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
   Import B.
   Unset Program Cases.
 
-  Module Tens <: MonoidalStructure SigBase.
+  Module Tens <: MonoidalStructure B.
 
   Canonical Structure omap (E F : t) : t :=
     {|
@@ -340,13 +341,10 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
   Proof.
     intros.
     apply functional_extensionality_dep. intros [m1 m2].
-    unfold fmap, compose, hmap. cbn.
-    destruct (f1 m1) as [m1' k1']. cbn. destruct (g1 m1') as [m1'' k1'']. cbn.
-    destruct (f2 m2) as [m2' k2']. cbn. destruct (g2 m2') as [m2'' k2'']. cbn.
     reflexivity.
   Qed.
 
-  Include BifunctorTheory SigBase SigBase SigBase.
+  Include BifunctorTheory B B B.
 
   Canonical Structure unit :=
     {|
@@ -362,16 +360,14 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
       bw '((m1, m2), m3) := (m1, (m2, m3)) >= '(n1, (n2, n3)) => ((n1, n2), n3);
     |}.
   Next Obligation.
-    apply functional_extensionality_dep. intros [m1 [m2 m3]]. cbn.
-    unfold id. f_equal.
-    apply functional_extensionality. intros [n1 [n2 n3]].
-    reflexivity.
+    unfold compose, hmap, amap, id.
+    apply functional_extensionality_dep. intros [m1 [m2 m3]]. cbn. f_equal.
+    apply functional_extensionality. intros [n1 [n2 n3]]. auto.
   Qed.
   Next Obligation.
-    apply functional_extensionality_dep. intros [[m1 m2] m3]. cbn.
-    unfold id. f_equal.
-    apply functional_extensionality. intros [[n1 n2] n3].
-    reflexivity.
+    unfold compose, hmap, amap, id.
+    apply functional_extensionality_dep. intros [[m1 m2] m3]. cbn. f_equal.
+    apply functional_extensionality. intros [[n1 n2] n3]. auto.
   Qed.
 
   Program Definition lunit E : iso (unit * E) E :=
@@ -380,8 +376,8 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
       bw m := (tt, m) >= '(_, n) => n;
     |}.
   Next Obligation.
-    apply functional_extensionality_dep. intros [[ ] m]. cbn.
-    unfold id. f_equal.
+    unfold compose, hmap, amap, id.
+    apply functional_extensionality_dep. intros [[ ] m]. cbn. f_equal.
     apply functional_extensionality. intros [[ ] n]. auto.
   Qed.
 
@@ -391,8 +387,8 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
       bw m := (m, tt) >= '(n, _) => n;
     |}.
   Next Obligation.
-    apply functional_extensionality_dep. intros [m [ ]]. cbn.
-    unfold id. f_equal.
+    unfold compose, hmap, amap, id.
+    apply functional_extensionality_dep. intros [m [ ]]. cbn. f_equal.
     apply functional_extensionality. intros [n [ ]]. auto.
   Qed.
 
@@ -402,7 +398,7 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
     forall (f : A1 ~~> A2) (g : B1 ~~> B2) (h : C1 ~~> C2),
       ((f * g) * h) @ assoc A1 B1 C1 = assoc A2 B2 C2 @ (f * (g * h)).
   Proof.
-    intros f g h.
+    intros f g h. unfold compose, hmap, amap.
     apply functional_extensionality_dep. intros [m1 [m2 m3]]. cbn. f_equal.
     apply functional_extensionality. intros [[n1 n2] n3]. cbn. auto.
   Qed.
@@ -427,6 +423,7 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
     assoc E F G * id H @ assoc E (F * G) H @ id E * assoc F G H =
     assoc (E * F) G H @ assoc E F (G * H).
   Proof.
+    unfold compose, hmap, amap.
     apply functional_extensionality_dep. intros [e [f [g h]]]. cbn. f_equal.
     apply functional_extensionality. intros [[[p q] r] s]. cbn. auto.
   Qed.
@@ -441,6 +438,194 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
 
   End Tens.
 End SigTens.
+
+(** Some notable properties we should formalize:
+  - the tensor product distrubutes over coproducts
+  - we could provide tensors for arbitrary arities
+  - there is a closed monoidal structure associated with it.
+  - morphism I ~~> E is an operation of E
+ *)
+
+(*
+    Definition omap E F :=
+      {|
+        op := E ~~> F;
+        ar ϕ := {e : op E & ar (operator (ϕ e))};
+      |}.
+*)
+
+(** ** Composition product *)
+
+(** This monoidal structure corresponds to the composition of
+  polynomial endofunctors. *)
+
+Module SigComp (B : SigTensReq).
+  Import B.
+
+  Module Comp <: MonoidalStructure B.
+
+    (** Although they are just special cases of dependent sums,
+      declaring the specialized types below makes things easier. *)
+
+    Set Primitive Projections.
+
+    Record op {E F : t} :=
+      mkop {
+        op_first : B.op E;
+        op_next : ar op_first -> B.op F;
+      }.
+
+    Arguments op : clear implicits.
+    Arguments mkop {_ _}.
+
+    Record ar {E F : t} {m : B.op E} {q : B.ar m -> B.op F} :=
+      mkar {
+        ar_first : B.ar m;
+        ar_next : B.ar (q ar_first);
+      }.
+
+    Arguments ar {_ _}.
+    Arguments mkar {_ _ _ _}.
+
+    Canonical Structure omap E F :=
+      {|
+        B.op := op E F;
+        B.ar m := ar (op_first m) (op_next m);
+      |}.
+
+    Local Infix "⊳" := omap (at level 40) : obj_scope.
+
+    Definition fmap {E1 E2 F1 F2}: E1~~>F1 -> E2~~>F2 -> E1 ⊳ E2 ~~> F1 ⊳ F2 :=
+      fun f1 f2 m =>
+        let x1 := f1 (op_first m) in
+        let x2 n1' := f2 (op_next m (operand x1 n1')) in
+        mkop (operator x1) (fun n1' => operator (x2 n1')) >= n =>
+        mkar (operand x1 (ar_first n)) (operand (x2 (ar_first n)) (ar_next n)).
+
+    Local Infix "⊳" := fmap (at level 40) : hom_scope.
+
+    Proposition fmap_id {E1 E2} :
+      id E1 ⊳ id E2 = id (E1 ⊳ E2).
+    Proof.
+      reflexivity.
+    Qed.
+
+    Proposition fmap_compose {E1 E2 F1 F2 G1 G2} :
+      forall (g1 : F1 ~~> G1) (g2 : F2 ~~> G2) (f1 : E1 ~~> F1) (f2 : E2 ~~> F2),
+        (g1 @ f1) ⊳ (g2 @ f2) = (g1 ⊳ g2) @ (f1 ⊳ f2).
+    Proof.
+      reflexivity.
+    Qed.
+
+    Include BifunctorTheory B B B.
+
+    (** Structural isomorphisms *)
+
+    Lemma aeq {E X} (m1 m2 : B.op E) (k1 k2 : _ -> X) :
+      m1 = m2 ->
+      (forall (H : m1 = m2) n, k1 n = k2 (eq_rect m1 B.ar n m2 H)) ->
+      apply m1 k1 = apply m2 k2.
+    Proof.
+      intros Hm Hk.
+      specialize (Hk Hm).
+      destruct Hm. cbn in *. f_equal.
+      apply functional_extensionality. auto.
+    Qed.
+
+    Require Import JMeq.
+
+    Lemma aeq' {E X} (m1 m2 : B.op E) (k1 k2 : _ -> X) :
+      m1 = m2 ->
+      (forall n1 n2, JMeq n1 n2 -> JMeq (k1 n1) (k2 n2)) ->
+      apply m1 k1 = apply m2 k2.
+    Proof.
+      intros Hm Hk. subst. f_equal.
+      apply functional_extensionality. intros n.
+      apply JMeq_eq. auto.
+    Qed.
+
+    Canonical Structure unit := 
+      {|
+        B.op := unit;
+        B.ar _ := unit;
+      |}.
+
+    Program Definition assoc E F G : iso (E ⊳ (F ⊳ G)) ((E ⊳ F) ⊳ G) :=
+      {|
+        fw x := mkop (mkop (op_first x) (fun n => op_first (op_next x n)))
+                     (fun n => op_next (op_next x (ar_first n)) (ar_next n))
+        >= r => mkar (ar_first (ar_first r))
+                     (mkar (ar_next (ar_first r)) (ar_next r));
+        bw x := mkop (op_first (op_first x))
+                     (fun n => mkop (op_next (op_first x) n)
+                                    (fun r => op_next x (mkar n r)))
+        >= r => mkar (mkar (ar_first r) (ar_first (ar_next r)))
+                     (ar_next (ar_next r))
+      |}.
+
+    Program Definition lunit E : iso (unit ⊳ E) E :=
+      {|
+        fw x := op_next x tt >= n => mkar tt n;
+        bw m := mkop tt (fun _ => m) >= y => ar_next y;
+      |}.
+    Next Obligation.
+      unfold compose, hmap, amap, id. cbn.
+      apply functional_extensionality_dep. intros [[ ] m]. cbn.
+      f_equal.
+      apply aeq.
+    Admitted.
+
+    Program Definition runit E : iso (E ⊳ unit) E :=
+      {|
+        fw x := op_first x >= n => mkar n tt;
+        bw m := mkop m (fun _ => tt) >= y => ar_first y;
+      |}.
+    Next Obligation.
+      unfold compose, hmap, amap, id. cbn.
+      apply functional_extensionality_dep. intros [m k]. cbn.
+      cbn in *.
+    Admitted.
+
+    (** Naturality properties *)
+
+    Proposition assoc_nat {A1 B1 C1 A2 B2 C2} :
+      forall (f : A1 ~~> A2) (g : B1 ~~> B2) (h : C1 ~~> C2),
+        ((f ⊳ g) ⊳ h) @ assoc A1 B1 C1 = assoc A2 B2 C2 @ (f ⊳ (g ⊳ h)).
+    Proof.
+      reflexivity.
+    Qed.
+
+    Proposition lunit_nat {A1 A2} (f : A1 ~~> A2) :
+      f @ lunit A1 = lunit A2 @ (id unit ⊳ f).
+    Proof.
+      reflexivity.
+    Qed.
+
+    Proposition runit_nat {A1 A2} (f : A1 ~~> A2) :
+      f @ runit A1 = runit A2 @ (f ⊳ id unit).
+    Proof.
+      reflexivity.
+    Qed.
+
+    (** Pentagon identity *)
+
+    Proposition assoc_coh E F G H :
+      assoc E F G ⊳ id H @ assoc E (F ⊳ G) H @ id E ⊳ assoc F G H =
+        assoc (E ⊳ F) G H @ assoc E F (G ⊳ H).
+    Proof.
+      reflexivity.
+    Qed.
+
+    (** Triangle identity *)
+
+    Proposition unit_coh E F :
+      (runit E ⊳ id F) @ assoc E unit F = id E ⊳ lunit F.
+    Proof.
+      reflexivity.
+    Qed.
+
+  End Comp.
+End SigComp.
 
 (** ** Putting everything together *)
 
@@ -479,23 +664,11 @@ Module SigEnd <: FullAndFaithfulFunctor Sig (SET.End).
     apply functional_extensionality. intro a.
     apply Sig.amap_id.
   Qed.
-  Next Obligation.
-    apply functional_extensionality. intro a.
-    unfold SET.compose.
-    rewrite Sig.amap_compose.
-    reflexivity.
-  Qed.
 
   Program Definition fmap {E F} (f : Sig.m E F) : SET.End.m (omap E) (omap F) :=
     {|
       SET.End.comp := Sig.hmap f;
     |}.
-  Next Obligation.
-    apply functional_extensionality. intros x.
-    unfold SET.compose.
-    rewrite Sig.hmap_natural.
-    reflexivity.
-  Qed.
 
   Proposition fmap_id E :
     fmap (Sig.id E) = SET.End.id (omap E).
@@ -533,7 +706,8 @@ Module SigEnd <: FullAndFaithfulFunctor Sig (SET.End).
     intros H.
     apply functional_extensionality_dep. intros m.
     assert (Hm : fmap f _ (m >= n => n) = fmap g _ (m >= n => n)) by congruence.
-    cbn in Hm. destruct (f m), (g m). assumption.
+    cbn in Hm. unfold Sig.hmap in Hm. cbn in Hm.
+    destruct (f m), (g m). assumption.
   Qed.
 
   (** TODO:
