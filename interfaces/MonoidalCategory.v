@@ -78,6 +78,48 @@ Module Type MonoidalCategory :=
   Monoidal.
 
 
+(** * Monoidal closure *)
+
+Module Type MonoidalClosureDefinition (C : Category) (M : MonoidalStructure C).
+  Import C.
+  Infix "*" := M.omap : obj_scope.
+  Infix "*" := M.fmap : hom_scope.
+
+  Include Bifunctor C.Op C C.
+
+  Parameter curry : forall {A B C}, (M.omap A B ~~> C) -> (A ~~> omap B C).
+  Parameter uncurry : forall {A B C}, (A ~~> omap B C) -> (M.omap A B ~~> C).
+
+  Axiom uncurry_curry :
+    forall {A B C} (f : A * B ~~> C), uncurry (curry f) = f.
+  Axiom curry_uncurry :
+    forall {A B C} (g : A ~~> omap B C), curry (uncurry g) = g.
+
+  Axiom curry_natural_l :
+    forall {A1 A2 B C} (x : A1 ~~> A2) (f : A2 * B ~~> C),
+      curry (f @ (x * id B)) = curry f @ x.
+  Axiom curry_natural_r :
+    forall {A B C1 C2} (f : A * B ~~> C1) (y : C1 ~~> C2),
+      curry (y @ f) = fmap (id B) y @ curry f.
+
+End MonoidalClosureDefinition.
+
+Module MonoidalClosureTheory (C : Category) (M : MonoidalStructure C)
+  (W : MonoidalClosureDefinition C M).
+
+  Import C W.
+
+  Theorem curry_natural :
+    forall {A1 A2 B C1 C2} (x : A1 ~~> A2) (f : A2 * B ~~> C1) (y : C1 ~~> C2),
+      curry (y @ f @ (x * id B)) = fmap (id B) y @ curry f @ x.
+  Admitted.
+
+  (* Theorem uncurry_natural :
+    .... *)
+
+End MonoidalClosureTheory.
+
+
 (** * Cartesian monoidal structures *)
 
 (** ** Definition *)
