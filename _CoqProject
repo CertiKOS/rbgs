@@ -29,6 +29,7 @@ lattices/Upset.v
 lattices/FCD.v
 lattices/LatticeProduct.v
 lattices/AdjoinBot.v
+models/Sets.v
 models/Signature.v
 models/EffectSignatures.v
 models/IntSpec.v

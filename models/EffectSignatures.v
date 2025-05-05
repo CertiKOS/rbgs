@@ -3,6 +3,7 @@ Require Import interfaces.FunctorCategory.
 Require Import interfaces.Functor.
 Require Import interfaces.MonoidalCategory.
 Require Import interfaces.Limits.
+Require Import models.Sets.
 Require Import FunctionalExtensionality.
 
 
