@@ -638,7 +638,8 @@ Module Type SigSpec :=
 
 Module Sig <: SigSpec :=
   SigBase <+
-  SigTens.
+  SigTens <+
+  SigComp.
 
 (** TODO:
     - composition product / before
