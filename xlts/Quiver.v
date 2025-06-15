@@ -512,7 +512,7 @@ Definition qqcomp {U V W g f E F G γ φ P Q R ρ π L M N} :
     fun η μ u v e p q m =>
       η (f u) (f v) (φ u v e) (π u p) (π v q) (μ u v e p q m).
 
-Infix "@@" := qqcomp (at level 45, right associativity).
+Infix "@@" := qqcomp (at level 30, right associativity).
 
 Lemma qqcomp_qqid_l {U V f E F φ P Q π M N} (μ : @qqmor U V f E F φ P Q π M N) :
   qqid @@ μ = μ.
