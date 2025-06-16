@@ -1,6 +1,12 @@
+COQDOCEXTRAFLAGS := -g --parse-comments
+
 pre-all::
 	+make -C coqrel
 	+make -C compcert depend
-	+make -C compcert driver/Compiler.vo
+	+make -C compcert
+
+clean::
+	+make -C coqrel clean
+	+make -C compcert clean
 
 -include Makefile.user

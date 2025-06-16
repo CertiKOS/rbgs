@@ -76,7 +76,7 @@ End Sup.
   extensionality to prove antisymmetry, and the axiom of choice to
   prove distributivity. *)
 
-Module Downset : LatticeCompletion Sup.
+Module Downset <: LatticeCompletion Sup.
 
   Record downset {C : poset} :=
     {
@@ -156,8 +156,9 @@ Module Downset : LatticeCompletion Sup.
     Lemma emb_mor (c1 c2 : C) :
       emb c1 [= emb c2 <-> c1 [= c2.
     Proof.
-      cbn. firstorder.
-      etransitivity; eauto.
+      cbn. split.
+      - intro H. apply H. reflexivity.
+      - intros H c Hc. etransitivity; eauto.
     Qed.
 
     Lemma emb_join_dense :
@@ -213,8 +214,18 @@ Module Downset : LatticeCompletion Sup.
       (* maybe use emb_join_prime *)
     Admitted.
 
+    (** These are not required to implement the interface but can be
+      useful when using the concrete implementation directly. *)
+
+    Lemma has_eq_ext (x y : F) :
+      (forall c, has x c <-> has y c) -> x = y.
+    Proof.
+      intros H.
+      apply antisymmetry; intros c Hc; apply H; auto.
+    Qed.
   End DOWNSETS.
 
+  Arguments F : clear implicits.
   Include (LatticeCompletionDefs Sup).
 
 End Downset.
