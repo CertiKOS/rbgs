@@ -1,0 +1,321 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>interfaces.ConcreteCategory</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library interfaces.ConcreteCategory</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Export</span> <a class="idref" href="interfaces.Category.html#"><span class="id" title="library">interfaces.Category</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Logic.FunctionalExtensionality.html#"><span class="id" title="library">FunctionalExtensionality</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Logic.ProofIrrelevance.html#"><span class="id" title="library">ProofIrrelevance</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab295"></a><h1 class="section">Mathematical structures and enrichment</h1>
+
+<div class="paragraph"> </div>
+
+ Our development uses a variety of mathematical structures,
+  for example various notions of partial orders. Specifications
+  of models can then require that they be equipped with these
+  structures in a systemactic way. 
+<div class="paragraph"> </div>
+
+<a id="lab296"></a><h1 class="section">Concrete categories</h1>
+
+<div class="paragraph"> </div>
+
+ Mathematical structures are formalized following a limited
+  unbundled approach, which allows the underlying sets and
+  functions to be manipulated in an unintrusive way.
+  We will define an instance of the following module type for each
+  kind of structure we want to formalize (poset, lattice, etc.) 
+<div class="paragraph"> </div>
+
+<a id="lab297"></a><h2 class="section">Definition</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a id="ConcreteCategoryDefinition" class="idref" href="#ConcreteCategoryDefinition"><span class="id" title="module">ConcreteCategoryDefinition</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+First, we must define a typeclass which provides the extra
+    structure for a given set. This should consist of any constants,
+    operations and relations for the structure of interest, together
+    with the axioms they must satisfy. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a id="ConcreteCategoryDefinition.Structure" class="idref" href="#ConcreteCategoryDefinition.Structure"><span class="id" title="axiom">Structure</span></a> : <span class="id" title="keyword">Type</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Type</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Existing Class</span> <span class="id" title="keyword">Structure</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Then, we must give the properties satisfied by structure-
+    preserving functions. These properties should be satisfied by
+    identity functions and preserved by composition. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a id="ConcreteCategoryDefinition.Morphism" class="idref" href="#ConcreteCategoryDefinition.Morphism"><span class="id" title="axiom">Morphism</span></a> : <span class="id" title="keyword">∀</span> {<a id="A:2" class="idref" href="#A:2"><span class="id" title="binder">A</span></a> <a id="B:3" class="idref" href="#B:3"><span class="id" title="binder">B</span></a>} `{<a id="H:4" class="idref" href="#H:4"><span class="id" title="binder">Structure</span></a> <a id="H:4" class="idref" href="#H:4"><span class="id" title="binder">A</span></a>} `{<a id="H0:5" class="idref" href="#H0:5"><span class="id" title="binder">Structure</span></a> <a id="H0:5" class="idref" href="#H0:5"><span class="id" title="binder">B</span></a>}, <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">(</span></a><a class="idref" href="interfaces.ConcreteCategory.html#A:2"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:3"><span class="id" title="variable">B</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Prop</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Existing Class</span> <span class="id" title="var">Morphism</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="ConcreteCategoryDefinition.id_mor" class="idref" href="#ConcreteCategoryDefinition.id_mor"><span class="id" title="axiom">id_mor</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> `{<a id="H:8" class="idref" href="#H:8"><span class="id" title="binder">Structure</span></a>}, <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="x:9" class="idref" href="#x:9"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#x:9"><span class="id" title="variable">x</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="ConcreteCategoryDefinition.compose_mor" class="idref" href="#ConcreteCategoryDefinition.compose_mor"><span class="id" title="axiom">compose_mor</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<a id="A:11" class="idref" href="#A:11"><span class="id" title="binder">A</span></a> <a id="B:12" class="idref" href="#B:12"><span class="id" title="binder">B</span></a> <a id="C:13" class="idref" href="#C:13"><span class="id" title="binder">C</span></a>} `{<a id="H:14" class="idref" href="#H:14"><span class="id" title="binder">Structure</span></a> <a id="H:14" class="idref" href="#H:14"><span class="id" title="binder">A</span></a>} `{<a id="H0:15" class="idref" href="#H0:15"><span class="id" title="binder">Structure</span></a> <a id="H0:15" class="idref" href="#H0:15"><span class="id" title="binder">B</span></a>} `{<a id="H1:16" class="idref" href="#H1:16"><span class="id" title="binder">Structure</span></a> <a id="H1:16" class="idref" href="#H1:16"><span class="id" title="binder">C</span></a>} (<a id="g:17" class="idref" href="#g:17"><span class="id" title="binder">g</span></a>: <a class="idref" href="interfaces.ConcreteCategory.html#B:12"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:13"><span class="id" title="variable">C</span></a>) (<a id="f:18" class="idref" href="#f:18"><span class="id" title="binder">f</span></a>: <a class="idref" href="interfaces.ConcreteCategory.html#A:11"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:12"><span class="id" title="variable">B</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:17"><span class="id" title="variable">g</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:18"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="x:19" class="idref" href="#x:19"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#g:17"><span class="id" title="variable">g</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#f:18"><span class="id" title="variable">f</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#x:19"><span class="id" title="variable">x</span></a>)).<br/>
+
+<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition"><span class="id" title="module">ConcreteCategoryDefinition</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab298"></a><h2 class="section">Theory</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a id="ConcreteCategoryTheory" class="idref" href="#ConcreteCategoryTheory"><span class="id" title="module">ConcreteCategoryTheory</span></a> (<span class="id" title="var">C</span> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition"><span class="id" title="module">ConcreteCategoryDefinition</span></a>) &lt;: <a class="idref" href="interfaces.Category.html#Category"><span class="id" title="module">Category</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The unbundled form of mathematical structures is flexible, for
+    example we use it below to formulate enrichment as a supplementary
+    structure on an existing category. However we can also derive a
+    bundled form to use in cases where the unbundled form is too
+    cumbersome, and to equip a <span class="inlinecode"><a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategory"><span class="id" title="module">ConcreteCategory</span></a></span> with the standard
+    <span class="inlinecode"><a class="idref" href="interfaces.Category.html#Category"><span class="id" title="module">Category</span></a></span> interface. 
+<div class="paragraph"> </div>
+
+<a id="lab299"></a><h3 class="section">Objects</h3>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Record</span> <a id="ConcreteCategoryTheory.structured_set" class="idref" href="#ConcreteCategoryTheory.structured_set"><span class="id" title="record">structured_set</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="ConcreteCategoryTheory.mkt" class="idref" href="#ConcreteCategoryTheory.mkt"><span class="id" title="constructor">mkt</span></a> {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="ConcreteCategoryTheory.carrier" class="idref" href="#ConcreteCategoryTheory.carrier"><span class="id" title="projection">carrier</span></a> :&gt; <span class="id" title="keyword">Type</span>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="ConcreteCategoryTheory.structure" class="idref" href="#ConcreteCategoryTheory.structure"><span class="id" title="projection">structure</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#C.Structure"><span class="id" title="class">C.Structure</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#carrier:22"><span class="id" title="method">carrier</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Arguments</span> <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.mkt"><span class="id" title="constructor">mkt</span></a> <span class="id" title="var">_</span> {<span class="id" title="var">_</span>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="ConcreteCategoryTheory.t" class="idref" href="#ConcreteCategoryTheory.t"><span class="id" title="definition">t</span></a> := <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.structured_set"><span class="id" title="record">structured_set</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Identity</span> <span class="id" title="keyword">Coercion</span> <span class="id" title="var">tss</span> : <span class="id" title="var">t</span> &gt;-&gt; <span class="id" title="var">structured_set</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab300"></a><h3 class="section">Morphisms</h3>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Record</span> <a id="ConcreteCategoryTheory.structured_map" class="idref" href="#ConcreteCategoryTheory.structured_map"><span class="id" title="record">structured_map</span></a> (<a id="A:24" class="idref" href="#A:24"><span class="id" title="binder">A</span></a> <a id="B:25" class="idref" href="#B:25"><span class="id" title="binder">B</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.t"><span class="id" title="definition">t</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="ConcreteCategoryTheory.mkm" class="idref" href="#ConcreteCategoryTheory.mkm"><span class="id" title="constructor">mkm</span></a> {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="ConcreteCategoryTheory.apply" class="idref" href="#ConcreteCategoryTheory.apply"><span class="id" title="projection">apply</span></a> :&gt; <a class="idref" href="interfaces.ConcreteCategory.html#A:24"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:25"><span class="id" title="variable">B</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="ConcreteCategoryTheory.morphism" class="idref" href="#ConcreteCategoryTheory.morphism"><span class="id" title="projection">morphism</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#C.Morphism"><span class="id" title="class">C.Morphism</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#apply:27"><span class="id" title="method">apply</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Arguments</span> <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.mkm"><span class="id" title="constructor">mkm</span></a> {<span class="id" title="var">_</span> <span class="id" title="var">_</span>} <span class="id" title="var">_</span> {<span class="id" title="var">_</span>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="ConcreteCategoryTheory.m" class="idref" href="#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a id="A:29" class="idref" href="#A:29"><span class="id" title="binder">A</span></a> <a id="B:30" class="idref" href="#B:30"><span class="id" title="binder">B</span></a> := <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.structured_map"><span class="id" title="record">structured_map</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:29"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:30"><span class="id" title="variable">B</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Identity</span> <span class="id" title="keyword">Coercion</span> <span class="id" title="var">msm</span> : <span class="id" title="var">m</span> &gt;-&gt; <span class="id" title="var">structured_map</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="ConcreteCategoryTheory.meq" class="idref" href="#ConcreteCategoryTheory.meq"><span class="id" title="lemma">meq</span></a> {<a id="A:31" class="idref" href="#A:31"><span class="id" title="binder">A</span></a> <a id="B:32" class="idref" href="#B:32"><span class="id" title="binder">B</span></a>} (<a id="f:33" class="idref" href="#f:33"><span class="id" title="binder">f</span></a> <a id="g:34" class="idref" href="#g:34"><span class="id" title="binder">g</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:31"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:32"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <a id="x:35" class="idref" href="#x:35"><span class="id" title="binder">x</span></a>, <a class="idref" href="interfaces.ConcreteCategory.html#f:33"><span class="id" title="variable">f</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#x:35"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:34"><span class="id" title="variable">g</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#x:35"><span class="id" title="variable">x</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:33"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:34"><span class="id" title="variable">g</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab301"></a><h3 class="section">Composition</h3>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="ConcreteCategoryTheory.id" class="idref" href="#ConcreteCategoryTheory.id"><span class="id" title="definition">id</span></a> <a id="A:36" class="idref" href="#A:36"><span class="id" title="binder">A</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:36"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:36"><span class="id" title="variable">A</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.mkm"><span class="id" title="constructor">mkm</span></a> (<span class="id" title="keyword">fun</span> <a id="x:37" class="idref" href="#x:37"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#x:37"><span class="id" title="variable">x</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="ConcreteCategoryTheory.compose" class="idref" href="#ConcreteCategoryTheory.compose"><span class="id" title="definition">compose</span></a> {<a id="A:38" class="idref" href="#A:38"><span class="id" title="binder">A</span></a> <a id="B:39" class="idref" href="#B:39"><span class="id" title="binder">B</span></a> <a id="C:40" class="idref" href="#C:40"><span class="id" title="binder">C</span></a>} (<a id="g:41" class="idref" href="#g:41"><span class="id" title="binder">g</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:39"><span class="id" title="variable">B</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:40"><span class="id" title="variable">C</span></a>) (<a id="f:42" class="idref" href="#f:42"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:38"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:39"><span class="id" title="variable">B</span></a>) : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:38"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:40"><span class="id" title="variable">C</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.mkm"><span class="id" title="constructor">mkm</span></a> (<span class="id" title="keyword">fun</span> <a id="x:43" class="idref" href="#x:43"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#g:41"><span class="id" title="variable">g</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#f:42"><span class="id" title="variable">f</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#x:43"><span class="id" title="variable">x</span></a>)).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="ConcreteCategoryTheory.compose_id_left" class="idref" href="#ConcreteCategoryTheory.compose_id_left"><span class="id" title="lemma">compose_id_left</span></a> {<a id="A:44" class="idref" href="#A:44"><span class="id" title="binder">A</span></a> <a id="B:45" class="idref" href="#B:45"><span class="id" title="binder">B</span></a>} (<a id="f:46" class="idref" href="#f:46"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:44"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:45"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.compose"><span class="id" title="definition">compose</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.id"><span class="id" title="definition">id</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:45"><span class="id" title="variable">B</span></a>) <a class="idref" href="interfaces.ConcreteCategory.html#f:46"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:46"><span class="id" title="variable">f</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="ConcreteCategoryTheory.compose_id_right" class="idref" href="#ConcreteCategoryTheory.compose_id_right"><span class="id" title="lemma">compose_id_right</span></a> {<a id="A:47" class="idref" href="#A:47"><span class="id" title="binder">A</span></a> <a id="B:48" class="idref" href="#B:48"><span class="id" title="binder">B</span></a>} (<a id="f:49" class="idref" href="#f:49"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:47"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:48"><span class="id" title="variable">B</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.compose"><span class="id" title="definition">compose</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:49"><span class="id" title="variable">f</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.id"><span class="id" title="definition">id</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:47"><span class="id" title="variable">A</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:49"><span class="id" title="variable">f</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="ConcreteCategoryTheory.compose_assoc" class="idref" href="#ConcreteCategoryTheory.compose_assoc"><span class="id" title="lemma">compose_assoc</span></a> {<a id="A:50" class="idref" href="#A:50"><span class="id" title="binder">A</span></a> <a id="B:51" class="idref" href="#B:51"><span class="id" title="binder">B</span></a> <a id="C:52" class="idref" href="#C:52"><span class="id" title="binder">C</span></a> <a id="D:53" class="idref" href="#D:53"><span class="id" title="binder">D</span></a>} (<a id="f:54" class="idref" href="#f:54"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:50"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:51"><span class="id" title="variable">B</span></a>) (<a id="g:55" class="idref" href="#g:55"><span class="id" title="binder">g</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:51"><span class="id" title="variable">B</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:52"><span class="id" title="variable">C</span></a>) (<a id="h:56" class="idref" href="#h:56"><span class="id" title="binder">h</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.m"><span class="id" title="definition">m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:52"><span class="id" title="variable">C</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#D:53"><span class="id" title="variable">D</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.compose"><span class="id" title="definition">compose</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.compose"><span class="id" title="definition">compose</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#h:56"><span class="id" title="variable">h</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:55"><span class="id" title="variable">g</span></a>) <a class="idref" href="interfaces.ConcreteCategory.html#f:54"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.compose"><span class="id" title="definition">compose</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#h:56"><span class="id" title="variable">h</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory.compose"><span class="id" title="definition">compose</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:55"><span class="id" title="variable">g</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:54"><span class="id" title="variable">f</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab302"></a><h3 class="section">Derived constructions</h3>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Include</span> <a class="idref" href="interfaces.Category.html#CategoryTheory"><span class="id" title="module">CategoryTheory</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory"><span class="id" title="module">ConcreteCategoryTheory</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab303"></a><h2 class="section">Overall interface</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a id="ConcreteCategory" class="idref" href="#ConcreteCategory"><span class="id" title="module">ConcreteCategory</span></a> :=<br/>
+&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition"><span class="id" title="module">ConcreteCategoryDefinition</span></a> &lt;+<br/>
+&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory"><span class="id" title="module">ConcreteCategoryTheory</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab304"></a><h1 class="section">Basic instances</h1>
+
+<div class="paragraph"> </div>
+
+ The simplest one possible is the category of sets and functions,
+  where the structure and properties of morphisms are both trivial.
+  Note however that this gives an overly contrived definition for
+  <span class="inlinecode"><span class="id" title="var">cSET.t</span></span> and <span class="inlinecode"><span class="id" title="var">cSET.m</span></span>, so in the <span class="inlinecode"><a class="idref" href="interfaces.Category.html#Category"><span class="id" title="module">Category</span></a></span> library we define
+  a different instance which directly uses <span class="inlinecode"><span class="id" title="keyword">Type</span></span> and function types. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a id="cSET" class="idref" href="#cSET"><span class="id" title="module">cSET</span></a> &lt;: <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategory"><span class="id" title="module">ConcreteCategory</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="cSET.Structure" class="idref" href="#cSET.Structure"><span class="id" title="definition">Structure</span></a> (<a id="X:57" class="idref" href="#X:57"><span class="id" title="binder">X</span></a> : <span class="id" title="keyword">Type</span>) := <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Datatypes.html#unit"><span class="id" title="inductive">unit</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Existing Class</span> <span class="id" title="keyword">Structure</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="cSET.Morphism" class="idref" href="#cSET.Morphism"><span class="id" title="definition">Morphism</span></a> {<a id="A:58" class="idref" href="#A:58"><span class="id" title="binder">A</span></a> <a id="B:59" class="idref" href="#B:59"><span class="id" title="binder">B</span></a>} `{<a id="H:60" class="idref" href="#H:60"><span class="id" title="binder">Structure</span></a> <a id="H:60" class="idref" href="#H:60"><span class="id" title="binder">A</span></a>} `{<a id="H0:61" class="idref" href="#H0:61"><span class="id" title="binder">Structure</span></a> <a id="H0:61" class="idref" href="#H0:61"><span class="id" title="binder">B</span></a>} (<a id="f:62" class="idref" href="#f:62"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#A:58"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:59"><span class="id" title="variable">B</span></a>) := <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#True"><span class="id" title="inductive">True</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Existing Class</span> <span class="id" title="var">Morphism</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="cSET.id_mor" class="idref" href="#cSET.id_mor"><span class="id" title="instance">id_mor</span></a> `{<a id="H:64" class="idref" href="#H:64"><span class="id" title="binder">Structure</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#cSET.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="x:65" class="idref" href="#x:65"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#x:65"><span class="id" title="variable">x</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="cSET.compose_mor" class="idref" href="#cSET.compose_mor"><span class="id" title="instance">compose_mor</span></a> {<a id="A:66" class="idref" href="#A:66"><span class="id" title="binder">A</span></a> <a id="B:67" class="idref" href="#B:67"><span class="id" title="binder">B</span></a> <a id="C:68" class="idref" href="#C:68"><span class="id" title="binder">C</span></a>} `{<a id="H:69" class="idref" href="#H:69"><span class="id" title="binder">Structure</span></a> <a id="H:69" class="idref" href="#H:69"><span class="id" title="binder">A</span></a>} `{<a id="H0:70" class="idref" href="#H0:70"><span class="id" title="binder">Structure</span></a> <a id="H0:70" class="idref" href="#H0:70"><span class="id" title="binder">B</span></a>} `{<a id="H1:71" class="idref" href="#H1:71"><span class="id" title="binder">Structure</span></a> <a id="H1:71" class="idref" href="#H1:71"><span class="id" title="binder">C</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<a id="g:72" class="idref" href="#g:72"><span class="id" title="binder">g</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#B:67"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:68"><span class="id" title="variable">C</span></a>) (<a id="f:73" class="idref" href="#f:73"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#A:66"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:67"><span class="id" title="variable">B</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#cSET.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:72"><span class="id" title="variable">g</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#cSET.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:73"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.2/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#cSET.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="x:74" class="idref" href="#x:74"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#g:72"><span class="id" title="variable">g</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#f:73"><span class="id" title="variable">f</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#x:74"><span class="id" title="variable">x</span></a>)).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Include</span> <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory"><span class="id" title="module">ConcreteCategoryTheory</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="interfaces.ConcreteCategory.html#cSET"><span class="id" title="module">cSET</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab305"></a><h1 class="section">Enrichment</h1>
+
+<div class="paragraph"> </div>
+
+ Although the full-blown definition of enriched category would
+  require duplicating the <span class="inlinecode"><a class="idref" href="interfaces.Category.html#Category"><span class="id" title="module">Category</span></a></span> interface among other things,
+  by restricting it to concrete categories we can easily define
+  enrichment as an add-on to the basic interface. Likewise, for the
+  sake of simplicity we can specify composition as a bimorphism
+  instead of using a general monoidal structure. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a id="Enriched" class="idref" href="#Enriched"><span class="id" title="module">Enriched</span></a> (<span class="id" title="var">V</span> : <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryDefinition"><span class="id" title="module">ConcreteCategoryDefinition</span></a>) (<span class="id" title="var">C</span> : <a class="idref" href="interfaces.Category.html#CategoryDefinition"><span class="id" title="module">CategoryDefinition</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a id="Enriched.hom_structure" class="idref" href="#Enriched.hom_structure"><span class="id" title="axiom">hom_structure</span></a> : <span class="id" title="keyword">∀</span> (<a id="X:75" class="idref" href="#X:75"><span class="id" title="binder">X</span></a> <a id="Y:76" class="idref" href="#Y:76"><span class="id" title="binder">Y</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#C.t"><span class="id" title="axiom">C.t</span></a>), <a class="idref" href="interfaces.ConcreteCategory.html#V.Structure"><span class="id" title="class">V.Structure</span></a> (<a class="idref" href="interfaces.ConcreteCategory.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#X:75"><span class="id" title="variable">X</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#Y:76"><span class="id" title="variable">Y</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="Enriched.compose_mor_l" class="idref" href="#Enriched.compose_mor_l"><span class="id" title="axiom">compose_mor_l</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<a id="A:78" class="idref" href="#A:78"><span class="id" title="binder">A</span></a> <a id="B:79" class="idref" href="#B:79"><span class="id" title="binder">B</span></a> <a id="C:80" class="idref" href="#C:80"><span class="id" title="binder">C</span></a>} (<a id="f:81" class="idref" href="#f:81"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:78"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:79"><span class="id" title="variable">B</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#V.Morphism"><span class="id" title="class">V.Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="g:82" class="idref" href="#g:82"><span class="id" title="binder">g</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:79"><span class="id" title="variable">B</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:80"><span class="id" title="variable">C</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#C.compose"><span class="id" title="axiom">C.compose</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:82"><span class="id" title="variable">g</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:81"><span class="id" title="variable">f</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="Enriched.compose_mor_r" class="idref" href="#Enriched.compose_mor_r"><span class="id" title="axiom">compose_mor_r</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<a id="A:84" class="idref" href="#A:84"><span class="id" title="binder">A</span></a> <a id="B:85" class="idref" href="#B:85"><span class="id" title="binder">B</span></a> <a id="C:86" class="idref" href="#C:86"><span class="id" title="binder">C</span></a>} (<a id="g:87" class="idref" href="#g:87"><span class="id" title="binder">g</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:85"><span class="id" title="variable">B</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#C:86"><span class="id" title="variable">C</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.ConcreteCategory.html#V.Morphism"><span class="id" title="class">V.Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="f:88" class="idref" href="#f:88"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.ConcreteCategory.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#A:84"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#B:85"><span class="id" title="variable">B</span></a> ⇒ <a class="idref" href="interfaces.ConcreteCategory.html#C.compose"><span class="id" title="axiom">C.compose</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#g:87"><span class="id" title="variable">g</span></a> <a class="idref" href="interfaces.ConcreteCategory.html#f:88"><span class="id" title="variable">f</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="interfaces.ConcreteCategory.html#Enriched"><span class="id" title="module">Enriched</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
