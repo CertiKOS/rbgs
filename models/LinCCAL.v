@@ -66,8 +66,8 @@ Module LinCCAL.
     in the free monad, in the style of algebraic effect frameworks.
 
     To express correctness, we use the following execution model.
-    When a method [ls_op] is invoked in a particular thread, we use
-    the implementation to initialize a computation [ls_prog] for that
+    When a method [ts_op] is invoked in a particular thread, we use
+    the implementation to initialize a computation [ts_prog] for that
     thread.  Whenever the thread is scheduled, we use the (linearized,
     atomic) underlay specification to perform the next underlay call
     in the computation. Eventually, the computation will produce a
@@ -80,7 +80,7 @@ Module LinCCAL.
     executed, when its atomic call and return will be recoded as
     occuring from the point of view of the overlay client. We match
     the call against the overlay specification at that time and keep
-    track of the result [ls_res] that we have committed to. As the
+    track of the result [ts_res] that we have committed to. As the
     method's execution proceeds and eventually terminates, we will
     have to show that the actual outcome matches the recorded result.
 
