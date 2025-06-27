@@ -19,7 +19,7 @@ Module LinCCAL <: Category.
   (** ** Concurrent object specifications *)
 
   (** For simplicity, we use linearized atomic specifications and
-    specify correctness directly in terms of this model. In their
+    specify correctness directly in terms of that model. In their
     linearized form, the specifications are deterministic, however
     we allow both undefined and unimplementable behaviors.
     Undefined behaviors ([spec_bot]) release the implementation of
@@ -157,7 +157,7 @@ Module LinCCAL <: Category.
     overlay specification. *)
 
   Definition threadstate_valid {E F} (e : option (threadstate E F)) :=
-    forall x, e = Some x -> forall r, ts_prog x = Sig.var r -> ts_res x = Some r.
+    forall q r R, e = Some (mkts q (Sig.var r) R) -> R = Some r.
 
   (** Note that if [spec_top] appears in the underlay specification [Σ],
     there will be no corresponding [eaction] step to take. As a
@@ -272,19 +272,6 @@ Module LinCCAL <: Category.
       edestruct @ci_next as (s'' & Hs'' & H''); eauto.
   Qed.
 
-  (** *** Other properties *)
-
-  Lemma correct_commit {E F} (M : Reg.Op.m E F) t s {q} r R Δ Σ :
-    TMap.find t s = Some (mkts q (Sig.var r) R) ->
-    correct M (mkst Δ s Σ) ->
-    R = Some r.
-  Proof.
-    intros Ht Hs.
-    eapply correct_valid in Hs. cbn in Hs.
-    specialize (Hs _ Ht _ eq_refl).
-    exact Hs.
-  Qed.
-
   (** ** Identity *)
 
   Variant id_linstate {E} : threadstate E E -> Prop :=
@@ -302,7 +289,7 @@ Module LinCCAL <: Category.
     correctness_invariant (Reg.id E) id_state.
   Proof.
     split.
-    - intros _ [Σ u Hu] t s Hs r Hr. cbn in *. apply Hu in Hs.
+    - intros _ [Σ u Hu] t q r R Hs. apply Hu in Hs.
       dependent destruction Hs; cbn in *; congruence.
     - intros _ [Σ u Hu] u' Hu'.
       dependent destruction Hu'.
@@ -436,15 +423,13 @@ Module LinCCAL <: Category.
       intros He12 He1 He2.
       dependent destruction He12.
       - red. congruence.
-      - intros s Hs r Hr.
+      - intros xq r xR Hs.
         dependent destruction H.
         dependent destruction Hs; cbn in *.
-        specialize (He1 _ eq_refl _ eq_refl). cbn in *.
-        congruence.
-      - intros s Hs xr Hr.
+        eauto.
+      - intros xq r xR Hs.
         dependent destruction H; cbn in *.
-        dependent destruction Hs; cbn in *.
-        congruence.
+        dependent destruction Hs.
     Qed.
 
     Lemma comp_threadstate_o i j q T w s12 s1 s2 :
@@ -721,7 +706,7 @@ Module LinCCAL <: Category.
          * The hypothesis on [mk] will eventually help us deal
          * with the remainder of [M]'s program.
          *)
-        assert (Q = Some n) by eauto using correct_commit. subst. cbn in *.
+        assert (Q = Some n) by (eapply correct_valid; eauto). subst. cbn in *.
         (*
          * The first step is to trigger the [ereturn] step in [N].
          *)
