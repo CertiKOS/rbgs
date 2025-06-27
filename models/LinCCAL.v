@@ -4,12 +4,13 @@ Require Import Program.
 Require Import Classical.
 
 Require Import coqrel.LogicalRelations.
+Require Import interfaces.Category.
 Require Import models.EffectSignatures.
 
 
 (** * Linearization-based Concurrent Certified Abstraction Layers *)
 
-Module LinCCAL.
+Module LinCCAL <: Category.
 
   Module TMap := PositiveMap.
   Notation tid := TMap.key.
@@ -882,4 +883,62 @@ Module LinCCAL.
     Qed.
   End COMPOSE.
 
+  (** ** Certified abstraction layers form a category *)
+
+  Record layer_interface :=
+    {
+      li_sig : Sig.t;
+      li_spec : spec li_sig;
+    }.
+
+  Record layer_implementation {L L' : layer_interface} :=
+    {
+      li_impl : Reg.Op.m (li_sig L) (li_sig L');
+      li_correct : cal (li_spec L) li_impl (li_spec L');
+    }.
+
+  Arguments layer_implementation : clear implicits.
+
+  Definition t : Type := layer_interface.
+  Definition m : t -> t -> Type := layer_implementation.
+
+  Program Definition id L : m L L :=
+    {| li_impl := Reg.id (li_sig L) |}.
+  Next Obligation.
+    apply id_cal.
+  Qed.
+
+  Program Definition compose {L1 L2 L3} (M : m L2 L3) (N : m L1 L2) :=
+    {| li_impl := Reg.Op.compose (li_impl M) (li_impl N) |}.
+  Next Obligation.
+    eapply comp_cal; eauto using li_correct.
+  Qed.
+
+  Lemma meq {L1 L2} (M N : m L1 L2) :
+    li_impl M = li_impl N -> M = N.
+  Proof.
+    destruct M, N; cbn.
+    intro. subst. f_equal.
+    apply proof_irrelevance.
+  Qed.
+
+  Lemma compose_id_left {L1 L2} (M : m L1 L2) :
+    compose (id L2) M = M.
+  Proof.
+    apply meq, Reg.Op.compose_id_left.
+  Qed.
+
+  Lemma compose_id_right {L1 L2} (M : m L1 L2) :
+    compose M (id L1) = M.
+  Proof.
+    apply meq, Reg.Op.compose_id_right.
+  Qed.
+
+  Lemma compose_assoc {L1 L2 L3 L4} (M12: m L1 L2) (M23: m L2 L3) (M34: m L3 L4):
+    compose (compose M34 M23) M12 = compose M34 (compose M23 M12).
+  Proof.
+    apply meq, Reg.Op.compose_assoc.
+  Qed.
+
+  Include CategoryTheory.
 End LinCCAL.
