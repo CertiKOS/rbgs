@@ -57,7 +57,7 @@ Module LinCCAL.
     spec_query n k (Σ t m).
    *)
 
-  (** ** Object states *)
+  (** ** Implementation states *)
 
   (** We use regular maps [Reg.m] to model implementations of a given
     overlay specification in terms of a given underlay specification.
@@ -111,6 +111,8 @@ Module LinCCAL.
   Arguments state : clear implicits.
   Arguments mkst {E F}.
 
+  (** *** Environment steps *)
+
   (** At any time, the environment may invoke a method on a ready thread,
     or schedule a running thread to execute. A linearization proof
     must be ready to deal with the corresponding effects on the state,
@@ -131,6 +133,8 @@ Module LinCCAL.
         TMap.remove t s = s' ->
         estep M (mkst Δ s Σ) (mkst Δ s' Σ).
 
+  (** *** Commit steps *)
+
   (** Our job is then to insert commit steps in such a way that by the
     time [ereturn] is in play, the invocation has been committed with
     the correct outcome. *)
@@ -142,12 +146,16 @@ Module LinCCAL.
         TMap.add t (mkts q T (Some r)) s = s' ->
         lstep (mkst Δ s Σ) (mkst Δ' s' Σ).
 
+  (** ** Correctness *)
+
   (** That is, no matter what [estep] the environment takes, there
     exists a sequence of commits [lstep] which establish the following
     invariant. *)
 
   Definition threadstate_valid {E F} (e : option (threadstate E F)) :=
     forall x, e = Some x -> forall r, ts_prog x = Sig.var r -> ts_res x = Some r.
+
+  (** *** Rechability predicate *)
 
   (** To formulate this criterion, we will use the following helpful
     definitions and properties. *)
@@ -180,17 +188,6 @@ Module LinCCAL.
     eauto using rt_trans.
   Qed.
 
-  (*
-  Global Instance reachable_impl :
-    Monotonic (@reachable) (forallr -, subrel ++> (- ==> impl) ++> - ==> impl).
-  Proof.
-    intros A R R' HR P P' HP u (u' & Huu' & Hu').
-    eapply Operators_Properties.clos_refl_trans_ind_right; eauto.
-    - red. eexists; split; eauto using rt_refl. apply HP; auto.
-    - eauto using reachable_step.
-  Defined.
-   *)
-
   Lemma lsteps_ind {E F} (P : spec F -> _ -> spec E -> Prop) (Q : state E F -> Prop) :
     (forall Δ v Σ,
         Q (mkst Δ v Σ) ->
@@ -215,6 +212,8 @@ Module LinCCAL.
       destruct H; cbn in *; subst; eauto 10.
   Qed.
 
+  (** *** Coinductive property *)
+
   (** The overall correctness property can be given as follows. *)
 
   CoInductive correct {E F} (M : Reg.Op.m E F) (s : state E F) : Prop :=
@@ -228,10 +227,10 @@ Module LinCCAL.
   Definition cal {E F} Σ (M : Reg.Op.m E F) Δ :=
     correct M (mkst Δ (TMap.empty _) Σ).
 
-  (** Proof method *)
+  (** *** Proof method *)
 
-  (** It suffices to show that there is an invariant preserved along
-    the lines of the definition above. *)
+  (** To establish correctness, it suffices to show that there is
+    a correctness invariant with the following properties. *)
 
   Record correctness_invariant {E F} (M : Reg.Op.m E F) (P : state E F -> Prop) : Prop :=
     {
@@ -240,8 +239,6 @@ Module LinCCAL.
       ci_next s :
         P s -> forall s', estep M s s' -> reachable lstep P s';
     }.
-
-  (** In fact [correct] is the largest correctness invariant *)
 
   Lemma correct_ci {E F} (M : Reg.Op.m E F) :
     correctness_invariant M (correct M).
@@ -264,7 +261,7 @@ Module LinCCAL.
       edestruct @ci_next as (s'' & Hs'' & H''); eauto.
   Qed.
 
-  (** ** Properties *)
+  (** *** Other properties *)
 
   Lemma correct_commit {E F} (M : Reg.Op.m E F) t s {q} r R Δ Σ :
     TMap.find t s = Some (mkts q (Sig.var r) R) ->
@@ -277,7 +274,7 @@ Module LinCCAL.
     exact Hs.
   Qed.
 
-  (** *** Identity correctness *)
+  (** ** Identity *)
 
   Variant id_linstate {E} : threadstate E E -> Prop :=
     | id_invoked q :
@@ -346,6 +343,8 @@ Module LinCCAL.
 
   Section COMPOSE.
     Context {E F G} (M : Reg.Op.m F G) (N : Reg.Op.m E F).
+
+    (** *** Per-thread invariant *)
 
     (** When [M] invokes a method [m] of [N] with continuation [k],
       we distinguish between two phases:
@@ -437,23 +436,6 @@ Module LinCCAL.
         congruence.
     Qed.
 
-    (** The overall composition invariant is as follows.
-      Essentially, there should be an intemediate specification
-      and component states such that each thread satisfies
-      [comp_threadstate], and such that the component are correct with
-      respect to the relevant specifications. *)
-
-    Definition comp_tmap w (s12 s1 s2 : tmap (threadstate _ _)) : Prop :=
-      forall i,
-        comp_threadstate i w (TMap.find i s12) (TMap.find i s1) (TMap.find i s2).
-
-    Variant comp_state w : state E G -> Prop :=
-      comp_state_intro Σ Γ Δ s12 s1 s2 :
-        comp_tmap w s12 s1 s2 ->
-        correct M (mkst Δ s1 Γ) ->
-        correct N (mkst Γ s2 Σ) ->
-        comp_state w (mkst Δ s12 Σ).
-
     Lemma comp_threadstate_o i j q T w s12 s1 s2 :
       comp_threadstate i (comp_running j q T) s12 s1 s2 ->
       i <> j ->
@@ -464,6 +446,12 @@ Module LinCCAL.
       dependent destruction H; (congruence || constructor).
     Qed.
 
+    (** *** Global state invariant *)
+
+    Definition comp_tmap w (s12 s1 s2 : tmap (threadstate _ _)) : Prop :=
+      forall i,
+        comp_threadstate i w (TMap.find i s12) (TMap.find i s1) (TMap.find i s2).
+
     Lemma comp_tmap_convert t q T w s12 s1 s2 :
       comp_tmap (comp_running t q T) s12 s1 s2 ->
       comp_threadstate t w (TMap.find t s12) (TMap.find t s1) (TMap.find t s2) ->
@@ -472,6 +460,8 @@ Module LinCCAL.
       intros H Ht i.
       destruct (classic (i = t)); subst; eauto using comp_threadstate_o.
     Qed.
+
+    (** The invariant is preserved by environment steps. *)
 
     Lemma comp_tmap_invoke_l s12 s1 s2 t q :
       TMap.find t s1 = None ->
@@ -582,8 +572,9 @@ Module LinCCAL.
         eapply comp_threadstate_o; eauto.
     Qed.
 
-    (** When we use the [M] component and trigger environment steps,
-      we must mirror any resulting commit steps in the composite view. *)
+    (** The commit steps triggered by the components likewise
+      perserve the invariant, once equivalent commit steps have been
+      applied to the composite layer as needed. *)
 
     Lemma comp_tmap_commit_l Δ s1 Γ s2 Σ s12 p :
       reachable lstep (correct M) (mkst Δ s1 Γ) ->
@@ -628,7 +619,7 @@ Module LinCCAL.
           econstructor; eauto.
     Qed.
 
-    Lemma comp_commit_r w Δ s1 Γ s2 Σ s12 :
+    Lemma comp_tmap_commit_r w Δ s1 Γ s2 Σ s12 :
       reachable lstep (correct N) (mkst Γ s2 Σ) ->
       correct M (mkst Δ s1 Γ) ->
       comp_tmap w s12 s1 s2 ->
@@ -676,6 +667,21 @@ Module LinCCAL.
       eauto 15 using rt_trans.
     Qed.
 
+    (** *** Overall invariant *)
+
+    (** The overall composition invariant is as follows.
+      Essentially, there should be an intemediate specification
+      and component states such that each thread satisfies
+      [comp_threadstate], and such that the component are correct with
+      respect to the relevant specifications. *)
+
+    Variant comp_state w : state E G -> Prop :=
+      comp_state_intro Σ Γ Δ s12 s1 s2 :
+        comp_tmap w s12 s1 s2 ->
+        correct M (mkst Δ s1 Γ) ->
+        correct N (mkst Γ s2 Σ) ->
+        comp_state w (mkst Δ s12 Σ).
+
     Lemma comp_run_r t q m mk s12 Δ s1 Γ s2 Σ :
       comp_tmap (comp_running t q (Sig.cons m mk)) s12 s1 s2 ->
       correct M (mkst Δ s1 Γ) ->
@@ -716,7 +722,7 @@ Module LinCCAL.
          * remainder of the execution. However, the commit steps of
          * [N] triggered by the [ereturn] step must first be processed.
          *)
-        edestruct comp_commit_r
+        edestruct comp_tmap_commit_r
           as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & Hs1' & Hs2' & Hs12' & _);
           eauto.
         eapply reachable_steps; eauto.
@@ -784,7 +790,7 @@ Module LinCCAL.
         revert Hs12 Hs1 Hs2 Hs1t Hs2t'.
         generalize (TMap.add t (mkts m (N m) None) s2) as s2'. clear -IHmk.
         intros s2 Hs12 Hs1 Hs2 Hs1t Hs2t.
-        edestruct comp_commit_r
+        edestruct comp_tmap_commit_r
           as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & Hs1' & Hs2' & Hs12' & ?);
           eauto.
         eapply reachable_steps; eauto.
@@ -840,7 +846,7 @@ Module LinCCAL.
           symmetry in x. rename x into Hs2t.
           eapply correct_next in Hs2; eauto using (eaction N t m u v).
           eapply comp_tmap_action_r in Hs12; eauto.
-          eapply comp_commit_r in Hs2; eauto.
+          eapply comp_tmap_commit_r in Hs2; eauto.
           destruct Hs2
             as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & Hs1' & Hs2' & Hs21' & _);
             eauto.
