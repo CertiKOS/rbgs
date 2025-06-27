@@ -36,6 +36,7 @@ models/IntSpec.v
 models/Coherence.v
 models/DCPO.v
 models/IntStrat.v
+models/LinCCAL.v
 examples/CAL.v
 interfaces/Category.v
 interfaces/Functor.v
