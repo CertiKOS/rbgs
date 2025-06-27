@@ -37,8 +37,8 @@ Module LinCCAL <: Category.
   CoInductive spec_after {E : Sig.t} {m : Sig.op E} :=
     (*
     | spec_bot
-    | spec_top
      *)
+    | spec_top
     | spec_cons (n : Sig.ar m) (k : tid -> forall m, @spec_after E m).
 
   Arguments spec_after : clear implicits.
@@ -149,12 +149,22 @@ Module LinCCAL <: Category.
 
   (** ** Correctness *)
 
-  (** That is, no matter what [estep] the environment takes, there
-    exists a sequence of commits [lstep] which establish the following
-    invariant. *)
+  (** Based on the constructions above, our ultimate goal is to show
+    that no matter what methods are called and how the threads are
+    scheduled, there is a way to perform commits such that the
+    following invariant is always preserved. That is, every thread
+    will eventually produce the result that was matched against the
+    overlay specification. *)
 
   Definition threadstate_valid {E F} (e : option (threadstate E F)) :=
     forall x, e = Some x -> forall r, ts_prog x = Sig.var r -> ts_res x = Some r.
+
+  (** Note that if [spec_top] appears in the underlay specification [Σ],
+    there will be no corresponding [eaction] step to take. As a
+    result the associated thread will not be scheduled and there are
+    no correctness requirements against it at that time. Conversely,
+    if [spec_top] appears in the overlay specification [Δ], there will
+    be no way to commit a result at that point in time. *)
 
   (** *** Rechability predicate *)
 
