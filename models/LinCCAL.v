@@ -937,3 +937,283 @@ Module LinCCAL <: Category.
 
   Include CategoryTheory.
 End LinCCAL.
+
+
+(** * Example *)
+
+(** As an example we will show a concurrent counter can be implemented
+  in terms of a lock and register. *)
+
+Module LinCCALExample.
+  Import (coercions, canonicals) Sig.
+  Unset Program Cases.
+
+  Variant spec_action {E X} {m : Sig.op E} :=
+    | stop
+    | scont (n : Sig.ar m) (x : X).
+
+  Arguments spec_action : clear implicits.
+
+  CoFixpoint unfold {E A} (α : A -> LinCCAL.tid -> forall m, spec_action E A m)
+    (x : A) (t : LinCCAL.TMap.key) (m : Sig.op E) : LinCCAL.spec_after E m :=
+    match α x t m with
+      | stop => LinCCAL.spec_top
+      | scont n y => LinCCAL.spec_cons n (unfold α y)
+    end.
+
+  Lemma spec_unfold {E q} (σ : LinCCAL.spec_after E q) :
+    σ =
+    match σ with
+      | LinCCAL.spec_top => LinCCAL.spec_top
+      | LinCCAL.spec_cons n σ' => LinCCAL.spec_cons n σ'
+    end.
+  Proof.
+    destruct σ; auto.
+  Qed.
+
+  Lemma unfold_unfold {E A} α x t m :
+    @unfold E A α x t m =
+    match α x t m with
+      | stop => LinCCAL.spec_top
+      | scont n y => LinCCAL.spec_cons n (unfold α y)
+    end.
+  Proof.
+    rewrite (spec_unfold (unfold α x t m)). cbn.
+    destruct α; auto.
+  Qed.
+
+  Notation "% e" := (Sig.mkop e).
+
+  (** ** Counter specification *)
+
+  Variant Ecounter_op :=
+    | fai.
+
+  Canonical Structure Ecounter :=
+    {|
+      Sig.op := Ecounter_op;
+      Sig.ar _ := nat;
+    |}.
+
+  Definition Σcounter : nat -> LinCCAL.spec Ecounter :=
+    unfold (fun c t 'fai => scont (m:=fai) c (S c)).
+
+  Definition Lcounter : LinCCAL.t :=
+    {| LinCCAL.li_spec := Σcounter 0; |}.
+
+  (** ** Lock specification *)
+
+  Variant Elock_op :=
+    | acq
+    | rel.
+
+  Canonical Structure Elock :=
+    {|
+      Sig.op := Elock_op;
+      Sig.ar _ := unit;
+    |}.
+
+  Definition Σlock (s : option LinCCAL.tid) t m : spec_action _ (option LinCCAL.tid) m :=
+    (* XXX need to compare thread id's and use ⊥ where appropriate *)
+    match s, m with
+    | None,   acq => scont (m:=acq) tt (Some t)
+    | None,   rel => scont (m:=rel) tt None
+    | Some i, acq => stop
+    | Some i, rel => scont (m:=rel) tt None
+    end.
+
+  Definition Llock : LinCCAL.t :=
+    {| LinCCAL.li_spec := unfold Σlock None |}.
+
+  (** ** Register specification *)
+
+  Variant Ereg_op {S} :=
+    | get
+    | set (s : S).
+
+  Arguments Ereg_op : clear implicits.
+
+  Canonical Structure Ereg S :=
+    {|
+      Sig.op := Ereg_op S;
+      Sig.ar m := match m with
+                    | get => S
+                    | set _ => unit
+                  end;
+    |}.
+
+  Definition Σreg S :=
+    unfold (A:=S) (fun s t m =>
+      match m with
+        | get => scont (m:=get) s s
+        | set s' => scont (m:=set _) tt s'
+      end).
+
+  Definition Lreg {S} (s0 : S) :=
+    {| LinCCAL.li_spec := Σreg S s0 |}.
+
+  (** ** Horizontal composition (TODO: generalize) *)
+
+  Canonical Structure Sig_plus (E F : Sig.t) : Sig.t :=
+    {|
+      Sig.op := Sig.op E + Sig.op F;
+      Sig.ar := sum_rect _ Sig.ar Sig.ar;
+    |}.
+
+  Infix "+" := Sig_plus.
+
+  Definition spec_mix {E1 E2} :=
+    unfold (E := E1 + E2) (A := LinCCAL.spec E1 * LinCCAL.spec E2)
+      (fun Σ t m =>
+         match m with
+           | inl m1 => match fst Σ t m1 with
+                         | LinCCAL.spec_top => stop
+                         | LinCCAL.spec_cons n Σ1 => scont (m := inl m1) n (Σ1, snd Σ)
+                       end
+           | inr m2 => match snd Σ t m2 with
+                         | LinCCAL.spec_top => stop
+                         | LinCCAL.spec_cons n Σ2 => scont (m := inr m2) n (fst Σ, Σ2)
+                       end
+         end).
+
+  Definition tens (L1 L2 : LinCCAL.t) : LinCCAL.t :=
+    {| LinCCAL.li_spec := spec_mix (LinCCAL.li_spec L1, LinCCAL.li_spec L2) |}.
+
+  Infix "*" := tens.
+
+  (** ** Implementation *)
+
+  Import (notations) Sig.
+  Import (notations) LinCCAL.
+  Open Scope term_scope.
+
+  Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0)) nat :=
+    inl acq >= _ =>
+    inr get >= c =>
+    inr (set (S c)) >= _ =>
+    inl rel >= _ =>
+    Sig.var c.
+
+  Variant fai_threadstate (i : LinCCAL.tid) h : _ -> _ -> Prop :=
+    | fai_rdy c :
+      h <> Some i ->
+      fai_threadstate i h c None
+    | fai_acq c :
+      h <> Some i ->
+      fai_threadstate i h c (Some (LinCCAL.mkts fai fai_impl None))
+    | fai_get c :
+      h = Some i ->
+      fai_threadstate i h c
+        (Some (LinCCAL.mkts fai (inr get >= c =>
+                                 inr (set (S c)) >= _ =>
+                                 inl rel >= _ =>
+                                 Sig.var c) None))
+    | fai_set c :
+      h = Some i ->
+      fai_threadstate i h c
+        (Some (LinCCAL.mkts fai (inr (set (S c)) >= _ =>
+                                 inl rel >= _ =>
+                                 Sig.var c) None))
+    | fai_rel c :
+      h = Some i ->
+      fai_threadstate i h (S c)
+        (Some (LinCCAL.mkts fai (inl rel >= _ =>
+                                 Sig.var c) (Some c)))
+    | fai_ret c c' :
+      h <> Some i ->
+      fai_threadstate i h c'
+        (Some (LinCCAL.mkts fai (Sig.var c) (Some c))).
+
+  Variant fai_state : _ -> Prop :=
+    fai_state_intro h c s :
+      (forall i, fai_threadstate i h c (LinCCAL.TMap.find i s)) ->
+      fai_state (LinCCAL.mkst (Σcounter c) s (spec_mix (unfold Σlock h, Σreg _ c))).
+
+  Lemma fai_threadstate_convert i h h' c c' s :
+    fai_threadstate i h c s ->
+    h <> Some i ->
+    h' <> Some i ->
+    fai_threadstate i h' c' s.
+  Proof.
+    destruct 1; intros; try congruence; try constructor; auto.
+  Qed.
+
+  Program Definition Mcounter : Llock * Lreg 0 ~~> Lcounter :=
+    {| LinCCAL.li_impl 'fai := fai_impl |}.
+  Next Obligation.
+    eapply LinCCAL.correctness_invariant_sound with (P := fai_state).
+    - split.
+      + intros _ [h c s Hs] i q r R Hsi. cbn in *.
+        specialize (Hs i).
+        dependent destruction Hs; unfold fai_impl in *; try congruence.
+        rewrite Hsi in x. dependent destruction x. reflexivity.
+      + intros _ [h c s Hs] s' Hs'.
+        dependent destruction Hs'.
+        * (* incoming call *)
+          destruct q.
+          pose proof (Hs t) as Hst. rewrite H in Hst. dependent destruction Hst.
+          apply LinCCAL.reachable_base. constructor.
+          intro i. destruct (classic (i = t)); subst.
+          -- rewrite LinCCAL.TMap.gss. constructor; auto.
+          -- rewrite LinCCAL.TMap.gso; auto.
+        * (* execution step *)
+          destruct q.
+          pose proof (Hs t) as Hst. dependent destruction Hst; try congruence.
+          -- (* acq *)
+             rewrite H in x. dependent destruction x.
+             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             destruct h; try discriminate.
+             cbn in H0. dependent destruction H0.
+             apply LinCCAL.reachable_base. constructor.
+             intros i. destruct (classic (i = t)); subst.
+             ++ rewrite LinCCAL.TMap.gss. constructor. auto.
+             ++ rewrite LinCCAL.TMap.gso; auto.
+                eapply fai_threadstate_convert; eauto; congruence.
+          -- (* get *)
+             rewrite H in x. dependent destruction x.
+             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             dependent destruction H0.
+             apply LinCCAL.reachable_base. constructor.
+             intros i. destruct (classic (i = t)); subst.
+             ++ rewrite LinCCAL.TMap.gss. constructor. auto.
+             ++ rewrite LinCCAL.TMap.gso; auto.
+          -- (* set *)
+             rewrite H in x. dependent destruction x.
+             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             dependent destruction H0.
+             eapply LinCCAL.reachable_step.
+             2: {
+               eapply (LinCCAL.lcommit t fai c); eauto.
+               ** rewrite LinCCAL.TMap.gss. reflexivity.
+               ** setoid_rewrite unfold_unfold. cbn. reflexivity.
+             }
+             apply LinCCAL.reachable_base. constructor.
+             intros i. destruct (classic (i = t)); subst.
+             ++ rewrite LinCCAL.TMap.gss. constructor. auto.
+             ++ rewrite !LinCCAL.TMap.gso; auto.
+                eapply fai_threadstate_convert; eauto; congruence.
+          -- (* rel *)
+             rewrite H in x. dependent destruction x.
+             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             dependent destruction H0.
+             apply LinCCAL.reachable_base. constructor.
+             intros i. destruct (classic (i = t)); subst.
+             ++ rewrite LinCCAL.TMap.gss. constructor. congruence.
+             ++ rewrite !LinCCAL.TMap.gso; auto.
+                eapply fai_threadstate_convert; eauto; congruence.
+        * (* return *)
+          destruct q.
+          pose proof (Hs t) as Hst. rewrite H in Hst. dependent destruction Hst.
+          apply LinCCAL.reachable_base. constructor.
+          intro i. destruct (classic (i = t)); subst.
+          -- rewrite LinCCAL.TMap.grs. constructor; auto.
+          -- rewrite LinCCAL.TMap.gro; auto.
+    - (* initial state *)
+      constructor.
+      intro i.
+      rewrite LinCCAL.TMap.gempty.
+      constructor.
+      congruence.
+  Qed.
+
+End LinCCALExample.
