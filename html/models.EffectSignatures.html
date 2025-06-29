@@ -193,7 +193,7 @@ We will sometimes use the following notation for simple terms,
 <br/>
 &nbsp;&nbsp;<span class="id" title="keyword">Notation</span> <a id="6c7bf0c98abb6d7e078b1971938a383d" class="idref" href="#6c7bf0c98abb6d7e078b1971938a383d"><span class="id" title="notation">&quot;</span></a>m &gt;= n =&gt; x" :=<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;{| <a class="idref" href="models.EffectSignatures.html#SigBase.operator"><span class="id" title="projection">operator</span></a> := <span class="id" title="var">m</span>; <a class="idref" href="models.EffectSignatures.html#SigBase.operand"><span class="id" title="projection">operand</span></a> <a id="n:21" class="idref" href="#n:21"><span class="id" title="binder">n</span></a> := <span class="id" title="var">x</span> |}<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="tactic">at</span> <span class="id" title="keyword">level</span> 70, <span class="id" title="var">n</span> <span class="id" title="var">binder</span>) : <span class="id" title="var">appl_scope</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="tactic">at</span> <span class="id" title="keyword">level</span> 70, <span class="id" title="var">n</span> <span class="id" title="var">binder</span>, <span class="id" title="tactic">right</span> <span class="id" title="keyword">associativity</span>) : <span class="id" title="var">appl_scope</span>.<br/>
 
 <br/>
 </div>
@@ -485,7 +485,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 <br/>
 &nbsp;&nbsp;<span class="id" title="keyword">Notation</span> <a id="2d5fa728bcd4a8c1c6bd6c4918328b56" class="idref" href="#2d5fa728bcd4a8c1c6bd6c4918328b56"><span class="id" title="notation">&quot;</span></a>m &gt;= n =&gt; x" :=<br/>
 &nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="models.EffectSignatures.html#SigBase.cons"><span class="id" title="constructor">cons</span></a> <span class="id" title="var">m</span> (<span class="id" title="keyword">fun</span> <a id="n:165" class="idref" href="#n:165"><span class="id" title="binder">n</span></a> ⇒ <span class="id" title="var">x</span>))<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="tactic">at</span> <span class="id" title="keyword">level</span> 70, <span class="id" title="var">n</span> <span class="id" title="var">binder</span>) : <span class="id" title="var">term_scope</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="tactic">at</span> <span class="id" title="keyword">level</span> 70, <span class="id" title="var">n</span> <span class="id" title="var">binder</span>, <span class="id" title="tactic">right</span> <span class="id" title="keyword">associativity</span>) : <span class="id" title="var">term_scope</span>.<br/>
 
 <br/>
 </div>
