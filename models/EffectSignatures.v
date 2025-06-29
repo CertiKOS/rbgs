@@ -105,7 +105,7 @@ Module SigBase <: CartesianCategory.
 
   Notation "m >= n => x" :=
     {| operator := m; operand n := x |}
-    (at level 70, n binder) : appl_scope.
+    (at level 70, n binder, right associativity) : appl_scope.
 
   (** We can transform an application by using a given function
     on every argument. *)
@@ -328,7 +328,7 @@ Module SigBase <: CartesianCategory.
 
   Notation "m >= n => x" :=
     (cons m (fun n => x))
-    (at level 70, n binder) : term_scope.
+    (at level 70, n binder, right associativity) : term_scope.
 
   (** *** Substitutions *)
 
