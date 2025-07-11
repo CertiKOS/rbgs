@@ -1129,13 +1129,16 @@ Module LinCCALExample.
 
   Arguments Ereg_op : clear implicits.
 
+  Definition Ereg_ar {S} (m : Ereg_op S) :=
+    match m with
+      | get => S
+      | set _ => unit
+    end.
+
   Canonical Structure Ereg S :=
     {|
       Sig.op := Ereg_op S;
-      Sig.ar m := match m with
-                    | get => S
-                    | set _ => unit
-                  end;
+      Sig.ar := Ereg_ar;
     |}.
 
   Definition Σreg S :=
@@ -1182,7 +1185,7 @@ Module LinCCALExample.
   (** ** Implementation *)
 
   Import (notations) Sig.
-  Import (notations) LinCCAL.
+  (*Import (notations) LinCCAL.*)
   Open Scope term_scope.
 
   Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0)) nat :=
@@ -1236,7 +1239,7 @@ Module LinCCALExample.
     destruct 1; intros; try congruence; try constructor; auto.
   Qed.
 
-  Program Definition Mcounter : Llock * Lreg 0 ~~> Lcounter :=
+  Program Definition Mcounter : LinCCAL.m (Llock * Lreg 0) Lcounter :=
     {| LinCCAL.li_impl 'fai := fai_impl |}.
   Next Obligation.
     eapply LinCCAL.correctness_invariant_sound with (P := fai_state).
