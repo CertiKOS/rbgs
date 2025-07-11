@@ -35,28 +35,13 @@ Module LinCCAL <: Category.
     released by the thread currently holding it. *)
 
   CoInductive spec_after {E : Sig.t} {m : Sig.op E} :=
-    (*
     | spec_bot
-     *)
     | spec_top
     | spec_cons (n : Sig.ar m) (k : tid -> forall m, @spec_after E m).
 
   Arguments spec_after : clear implicits.
 
   Notation spec E := (tid -> forall m, spec_after E m).
-
-  (** To formalize this interpretation, we can describe the possible
-    outcomes of performing the next invocation in a specification,
-    namely the admissible return values and specification next states. *)
-
-  (*
-  Variant spec_query {E m} (n: Sig.ar m) (k: spec E) : spec_after E m -> Prop :=
-    | spec_query_bot : spec_query n k spec_bot
-    | spec_query_cons : spec_query n k (spec_cons n k).
-
-  Definition spec_next {E} (Σ : spec E) t m n k : Prop :=
-    spec_query n k (Σ t m).
-   *)
 
   (** ** Implementation states *)
 
@@ -147,6 +132,18 @@ Module LinCCAL <: Category.
         TMap.add t (mkts q T (Some r)) s = s' ->
         lstep (mkst Δ s Σ) (mkst Δ' s' Σ).
 
+  (** In addition, if it is possible for a commit to trigger an
+    undefined behavior in the overlay specification, then any
+    implementation behavior would be correct from this point on,
+    so we need to relax any further correctness constraints.
+    The following predicate identifies states for which
+    that is not the case. *)
+
+  Definition specified {E F} (s : state E F) :=
+    forall t q T,
+      TMap.find t s = Some (mkts q T None) ->
+      st_spec s t q <> spec_bot.
+
   (** ** Correctness *)
 
   (** Based on the constructions above, our ultimate goal is to show
@@ -230,8 +227,15 @@ Module LinCCAL <: Category.
   CoInductive correct {E F} (M : Reg.Op.m E F) (s : state E F) : Prop :=
     {
       correct_valid :
+        specified s ->
         forall i, threadstate_valid (TMap.find i s);
+      correct_safe :
+        specified s ->
+        forall i q m k R,
+          TMap.find i s = Some (mkts q (Sig.cons m k) R) ->
+          st_base s i m <> spec_bot;
       correct_next :
+        specified s ->
         forall s', estep M s s' -> reachable lstep (correct M) s';
     }.
 
@@ -246,9 +250,16 @@ Module LinCCAL <: Category.
   Record correctness_invariant {E F} (M : Reg.Op.m E F) (P : state E F -> Prop) : Prop :=
     {
       ci_valid s :
-        P s -> forall i, threadstate_valid (TMap.find i s);
+        P s -> specified s ->
+        forall i, threadstate_valid (TMap.find i s);
+      ci_safe s :
+        P s -> specified s ->
+        forall i q m k R,
+          TMap.find i s = Some (mkts q (Sig.cons m k) R) ->
+          st_base s i m <> spec_bot;
       ci_next s :
-        P s -> forall s', estep M s s' -> reachable lstep P s';
+        P s -> specified s ->
+        forall s', estep M s s' -> reachable lstep P s';
     }.
 
   Lemma correct_ci {E F} (M : Reg.Op.m E F) :
@@ -256,7 +267,8 @@ Module LinCCAL <: Category.
   Proof.
     constructor.
     - apply correct_valid.
-    - intros u Hu u' Hu'.
+    - apply correct_safe.
+    - intros u Hu Hspec u' Hu'.
       apply correct_next in Hu'; auto.
   Qed.
 
@@ -268,7 +280,8 @@ Module LinCCAL <: Category.
     cofix H.
     intros s Hs. constructor.
     - eapply ci_valid; eauto.
-    - intros s' Hs'. unfold reachable.
+    - eapply ci_safe; eauto.
+    - intros Hspec s' Hs'. unfold reachable.
       edestruct @ci_next as (s'' & Hs'' & H''); eauto.
   Qed.
 
@@ -289,12 +302,16 @@ Module LinCCAL <: Category.
     correctness_invariant (Reg.id E) id_state.
   Proof.
     split.
-    - intros _ [Σ u Hu] t q r R Hs. apply Hu in Hs.
+    - intros _ [Σ u Hu] Hspec t q r R Hs. apply Hu in Hs.
       dependent destruction Hs; cbn in *; congruence.
-    - intros _ [Σ u Hu] u' Hu'.
+    - intros _ [Σ u Hu] Hspec t q m k R Ht. cbn in *.
+      specialize (Hu _ _ Ht).
+      dependent destruction Hu.
+      eauto.
+    - intros _ [Σ u Hu] Hspec u' Hu'.
       dependent destruction Hu'.
       + (* invocation *)
-        eexists. split. { apply rt_refl. }
+        apply reachable_base.
         constructor. intros i s Hs.
         destruct (classic (i = t)).
         * subst. rewrite TMap.gss in Hs.
@@ -315,7 +332,7 @@ Module LinCCAL <: Category.
              constructor.
           -- rewrite !TMap.gso in Hs; eauto.
       + (* execute return *)
-        eexists. split. { apply rt_refl. }
+        eapply reachable_base.
         constructor. intros t' s Hs.
         destruct (classic (t' = t)).
         * subst. rewrite TMap.grs in Hs.
@@ -448,6 +465,8 @@ Module LinCCAL <: Category.
       forall i,
         comp_threadstate i w (TMap.find i s12) (TMap.find i s1) (TMap.find i s2).
 
+    (** Basic properties. *)
+
     Lemma comp_tmap_convert t q T w s12 s1 s2 :
       comp_tmap (comp_running t q T) s12 s1 s2 ->
       comp_threadstate t w (TMap.find t s12) (TMap.find t s1) (TMap.find t s2) ->
@@ -455,6 +474,32 @@ Module LinCCAL <: Category.
     Proof.
       intros H Ht i.
       destruct (classic (i = t)); subst; eauto using comp_threadstate_o.
+    Qed.
+
+    Lemma comp_tmap_specified_l w Δ s1 Γ s2 Σ s12 :
+      comp_tmap w s12 s1 s2 ->
+      specified (mkst Δ s12 Σ) ->
+      specified (mkst Δ s1 Γ).
+    Proof.
+      intros Hs12 Hspec t q T Hs1t; cbn in *.
+      specialize (Hs12 t).
+      dependent destruction Hs12; try congruence.
+      - rewrite Hs1t in x1. dependent destruction x1. eauto.
+      - rewrite Hs1t in x1. dependent destruction x1. eauto.
+    Qed.
+
+    Lemma comp_tmap_specified_r w Δ s1 Γ s2 Σ s12 :
+      comp_tmap w s12 s1 s2 ->
+      correct M (mkst Δ s1 Γ) ->
+      specified (mkst Δ s12 Σ) ->
+      specified (mkst Γ s2 Σ).
+    Proof.
+      intros Hs12 Hs1 Hspec t q T Hs2t; cbn in *.
+      pose proof (Hs12 t) as Hs12t.
+      rewrite Hs2t in Hs12t.
+      dependent destruction Hs12t.
+      eapply correct_safe in Hs1; eauto.
+      eapply comp_tmap_specified_l; eauto.
     Qed.
 
     (** The invariant is preserved by environment steps. *)
@@ -619,43 +664,55 @@ Module LinCCAL <: Category.
       reachable lstep (correct N) (mkst Γ s2 Σ) ->
       correct M (mkst Δ s1 Γ) ->
       comp_tmap w s12 s1 s2 ->
+      specified (mkst Δ s12 Σ) ->
       exists Δ' Γ' s12' s1' s2',
         star lstep (mkst Δ s12 Σ) (mkst Δ' s12' Σ) /\
-        correct M (mkst Δ' s1' Γ') /\
-        correct N (mkst Γ' s2' Σ) /\
-        comp_tmap w s12' s1' s2' /\
-        forall i, TMap.find i s2 <> None -> TMap.find i s2' <> None.
+        (specified (mkst Δ' s12' Σ) ->
+         correct M (mkst Δ' s1' Γ') /\
+         correct N (mkst Γ' s2' Σ) /\
+         comp_tmap w s12' s1' s2' /\
+         forall i, TMap.find i s2 <> None -> TMap.find i s2' <> None).
     Proof.
       intros Hs2. revert Δ s1 s12.
       pattern Γ, s2, Σ. revert Γ s2 Σ Hs2.
-      apply lsteps_ind; eauto 10 using rt_refl.
+      apply lsteps_ind; eauto 20 using rt_refl.
       (*
        * When [N] commits the result [ri] in thread [i],
        * we perform the corresponding [eaction] step in [M].
        * Note that since [N] is still active, this will not
        * break the established invariant.
        *)
-      intros i m n U Γ Γ' s2 Σ Hs2i HΓ IH Δ s1 s12 Hs1 Hs12.
+      intros i m n U Γ Γ' s2 Σ Hs2i HΓ IH Δ s1 s12 Hs1 Hs12 Hspec.
       pose proof (Hs12 i) as Hs12i. rewrite Hs2i in Hs12i.
       dependent destruction Hs12i.
       symmetry in x0. rename x0 into Hs12i.
-      symmetry in x. rename x into Hs1i.
-      cbn in *.
+      symmetry in x. rename x into Hs1i. cbn in Hs1i.
+      assert (Hs1s: specified (mkst Δ s1 Γ)) by eauto using comp_tmap_specified_l.
       eapply comp_tmap_action_l with (n:=n) in Hs12; eauto.
-      eapply correct_next in Hs1; eauto using (eaction M i q m n). clear Hs1i.
+      eapply correct_next in Hs1; eauto using (eaction M i q m n).
+      clear Hs1i Hs1s.
       pose proof (TMap.gss i (mkts q (mk n) R) s1) as Hs1i.
       revert Hs12 Hs1 Hs1i.
       generalize (TMap.add i (mkts q (mk n) R) s1) as s1'. clear s1.
       intros s1. intros.
       (*
-       * This will in turn trigger commits in [M]
+       * The execution of [M] will in turn trigger commits.
        *)
       eapply comp_tmap_commit_l in Hs12
         as (Δ' & s12' & s1' & Hsteps & Hs1' & Hs12');
         eauto.
+      destruct (classic (specified (mkst Δ' s12' Σ))) as [Hspec' | Hspec'].
+      2: {
+        eexists Δ', Γ', s12', s1', s2. split; eauto. tauto.
+      }
       edestruct IH
-        as (Δ'' & Γ'' & s12'' & s1'' & s2' & Hsteps' & Hs1'' & Hs2' & Hs12'' & ?);
+        as (Δ'' & Γ'' & s12'' & s1'' & s2' & Hsteps' & H'');
         eauto.
+      destruct (classic (specified (mkst Δ'' s12'' Σ))) as [Hspec'' | Hspec''].
+      2: {
+        eexists Δ'', Γ'', s12'', s1'', s2'. split; eauto using rt_trans. tauto.
+      }
+      edestruct H'' as (Hs1'' & Hs2' & Hs12'' & ?); auto.
       assert (forall j, TMap.find j s2 <> None -> TMap.find j s2' <> None).
       { intros. apply H0.
         destruct (classic (j = i)); subst;
@@ -671,12 +728,24 @@ Module LinCCAL <: Category.
       [comp_threadstate], and such that the component are correct with
       respect to the relevant specifications. *)
 
-    Variant comp_state w : state E G -> Prop :=
-      comp_state_intro Σ Γ Δ s12 s1 s2 :
+    Variant comp_state_def w : state E G -> Prop :=
+      | comp_state_intro Σ Γ Δ s12 s1 s2 :
         comp_tmap w s12 s1 s2 ->
         correct M (mkst Δ s1 Γ) ->
         correct N (mkst Γ s2 Σ) ->
-        comp_state w (mkst Δ s12 Σ).
+        comp_state_def w (mkst Δ s12 Σ).
+
+    Definition comp_state w s :=
+      specified s -> comp_state_def w s.
+
+    Lemma comp_specified_sufficient w s :
+      (specified s -> reachable lstep (comp_state w) s) ->
+      reachable lstep (comp_state w) s.
+    Proof.
+      intros H.
+      destruct (classic (specified s)); auto.
+      apply reachable_base. red. tauto.
+    Qed.
 
     Lemma comp_run_r t q m mk s12 Δ s1 Γ s2 Σ :
       comp_tmap (comp_running t q (Sig.cons m mk)) s12 s1 s2 ->
@@ -706,12 +775,14 @@ Module LinCCAL <: Category.
          * The hypothesis on [mk] will eventually help us deal
          * with the remainder of [M]'s program.
          *)
+        apply comp_specified_sufficient. intro Hspec.
+        assert (specified (mkst Γ s2 Σ)) by eauto using comp_tmap_specified_r.
         assert (Q = Some n) by (eapply correct_valid; eauto). subst. cbn in *.
         (*
          * The first step is to trigger the [ereturn] step in [N].
          *)
         eapply comp_tmap_return_r in Hs12; eauto.
-        eapply correct_next in Hs2; eauto using ereturn.
+        eapply correct_next in Hs2; eauto using ereturn, comp_tmap_specified_r.
         (*
          * Now that we have returned to a state where [N] is inactive,
          * the induction hypothesis will be able to take care of the
@@ -719,9 +790,10 @@ Module LinCCAL <: Category.
          * [N] triggered by the [ereturn] step must first be processed.
          *)
         edestruct comp_tmap_commit_r
-          as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & Hs1' & Hs2' & Hs12' & _);
-          eauto.
+          as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & H'); eauto.
         eapply reachable_steps; eauto.
+        apply comp_specified_sufficient. intro Hspec'.
+        destruct H' as (Hs1' & Hs2' & Hs12' & _); eauto.
         eapply IHmk. econstructor; eauto.
     Qed.
 
@@ -729,9 +801,12 @@ Module LinCCAL <: Category.
       comp_state (comp_running t q T) s ->
       reachable lstep (comp_state comp_ready) s.
     Proof.
-      revert s.
+      intros Hs.
+      apply comp_specified_sufficient.
+      revert s Hs.
       induction T as [m mk IHmk | r];
-      intros _ [Σ Γ Δ s12 s1 s2 Hs12 Hs1 Hs2].
+      intros s Hs Hspec;
+      destruct Hs as [Σ Γ Δ s12 s1 s2 Hs12 Hs1 Hs2]; auto.
       (*
        * When [T] is [Sig.var] no internal interaction is possible,
        * so our job is already done.
@@ -780,17 +855,21 @@ Module LinCCAL <: Category.
          * To handle the next instruction, we invoke
          * its implementation in [N].
          *)
-        eapply correct_next in Hs2; eauto using (einvoke N t m).
+        eapply correct_next in Hs2;
+          eauto using (einvoke N t m), comp_tmap_specified_r.
         eapply comp_tmap_invoke_r in Hs12; eauto.
         pose proof (TMap.gss t (mkts m (N m) None) s2) as Hs2t'.
         revert Hs12 Hs1 Hs2 Hs1t Hs2t'.
         generalize (TMap.add t (mkts m (N m) None) s2) as s2'. clear -IHmk.
         intros s2 Hs12 Hs1 Hs2 Hs1t Hs2t.
+        apply comp_specified_sufficient. intro Hspec.
         edestruct comp_tmap_commit_r
-          as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & Hs1' & Hs2' & Hs12' & ?);
+          as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & H');
           eauto.
         eapply reachable_steps; eauto.
-        eapply comp_run_r; eauto.
+        apply comp_specified_sufficient. intro Hspec'.
+        destruct H' as (Hs1' & Hs2' & Hs12' & ?); auto.
+        eapply comp_run_r; eauto using comp_specified_sufficient.
         apply H; congruence.
       - symmetry in x0. rename x0 into Hs12t.
         symmetry in x1. rename x1 into Hs1t.
@@ -801,7 +880,7 @@ Module LinCCAL <: Category.
           eapply comp_tmap_convert; eauto.
           rewrite Hs12t, Hs1t, Hs2t.
           constructor. constructor.
-        + eapply comp_run_r; eauto.
+        + eapply comp_run_r; eauto using comp_specified_sufficient.
           congruence.
     Qed.
 
@@ -809,11 +888,19 @@ Module LinCCAL <: Category.
       correctness_invariant (Reg.Op.compose M N) (comp_state comp_ready).
     Proof.
       split.
-      - intros _ [ ] i.
+      - intros s Hs Hspec i. destruct Hs; auto.
         eapply comp_threadstate_valid; eauto.
-        + apply (correct_valid _ _ H0).
-        + apply (correct_valid _ _ H1).
-      - intros _ [? ? ? s12 s1 s2 Hs12 Hs1 Hs2] s12' H.
+        + apply (correct_valid _ _ H0); eauto using comp_tmap_specified_l.
+        + apply (correct_valid _ _ H1); eauto using comp_tmap_specified_r.
+      - intros s Hs Hspec i q m k R Hsi.
+        destruct Hs as [? ? ? s12 s1 s2 Hs12 Hs1 Hs2]; auto.
+        cbn in *. pose proof (Hs12 i) as Hs12i. rewrite Hsi in Hs12i.
+        dependent destruction Hs12i.
+        + dependent destruction H. cbn in *. congruence.
+        + dependent destruction H. cbn in *. dependent destruction x0.
+          eapply (correct_safe N (mkst Γ s2 Σ)); cbn; eauto using comp_tmap_specified_r.
+      - intros s Hs Hspec s12' H.
+        destruct Hs as [? ? ? s12 s1 s2 Hs12 Hs1 Hs2]; auto.
         dependent destruction H.
         + (*
            * We mirror any invocation in [M].
@@ -823,7 +910,8 @@ Module LinCCAL <: Category.
             specialize (Hs12 t). rewrite H in Hs12.
             dependent destruction Hs12; auto.
           }
-          eapply correct_next in Hs1; eauto using (einvoke M t q).
+          eapply correct_next in Hs1;
+            eauto using (einvoke M t q), comp_tmap_specified_l.
           eapply comp_tmap_invoke_l in Hs12; eauto.
           eapply comp_tmap_commit_l in Hs1; eauto.
           destruct Hs1 as (Δ' & s12' & s1' & Hsteps & Hs1' & Hs12').
@@ -840,13 +928,17 @@ Module LinCCAL <: Category.
           dependent destruction x0. rename m into u, n into v, m0 into m.
           symmetry in x1. rename x1 into Hs1t.
           symmetry in x. rename x into Hs2t.
-          eapply correct_next in Hs2; eauto using (eaction N t m u v).
+          eapply correct_next in Hs2;
+            eauto using (eaction N t m u v), comp_tmap_specified_r.
           eapply comp_tmap_action_r in Hs12; eauto.
+          apply comp_specified_sufficient. intro Hspec'.
           eapply comp_tmap_commit_r in Hs2; eauto.
           destruct Hs2
-            as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & Hs1' & Hs2' & Hs21' & _);
+            as (Δ' & Γ' & s12' & s1' & s2' & Hsteps & H');
             eauto.
           eapply reachable_steps; eauto.
+          apply comp_specified_sufficient. intro Hspec''.
+          destruct H' as (Hs1' & Hs2' & Hs21' & _); auto.
           eapply comp_run.
           econstructor; eauto.
         + (*
@@ -857,7 +949,8 @@ Module LinCCAL <: Category.
           dependent destruction Hs12t;
             dependent destruction H0; cbn in *;
             dependent destruction x0.
-          eapply correct_next in Hs1; eauto using (ereturn M t q r).
+          eapply correct_next in Hs1;
+            eauto using (ereturn M t q r), comp_tmap_specified_l.
           eapply comp_tmap_return_l in Hs12; eauto.
           eapply comp_tmap_commit_l in Hs1; eauto.
           destruct Hs1 as (Δ' & s12' & s1' & Hsteps & Hs1' & Hs12').
@@ -949,6 +1042,7 @@ Module LinCCALExample.
   Unset Program Cases.
 
   Variant spec_action {E X} {m : Sig.op E} :=
+    | sbot
     | stop
     | scont (n : Sig.ar m) (x : X).
 
@@ -957,6 +1051,7 @@ Module LinCCALExample.
   CoFixpoint unfold {E A} (α : A -> LinCCAL.tid -> forall m, spec_action E A m)
     (x : A) (t : LinCCAL.TMap.key) (m : Sig.op E) : LinCCAL.spec_after E m :=
     match α x t m with
+      | sbot => LinCCAL.spec_bot
       | stop => LinCCAL.spec_top
       | scont n y => LinCCAL.spec_cons n (unfold α y)
     end.
@@ -964,6 +1059,7 @@ Module LinCCALExample.
   Lemma spec_unfold {E q} (σ : LinCCAL.spec_after E q) :
     σ =
     match σ with
+      | LinCCAL.spec_bot => LinCCAL.spec_bot
       | LinCCAL.spec_top => LinCCAL.spec_top
       | LinCCAL.spec_cons n σ' => LinCCAL.spec_cons n σ'
     end.
@@ -974,6 +1070,7 @@ Module LinCCALExample.
   Lemma unfold_unfold {E A} α x t m :
     @unfold E A α x t m =
     match α x t m with
+      | sbot => LinCCAL.spec_bot
       | stop => LinCCAL.spec_top
       | scont n y => LinCCAL.spec_cons n (unfold α y)
     end.
@@ -981,8 +1078,6 @@ Module LinCCALExample.
     rewrite (spec_unfold (unfold α x t m)). cbn.
     destruct α; auto.
   Qed.
-
-  Notation "% e" := (Sig.mkop e).
 
   (** ** Counter specification *)
 
@@ -1016,10 +1111,11 @@ Module LinCCALExample.
   Definition Σlock (s : option LinCCAL.tid) t m : spec_action _ (option LinCCAL.tid) m :=
     (* XXX need to compare thread id's and use ⊥ where appropriate *)
     match s, m with
-    | None,   acq => scont (m:=acq) tt (Some t)
-    | None,   rel => scont (m:=rel) tt None
+    | None, acq => scont (m:=acq) tt (Some t)
+    | None, rel => sbot
     | Some i, acq => stop
-    | Some i, rel => scont (m:=rel) tt None
+    | Some i, rel =>
+        if LinCCAL.TMap.E.eq_dec i t then scont (m:=rel) tt None else sbot
     end.
 
   Definition Llock : LinCCAL.t :=
@@ -1067,10 +1163,12 @@ Module LinCCALExample.
       (fun Σ t m =>
          match m with
            | inl m1 => match fst Σ t m1 with
+                         | LinCCAL.spec_bot => sbot
                          | LinCCAL.spec_top => stop
                          | LinCCAL.spec_cons n Σ1 => scont (m := inl m1) n (Σ1, snd Σ)
                        end
            | inr m2 => match snd Σ t m2 with
+                         | LinCCAL.spec_bot => sbot
                          | LinCCAL.spec_top => stop
                          | LinCCAL.spec_cons n Σ2 => scont (m := inr m2) n (fst Σ, Σ2)
                        end
@@ -1143,11 +1241,19 @@ Module LinCCALExample.
   Next Obligation.
     eapply LinCCAL.correctness_invariant_sound with (P := fai_state).
     - split.
-      + intros _ [h c s Hs] i q r R Hsi. cbn in *.
+      + intros _ [h c s Hs] _ i q r R Hsi. cbn in *.
         specialize (Hs i).
         dependent destruction Hs; unfold fai_impl in *; try congruence.
         rewrite Hsi in x. dependent destruction x. reflexivity.
-      + intros _ [h c s Hs] s' Hs'.
+      + intros _ [h c s Hs] _ i q m k R Hsi. cbn in Hsi |- *.
+        specialize (Hs i). cbn in Hs. rewrite Hsi in Hs.
+        setoid_rewrite unfold_unfold; cbn.
+        dependent destruction Hs; cbn; try congruence.
+        * (* acquire *)
+          destruct h; cbn; congruence.
+        * (* release *)
+          destruct LinCCAL.TMap.E.eq_dec; congruence.
+      + intros _ [h c s Hs] _ s' Hs'.
         dependent destruction Hs'.
         * (* incoming call *)
           destruct q.
@@ -1195,6 +1301,7 @@ Module LinCCALExample.
           -- (* rel *)
              rewrite H in x. dependent destruction x.
              setoid_rewrite unfold_unfold in H0. cbn in H0.
+             destruct LinCCAL.TMap.E.eq_dec; cbn in H0; try congruence.
              dependent destruction H0.
              apply LinCCAL.reachable_base. constructor.
              intros i. destruct (classic (i = t)); subst.
