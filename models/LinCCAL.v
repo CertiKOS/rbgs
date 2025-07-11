@@ -1038,7 +1038,8 @@ End LinCCAL.
   in terms of a lock and register. *)
 
 Module LinCCALExample.
-  Import (coercions, canonicals) Sig.
+  Import (coercions, canonicals, notations) Sig.
+  Open Scope term_scope.
   Unset Program Cases.
 
   Variant spec_action {E X} {m : Sig.op E} :=
@@ -1048,8 +1049,10 @@ Module LinCCALExample.
 
   Arguments spec_action : clear implicits.
 
-  CoFixpoint unfold {E A} (α : A -> LinCCAL.tid -> forall m, spec_action E A m)
-    (x : A) (t : LinCCAL.TMap.key) (m : Sig.op E) : LinCCAL.spec_after E m :=
+  Definition coalg E A : Type :=
+    A -> LinCCAL.tid -> forall m, spec_action E A m.
+
+  CoFixpoint unfold {E A} (α : coalg E A) x t m : LinCCAL.spec_after E m :=
     match α x t m with
       | sbot => LinCCAL.spec_bot
       | stop => LinCCAL.spec_top
@@ -1090,11 +1093,11 @@ Module LinCCALExample.
       Sig.ar _ := nat;
     |}.
 
-  Definition Σcounter : nat -> LinCCAL.spec Ecounter :=
-    unfold (fun c t 'fai => scont (m:=fai) c (S c)).
+  Definition Σcounter : coalg Ecounter nat := 
+    fun c t 'fai => scont (m:=fai) c (S c).
 
   Definition Lcounter : LinCCAL.t :=
-    {| LinCCAL.li_spec := Σcounter 0; |}.
+    {| LinCCAL.li_spec := unfold Σcounter 0; |}.
 
   (** ** Lock specification *)
 
@@ -1108,15 +1111,15 @@ Module LinCCALExample.
       Sig.ar _ := unit;
     |}.
 
-  Definition Σlock (s : option LinCCAL.tid) t m : spec_action _ (option LinCCAL.tid) m :=
-    (* XXX need to compare thread id's and use ⊥ where appropriate *)
-    match s, m with
-    | None, acq => scont (m:=acq) tt (Some t)
-    | None, rel => sbot
-    | Some i, acq => stop
-    | Some i, rel =>
-        if LinCCAL.TMap.E.eq_dec i t then scont (m:=rel) tt None else sbot
-    end.
+  Definition Σlock : coalg Elock (option LinCCAL.tid) :=
+    fun s t m =>
+      match s, m with
+      | None, acq => scont (m:=acq) tt (Some t)
+      | None, rel => sbot
+      | Some i, acq => stop
+      | Some i, rel =>
+          if LinCCAL.TMap.E.eq_dec i t then scont (m:=rel) tt None else sbot
+      end.
 
   Definition Llock : LinCCAL.t :=
     {| LinCCAL.li_spec := unfold Σlock None |}.
@@ -1141,15 +1144,15 @@ Module LinCCALExample.
       Sig.ar := Ereg_ar;
     |}.
 
-  Definition Σreg S :=
-    unfold (A:=S) (fun s t m =>
+  Definition Σreg S : coalg (Ereg S) S :=
+    fun s t m =>
       match m with
         | get => scont (m:=get) s s
         | set s' => scont (m:=set _) tt s'
-      end).
+      end.
 
   Definition Lreg {S} (s0 : S) :=
-    {| LinCCAL.li_spec := Σreg S s0 |}.
+    {| LinCCAL.li_spec := unfold (Σreg S) s0 |}.
 
   (** ** Horizontal composition (TODO: generalize) *)
 
@@ -1183,10 +1186,6 @@ Module LinCCALExample.
   Infix "*" := tens.
 
   (** ** Implementation *)
-
-  Import (notations) Sig.
-  (*Import (notations) LinCCAL.*)
-  Open Scope term_scope.
 
   Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0)) nat :=
     inl acq >= _ =>
@@ -1228,7 +1227,9 @@ Module LinCCALExample.
   Variant fai_state : _ -> Prop :=
     fai_state_intro h c s :
       (forall i, fai_threadstate i h c (LinCCAL.TMap.find i s)) ->
-      fai_state (LinCCAL.mkst (Σcounter c) s (spec_mix (unfold Σlock h, Σreg _ c))).
+      fai_state (LinCCAL.mkst (unfold Σcounter c)
+                              s
+                              (spec_mix (unfold Σlock h, unfold (Σreg _) c))).
 
   Lemma fai_threadstate_convert i h h' c c' s :
     fai_threadstate i h c s ->
