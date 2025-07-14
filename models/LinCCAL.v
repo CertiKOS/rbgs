@@ -18,6 +18,8 @@ Module LinCCAL <: Category.
 
   (** ** Concurrent object specifications *)
 
+  (** *** Definition *)
+
   (** For simplicity, we use linearized atomic specifications and
     specify correctness directly in terms of that model. In their
     linearized form, the specifications are deterministic, however
@@ -37,11 +39,74 @@ Module LinCCAL <: Category.
   CoInductive spec_after {E : Sig.t} {m : Sig.op E} :=
     | spec_bot
     | spec_top
-    | spec_cons (n : Sig.ar m) (k : tid -> forall m, @spec_after E m).
+    | spec_ret (n : Sig.ar m) (k : tid -> forall m, @spec_after E m).
 
   Arguments spec_after : clear implicits.
 
   Notation spec E := (tid -> forall m, spec_after E m).
+
+  (** It can be useful to rewrite using this lemma to allow [cofix]
+    definitions to expand once the appear under [match]. *)
+
+  Lemma spec_unfold {E q} (σ : LinCCAL.spec_after E q) :
+    σ =
+    match σ with
+      | spec_bot => spec_bot
+      | spec_top => spec_top
+      | spec_ret n σ' => spec_ret n σ'
+    end.
+  Proof.
+    destruct σ; auto.
+  Qed.
+
+  (** *** State-based representations *)
+
+  (** One way to describe a linearized object is to provide a
+    transition system of the following kind. *)
+
+  Variant spec_action {E X} {m : Sig.op E} :=
+    | sbot
+    | stop
+    | sret (n : Sig.ar m) (x : X).
+
+  Arguments spec_action : clear implicits.
+
+  Definition spec_lts E A : Type :=
+    A -> LinCCAL.tid -> forall m, spec_action E A m.
+
+  (** Specifications can themselves be seen as states in a transition
+    system of this kind. *)
+
+  Definition spec_next {E} : spec_lts E (spec E) :=
+    fun σ t m =>
+      match σ t m with
+        | spec_bot => sbot
+        | spec_top => stop
+        | spec_ret n k => sret n k
+      end.
+
+  (** In fact, [spec E] and [spec_next] constitute a final coalgebra,
+    meaning that states in any transition system can be mapped to
+    specifications with the same behavior. *)
+
+  CoFixpoint unfold {E A} (α : spec_lts E A) x t m : LinCCAL.spec_after E m :=
+    match α x t m with
+      | sbot => spec_bot
+      | stop => spec_top
+      | sret n y => spec_ret n (unfold α y)
+    end.
+
+  Lemma unfold_unfold {E A} α x t m :
+    @unfold E A α x t m =
+    match α x t m with
+      | sbot => spec_bot
+      | stop => spec_top
+      | sret n y => spec_ret n (unfold α y)
+    end.
+  Proof.
+    rewrite (spec_unfold (unfold α x t m)). cbn.
+    destruct α; auto.
+  Qed.
 
   (** ** Implementation states *)
 
@@ -111,7 +176,7 @@ Module LinCCAL <: Category.
         estep M (mkst Δ s Σ) (mkst Δ s' Σ)
     | eaction t q m n k R Δ s Σ s' Σ' :
         TMap.find t s = Some (mkts q (Sig.cons m k) R) ->
-        Σ t m = spec_cons n Σ' ->
+        Σ t m = spec_ret n Σ' ->
         TMap.add t (mkts q (k n) R) s = s' ->
         estep M (mkst Δ s Σ) (mkst Δ s' Σ')
     | ereturn t q r Δ s s' Σ :
@@ -128,7 +193,7 @@ Module LinCCAL <: Category.
   Variant lstep {E F} : relation (state E F) :=
     | lcommit t q r T Δ Δ' s s' Σ :
         TMap.find t s = Some (mkts q T None) ->
-        Δ t q = spec_cons r Δ' ->
+        Δ t q = spec_ret r Δ' ->
         TMap.add t (mkts q T (Some r)) s = s' ->
         lstep (mkst Δ s Σ) (mkst Δ' s' Σ).
 
@@ -202,7 +267,7 @@ Module LinCCAL <: Category.
         P Δ v Σ) ->
     (forall t q r T Δ Δ' s Σ,
         TMap.find t s = Some (mkts q T None) ->
-        Δ t q = spec_cons r Δ' ->
+        Δ t q = spec_ret r Δ' ->
         P Δ' (TMap.add t (mkts q T (Some r)) s) Σ ->
         P Δ s Σ) ->
     (forall Δ v Σ,
@@ -1042,46 +1107,6 @@ Module LinCCALExample.
   Open Scope term_scope.
   Unset Program Cases.
 
-  Variant spec_action {E X} {m : Sig.op E} :=
-    | sbot
-    | stop
-    | scont (n : Sig.ar m) (x : X).
-
-  Arguments spec_action : clear implicits.
-
-  Definition coalg E A : Type :=
-    A -> LinCCAL.tid -> forall m, spec_action E A m.
-
-  CoFixpoint unfold {E A} (α : coalg E A) x t m : LinCCAL.spec_after E m :=
-    match α x t m with
-      | sbot => LinCCAL.spec_bot
-      | stop => LinCCAL.spec_top
-      | scont n y => LinCCAL.spec_cons n (unfold α y)
-    end.
-
-  Lemma spec_unfold {E q} (σ : LinCCAL.spec_after E q) :
-    σ =
-    match σ with
-      | LinCCAL.spec_bot => LinCCAL.spec_bot
-      | LinCCAL.spec_top => LinCCAL.spec_top
-      | LinCCAL.spec_cons n σ' => LinCCAL.spec_cons n σ'
-    end.
-  Proof.
-    destruct σ; auto.
-  Qed.
-
-  Lemma unfold_unfold {E A} α x t m :
-    @unfold E A α x t m =
-    match α x t m with
-      | sbot => LinCCAL.spec_bot
-      | stop => LinCCAL.spec_top
-      | scont n y => LinCCAL.spec_cons n (unfold α y)
-    end.
-  Proof.
-    rewrite (spec_unfold (unfold α x t m)). cbn.
-    destruct α; auto.
-  Qed.
-
   (** ** Counter specification *)
 
   Variant Ecounter_op :=
@@ -1093,11 +1118,11 @@ Module LinCCALExample.
       Sig.ar _ := nat;
     |}.
 
-  Definition Σcounter : coalg Ecounter nat := 
-    fun c t 'fai => scont (m:=fai) c (S c).
+  Definition Σcounter : LinCCAL.spec_lts Ecounter nat := 
+    fun c t 'fai => LinCCAL.sret (m:=fai) c (S c).
 
   Definition Lcounter : LinCCAL.t :=
-    {| LinCCAL.li_spec := unfold Σcounter 0; |}.
+    {| LinCCAL.li_spec := LinCCAL.unfold Σcounter 0; |}.
 
   (** ** Lock specification *)
 
@@ -1111,18 +1136,19 @@ Module LinCCALExample.
       Sig.ar _ := unit;
     |}.
 
-  Definition Σlock : coalg Elock (option LinCCAL.tid) :=
+  Definition Σlock : LinCCAL.spec_lts Elock (option LinCCAL.tid) :=
     fun s t m =>
       match s, m with
-      | None, acq => scont (m:=acq) tt (Some t)
-      | None, rel => sbot
-      | Some i, acq => stop
+      | None, acq => LinCCAL.sret (m:=acq) tt (Some t)
+      | None, rel => LinCCAL.sbot
+      | Some i, acq => LinCCAL.stop
       | Some i, rel =>
-          if LinCCAL.TMap.E.eq_dec i t then scont (m:=rel) tt None else sbot
+          if LinCCAL.TMap.E.eq_dec i t then LinCCAL.sret (m:=rel) tt None
+                                       else LinCCAL.sbot
       end.
 
   Definition Llock : LinCCAL.t :=
-    {| LinCCAL.li_spec := unfold Σlock None |}.
+    {| LinCCAL.li_spec := LinCCAL.unfold Σlock None |}.
 
   (** ** Register specification *)
 
@@ -1144,15 +1170,15 @@ Module LinCCALExample.
       Sig.ar := Ereg_ar;
     |}.
 
-  Definition Σreg S : coalg (Ereg S) S :=
+  Definition Σreg S : LinCCAL.spec_lts (Ereg S) S :=
     fun s t m =>
       match m with
-        | get => scont (m:=get) s s
-        | set s' => scont (m:=set _) tt s'
+        | get => LinCCAL.sret (m:=get) s s
+        | set s' => LinCCAL.sret (m:=set _) tt s'
       end.
 
   Definition Lreg {S} (s0 : S) :=
-    {| LinCCAL.li_spec := unfold (Σreg S) s0 |}.
+    {| LinCCAL.li_spec := LinCCAL.unfold (Σreg S) s0 |}.
 
   (** ** Horizontal composition (TODO: generalize) *)
 
@@ -1165,18 +1191,20 @@ Module LinCCALExample.
   Infix "+" := Sig_plus.
 
   Definition spec_mix {E1 E2} :=
-    unfold (E := E1 + E2) (A := LinCCAL.spec E1 * LinCCAL.spec E2)
+    LinCCAL.unfold (E := E1 + E2) (A := LinCCAL.spec E1 * LinCCAL.spec E2)
       (fun Σ t m =>
          match m with
            | inl m1 => match fst Σ t m1 with
-                         | LinCCAL.spec_bot => sbot
-                         | LinCCAL.spec_top => stop
-                         | LinCCAL.spec_cons n Σ1 => scont (m := inl m1) n (Σ1, snd Σ)
+                         | LinCCAL.spec_bot => LinCCAL.sbot
+                         | LinCCAL.spec_top => LinCCAL.stop
+                         | LinCCAL.spec_ret n Σ1 =>
+                             LinCCAL.sret (m := inl m1) n (Σ1, snd Σ)
                        end
            | inr m2 => match snd Σ t m2 with
-                         | LinCCAL.spec_bot => sbot
-                         | LinCCAL.spec_top => stop
-                         | LinCCAL.spec_cons n Σ2 => scont (m := inr m2) n (fst Σ, Σ2)
+                         | LinCCAL.spec_bot => LinCCAL.sbot
+                         | LinCCAL.spec_top => LinCCAL.stop
+                         | LinCCAL.spec_ret n Σ2 =>
+                             LinCCAL.sret (m := inr m2) n (fst Σ, Σ2)
                        end
          end).
 
@@ -1227,9 +1255,9 @@ Module LinCCALExample.
   Variant fai_state : _ -> Prop :=
     fai_state_intro h c s :
       (forall i, fai_threadstate i h c (LinCCAL.TMap.find i s)) ->
-      fai_state (LinCCAL.mkst (unfold Σcounter c)
+      fai_state (LinCCAL.mkst (LinCCAL.unfold Σcounter c)
                               s
-                              (spec_mix (unfold Σlock h, unfold (Σreg _) c))).
+                              (spec_mix (LinCCAL.unfold Σlock h, LinCCAL.unfold (Σreg _) c))).
 
   Lemma fai_threadstate_convert i h h' c c' s :
     fai_threadstate i h c s ->
@@ -1251,7 +1279,7 @@ Module LinCCALExample.
         rewrite Hsi in x. dependent destruction x. reflexivity.
       + intros _ [h c s Hs] _ i q m k R Hsi. cbn in Hsi |- *.
         specialize (Hs i). cbn in Hs. rewrite Hsi in Hs.
-        setoid_rewrite unfold_unfold; cbn.
+        setoid_rewrite LinCCAL.unfold_unfold; cbn.
         dependent destruction Hs; cbn; try congruence.
         * (* acquire *)
           destruct h; cbn; congruence.
@@ -1271,7 +1299,7 @@ Module LinCCALExample.
           pose proof (Hs t) as Hst. dependent destruction Hst; try congruence.
           -- (* acq *)
              rewrite H in x. dependent destruction x.
-             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             setoid_rewrite LinCCAL.unfold_unfold in H0. cbn in H0.
              destruct h; try discriminate.
              cbn in H0. dependent destruction H0.
              apply LinCCAL.reachable_base. constructor.
@@ -1281,7 +1309,7 @@ Module LinCCALExample.
                 eapply fai_threadstate_convert; eauto; congruence.
           -- (* get *)
              rewrite H in x. dependent destruction x.
-             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             setoid_rewrite LinCCAL.unfold_unfold in H0. cbn in H0.
              dependent destruction H0.
              apply LinCCAL.reachable_base. constructor.
              intros i. destruct (classic (i = t)); subst.
@@ -1289,13 +1317,13 @@ Module LinCCALExample.
              ++ rewrite LinCCAL.TMap.gso; auto.
           -- (* set *)
              rewrite H in x. dependent destruction x.
-             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             setoid_rewrite LinCCAL.unfold_unfold in H0. cbn in H0.
              dependent destruction H0.
              eapply LinCCAL.reachable_step.
              2: {
                eapply (LinCCAL.lcommit t fai c); eauto.
                ** rewrite LinCCAL.TMap.gss. reflexivity.
-               ** setoid_rewrite unfold_unfold. cbn. reflexivity.
+               ** setoid_rewrite LinCCAL.unfold_unfold. cbn. reflexivity.
              }
              apply LinCCAL.reachable_base. constructor.
              intros i. destruct (classic (i = t)); subst.
@@ -1304,7 +1332,7 @@ Module LinCCALExample.
                 eapply fai_threadstate_convert; eauto; congruence.
           -- (* rel *)
              rewrite H in x. dependent destruction x.
-             setoid_rewrite unfold_unfold in H0. cbn in H0.
+             setoid_rewrite LinCCAL.unfold_unfold in H0. cbn in H0.
              destruct LinCCAL.TMap.E.eq_dec; cbn in H0; try congruence.
              dependent destruction H0.
              apply LinCCAL.reachable_base. constructor.
