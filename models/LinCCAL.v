@@ -1141,7 +1141,9 @@ Module LinCCALExample.
       match s, m with
       | None, acq => LinCCAL.sret (m:=acq) tt (Some t)
       | None, rel => LinCCAL.sbot
-      | Some i, acq => LinCCAL.stop
+      | Some i, acq =>
+          if LinCCAL.TMap.E.eq_dec i t then LinCCAL.sbot
+                                       else LinCCAL.stop
       | Some i, rel =>
           if LinCCAL.TMap.E.eq_dec i t then LinCCAL.sret (m:=rel) tt None
                                        else LinCCAL.sbot
@@ -1282,7 +1284,8 @@ Module LinCCALExample.
         setoid_rewrite LinCCAL.unfold_unfold; cbn.
         dependent destruction Hs; cbn; try congruence.
         * (* acquire *)
-          destruct h; cbn; congruence.
+          destruct h; cbn; try congruence.
+          destruct LinCCAL.TMap.E.eq_dec; congruence.
         * (* release *)
           destruct LinCCAL.TMap.E.eq_dec; congruence.
       + intros _ [h c s Hs] _ s' Hs'.
@@ -1300,8 +1303,9 @@ Module LinCCALExample.
           -- (* acq *)
              rewrite H in x. dependent destruction x.
              setoid_rewrite LinCCAL.unfold_unfold in H0. cbn in H0.
-             destruct h; try discriminate.
-             cbn in H0. dependent destruction H0.
+             destruct h; try discriminate. cbn in H0.
+             destruct LinCCAL.TMap.E.eq_dec; try discriminate. cbn in H0.
+             dependent destruction H0.
              apply LinCCAL.reachable_base. constructor.
              intros i. destruct (classic (i = t)); subst.
              ++ rewrite LinCCAL.TMap.gss. constructor. auto.
