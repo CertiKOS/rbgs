@@ -196,6 +196,7 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
   Global Hint Rewrite
     @p1_pair @p1_pair_rewrite
     @p2_pair @p2_pair_rewrite
+    @pair_pi
     @pair_compose @compose_assoc : pair.
 
   (** *** Bifunctor structure *)
@@ -351,6 +352,232 @@ Module Type Cartesian (C : Category) :=
 Module Type CartesianCategory :=
   Category.Category <+
   Cartesian.
+
+
+(** * Cocartesian monoidal structures *)
+
+(** ** Definition *)
+
+Module Type CocartesianStructureDefinition (C : Category).
+  Import C.
+
+  (* Initial object *)
+
+  Parameter unit : t.
+  Parameter ini : forall X, C.m unit X.
+
+  Axiom ini_uni : forall {X} (x y : C.m unit X), x = y.
+
+  (** Binary coproducts *)
+
+  Parameter omap : t -> t -> t.
+  Parameter i1 : forall {A B}, m A (omap A B).
+  Parameter i2 : forall {A B}, m B (omap A B).
+  Parameter copair : forall {X A B}, m A X -> m B X -> m (omap A B) X.
+
+  Axiom copair_i1 : forall {X A B} (f : m A X) (g : m B X), copair f g @ i1 = f.
+  Axiom copair_i2 : forall {X A B} (f : m A X) (g : m B X), copair f g @ i2 = g.
+  Axiom iota_copair : forall {X A B} x, @copair X A B (x @ i1) (x @ i2) = x.
+
+End CocartesianStructureDefinition.
+
+(** ** Consequences *)
+
+(** As with cartesian ones, cocartesian structures are a special case
+  of monoidal structure. *)
+
+Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefinition C).
+  Import C P.
+  Local Infix "+" := omap (at level 50, left associativity) : obj_scope.
+
+  (** *** Useful lemmas *)
+
+  Lemma copair_i1_rewrite {X A B Y} (f : m A X) (g : m B X) (x : m Y A) :
+    copair f g @ i1 @ x = f @ x.
+  Proof.
+    rewrite <- compose_assoc, copair_i1; auto.
+  Qed.
+
+  Lemma copair_i2_rewrite {X A B Y} (f : m A X) (g : m B X) (x : m Y B) :
+    copair f g @ i2 @ x = g @ x.
+  Proof.
+    rewrite <- compose_assoc, copair_i2; auto.
+  Qed.
+
+  Lemma copair_uni {X A B} (x : m (omap A B) X) (f : m A X) (g : m B X) :
+    x @ i1 = f ->
+    x @ i2 = g ->
+    x = copair f g.
+  Proof.
+    intros. subst.
+    rewrite iota_copair. auto.
+  Qed.
+
+  Lemma copair_compose {X A B Y} (f : m A X) (g : m B X) (x : m X Y) :
+    x @ copair f g = copair (x @ f) (x @ g).
+  Proof.
+    apply copair_uni.
+    - rewrite compose_assoc, copair_i1. auto.
+    - rewrite compose_assoc, copair_i2. auto.
+  Qed.
+
+  Global Hint Rewrite
+    @copair_i1 @copair_i1_rewrite
+    @copair_i2 @copair_i2_rewrite
+    @iota_copair
+    @copair_compose @compose_assoc : copair.
+
+  (** *** Bifunctor structure *)
+
+  Definition fmap {A1 A2 B1 B2} (f1 : m A1 B1) (f2 : m A2 B2) :=
+    copair (i1 @ f1) (i2 @ f2).
+
+  Proposition fmap_id (A B : t) :
+    fmap (id A) (id B) = id (omap A B).
+  Proof.
+    unfold fmap. symmetry.
+    apply copair_uni; rewrite compose_id_left, compose_id_right; auto.
+  Qed.
+
+  Proposition fmap_compose {A1 A2 B1 B2 C1 C2} :
+    forall (g1 : m B1 C1) (g2 : m B2 C2) (f1: m A1 B1) (f2: m A2 B2),
+      fmap (g1 @ f1) (g2 @ f2) = fmap g1 g2 @ fmap f1 f2.
+  Proof.
+    intros. unfold fmap. symmetry.
+    apply copair_uni; autorewrite with copair; auto.
+  Qed.
+
+  Local Infix "+" := fmap : hom_scope.
+
+  (** *** Monoidal structure *)
+
+  Program Definition assoc (A B C : t) : C.iso (A + (B + C)) ((A + B) + C) :=
+    {|
+      fw := copair (i1 @ i1) (copair (i1 @ i2) i2);
+      bw := copair (copair i1 (i2 @ i1)) (i2 @ i2);
+    |}.
+  Next Obligation.
+    rewrite !copair_compose. symmetry.
+    apply copair_uni; autorewrite with copair; auto using compose_id_left.
+  Qed.
+  Next Obligation.
+    rewrite !copair_compose. symmetry.
+    apply copair_uni; autorewrite with copair; auto using compose_id_left.
+  Qed.
+
+  Program Definition lunit (A : t) : iso (unit + A) A :=
+    {|
+      fw := copair (ini A) (id A);
+      bw := i2;
+    |}.
+  Next Obligation.
+    rewrite copair_compose. symmetry. apply copair_uni.
+    - apply ini_uni.
+    - rewrite compose_id_right, compose_id_left. auto.
+  Qed.
+  Next Obligation.
+    apply copair_i2.
+  Qed.
+
+  Program Definition runit (A : t) : iso (A + unit) A :=
+    {|
+      fw := copair (id A) (ini A);
+      bw := i1;
+    |}.
+  Next Obligation.
+    rewrite copair_compose. symmetry. apply copair_uni.
+    - rewrite compose_id_right, compose_id_left. auto.
+    - apply ini_uni.
+  Qed.
+  Next Obligation.
+    apply copair_i1.
+  Qed.
+
+  (** Naturality *)
+
+  Proposition assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
+    ((f + g) + h) @ assoc A1 B1 C1 = assoc A2 B2 C2 @ (f + (g + h)).
+  Proof.
+    unfold fmap. cbn.
+    autorewrite with copair.
+    reflexivity.
+  Qed.
+
+  Proposition lunit_nat {A1 A2 : C.t} (f : C.m A1 A2) :
+    f @ lunit A1 = lunit A2 @ fmap (C.id unit) f.
+  Proof.
+    unfold fmap. cbn.
+    autorewrite with copair.
+    rewrite compose_id_left, !compose_id_right.
+    f_equal. apply ini_uni.
+  Qed.
+
+  Proposition runit_nat {A1 A2 : C.t} (f : C.m A1 A2) :
+    f @ runit A1 = runit A2 @ fmap f (C.id unit).
+  Proof.
+    unfold fmap. cbn.
+    autorewrite with copair.
+    rewrite !compose_id_left, !compose_id_right.
+    f_equal. apply ini_uni.
+  Qed.
+
+  (** Pentagon diagram *)
+
+  Proposition assoc_coh (A B C D : t) :
+    (assoc A B C + id D) @ assoc A (B + C) D @ (id A + assoc B C D) =
+    assoc (A + B) C D @ assoc A B (C + D).
+  Proof.
+    unfold assoc, fmap; cbn.
+    repeat
+      (apply copair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       autorewrite with copair); auto.
+  Qed.
+
+  (** Triangle diagram *)
+
+  Proposition unit_coh (A B : t) :
+    (runit A + id B) @ assoc A unit B = id A + lunit B.
+  Proof.
+    unfold runit, lunit, fmap; cbn.
+    repeat
+      (apply pair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       autorewrite with copair); auto.
+    repeat f_equal.
+    apply ini_uni.
+  Qed.
+
+End CocartesianStructureTheory.
+
+(** Once we add in the definitions provided by [BifunctorTheory], we
+  can check the result against [MonoidalStructure]. *)
+
+Module Type CocartesianStructure (C : Category) <: MonoidalStructure C :=
+  CocartesianStructureDefinition C <+
+  CocartesianStructureTheory C <+
+  BifunctorTheory C C C.
+
+(** ** Cocartesian category interface *)
+
+Module Type CocartesianDefinition (C : Category).
+  Declare Module Plus : CocartesianStructure C.
+End CocartesianDefinition.
+
+Module CocartesianTheory (C : Category) (M : CocartesianDefinition C).
+  Import C M.
+  Notation "0" := Plus.unit.
+  Infix "+" := Plus.omap (at level 50, left associativity) : obj_scope.
+  Infix "+" := Plus.fmap : hom_scope.
+End CocartesianTheory.
+
+Module Type Cocartesian (C : Category) :=
+  CocartesianDefinition C <+
+  CocartesianTheory C.
+
+Module Type CocartesianCategory :=
+  Category.Category <+
+  Cocartesian.
 
 
 (** * Monoidal functors *)
