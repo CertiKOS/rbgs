@@ -73,9 +73,37 @@ Module LinCCAL <: Category.
                      | ret n y => ret n (gen α y)
                      end |}.
 
+    (** *** Tensor product *)
+
+    Import (canonicals) Sig.Plus.
+
+    Definition tens_lts {E1 E2} : lts (Sig.Plus.omap E1 E2) (t E1 * t E2) :=
+      fun Σ t m =>
+        match m with
+        | inl m1 => match next (fst Σ) t m1 with
+                    | bot => bot
+                    | top => top
+                    | ret n Σ1 => ret (m := inl m1) n (Σ1, snd Σ)
+                    end
+        | inr m2 => match next (snd Σ) t m2 with
+                    | bot => bot
+                    | top => top
+                    | ret n Σ2 =>
+                        ret (m := inr m2) n (fst Σ, Σ2)
+                    end
+        end.
+
+    Definition tens {E1 E2} (Σ1 : t E1) (Σ2 : t E2) :=
+      gen tens_lts (Σ1, Σ2).
+
   End Spec.
 
-  Notation spec E := (Spec.t E).
+  Notation spec := Spec.t.
+
+  Declare Scope spec_scope.
+  Delimit Scope spec_scope with spec.
+  Bind Scope spec_scope with Spec.t.
+  Infix "*" := Spec.tens : spec_scope.
 
   (** ** Implementation states *)
 
@@ -1153,32 +1181,16 @@ Module LinCCALExample.
 
   (** ** Horizontal composition (TODO: generalize) *)
 
-  Import (canonicals) Sig.Plus.
-
-  Definition spec_mix {E1 E2} :=
-    LinCCAL.Spec.gen (E := (E1 + E2)%obj) (A := LinCCAL.spec E1 * LinCCAL.spec E2)
-      (fun Σ t m =>
-         match m with
-           | inl m1 => match LinCCAL.Spec.next (fst Σ) t m1 with
-                         | LinCCAL.Spec.bot => LinCCAL.Spec.bot
-                         | LinCCAL.Spec.top => LinCCAL.Spec.top
-                         | LinCCAL.Spec.ret n Σ1 =>
-                             LinCCAL.Spec.ret (m := inl m1) n (Σ1, snd Σ)
-                       end
-           | inr m2 => match LinCCAL.Spec.next (snd Σ) t m2 with
-                         | LinCCAL.Spec.bot => LinCCAL.Spec.bot
-                         | LinCCAL.Spec.top => LinCCAL.Spec.top
-                         | LinCCAL.Spec.ret n Σ2 =>
-                             LinCCAL.Spec.ret (m := inr m2) n (fst Σ, Σ2)
-                       end
-         end).
+  Import (notations) LinCCAL.
 
   Definition tens (L1 L2 : LinCCAL.t) : LinCCAL.t :=
-    {| LinCCAL.li_spec := spec_mix (LinCCAL.li_spec L1, LinCCAL.li_spec L2) |}.
+    {| LinCCAL.li_spec := LinCCAL.li_spec L1 * LinCCAL.li_spec L2 |}.
 
   Infix "*" := tens.
 
   (** ** Implementation *)
+
+  Import (canonicals) Sig.Plus.
 
   Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0%nat)) nat :=
     inl acq >= _ =>
@@ -1222,8 +1234,8 @@ Module LinCCALExample.
       (forall i, fai_threadstate i h c (LinCCAL.TMap.find i s)) ->
       fai_state (LinCCAL.mkst (LinCCAL.Spec.gen Σcounter c)
                               s
-                              (spec_mix (LinCCAL.Spec.gen Σlock h,
-                                         LinCCAL.Spec.gen (Σreg _) c))).
+                              (LinCCAL.Spec.gen Σlock h *
+                               LinCCAL.Spec.gen (Σreg _) c)).
 
   Lemma fai_threadstate_convert i h h' c c' s :
     fai_threadstate i h c s ->
