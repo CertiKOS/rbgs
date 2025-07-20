@@ -980,7 +980,7 @@ End SigEnd.
 
 (** ** Definition *)
 
-Module Reg <: Category.Category.
+Module RegBase <: Category.Category.
   Import (notations) Sig.
   Open Scope term_scope.
 
@@ -1040,7 +1040,81 @@ Module Reg <: Category.Category.
   Qed.
 
   Include CategoryTheory.
-End Reg.
+End RegBase.
+
+(** ** Coproducts *)
+
+Module Type RegPlusReq.
+  Include RegBase.
+End RegPlusReq.
+
+Module RegPlus (B : RegPlusReq) <: CocartesianDefinition B.
+  Import (notations) Sig.
+  Import (canonicals) Sig.Plus.
+  Import B.
+
+  Module Plus <: CocartesianStructure B.
+
+    (** *** Initial object *)
+
+    Definition unit := Sig.Plus.unit.
+    Definition ini X : unit ~~> X := Empty_set_rect _.
+
+    Theorem ini_uni {X} (x y : unit ~~> X) :
+      x = y.
+    Proof.
+      apply functional_extensionality_dep. intros [].
+    Qed.
+
+    (** *** Binary products *)
+
+    Definition omap := Sig.Plus.omap.
+
+    Definition i1 {A B} : A ~~> omap A B :=
+      fun m => inl m >= n => Sig.var n.
+
+    Definition i2 {A B} : B ~~> omap A B :=
+      fun m => inr m >= n => Sig.var n.
+
+    Definition copair {X A B} (f : A ~~> X) (g : B ~~> X) : omap A B ~~> X :=
+      sum_rect _ f g.
+
+    Theorem copair_i1 {X A B} (f : m A X) (g : m B X) :
+      copair f g @ i1 = f.
+    Proof.
+      apply functional_extensionality_dep. intro m. cbn.
+      apply Sig.subst_var_l.
+    Qed.
+
+    Theorem copair_i2 {X A B} (f : m A X) (g : m B X) :
+      copair f g @ i2 = g.
+    Proof.
+      apply functional_extensionality_dep. intro m. cbn.
+      apply Sig.subst_var_l.
+    Qed.
+
+    Theorem iota_copair {X A B} x :
+      @copair X A B (x @ i1) (x @ i2) = x.
+    Proof.
+      apply functional_extensionality_dep.
+      intros [m|m]; cbn; apply Sig.subst_var_l.
+    Qed.
+
+    Include CocartesianStructureTheory B.
+    Include BifunctorTheory B B B.
+
+  End Plus.
+End RegPlus.
+
+(** ** Putting everything together *)
+
+Module Type RegSpec :=
+  Category.Category <+
+  Cocartesian.
+
+Module Reg <: RegSpec :=
+  RegBase <+
+  RegPlus <+ CocartesianTheory.
 
 (** ** Regular maps generalize signature homomorphisms *)
 
