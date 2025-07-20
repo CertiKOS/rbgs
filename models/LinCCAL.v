@@ -1122,7 +1122,7 @@ Module LinCCALExample.
     fun c t 'fai => LinCCAL.sret (m:=fai) c (S c).
 
   Definition Lcounter : LinCCAL.t :=
-    {| LinCCAL.li_spec := LinCCAL.unfold Σcounter 0; |}.
+    {| LinCCAL.li_spec := LinCCAL.unfold Σcounter 0%nat; |}.
 
   (** ** Lock specification *)
 
@@ -1184,16 +1184,10 @@ Module LinCCALExample.
 
   (** ** Horizontal composition (TODO: generalize) *)
 
-  Canonical Structure Sig_plus (E F : Sig.t) : Sig.t :=
-    {|
-      Sig.op := Sig.op E + Sig.op F;
-      Sig.ar := sum_rect _ Sig.ar Sig.ar;
-    |}.
-
-  Infix "+" := Sig_plus.
+  Import (canonicals) Sig.Plus.
 
   Definition spec_mix {E1 E2} :=
-    LinCCAL.unfold (E := E1 + E2) (A := LinCCAL.spec E1 * LinCCAL.spec E2)
+    LinCCAL.unfold (E := (E1 + E2)%obj) (A := LinCCAL.spec E1 * LinCCAL.spec E2)
       (fun Σ t m =>
          match m with
            | inl m1 => match fst Σ t m1 with
@@ -1217,7 +1211,7 @@ Module LinCCALExample.
 
   (** ** Implementation *)
 
-  Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0)) nat :=
+  Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0%nat)) nat :=
     inl acq >= _ =>
     inr get >= c =>
     inr (set (S c)) >= _ =>
@@ -1270,7 +1264,7 @@ Module LinCCALExample.
     destruct 1; intros; try congruence; try constructor; auto.
   Qed.
 
-  Program Definition Mcounter : LinCCAL.m (Llock * Lreg 0) Lcounter :=
+  Program Definition Mcounter : LinCCAL.m (Llock * Lreg 0%nat) Lcounter :=
     {| LinCCAL.li_impl 'fai := fai_impl |}.
   Next Obligation.
     eapply LinCCAL.correctness_invariant_sound with (P := fai_state).

@@ -299,10 +299,7 @@ Module SigBase <: CartesianCategory.
 
   Include CoproductsTheory.
 
-  (** *** Binary coproducts *)
-
-  (** I still need to formalize the monoidal structures associated
-    with coproducts in the [MonoidalCategory] library. *)
+  (** Binary coproducts are added in module [SigPlus]. *)
 
   (** ** Terms over a signature *)
 
@@ -476,6 +473,80 @@ Module SigBase <: CartesianCategory.
   Qed.
 
 End SigBase.
+
+(** ** Binary coproducts *)
+
+Module Type SigPlusReq.
+  Include SigBase.
+End SigPlusReq.
+
+Module SigPlus (B : SigPlusReq) <: CocartesianDefinition B.
+  Import B.
+  Module Plus <: CocartesianStructure B.
+
+  (** *** Initial object *)
+
+  Canonical Structure unit : t :=
+    {|
+      op := Empty_set;
+      ar := Empty_set_rect _;
+    |}.
+
+  Definition ini X : unit ~~> X :=
+    Empty_set_rect _.
+
+  Theorem ini_uni {X} (x y : unit ~~> X) :
+    x = y.
+  Proof.
+    apply functional_extensionality_dep. intros [].
+  Qed.
+
+  (** *** Binary products *)
+
+  Canonical Structure omap (E F : t) : t :=
+    {|
+      op := op E + op F;
+      ar := sum_rect _ ar ar;
+    |}.
+
+  Definition i1 {A B} : A ~~> omap A B :=
+    fun m => inl m >= n => n.
+
+  Definition i2 {A B} : B ~~> omap A B :=
+    fun m => inr m >= n => n.
+
+  Definition copair {X A B} (f : A ~~> X) (g : B ~~> X) : omap A B ~~> X :=
+    sum_rect _ f g.
+
+  Theorem copair_i1 {X A B} (f : m A X) (g : m B X) :
+    copair f g @ i1 = f.
+  Proof.
+    unfold i1, compose, hmap.
+    apply functional_extensionality_dep. intro m. cbn.
+    apply amap_id.
+  Qed.
+
+  Theorem copair_i2 {X A B} (f : m A X) (g : m B X) :
+    copair f g @ i2 = g.
+  Proof.
+    unfold i2, compose, hmap.
+    apply functional_extensionality_dep. intro m. cbn.
+    apply amap_id.
+  Qed.
+
+  Theorem iota_copair {X A B} x :
+    @copair X A B (x @ i1) (x @ i2) = x.
+  Proof.
+    unfold i1, i2, compose, hmap. cbn.
+    apply functional_extensionality_dep.
+    intros [m|m]; cbn; apply amap_id.
+  Qed.
+
+  Include CocartesianStructureTheory B.
+  Include BifunctorTheory B B B.
+
+  End Plus.
+End SigPlus.
 
 (** ** Tensor product *)
 
@@ -811,10 +882,12 @@ Module Type SigSpec :=
   Category.Category <+
   Products <+
   Monoidal <+
+  Cocartesian <+
   Cartesian.
 
 Module Sig <: SigSpec :=
   SigBase <+
+  SigPlus <+ CocartesianTheory <+
   SigTens <+
   SigComp.
 
