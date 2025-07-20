@@ -483,7 +483,7 @@ Module Type SigTensReq.
   Include SigBase.
 End SigTensReq.
 
-Module SigTens (B : SigTensReq) <: Monoidal SigBase.
+Module SigTens (B : SigTensReq) <: Monoidal B.
   Import B.
   Unset Program Cases.
 
