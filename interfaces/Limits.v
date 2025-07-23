@@ -126,6 +126,7 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
 
   Include CartesianStructureTheory C.
   Include BifunctorTheory C C C.
+  Include MonoidalStructureTheory C.
 End CartesianStructureFromProducts.
 
 Module CartesianFromProducts (C : Category) (P : Products C) <: Cartesian C.

@@ -299,10 +299,7 @@ Module SigBase <: CartesianCategory.
 
   Include CoproductsTheory.
 
-  (** *** Binary coproducts *)
-
-  (** I still need to formalize the monoidal structures associated
-    with coproducts in the [MonoidalCategory] library. *)
+  (** Binary coproducts are added in module [SigPlus]. *)
 
   (** ** Terms over a signature *)
 
@@ -477,13 +474,88 @@ Module SigBase <: CartesianCategory.
 
 End SigBase.
 
+(** ** Binary coproducts *)
+
+Module Type SigPlusReq.
+  Include SigBase.
+End SigPlusReq.
+
+Module SigPlus (B : SigPlusReq) <: CocartesianDefinition B.
+  Import B.
+  Module Plus <: CocartesianStructure B.
+
+  (** *** Initial object *)
+
+  Canonical Structure unit : t :=
+    {|
+      op := Empty_set;
+      ar := Empty_set_rect _;
+    |}.
+
+  Definition ini X : unit ~~> X :=
+    Empty_set_rect _.
+
+  Theorem ini_uni {X} (x y : unit ~~> X) :
+    x = y.
+  Proof.
+    apply functional_extensionality_dep. intros [].
+  Qed.
+
+  (** *** Binary products *)
+
+  Canonical Structure omap (E F : t) : t :=
+    {|
+      op := op E + op F;
+      ar := sum_rect _ ar ar;
+    |}.
+
+  Definition i1 {A B} : A ~~> omap A B :=
+    fun m => inl m >= n => n.
+
+  Definition i2 {A B} : B ~~> omap A B :=
+    fun m => inr m >= n => n.
+
+  Definition copair {X A B} (f : A ~~> X) (g : B ~~> X) : omap A B ~~> X :=
+    sum_rect _ f g.
+
+  Theorem copair_i1 {X A B} (f : m A X) (g : m B X) :
+    copair f g @ i1 = f.
+  Proof.
+    unfold i1, compose, hmap.
+    apply functional_extensionality_dep. intro m. cbn.
+    apply amap_id.
+  Qed.
+
+  Theorem copair_i2 {X A B} (f : m A X) (g : m B X) :
+    copair f g @ i2 = g.
+  Proof.
+    unfold i2, compose, hmap.
+    apply functional_extensionality_dep. intro m. cbn.
+    apply amap_id.
+  Qed.
+
+  Theorem iota_copair {X A B} x :
+    @copair X A B (x @ i1) (x @ i2) = x.
+  Proof.
+    unfold i1, i2, compose, hmap. cbn.
+    apply functional_extensionality_dep.
+    intros [m|m]; cbn; apply amap_id.
+  Qed.
+
+  Include CocartesianStructureTheory B.
+  Include BifunctorTheory B B B.
+  Include MonoidalStructureTheory B.
+
+  End Plus.
+End SigPlus.
+
 (** ** Tensor product *)
 
 Module Type SigTensReq.
   Include SigBase.
 End SigTensReq.
 
-Module SigTens (B : SigTensReq) <: Monoidal SigBase.
+Module SigTens (B : SigTensReq) <: Monoidal B.
   Import B.
   Unset Program Cases.
 
@@ -613,6 +685,8 @@ Module SigTens (B : SigTensReq) <: Monoidal SigBase.
   Proof.
     apply functional_extensionality_dep. intros [e [[ ] f]]. cbn. auto.
   Qed.
+
+  Include MonoidalStructureTheory B.
 
   End Tens.
 End SigTens.
@@ -802,6 +876,8 @@ Module SigComp (B : SigTensReq).
       reflexivity.
     Qed.
 
+    Include MonoidalStructureTheory B.
+
   End Comp.
 End SigComp.
 
@@ -811,10 +887,12 @@ Module Type SigSpec :=
   Category.Category <+
   Products <+
   Monoidal <+
+  Cocartesian <+
   Cartesian.
 
 Module Sig <: SigSpec :=
   SigBase <+
+  SigPlus <+ CocartesianTheory <+
   SigTens <+
   SigComp.
 
@@ -907,7 +985,7 @@ End SigEnd.
 
 (** ** Definition *)
 
-Module Reg <: Category.Category.
+Module RegBase <: Category.Category.
   Import (notations) Sig.
   Open Scope term_scope.
 
@@ -967,7 +1045,81 @@ Module Reg <: Category.Category.
   Qed.
 
   Include CategoryTheory.
-End Reg.
+End RegBase.
+
+(** ** Coproducts *)
+
+Module Type RegPlusReq.
+  Include RegBase.
+End RegPlusReq.
+
+Module RegPlus (B : RegPlusReq) <: CocartesianDefinition B.
+  Import (notations) Sig.
+  Import B.
+
+  Module Plus <: CocartesianStructure B.
+
+    (** *** Initial object *)
+
+    Canonical Structure unit := Sig.Plus.unit.
+    Definition ini X : unit ~~> X := Empty_set_rect _.
+
+    Theorem ini_uni {X} (x y : unit ~~> X) :
+      x = y.
+    Proof.
+      apply functional_extensionality_dep. intros [].
+    Qed.
+
+    (** *** Binary products *)
+
+    Canonical Structure omap := Sig.Plus.omap.
+
+    Definition i1 {A B} : A ~~> omap A B :=
+      fun m => inl m >= n => Sig.var n.
+
+    Definition i2 {A B} : B ~~> omap A B :=
+      fun m => inr m >= n => Sig.var n.
+
+    Definition copair {X A B} (f : A ~~> X) (g : B ~~> X) : omap A B ~~> X :=
+      sum_rect _ f g.
+
+    Theorem copair_i1 {X A B} (f : m A X) (g : m B X) :
+      copair f g @ i1 = f.
+    Proof.
+      apply functional_extensionality_dep. intro m. cbn.
+      apply Sig.subst_var_l.
+    Qed.
+
+    Theorem copair_i2 {X A B} (f : m A X) (g : m B X) :
+      copair f g @ i2 = g.
+    Proof.
+      apply functional_extensionality_dep. intro m. cbn.
+      apply Sig.subst_var_l.
+    Qed.
+
+    Theorem iota_copair {X A B} x :
+      @copair X A B (x @ i1) (x @ i2) = x.
+    Proof.
+      apply functional_extensionality_dep.
+      intros [m|m]; cbn; apply Sig.subst_var_l.
+    Qed.
+
+    Include CocartesianStructureTheory B.
+    Include BifunctorTheory B B B.
+    Include MonoidalStructureTheory B.
+
+  End Plus.
+End RegPlus.
+
+(** ** Putting everything together *)
+
+Module Type RegSpec :=
+  Category.Category <+
+  Cocartesian.
+
+Module Reg <: RegSpec :=
+  RegBase <+
+  RegPlus <+ CocartesianTheory.
 
 (** ** Regular maps generalize signature homomorphisms *)
 

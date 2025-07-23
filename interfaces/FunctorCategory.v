@@ -328,6 +328,8 @@ Module EndofunctorComposition
     reflexivity.
   Qed.
 
+  Include MonoidalStructureTheory CC.
+
   End Tens.
 End EndofunctorComposition.
 

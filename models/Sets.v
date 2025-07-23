@@ -105,6 +105,7 @@ Module SetMonoidalStructures (B : SetBaseSpec).
 
     Include CartesianStructureTheory B.
     Include BifunctorTheory B B B.
+    Include MonoidalStructureTheory B.
   End Prod.
 
   Module Exp : MonoidalClosureDefinition B Prod.
