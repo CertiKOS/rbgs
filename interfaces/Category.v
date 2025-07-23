@@ -1,4 +1,5 @@
 Require Import Coq.Program.Tactics.
+Require Import Coq.Setoids.Setoid.
 
 
 (** * Introduction *)
@@ -109,6 +110,49 @@ Module CategoryTheory (C : CategoryDefinition).
   Proof.
     rewrite <- C.compose_assoc, fw_bw.
     apply C.compose_id_left.
+  Qed.
+
+  (** In addition, the following properties can be useful to switch
+    between forward and backward maps during equational reasoning. *)
+
+  Lemma eq_fw_bw_l_1 {A B C} (f : iso B C) (x : C.m A B) y :
+    fw f @ x = y <-> x = bw f @ y.
+  Proof.
+    split; intro.
+    - rewrite <- (C.compose_id_left x), <- (bw_fw f), C.compose_assoc.
+      congruence.
+    - rewrite <- (C.compose_id_left y), <- (fw_bw f), C.compose_assoc.
+      congruence.
+  Qed.
+
+  Lemma eq_fw_bw_r_1 {A B C} (f : iso A B) (x : C.m B C) y :
+    x @ fw f = y <-> x = y @ bw f.
+  Proof.
+    split; intro.
+    - rewrite <- (C.compose_id_right x), <- (fw_bw f), <- C.compose_assoc.
+      congruence.
+    - rewrite <- (C.compose_id_right y), <- (bw_fw f), <- C.compose_assoc.
+      congruence.
+  Qed.
+
+  Lemma eq_fw_bw_l_2 {A B C} (f : iso B C) x (y : C.m A B) :
+    x = fw f @ y <-> bw f @ x = y.
+  Proof.
+    split; intro.
+    - rewrite <- (C.compose_id_left y), <- (bw_fw f), C.compose_assoc.
+      congruence.
+    - rewrite <- (C.compose_id_left x), <- (fw_bw f), C.compose_assoc.
+      congruence.
+  Qed.
+
+  Lemma eq_fw_bw_r_2 {A B C} (f : iso A B) x (y : C.m B C) :
+    x = y @ fw f <-> x @ bw f = y.
+  Proof.
+    split; intro.
+    - rewrite <- (C.compose_id_right y), <- (fw_bw f), <- C.compose_assoc.
+      congruence.
+    - rewrite <- (C.compose_id_right x), <- (bw_fw f), <- C.compose_assoc.
+      congruence.
   Qed.
 
   (** We can define some basic instances. *)
