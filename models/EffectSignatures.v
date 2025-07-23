@@ -544,6 +544,7 @@ Module SigPlus (B : SigPlusReq) <: CocartesianDefinition B.
 
   Include CocartesianStructureTheory B.
   Include BifunctorTheory B B B.
+  Include MonoidalStructureTheory B.
 
   End Plus.
 End SigPlus.
@@ -684,6 +685,8 @@ Module SigTens (B : SigTensReq) <: Monoidal B.
   Proof.
     apply functional_extensionality_dep. intros [e [[ ] f]]. cbn. auto.
   Qed.
+
+  Include MonoidalStructureTheory B.
 
   End Tens.
 End SigTens.
@@ -872,6 +875,8 @@ Module SigComp (B : SigTensReq).
     Proof.
       reflexivity.
     Qed.
+
+    Include MonoidalStructureTheory B.
 
   End Comp.
 End SigComp.
@@ -1102,6 +1107,7 @@ Module RegPlus (B : RegPlusReq) <: CocartesianDefinition B.
 
     Include CocartesianStructureTheory B.
     Include BifunctorTheory B B B.
+    Include MonoidalStructureTheory B.
 
   End Plus.
 End RegPlus.

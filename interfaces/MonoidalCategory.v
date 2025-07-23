@@ -4,13 +4,13 @@ Require Import interfaces.Functor.
 
 (** * Monoidal structures *)
 
-(** Since a given category may involve several monoidal structure,
+(** Since a given category may involve several monoidal structures,
   we separate the corresponding interface into a submodule. *)
 
-Module Type MonoidalStructure (C : Category).
+Module Type MonoidalStructureDefinition (C : Category).
   Import C.
 
-  Include Bifunctor C C C.
+  Include BifunctorDefinition C C C.
 
   Parameter unit : C.t.
   Parameter assoc : forall A B C, C.iso (omap A (omap B C)) (omap (omap A B) C).
@@ -48,6 +48,85 @@ Module Type MonoidalStructure (C : Category).
       fmap (runit A) (C.id B) @ assoc A unit B =
       fmap (C.id A) (lunit B).
 
+End MonoidalStructureDefinition.
+
+Module MonoidalStructureTheory (C: Category) (M: MonoidalStructureDefinition C).
+  Import C M.
+
+  (** We provide versions of the naturality properties and coherence
+    diagrams to use with the isomorphisms' backward directions. *)
+
+  Theorem assoc_nat_bw {A1 B1 C1 A2 B2 C2} f g h :
+    bw (assoc A2 B2 C2) @ fmap (fmap f g) h =
+    fmap f (fmap g h) @ bw (assoc A1 B1 C1).
+  Proof.
+    apply eq_fw_bw_r_1. rewrite compose_assoc.
+    apply eq_fw_bw_l_2. apply assoc_nat.
+  Qed.
+
+  Theorem lunit_nat_bw {A1 A2} f :
+    bw (lunit A2) @ f = fmap (C.id unit) f @ bw (lunit A1).
+  Proof.
+    apply eq_fw_bw_r_1. rewrite compose_assoc.
+    apply eq_fw_bw_l_2. apply lunit_nat.
+  Qed.
+
+  Theorem runit_nat_bw {A1 A2} f :
+    bw (runit A2) @ f = fmap f (C.id unit) @ bw (runit A1).
+  Proof.
+    apply eq_fw_bw_r_1. rewrite compose_assoc.
+    apply eq_fw_bw_l_2. apply runit_nat.
+  Qed.
+
+  Theorem assoc_coh_bw {A B C D} :
+    fmap (C.id A) (bw (assoc B C D)) @
+      bw (assoc A (omap B C) D) @
+      fmap (bw (assoc A B C)) (C.id D) =
+    bw (assoc A B (omap C D)) @
+       bw (assoc (omap A B) C D).
+  Proof.
+    rewrite <- compose_id_left.
+    rewrite <- fmap_id.
+    rewrite <- (compose_id_left (id A)) at 2.
+    rewrite <- (bw_fw (assoc B C D)).
+    rewrite fmap_compose, !compose_assoc. f_equal.
+    apply eq_fw_bw_l_2.
+    rewrite <- !compose_assoc.
+    apply (eq_fw_bw_r_1 (assoc (omap A B) C D)).
+    apply (eq_fw_bw_r_1 (assoc A B (omap C D))).
+    rewrite !compose_assoc.
+    rewrite <- compose_id_left.
+    rewrite <- fmap_id.
+    rewrite <- (compose_id_left (id D)) at 2.
+    rewrite <- (bw_fw (assoc A B C)).
+    rewrite fmap_compose, !compose_assoc. f_equal.
+    symmetry.
+    apply assoc_coh.
+  Qed.
+
+  Theorem unit_coh_bw {A B} :
+    bw (assoc A unit B) @ fmap (bw (runit A)) (C.id B) =
+    fmap (C.id A) (bw (lunit B)).
+  Proof.
+    apply eq_fw_bw_l_2.
+    rewrite <- compose_id_right at 1.
+    rewrite <- fmap_id.
+    rewrite <- (compose_id_left (id A)) at 1.
+    rewrite <- (fw_bw (lunit B)) at 2.
+    rewrite fmap_compose, <- !compose_assoc. f_equal.
+    rewrite <- compose_id_left.
+    rewrite <- fmap_id.
+    rewrite <- (bw_fw (runit A)).
+    rewrite <- (compose_id_left (id B)) at 2.
+    rewrite fmap_compose, !compose_assoc. f_equal.
+    symmetry. apply unit_coh.
+  Qed.
+End MonoidalStructureTheory.
+
+Module Type MonoidalStructure (C : Category).
+  Include MonoidalStructureDefinition C.
+  Include BifunctorTheory C C C.
+  Include MonoidalStructureTheory C.
 End MonoidalStructure.
 
 (** Then a monoidal category is a category with a submodule for
@@ -330,7 +409,8 @@ End CartesianStructureTheory.
 Module Type CartesianStructure (C : Category) <: MonoidalStructure C :=
   CartesianStructureDefinition C <+
   CartesianStructureTheory C <+
-  BifunctorTheory C C C.
+  BifunctorTheory C C C <+
+  MonoidalStructureTheory C.
 
 (** ** Cartesian category interface *)
 
@@ -556,7 +636,8 @@ End CocartesianStructureTheory.
 Module Type CocartesianStructure (C : Category) <: MonoidalStructure C :=
   CocartesianStructureDefinition C <+
   CocartesianStructureTheory C <+
-  BifunctorTheory C C C.
+  BifunctorTheory C C C <+
+  MonoidalStructureTheory C.
 
 (** ** Cocartesian category interface *)
 
