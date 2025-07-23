@@ -1055,14 +1055,13 @@ End RegPlusReq.
 
 Module RegPlus (B : RegPlusReq) <: CocartesianDefinition B.
   Import (notations) Sig.
-  Import (canonicals) Sig.Plus.
   Import B.
 
   Module Plus <: CocartesianStructure B.
 
     (** *** Initial object *)
 
-    Definition unit := Sig.Plus.unit.
+    Canonical Structure unit := Sig.Plus.unit.
     Definition ini X : unit ~~> X := Empty_set_rect _.
 
     Theorem ini_uni {X} (x y : unit ~~> X) :
@@ -1073,7 +1072,7 @@ Module RegPlus (B : RegPlusReq) <: CocartesianDefinition B.
 
     (** *** Binary products *)
 
-    Definition omap := Sig.Plus.omap.
+    Canonical Structure omap := Sig.Plus.omap.
 
     Definition i1 {A B} : A ~~> omap A B :=
       fun m => inl m >= n => Sig.var n.

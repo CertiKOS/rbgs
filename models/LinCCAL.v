@@ -5,12 +5,14 @@ Require Import Classical.
 
 Require Import coqrel.LogicalRelations.
 Require Import interfaces.Category.
+Require Import interfaces.Functor.
+Require Import interfaces.MonoidalCategory.
 Require Import models.EffectSignatures.
 
 
 (** * Linearization-based Concurrent Certified Abstraction Layers *)
 
-Module LinCCAL <: Category.
+Module LinCCALBase <: Category.
 
   Module TMap := PositiveMap.
   Notation tid := TMap.key.
@@ -413,7 +415,7 @@ Module LinCCAL <: Category.
       discriminate.
   Qed.
 
-  (** ** Composition *)
+  (** ** Vertical composition *)
 
   Notation "t >>= f" := (Sig.subst f t) (left associativity, at level 40).
   Notation "x <- t ; f" := (t >>= fun x => f) (right associativity, at level 60).
@@ -1058,7 +1060,7 @@ Module LinCCAL <: Category.
     apply id_cal.
   Qed.
 
-  Program Definition compose {L1 L2 L3} (M : m L2 L3) (N : m L1 L2) :=
+  Program Definition compose {L1 L2 L3} (M : m L2 L3) (N : m L1 L2) : m L1 L3 :=
     {| li_impl := Reg.Op.compose (li_impl M) (li_impl N) |}.
   Next Obligation.
     eapply comp_cal; eauto using li_correct.
@@ -1091,7 +1093,747 @@ Module LinCCAL <: Category.
   Qed.
 
   Include CategoryTheory.
-End LinCCAL.
+End LinCCALBase.
+
+(** ** Horizontal composition *)
+
+Module Type LinCCALTensSpec.
+  Include LinCCALBase.
+End LinCCALTensSpec.
+
+Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
+  Import (notations, canonicals) Reg.Plus.
+  Import B.
+  Obligation Tactic := intros.
+
+  Module Tens <: MonoidalStructure B.
+
+    (** *** Tensor product of layer interfaces *)
+
+    (** Two certified abstraction layers can be composed horizontally
+      by taking method implementations as defined in [Reg.Plus]. Then
+      the specification of the composite layer can be computed by
+      independently interleaving the specifications from each side
+      per [Spec.tens], as shown below. *)
+
+    Definition omap (L1 L2 : t) : t :=
+      {|
+        li_sig := Reg.Plus.omap (li_sig L1) (li_sig L2);
+        li_spec := li_spec L1 * li_spec L2;
+      |}.
+
+    Local Infix "*" := omap : obj_scope.
+
+    (** *** Tensor product of layer implementations *)
+
+    (** For some reason, [congruence] and other tactics are buggy when
+      faced with those cases. *)
+
+    Lemma inj_somets2 {E F} q T1 T2 R1 R2 :
+      Some (@mkts E F q T1 R1) = Some (@mkts E F q T2 R2) ->
+      T1 = T2 /\ R1 = R2.
+    Proof.
+      inversion 1.
+      apply inj_pair2 in H1.
+      apply inj_pair2 in H2.
+      auto.
+    Qed.
+
+    (** Owing to proof irrelevance, the monoidal structure associated
+      with the tensor product of layers can be pulled from [Reg.Plus].
+      However, we first need to prove locality and show that
+      horizontal composition preserves layer correctness.
+      Fortunately, because the two layer act largely independently
+      from each other, this is much simpler to establish than the
+      vertical composition property used to define [compose] *)
+
+    Section CORRECTNESS.
+      Context {E1 E2 F1 F2 : Sig.t}.
+      Context (M1 : Reg.Op.m E1 F1).
+      Context (M2 : Reg.Op.m E2 F2).
+
+      (** Per-thread invariant *)
+
+      Variant fmap_threadstate : _ -> _ -> _ -> Prop :=
+        | fmap_ts_none :
+          fmap_threadstate
+            None
+            None
+            None
+        | fmap_ts_left (q : Sig.op F1) (T : Sig.term E1 (Sig.ar q)) R :
+          fmap_threadstate
+            (Some (mkts (inl q) (Reg.transform Reg.Plus.i1 T) R))
+            (Some (mkts q T R))
+            None
+        | fmap_ts_right (q : Sig.op F2) (T : Sig.term E2 (Sig.ar q)) R :
+          fmap_threadstate
+            (Some (mkts (inr q) (Reg.transform Reg.Plus.i2 T) R))
+            None
+            (Some (mkts q T R)).
+
+      (** Thread map invariant *)
+
+      Definition fmap_tmap (s12 s1 s2 : tmap _) :=
+        forall i,
+          fmap_threadstate (TMap.find i s12) (TMap.find i s1) (TMap.find i s2).
+
+      Lemma fmap_tmap_specified_l Σ1 Σ2 s12 s1 s2 Δ1 Δ2 :
+        fmap_tmap s12 s1 s2 ->
+        specified (mkst (Σ1 * Σ2) s12 (Δ1 * Δ2)) ->
+        specified (mkst Σ1 s1 Δ1).
+      Proof.
+        intros H Hs12 i q T Hs1i. cbn in *.
+        pose proof (H i) as Hs12i.
+        rewrite Hs1i in Hs12i.
+        dependent destruction Hs12i.
+        symmetry in x0. rename x0 into Hs12i.
+        apply Hs12 in Hs12i. cbn in *.
+        destruct Spec.next; congruence.
+      Qed.
+
+      Lemma fmap_tmap_specified_r Σ1 Σ2 s12 s1 s2 Δ1 Δ2 :
+        fmap_tmap s12 s1 s2 ->
+        specified (mkst (Σ1 * Σ2) s12 (Δ1 * Δ2)) ->
+        specified (mkst Σ2 s2 Δ2).
+      Proof.
+        intros H Hs12 i q T Hs1i. cbn in *.
+        pose proof (H i) as Hs12i.
+        rewrite Hs1i in Hs12i.
+        dependent destruction Hs12i.
+        symmetry in x0. rename x0 into Hs12i.
+        apply Hs12 in Hs12i. cbn in *.
+        destruct Spec.next; congruence.
+      Qed.
+
+      (** Global state invariant *)
+
+      Variant fmap_state : state _ _ -> Prop :=
+        fmap_state_intro s12 s1 s2 Δ1 Δ2 Σ1 Σ2 :
+          fmap_tmap s12 s1 s2 ->
+          correct M1 (mkst Δ1 s1 Σ1) ->
+          correct M2 (mkst Δ2 s2 Σ2) ->
+          fmap_state (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)).
+
+      Lemma fmap_lsteps_l s12 s1 s2 Δ1 Δ2 Σ1 Σ2 :
+        fmap_tmap s12 s1 s2 ->
+        reachable lstep (correct M1) (mkst Δ1 s1 Σ1) ->
+        correct M2 (mkst Δ2 s2 Σ2) ->
+        reachable lstep fmap_state (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)).
+      Proof.
+        intros Hs12 Hs1 Hs2.
+        revert Δ2 s2 Σ2 s12 Hs2 Hs12.
+        pattern Δ1, s1, Σ1. revert Δ1 s1 Σ1 Hs1.
+        apply lsteps_ind.
+        - intros Δ1 s1 Σ1 H1; intros.
+          apply reachable_base.
+          econstructor; eauto.
+        - intros t q r T Δ1 Δ1' s1 Σ1 Hs1t HΔ1' IH; intros.
+          pose proof (Hs12 t) as Hs12t.
+          rewrite Hs1t in Hs12t.
+          dependent destruction Hs12t.
+          symmetry in x0. rename x0 into Hs12t.
+          symmetry in x. rename x into Hs2t.
+          eapply reachable_step.
+          2: {
+            apply (lcommit t (inl q) r (Reg.transform Reg.Plus.i1 T)); auto.
+            cbn. rewrite HΔ1'. fold (Δ1' * Δ2)%spec.
+            reflexivity.
+          }
+          eapply IH; eauto.
+          intros i. destruct (classic (i = t)); subst.
+          + rewrite !TMap.gss, Hs2t. constructor.
+          + rewrite !TMap.gso; auto.
+      Qed.
+
+      Lemma fmap_lsteps_r s12 s1 s2 Δ1 Δ2 Σ1 Σ2 :
+        fmap_tmap s12 s1 s2 ->
+        correct M1 (mkst Δ1 s1 Σ1) ->
+        reachable lstep (correct M2) (mkst Δ2 s2 Σ2) ->
+        reachable lstep fmap_state (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)).
+      Proof.
+        intros Hs12 Hs1 Hs2.
+        revert Δ1 s1 Σ1 s12 Hs1 Hs12.
+        pattern Δ2, s2, Σ2. revert Δ2 s2 Σ2 Hs2.
+        apply lsteps_ind.
+        - intros Δ2 s2 Σ2 H2; intros.
+          apply reachable_base.
+          econstructor; eauto.
+        - intros t q r T Δ2 Δ2' s2 Σ2 Hs2t HΔ2' IH; intros.
+          pose proof (Hs12 t) as Hs12t.
+          rewrite Hs2t in Hs12t.
+          dependent destruction Hs12t.
+          symmetry in x0. rename x0 into Hs12t.
+          symmetry in x. rename x into Hs1t.
+          eapply reachable_step.
+          2: {
+            apply (lcommit t (inr q) r (Reg.transform Reg.Plus.i2 T)); auto.
+            cbn. rewrite HΔ2'. fold (Δ1 * Δ2')%spec.
+            reflexivity.
+          }
+          eapply IH; eauto.
+          intros i. destruct (classic (i = t)); subst.
+          + rewrite !TMap.gss, Hs1t. constructor.
+          + rewrite !TMap.gso; auto.
+      Qed.
+
+      Lemma fmap_ci :
+        correctness_invariant (Reg.Plus.fmap M1 M2) fmap_state.
+      Proof.
+        split.
+        - (* validity of commit states *)
+          intros _ [s12 s1 s2 Σ1 Σ2 Δ1 Δ2 Hs Hs1 Hs2] Hspec i q r R. cbn.
+          intros Hs12i.
+          pose proof (Hs i) as Hsi.
+          inversion Hsi; subst; try congruence.
+          + rewrite Hs12i in H0; clear Hs12i.
+            assert (q = inl q0) by congruence; subst.
+            apply inj_somets2 in H0 as [HT ?]; subst.
+            destruct T; cbn in HT; try congruence. dependent destruction HT.
+            eapply correct_valid in Hs1; eauto using fmap_tmap_specified_l.
+          + rewrite Hs12i in H0; clear Hs12i.
+            assert (q = inr q0) by congruence; subst.
+            apply inj_somets2 in H0 as [HT ?]; subst.
+            destruct T; cbn in HT; try congruence. dependent destruction HT.
+            eapply correct_valid in Hs2; eauto using fmap_tmap_specified_r.
+        - (* safety of outgoing calls *)
+          intros _ [s12 s1 s2 Σ1 Σ2 Δ1 Δ2 Hs Hs1 Hs2] Hspec i q m k R. cbn.
+          intro Hs12i.
+          pose proof (Hs i) as Hsi.
+          inversion Hsi; subst; try congruence.
+          + rewrite Hs12i in H0. clear Hs12i.
+            assert (q = inl q0) by congruence. subst.
+            apply inj_somets2 in H0 as [HT ?]; subst.
+            destruct T; cbn in HT; try congruence. dependent destruction HT.
+            eapply correct_safe in Hs1; eauto using fmap_tmap_specified_l.
+            cbn in *. destruct Spec.next; congruence.
+          + rewrite Hs12i in H0. clear Hs12i.
+            assert (q = inr q0) by congruence. subst.
+            apply inj_somets2 in H0 as [HT ?]; subst.
+            destruct T; cbn in HT; try congruence. dependent destruction HT.
+            eapply correct_safe in Hs2; eauto using fmap_tmap_specified_r.
+            cbn in *. destruct Spec.next; congruence.
+        - (* preservation by execution steps *)
+          intros _ [s12 s1 s2 Σ1 Σ2 Δ1 Δ2 Hs Hs1 Hs2] Hspec s' Hs'.
+          dependent destruction Hs'; rename t0 into t.
+          + (* invocation *)
+            pose proof (Hs t) as Hs12t. rewrite H in Hs12t.
+            dependent destruction Hs12t.
+            symmetry in x0; rename x0 into Hs1t.
+            symmetry in x; rename x into Hs2t.
+            destruct q as [q1|q2].
+            * eapply correct_next in Hs1;
+                eauto using (einvoke M1 t q1), fmap_tmap_specified_l.
+              eapply fmap_lsteps_l; eauto.
+              intros i. destruct (classic (i = t)); subst.
+              -- rewrite !TMap.gss, Hs2t. constructor.
+              -- rewrite !TMap.gso; auto.
+            * eapply correct_next in Hs2;
+                eauto using (einvoke M2 t q2), fmap_tmap_specified_r.
+              eapply fmap_lsteps_r; eauto.
+              intros i. destruct (classic (i = t)); subst.
+              -- rewrite !TMap.gss, Hs1t. constructor.
+              -- rewrite !TMap.gso; auto.
+          + (* execution step *)
+            pose proof (Hs t) as Hs12t.
+            dependent destruction Hs12t; try congruence.
+            * symmetry in x0; rename x0 into Hs12t.
+              symmetry in x1; rename x1 into Hs1t.
+              symmetry in x; rename x into Hs2t.
+              rewrite Hs12t in H. clear Hs12t.
+              assert (q = inl q0) by congruence. subst.
+              apply inj_somets2 in H as [HT ?]; subst.
+              destruct T; dependent destruction HT.
+              cbn in H0. destruct Spec.next eqn:HΔ1'; dependent destruction H0.
+              eapply correct_next in Hs1;
+                eauto using (eaction M1 t), fmap_tmap_specified_l.
+              eapply fmap_lsteps_l; eauto.
+              intros i. destruct (classic (i = t)); subst.
+              -- rewrite !TMap.gss, Hs2t. constructor.
+              -- rewrite !TMap.gso; auto.
+            * symmetry in x0; rename x0 into Hs12t.
+              symmetry in x1; rename x1 into Hs1t.
+              symmetry in x; rename x into Hs2t.
+              rewrite Hs12t in H. clear Hs12t.
+              assert (q = inr q0) by congruence. subst.
+              apply inj_somets2 in H as [HT ?]; subst.
+              destruct T; dependent destruction HT.
+              cbn in H0. destruct Spec.next eqn:HΔ2'; dependent destruction H0.
+              eapply correct_next in Hs2;
+                eauto using (eaction M2 t), fmap_tmap_specified_r.
+              eapply fmap_lsteps_r; eauto.
+              intros i. destruct (classic (i = t)); subst.
+              -- rewrite !TMap.gss, Hs1t. constructor.
+              -- rewrite !TMap.gso; auto.
+          + (* return *)
+            pose proof (Hs t) as Hs12t.
+            dependent destruction Hs12t; try congruence.
+            * symmetry in x0; rename x0 into Hs12t.
+              symmetry in x1; rename x1 into Hs1t.
+              symmetry in x; rename x into Hs2t.
+              rewrite Hs12t in H. clear Hs12t.
+              assert (q = inl q0) by congruence. subst.
+              apply inj_somets2 in H as [HT ?]; subst.
+              destruct T; dependent destruction HT.
+              eapply correct_next in Hs1;
+                eauto using (ereturn M1 t _ r), fmap_tmap_specified_l.
+              eapply fmap_lsteps_l; eauto.
+              intros i. destruct (classic (i = t)); subst.
+              -- rewrite !TMap.grs, Hs2t. constructor.
+              -- rewrite !TMap.gro; auto.
+            * symmetry in x0; rename x0 into Hs12t.
+              symmetry in x1; rename x1 into Hs1t.
+              symmetry in x; rename x into Hs2t.
+              rewrite Hs12t in H. clear Hs12t.
+              assert (q = inr q0) by congruence. subst.
+              apply inj_somets2 in H as [HT ?]; subst.
+              destruct T; dependent destruction HT.
+              eapply correct_next in Hs2;
+                eauto using (ereturn M2 t _ r), fmap_tmap_specified_r.
+              eapply fmap_lsteps_r; eauto.
+              intros i. destruct (classic (i = t)); subst.
+              -- rewrite !TMap.grs, Hs1t. constructor.
+              -- rewrite !TMap.gro; auto.
+      Qed.
+    End CORRECTNESS.
+
+    Program Definition fmap {L1 L2 L1' L2'} (M1: L1~~>L1') (M2: L2~~>L2') :
+      L1 * L2 ~~> L1' * L2' :=
+        {| li_impl := Reg.Plus.fmap (li_impl M1) (li_impl M2) |}.
+    Next Obligation.
+      eapply correctness_invariant_sound.
+      - apply fmap_ci.
+      - econstructor.
+        + intro i. rewrite !TMap.gempty. constructor.
+        + apply li_correct.
+        + apply li_correct.
+    Qed.
+
+    Local Infix "*" := fmap : hom_scope.
+
+    (** *** Functoriality *)
+
+    Theorem fmap_id E1 E2 :
+      fmap (id E1) (id E2) = id (omap E1 E2).
+    Proof.
+      apply meq, Reg.Plus.fmap_id.
+    Qed.
+
+    Theorem fmap_compose {E1 E2 F1 F2 G1 G2} :
+      forall (g1: F1 ~~> G1) (g2: F2 ~~> G2) (f1: E1 ~~> F1) (f2: E2 ~~> F2),
+        fmap (g1 @ f1) (g2 @ f2) = fmap g1 g2 @ fmap f1 f2.
+    Proof.
+      intros. apply meq, Reg.Plus.fmap_compose.
+    Qed.
+
+    (** *** Zero layer interface *)
+
+    (** The empty spec is used to define the zero layer interface. *)
+
+    Definition unit :=
+      {|
+        li_sig := Reg.Plus.unit;
+        li_spec := Spec.gen (fun _ _ => Empty_set_rect _) tt;
+      |}.
+
+    (** *** Structural isomorphisms *)
+
+    (** As with [fmap], we must show that the various structural
+      isomorphisms constitute correct layer implementations.
+      This is tedious but mostly straightforward. In order to
+      streamline the process somewhat we define a generic correctness
+      invariant induced by a [Sig.m]orphism, which generalizes the
+      correctness invariant we used for [LinCCAL.id]. *)
+
+    Section ISO_CORRECTNESS.
+      Context {E F} (ϕ : Sig.Op.m E F).
+      Import (notations) Sig.
+
+      Variant iso_threadstate : threadstate E F -> Prop :=
+        | iso_invoked q :
+          iso_threadstate (mkts q (Sig.operator (ϕ q) >= n =>
+                                   Sig.var (Sig.operand (ϕ q) n)) None)
+        | iso_returned q n :
+          iso_threadstate (mkts q (Sig.var (Sig.operand (ϕ q) n))
+                                     (Some (Sig.operand (ϕ q) n))).
+
+      Definition iso_tmap (s : tmap (threadstate E F)) :=
+        forall t st, TMap.find t s = Some st -> iso_threadstate st.
+
+    End ISO_CORRECTNESS.
+
+    (** Unfortunately the overall invariant still must be defined on a
+      case-by-case basis, because the way the spec components of the
+      parameters are involved varies from one to the next. *)
+
+    Local Infix "+" := Sig.Plus.omap.
+
+    Variant assoc_fw_state {E F G}: state _ _ -> Prop :=
+      | assoc_fw_state_intro Σ Φ Γ s :
+        iso_tmap (Sig.bw (Sig.Plus.assoc E F G)) s ->
+        assoc_fw_state (mkst ((Σ * Φ) * Γ) s (Σ * (Φ * Γ))).
+
+    Variant assoc_bw_state {E F G}: state _ _ -> Prop :=
+      | assoc_bw_state_intro Σ Φ Γ s :
+        iso_tmap (Sig.fw (Sig.Plus.assoc E F G)) s ->
+        assoc_bw_state (mkst (Σ * (Φ * Γ)) s ((Σ * Φ) * Γ)).
+
+    Program Definition assoc L1 L2 L3 : iso (L1 * (L2 * L3)) ((L1 * L2) * L3) :=
+      {|
+        fw := {| li_impl := Reg.bw (Reg.Plus.assoc _ _ _) |};
+        bw := {| li_impl := Reg.fw (Reg.Plus.assoc _ _ _) |};
+      |}.
+    Next Obligation.
+      set (ϕ := Sig.bw (Sig.Plus.assoc (li_sig L1) (li_sig L2) (li_sig L3))).
+      apply correctness_invariant_sound with assoc_fw_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t q m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct q as [[|]|]; cbn in *;
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               destruct q as [[|]|]; apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * apply H in H0. dependent destruction H0. cbn in *.
+            destruct q as [[|]|]; cbn in *;
+            destruct Spec.next eqn:Hnext; dependent destruction H1.
+            -- eapply reachable_step with (mkst ((x * Φ) * Γ) _ (x * (Φ * Γ))).
+               2: { apply (lcommit t0 (inl (inl o)) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inl (inl o)) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+            -- eapply reachable_step with (mkst ((Σ * x) * Γ) _ (Σ * (x * Γ))).
+               2: { apply (lcommit t0 (inl (inr o)) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inl (inr o)) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+            -- eapply reachable_step with (mkst ((Σ * Φ) * x) _ (Σ * (Φ * x))).
+               2: { apply (lcommit t0 (inr o) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inr o) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+    Next Obligation.
+      set (ϕ := Sig.fw (Sig.Plus.assoc (li_sig L1) (li_sig L2) (li_sig L3))).
+      apply correctness_invariant_sound with assoc_bw_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t q m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct q as [|[|]]; cbn in *;
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               destruct q as [|[|]]; apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * apply H in H0. dependent destruction H0. cbn in *.
+            destruct q as [|[|]]; cbn in *;
+            destruct Spec.next eqn:Hnext; dependent destruction H1.
+            -- eapply reachable_step with (mkst (x * (Φ * Γ)) _ ((x * Φ) * Γ)).
+               2: { apply (lcommit t0 (inl o) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inl o) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+            -- eapply reachable_step with (mkst (Σ * (x * Γ)) _ ((Σ * x) * Γ)).
+               2: { apply (lcommit t0 (inr (inl o)) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inr (inl o)) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+            -- eapply reachable_step with (mkst (Σ * (Φ * x)) _ ((Σ * Φ) * x)).
+               2: { apply (lcommit t0 (inr (inr o)) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inr (inr o)) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+    Next Obligation.
+      apply meq, Reg.bw_fw.
+    Qed.
+    Next Obligation.
+      apply meq, Reg.fw_bw.
+    Qed.
+
+    Variant lunit_fw_state {E}: state _ _ -> Prop :=
+      | lunit_fw_state_intro Σ s :
+        iso_tmap (Sig.bw (Sig.Plus.lunit E)) s ->
+        lunit_fw_state (mkst Σ s (li_spec unit * Σ)).
+
+    Variant lunit_bw_state {E}: state _ _ -> Prop :=
+      | lunit_bw_state_intro Σ s :
+        iso_tmap (Sig.fw (Sig.Plus.lunit E)) s ->
+        lunit_bw_state (mkst (li_spec unit * Σ) s Σ).
+
+    Program Definition lunit L : iso (unit * L) L :=
+      {|
+        fw := {| li_impl := Reg.bw (Reg.Plus.lunit _) |};
+        bw := {| li_impl := Reg.fw (Reg.Plus.lunit _) |};
+      |}.
+    Next Obligation.
+      set (ϕ := Sig.bw (Sig.Plus.lunit (li_sig L))).
+      apply correctness_invariant_sound with lunit_fw_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t q m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * apply H in H0. dependent destruction H0. cbn in *.
+            destruct Spec.next eqn:Hnext; dependent destruction H1.
+            eapply reachable_step with (mkst x _ (_ * x)).
+            2: { apply (lcommit t0 q n (Sig.var n)); eauto.
+                 rewrite TMap.gss. reflexivity. }
+            apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_returned ϕ q n).
+            -- rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+    Next Obligation.
+      set (ϕ := Sig.fw (Sig.Plus.lunit (li_sig L))).
+      apply correctness_invariant_sound with lunit_bw_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t [[]|q] m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * destruct q as [[]|q].
+            apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * destruct q as [[]|q].
+            apply H in H0. dependent destruction H0. cbn in *.
+            eapply reachable_step with (mkst (_ * Σ') _ Σ').
+            2: { apply (lcommit t0 (inr q) n (Sig.var n)); eauto.
+                 -- rewrite TMap.gss. reflexivity.
+                 -- cbn. rewrite H1. reflexivity. }
+            apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_returned ϕ (inr q) n).
+            -- rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+    Next Obligation.
+      apply meq, Reg.bw_fw.
+    Qed.
+    Next Obligation.
+      apply meq, Reg.fw_bw.
+    Qed.
+
+    Variant runit_fw_state {E}: state _ _ -> Prop :=
+      | runit_fw_state_intro Σ s :
+        iso_tmap (Sig.bw (Sig.Plus.runit E)) s ->
+        runit_fw_state (mkst Σ s (Σ * li_spec unit)).
+
+    Variant runit_bw_state {E}: state _ _ -> Prop :=
+      | runit_bw_state_intro Σ s :
+        iso_tmap (Sig.fw (Sig.Plus.runit E)) s ->
+        runit_bw_state (mkst (Σ * li_spec unit) s Σ).
+
+    Program Definition runit L : iso (L * unit) L :=
+      {|
+        fw := {| li_impl := Reg.bw (Reg.Plus.runit _) |};
+        bw := {| li_impl := Reg.fw (Reg.Plus.runit _) |};
+      |}.
+    Next Obligation.
+      set (ϕ := Sig.bw (Sig.Plus.runit (li_sig L))).
+      apply correctness_invariant_sound with runit_fw_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t q m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * apply H in H0. dependent destruction H0. cbn in *.
+            destruct Spec.next eqn:Hnext; dependent destruction H1.
+            eapply reachable_step with (mkst x _ (x * _)).
+            2: { apply (lcommit t0 q n (Sig.var n)); eauto.
+                 rewrite TMap.gss. reflexivity. }
+            apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_returned ϕ q n).
+            -- rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+    Next Obligation.
+      set (ϕ := Sig.fw (Sig.Plus.runit (li_sig L))).
+      apply correctness_invariant_sound with runit_bw_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t [q|[]] m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * destruct q as [q|[]].
+            apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * destruct q as [q|[]].
+            apply H in H0. dependent destruction H0. cbn in *.
+            eapply reachable_step with (mkst (Σ' * _) _ Σ').
+            2: { apply (lcommit t0 (inl q) n (Sig.var n)); eauto.
+                 -- rewrite TMap.gss. reflexivity.
+                 -- cbn. rewrite H1. reflexivity. }
+            apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               apply (iso_returned ϕ (inl q) n).
+            -- rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+    Next Obligation.
+      apply meq, Reg.bw_fw.
+    Qed.
+    Next Obligation.
+      apply meq, Reg.fw_bw.
+    Qed.
+
+    (** *** Naturality properties *)
+
+    Theorem assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
+      fmap (fmap f g) h @ assoc A1 B1 C1 = assoc A2 B2 C2 @ fmap f (fmap g h).
+    Proof.
+      apply meq, Reg.Plus.assoc_nat_bw.
+    Qed.
+
+    Theorem lunit_nat {A1 A2} f :
+      f @ lunit A1 = lunit A2 @ fmap (id unit) f.
+    Proof.
+      apply meq, Reg.Plus.lunit_nat_bw.
+    Qed.
+
+    Theorem runit_nat {A1 A2} f :
+      f @ runit A1 = runit A2 @ fmap f (id unit).
+    Proof.
+      apply meq, Reg.Plus.runit_nat_bw.
+    Qed.
+
+    (** *** Coherence diagrams *)
+
+    Theorem assoc_coh A B C D :
+      fmap (assoc A B C) (id D) @
+        assoc A (omap B C) D @
+        fmap (id A) (assoc B C D) =
+      assoc (omap A B) C D @
+        assoc A B (omap C D).
+    Proof.
+      apply meq. cbn -[Reg.Plus.assoc]. unfold Reg.Op.compose.
+      rewrite !Reg.compose_assoc. apply Reg.Plus.assoc_coh_bw.
+    Qed.
+
+    Theorem unit_coh A B :
+      fmap (runit A) (id B) @ assoc A unit B = fmap (id A) (lunit B).
+    Proof.
+      apply meq, Reg.Plus.unit_coh_bw.
+    Qed.
+
+    Include BifunctorTheory B B B.
+    Include MonoidalStructureTheory B.
+  End Tens.
+
+  Include MonoidalTheory B.
+End LinCCALTens.
+
+(** ** Putting everything together *)
+
+Module LinCCAL <: MonoidalCategory :=
+  LinCCALBase <+
+  LinCCALTens.
 
 
 (** * Example *)
@@ -1179,20 +1921,12 @@ Module LinCCALExample.
   Definition Lreg {S} (s0 : S) :=
     {| LinCCAL.li_spec := LinCCAL.Spec.gen (Σreg S) s0 |}.
 
-  (** ** Horizontal composition (TODO: generalize) *)
-
-  Import (notations) LinCCAL.
-
-  Definition tens (L1 L2 : LinCCAL.t) : LinCCAL.t :=
-    {| LinCCAL.li_spec := LinCCAL.li_spec L1 * LinCCAL.li_spec L2 |}.
-
-  Infix "*" := tens.
-
   (** ** Implementation *)
 
+  Import (notations) LinCCAL.
   Import (canonicals) Sig.Plus.
 
-  Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0%nat)) nat :=
+  Definition fai_impl : Sig.term (LinCCAL.li_sig (Llock * Lreg 0%nat)%obj) nat :=
     inl acq >= _ =>
     inr get >= c =>
     inr (set (S c)) >= _ =>
