@@ -351,7 +351,7 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
   (** Naturality *)
 
   Proposition assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
-    ((f & g) & h) @ assoc A1 B1 C1 = assoc A2 B2 C2 @ (f& (g & h)).
+    ((f & g) & h) @ assoc A1 B1 C1 = assoc A2 B2 C2 @ (f & (g & h)).
   Proof.
     unfold fmap. cbn.
     autorewrite with pair.
