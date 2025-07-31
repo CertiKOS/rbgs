@@ -145,7 +145,7 @@ End CartesianFromProducts.
   a product, which would be best defined elsewhere. *)
 
 Module Type PreservesProducts (C : CategoryDefinition) (D : Category)
-  (PC : Products C) (PD : Products D) (F : Functor C D).
+  (PC : Products C) (PD : Products D) (F : FunctorDefinition C D).
 
   Import (notations, coercions) D.
 

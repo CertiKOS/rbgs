@@ -944,7 +944,7 @@ Module Sig <: SigSpec :=
 
 (** * Interpretation in [SET] endofunctors *)
 
-Module SigEnd <: FullAndFaithfulFunctor Sig (SET.End).
+Module SigEnd <: FullAndFaithfulFunctor Sig SET.End.
   Import (notations) Sig.
   Import (coercions) SET.End.
 
@@ -982,6 +982,8 @@ Module SigEnd <: FullAndFaithfulFunctor Sig (SET.End).
     apply functional_extensionality. intro x.
     apply Sig.hmap_compose.
   Qed.
+
+  Include FunctorTheory Sig SET.End.
 
   (** Every natural transformation between endofunctors derived from
     signatures is completely determined by its action on the terms
@@ -1185,6 +1187,8 @@ Module SigReg <: FaithfulFunctor Sig Reg.
     reflexivity.
   Qed.
 
+  Include FunctorTheory Sig Reg.
+
   Theorem faithful {E F} (f g : E ~~> F) :
     fmap f = fmap g -> f = g.
   Proof.
@@ -1293,6 +1297,8 @@ Module SigMnd <: FullAndFaithfulFunctor Reg SMnd.
     apply functional_extensionality. intro t.
     apply Reg.transform_compose.
   Qed.
+
+  Include FunctorTheory Reg SMnd.
 
   (** In fact, every monad homomorphism corresponds to a unique
     regular map, as we will prove below. To this end, we first show
