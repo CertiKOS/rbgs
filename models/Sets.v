@@ -36,6 +36,7 @@ Module SetBase <: CategoryWithEndofunctors.
   Qed.
 
   Include CategoryTheory.
+  Include AddOp.
 
   (** ** Endofunctors *)
 
@@ -171,6 +172,7 @@ End SetMonoidalStructures.
 
 Module Type SetSpec :=
   CartesianCategory <+
+  AddOp <+
   AddEndofunctors.
 
 Module SET <: SetSpec :=

@@ -159,7 +159,7 @@ Module Type MonoidalCategory :=
 
 (** * Monoidal closure *)
 
-Module Type MonoidalClosureDefinition (C : Category) (M : MonoidalStructure C).
+Module Type MonoidalClosureDefinition (C : CategoryWithOp) (M : MonoidalStructure C).
   Import C.
   Infix "*" := M.omap : obj_scope.
   Infix "*" := M.fmap : hom_scope.
@@ -183,7 +183,7 @@ Module Type MonoidalClosureDefinition (C : Category) (M : MonoidalStructure C).
 
 End MonoidalClosureDefinition.
 
-Module MonoidalClosureTheory (C : Category) (M : MonoidalStructure C)
+Module MonoidalClosureTheory (C : CategoryWithOp) (M : MonoidalStructure C)
   (W : MonoidalClosureDefinition C M).
 
   Import C W.

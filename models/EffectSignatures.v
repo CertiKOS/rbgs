@@ -209,6 +209,7 @@ Module SigBase <: CartesianCategory.
   Qed.
 
   Include CategoryTheory.
+  Include AddOp.
 
   (** ** Products *)
 
@@ -1084,6 +1085,7 @@ Module RegBase <: Category.Category.
   Qed.
 
   Include CategoryTheory.
+  Include AddOp.
 End RegBase.
 
 (** ** Coproducts *)

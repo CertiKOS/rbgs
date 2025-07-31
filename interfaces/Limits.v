@@ -260,7 +260,7 @@ Module Type Limits (J C : CategoryDefinition).
   Global Existing Instance lim_spec.
 End Limits.
 
-Module Type Colimits (J : CategoryDefinition) (C : Category) :=
+Module Type Colimits (J : CategoryDefinition) (C : CategoryWithOp) :=
   Limits J C.Op.
 
 (** ** Specific types of limits *)
