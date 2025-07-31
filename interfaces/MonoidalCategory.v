@@ -199,6 +199,99 @@ Module MonoidalClosureTheory (C : Category) (M : MonoidalStructure C)
 End MonoidalClosureTheory.
 
 
+(** * Symmetric monoidal categories *)
+
+Module Type SymmetricMonoidalStructureDefinition (C : Category).
+  Include MonoidalStructureDefinition C.
+  Import (notations, coercions) C.
+
+  Parameter swap : forall A B, C.m (omap A B) (omap B A).
+
+  (** Naturality *)
+
+  Axiom swap_nat :
+    forall {A1 A2 B1 B2} (f : C.m A1 A2) (g : C.m B1 B2),
+      fmap g f @ swap A1 B1 = swap A2 B2 @ fmap f g.
+
+  (** Hexagon identity *)
+
+  Axiom swap_assoc :
+    forall A B C,
+      fmap (swap A C) (C.id B) @ assoc A C B @ fmap (C.id A) (swap B C) =
+      assoc C A B @ swap (omap A B) C @ assoc A B C.
+
+  Axiom runit_swap :
+    forall A, runit A @ swap unit A = lunit A.
+
+  (** The braiding must be its own inverse *)
+
+  Axiom swap_swap :
+    forall A B, swap B A @ swap A B = C.id (omap A B).
+
+End SymmetricMonoidalStructureDefinition.
+
+Module SymmetricMonoidalStructureTheory (C: Category) (M: SymmetricMonoidalStructureDefinition C).
+  Import (notations, coercions) C.
+  Import M.
+
+  Include MonoidalStructureTheory C M.
+
+  (** Since [swap_swap] already implies that [swap] is an isomorphism,
+    we have the user define it as a simple morphism, but we provide
+    the isomorphism version below in case it is needed. This kind of
+    situation could be a reason to use a typeclass approach for
+    isomorphisms instead of the current approach. *)
+
+  Program Definition swap_iso A B : C.iso (omap A B) (omap B A) :=
+    {|
+      C.fw := swap A B;
+      C.bw := swap B A;
+    |}.
+  Next Obligation.
+    apply swap_swap.
+  Qed.
+  Next Obligation.
+    apply swap_swap.
+  Qed.
+
+  Lemma lunit_swap {A} :
+    lunit A @ swap A unit = runit A.
+  Proof.
+    rewrite <- runit_swap, C.compose_assoc.
+    rewrite swap_swap, C.compose_id_right.
+    reflexivity.
+  Qed.
+
+  (** ... *)
+
+End SymmetricMonoidalStructureTheory.
+
+Module Type SymmetricMonoidalStructure (C : Category) :=
+  SymmetricMonoidalStructureDefinition C <+
+  BifunctorTheory C C C <+
+  SymmetricMonoidalStructureTheory C.
+
+Module Type SymmetricMonoidalDefinition (C : Category).
+  Declare Module Tens : SymmetricMonoidalStructure C.
+End SymmetricMonoidalDefinition.
+
+Module SymmetricMonoidalTheory (C : Category) (M : SymmetricMonoidalDefinition C).
+  Import C M.
+  Include MonoidalTheory C M.
+
+  Notation γ := Tens.swap.
+
+End SymmetricMonoidalTheory.
+
+Module Type SymmetricMonoidal (C : Category) :=
+  SymmetricMonoidalDefinition C <+
+  SymmetricMonoidalTheory C.
+
+Module Type SymmetricMonoidalCategory :=
+  Category.Category <+
+  SymmetricMonoidal.
+
+
 (** * Cartesian monoidal structures *)
 
 (** ** Definition *)
@@ -222,7 +315,7 @@ Module Type CartesianStructureDefinition (C : Category).
 
   Axiom p1_pair : forall {X A B} (f : m X A) (g : m X B), p1 @ pair f g = f.
   Axiom p2_pair : forall {X A B} (f : m X A) (g : m X B), p2 @ pair f g = g.
-  Axiom pair_pi : forall {X A B} x, @pair X A B (p1 @ x) (p2 @ x) = x.
+  Axiom pair_pi_compose : forall {X A B} x, @pair X A B (p1 @ x) (p2 @ x) = x.
 
 End CartesianStructureDefinition.
 
@@ -261,7 +354,14 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
     x = pair f g.
   Proof.
     intros. subst.
-    rewrite pair_pi. auto.
+    rewrite pair_pi_compose. auto.
+  Qed.
+
+  Lemma pair_pi A B :
+    pair p1 p2 = id (omap A B).
+  Proof.
+    rewrite <- (compose_id_right p1), <- (compose_id_right p2).
+    apply pair_pi_compose.
   Qed.
 
   Lemma pair_compose {X A B Y} (f : m X A) (g : m X B) (x : m Y X) :
@@ -312,11 +412,11 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
   Next Obligation.
     rewrite !pair_compose. symmetry. apply pair_uni.
     - rewrite compose_id_right, !compose_assoc, !p1_pair. auto.
-    - rewrite compose_id_right, !compose_assoc, !p1_pair, !p2_pair, pair_pi. auto.
+    - rewrite compose_id_right, !compose_assoc, !p1_pair, !p2_pair, pair_pi_compose. auto.
   Qed.
   Next Obligation.
     rewrite !pair_compose. symmetry. apply pair_uni.
-    - rewrite compose_id_right, !compose_assoc, !p2_pair, !p1_pair, pair_pi. auto.
+    - rewrite compose_id_right, !compose_assoc, !p2_pair, !p1_pair, pair_pi_compose. auto.
     - rewrite compose_id_right, !compose_assoc, !p2_pair. auto.
   Qed.
 
@@ -348,6 +448,9 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
     apply p1_pair.
   Qed.
 
+  Definition swap (A B : t) : A & B ~~> B & A :=
+    pair p2 p1.
+
   (** Naturality *)
 
   Proposition assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
@@ -370,6 +473,14 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
     f @ runit A1 = runit A2 @ fmap f (C.id unit).
   Proof.
     unfold fmap. cbn.
+    autorewrite with pair.
+    reflexivity.
+  Qed.
+
+  Proposition swap_nat {A1 A2 B1 B2} (f : C.m A1 A2) (g : C.m B1 B2) :
+    (g & f) @ swap A1 B1 = swap A2 B2 @ (f & g).
+  Proof.
+    unfold fmap, swap. cbn.
     autorewrite with pair.
     reflexivity.
   Qed.
@@ -401,16 +512,52 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
       auto.
   Qed.
 
+  (** Hexagon diagram *)
+
+  Proposition swap_assoc (A B C : t) :
+    (swap A C & id B) @ assoc A C B @ (id A & swap B C) =
+    assoc C A B @ swap (A & B) C @ assoc A B C.
+  Proof.
+    unfold swap, assoc, fmap; cbn.
+    repeat
+      (apply pair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       rewrite ?p1_pair, ?p2_pair, ?pair_compose);
+      auto.
+  Qed.
+
+  Proposition swap_swap (A B : t) :
+    swap B A @ swap A B = id (omap A B).
+  Proof.
+    unfold swap, assoc, fmap; cbn.
+    repeat
+      (apply pair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       rewrite ?p1_pair, ?p2_pair, ?pair_pi, ?pair_compose);
+      auto.
+  Qed.
+
+  Proposition runit_swap (A : t) :
+    runit A @ swap unit A = lunit A.
+  Proof.
+    unfold swap, assoc, fmap; cbn.
+    repeat
+      (apply pair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       rewrite ?p1_pair, ?p2_pair, ?pair_compose);
+      auto.
+  Qed.
+
 End CartesianStructureTheory.
 
 (** Once we add in the definitions provided by [BifunctorTheory], we
   can check the result against [MonoidalStructure]. *)
 
-Module Type CartesianStructure (C : Category) <: MonoidalStructure C :=
+Module Type CartesianStructure (C : Category) <: SymmetricMonoidalStructure C :=
   CartesianStructureDefinition C <+
   CartesianStructureTheory C <+
   BifunctorTheory C C C <+
-  MonoidalStructureTheory C.
+  SymmetricMonoidalStructureTheory C.
 
 (** ** Cartesian category interface *)
 
@@ -457,7 +604,7 @@ Module Type CocartesianStructureDefinition (C : Category).
 
   Axiom copair_i1 : forall {X A B} (f : m A X) (g : m B X), copair f g @ i1 = f.
   Axiom copair_i2 : forall {X A B} (f : m A X) (g : m B X), copair f g @ i2 = g.
-  Axiom iota_copair : forall {X A B} x, @copair X A B (x @ i1) (x @ i2) = x.
+  Axiom copair_iota_compose : forall {X A B} x, @copair X A B (x @ i1) (x @ i2) = x.
 
 End CocartesianStructureDefinition.
 
@@ -490,7 +637,14 @@ Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefini
     x = copair f g.
   Proof.
     intros. subst.
-    rewrite iota_copair. auto.
+    rewrite copair_iota_compose. auto.
+  Qed.
+
+  Lemma copair_iota {A B} :
+    copair i1 i2 = id (A + B).
+  Proof.
+    symmetry.
+    apply copair_uni; apply compose_id_left.
   Qed.
 
   Lemma copair_compose {X A B Y} (f : m A X) (g : m B X) (x : m X Y) :
@@ -504,7 +658,7 @@ Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefini
   Global Hint Rewrite
     @copair_i1 @copair_i1_rewrite
     @copair_i2 @copair_i2_rewrite
-    @iota_copair
+    @copair_iota_compose
     @copair_compose @compose_assoc : copair.
 
   (** *** Bifunctor structure *)
@@ -573,6 +727,9 @@ Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefini
     apply copair_i1.
   Qed.
 
+  Definition swap (A B : t) : m (A + B) (B + A) :=
+    copair i2 i1.
+
   (** Naturality *)
 
   Proposition assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
@@ -599,6 +756,14 @@ Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefini
     autorewrite with copair.
     rewrite !compose_id_left, !compose_id_right.
     f_equal. apply ini_uni.
+  Qed.
+
+  Proposition swap_nat {A1 A2 B1 B2} (f : C.m A1 A2) (g : C.m B1 B2) :
+    (g + f) @ swap A1 B1 = swap A2 B2 @ (f + g).
+  Proof.
+    unfold fmap, swap. cbn.
+    autorewrite with copair.
+    reflexivity.
   Qed.
 
   (** Pentagon diagram *)
@@ -628,6 +793,40 @@ Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefini
     apply ini_uni.
   Qed.
 
+  (** Hexagon diagram *)
+
+  Proposition swap_assoc (A B C : t) :
+    (swap A C + id B) @ assoc A C B @ (id A + swap B C) =
+    assoc C A B @ swap (A + B) C @ assoc A B C.
+  Proof.
+    unfold swap, assoc, fmap; cbn.
+    repeat
+      (apply pair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       autorewrite with copair); auto.
+  Qed.
+
+  Proposition swap_swap (A B : t) :
+    swap B A @ swap A B = id (omap A B).
+  Proof.
+    unfold swap, assoc, fmap; cbn.
+    repeat
+      (apply pair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       autorewrite with copair); auto.
+    apply copair_iota.
+  Qed.
+
+  Proposition runit_swap (A : t) :
+    runit A @ swap unit A = lunit A.
+  Proof.
+    unfold swap, assoc, fmap; cbn.
+    repeat
+      (apply pair_uni ||
+       rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
+       autorewrite with copair); auto.
+  Qed.
+
 End CocartesianStructureTheory.
 
 (** Once we add in the definitions provided by [BifunctorTheory], we
@@ -637,7 +836,7 @@ Module Type CocartesianStructure (C : Category) <: MonoidalStructure C :=
   CocartesianStructureDefinition C <+
   CocartesianStructureTheory C <+
   BifunctorTheory C C C <+
-  MonoidalStructureTheory C.
+  SymmetricMonoidalStructureTheory C.
 
 (** ** Cocartesian category interface *)
 
