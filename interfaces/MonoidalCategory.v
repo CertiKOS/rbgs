@@ -7,6 +7,8 @@ Require Import interfaces.Functor.
 (** Since a given category may involve several monoidal structures,
   we separate the corresponding interface into a submodule. *)
 
+(** ** Definition *)
+
 Module Type MonoidalStructureDefinition (C : Category).
   Import C.
 
@@ -27,12 +29,14 @@ Module Type MonoidalStructureDefinition (C : Category).
 
   Include Bifunctor C C C.
 
+  (** *** Structural isomorphisms *)
+
   Parameter unit : C.t.
   Parameter assoc : forall A B C, C.iso (omap A (omap B C)) (omap (omap A B) C).
   Parameter lunit : forall A, C.iso (omap unit A) A.
   Parameter runit : forall A, C.iso (omap A unit) A.
 
-  (** Naturality properties *)
+  (** *** Naturality properties *)
 
   Axiom assoc_nat :
     forall {A1 B1 C1 A2 B2 C2: C.t} (f: C.m A1 A2) (g: C.m B1 B2) (h: C.m C1 C2),
@@ -46,7 +50,7 @@ Module Type MonoidalStructureDefinition (C : Category).
     forall {A1 A2 : C.t} (f : C.m A1 A2),
       f @ runit A1 = runit A2 @ fmap f (C.id unit).
 
-  (** Pentagon identity *)
+  (** *** Pentagon identity *)
 
   Axiom assoc_coh :
     forall A B C D : C.t,
@@ -56,7 +60,7 @@ Module Type MonoidalStructureDefinition (C : Category).
       assoc (omap A B) C D @
         assoc A B (omap C D).
 
-  (** Triangle identity *)
+  (** *** Triangle identity *)
 
   Axiom unit_coh :
     forall A B : C.t,
@@ -65,11 +69,12 @@ Module Type MonoidalStructureDefinition (C : Category).
 
 End MonoidalStructureDefinition.
 
+(** ** Theory *)
+
 Module MonoidalStructureTheory (C: Category) (M: MonoidalStructureDefinition C).
   Import C M.
 
-  (** We provide versions of the naturality properties and coherence
-    diagrams to use with the isomorphisms' backward directions. *)
+  (** *** Naturality of backward maps *)
 
   Theorem assoc_nat_bw {A1 B1 C1 A2 B2 C2} f g h :
     bw (assoc A2 B2 C2) @ fmap (fmap f g) h =
@@ -93,6 +98,8 @@ Module MonoidalStructureTheory (C: Category) (M: MonoidalStructureDefinition C).
     apply eq_fw_bw_l_2. apply runit_nat.
   Qed.
 
+  (** *** Backward coherence diagrams *)
+
   Theorem assoc_coh_bw {A B C D} :
     fmap (C.id A) (bw (assoc B C D)) @
       bw (assoc A (omap B C) D) @
@@ -113,12 +120,16 @@ Module MonoidalStructureTheory (C: Category) (M: MonoidalStructureDefinition C).
   Qed.
 End MonoidalStructureTheory.
 
+(** *** Overall interface *)
+
 Module Type MonoidalStructure (C : Category).
   Include MonoidalStructureDefinition C.
   Include MonoidalStructureTheory C.
 End MonoidalStructure.
 
-(** Then a monoidal category is a category with a submodule for
+(** ** Monodal categories *)
+
+(** A monoidal category is a category with a submodule for
   a tensor product. *)
 
 Module Type MonoidalDefinition (C : Category).
@@ -190,17 +201,23 @@ End MonoidalClosureTheory.
 
 (** * Symmetric monoidal categories *)
 
+(** ** Definition *)
+
 Module Type SymmetricMonoidalStructureDefinition (C : Category).
   Include MonoidalStructureDefinition C.
   Import (notations, coercions) C.
 
+  (** *** Swap map *)
+
   Parameter swap : forall A B, C.m (omap A B) (omap B A).
 
-  (** Naturality *)
+  (** *** Naturality *)
 
   Axiom swap_nat :
     forall {A1 A2 B1 B2} (f : C.m A1 A2) (g : C.m B1 B2),
       fmap g f @ swap A1 B1 = swap A2 B2 @ fmap f g.
+
+  (** *** Coherence diagrams *)
 
   (** Hexagon identity *)
 
@@ -209,21 +226,25 @@ Module Type SymmetricMonoidalStructureDefinition (C : Category).
       fmap (swap A C) (C.id B) @ assoc A C B @ fmap (C.id A) (swap B C) =
       assoc C A B @ swap (omap A B) C @ assoc A B C.
 
+  (** Unit coherence *)
+
   Axiom runit_swap :
     forall A, runit A @ swap unit A = lunit A.
 
-  (** The braiding must be its own inverse *)
+  (** *** Swap is its own inverse *)
 
   Axiom swap_swap :
     forall A B, swap B A @ swap A B = C.id (omap A B).
 
 End SymmetricMonoidalStructureDefinition.
 
-Module SymmetricMonoidalStructureTheory (C: Category) (M: SymmetricMonoidalStructureDefinition C).
-  Import (notations, coercions) C.
-  Import M.
+(** ** Theory *)
 
+Module SymmetricMonoidalStructureTheory (C: Category) (M: SymmetricMonoidalStructureDefinition C).
+  Import C M.
   Include MonoidalStructureTheory C M.
+
+  (** *** Basic properties *)
 
   (** Since [swap_swap] already implies that [swap] is an isomorphism,
     we have the user define it as a simple morphism, but we provide
@@ -231,10 +252,10 @@ Module SymmetricMonoidalStructureTheory (C: Category) (M: SymmetricMonoidalStruc
     situation could be a reason to use a typeclass approach for
     isomorphisms instead of the current approach. *)
 
-  Program Definition swap_iso A B : C.iso (omap A B) (omap B A) :=
+  Program Canonical Structure swap_iso A B : iso (omap A B) (omap B A) :=
     {|
-      C.fw := swap A B;
-      C.bw := swap B A;
+      fw := swap A B;
+      bw := swap B A;
     |}.
   Next Obligation.
     apply swap_swap.
@@ -243,15 +264,41 @@ Module SymmetricMonoidalStructureTheory (C: Category) (M: SymmetricMonoidalStruc
     apply swap_swap.
   Qed.
 
-  Lemma lunit_swap {A} :
+  Lemma lunit_swap A :
     lunit A @ swap A unit = runit A.
   Proof.
-    rewrite <- runit_swap, C.compose_assoc.
-    rewrite swap_swap, C.compose_id_right.
+    rewrite <- runit_swap, compose_assoc.
+    rewrite swap_swap, compose_id_right.
     reflexivity.
   Qed.
 
-  (** ... *)
+  (** *** Backward coherence diagrams *)
+
+  (** Hexagon identity *)
+
+  Proposition swap_assoc_bw A B C :
+    fmap (id A) (swap C B) @ bw (assoc A C B) @ fmap (swap C A) (id B) =
+    bw (assoc A B C) @ swap C (omap A B) @ bw (assoc C A B).
+  Proof.
+    apply iso_eq_fw_bw. cbn. rewrite ?compose_assoc.
+    apply swap_assoc.
+  Qed.
+
+  (** Unit coherence *)
+
+  Proposition lunit_swap_bw A :
+    swap unit A @ bw (lunit A) = bw (runit A).
+  Proof.
+    apply iso_eq_fw_bw. cbn. rewrite ?compose_assoc.
+    apply lunit_swap.
+  Qed.
+
+  Proposition runit_swap_bw A :
+    swap A unit @ bw (runit A) = bw (lunit A).
+  Proof.
+    apply iso_eq_fw_bw. cbn. rewrite ?compose_assoc.
+    apply runit_swap.
+  Qed.
 
 End SymmetricMonoidalStructureTheory.
 
