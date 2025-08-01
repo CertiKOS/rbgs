@@ -10,7 +10,22 @@ Require Import interfaces.Functor.
 Module Type MonoidalStructureDefinition (C : Category).
   Import C.
 
-  Include BifunctorDefinition C C C.
+  (** NB: we need the isomorphism preservation properties from
+    [BifunctorTheory] in the [MonoidalStructureTheory] module,
+    however including [BifunctorTheory] there creates an issue:
+    in [FunctorCategory], functor composition involving three
+    arbitrary categories is merely a bifunctor, but becomes a
+    full-blown monoidal structure in the special case where the
+    three categories are the same. As a result, by the time we add
+    the monoidal structure, the base module we're extending is
+    already a full-blown [Bifunctor] instance where [BifunctorTheory]
+    has been included, and attempting to do it again in
+    [MonoidalStructureTheory] creates a conflict. So here we simply
+    use the full [Bifunctor] interface as a base and let the user
+    decide when to incorporate it. We may want to use this approach
+    in a more systematic way. *)
+
+  Include Bifunctor C C C.
 
   Parameter unit : C.t.
   Parameter assoc : forall A B C, C.iso (omap A (omap B C)) (omap (omap A B) C).
@@ -85,22 +100,7 @@ Module MonoidalStructureTheory (C: Category) (M: MonoidalStructureDefinition C).
     bw (assoc A B (omap C D)) @
        bw (assoc (omap A B) C D).
   Proof.
-    rewrite <- compose_id_left.
-    rewrite <- fmap_id.
-    rewrite <- (compose_id_left (id A)) at 2.
-    rewrite <- (bw_fw (assoc B C D)).
-    rewrite fmap_compose, !compose_assoc. f_equal.
-    apply eq_fw_bw_l_2.
-    rewrite <- !compose_assoc.
-    apply (eq_fw_bw_r_1 (assoc (omap A B) C D)).
-    apply (eq_fw_bw_r_1 (assoc A B (omap C D))).
-    rewrite !compose_assoc.
-    rewrite <- compose_id_left.
-    rewrite <- fmap_id.
-    rewrite <- (compose_id_left (id D)) at 2.
-    rewrite <- (bw_fw (assoc A B C)).
-    rewrite fmap_compose, !compose_assoc. f_equal.
-    symmetry.
+    apply iso_eq_fw_bw; cbn; rewrite ?compose_assoc.
     apply assoc_coh.
   Qed.
 
@@ -108,24 +108,13 @@ Module MonoidalStructureTheory (C: Category) (M: MonoidalStructureDefinition C).
     bw (assoc A unit B) @ fmap (bw (runit A)) (C.id B) =
     fmap (C.id A) (bw (lunit B)).
   Proof.
-    apply eq_fw_bw_l_2.
-    rewrite <- compose_id_right at 1.
-    rewrite <- fmap_id.
-    rewrite <- (compose_id_left (id A)) at 1.
-    rewrite <- (fw_bw (lunit B)) at 2.
-    rewrite fmap_compose, <- !compose_assoc. f_equal.
-    rewrite <- compose_id_left.
-    rewrite <- fmap_id.
-    rewrite <- (bw_fw (runit A)).
-    rewrite <- (compose_id_left (id B)) at 2.
-    rewrite fmap_compose, !compose_assoc. f_equal.
-    symmetry. apply unit_coh.
+    apply iso_eq_fw_bw; cbn; rewrite ?compose_assoc.
+    apply unit_coh.
   Qed.
 End MonoidalStructureTheory.
 
 Module Type MonoidalStructure (C : Category).
   Include MonoidalStructureDefinition C.
-  Include BifunctorTheory C C C.
   Include MonoidalStructureTheory C.
 End MonoidalStructure.
 
@@ -268,7 +257,6 @@ End SymmetricMonoidalStructureTheory.
 
 Module Type SymmetricMonoidalStructure (C : Category) :=
   SymmetricMonoidalStructureDefinition C <+
-  BifunctorTheory C C C <+
   SymmetricMonoidalStructureTheory C.
 
 Module Type SymmetricMonoidalDefinition (C : Category).

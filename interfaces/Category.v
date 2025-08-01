@@ -1,3 +1,4 @@
+Require Import Coq.Logic.ProofIrrelevance.
 Require Import Coq.Program.Tactics.
 Require Import Coq.Setoids.Setoid.
 
@@ -112,50 +113,8 @@ Module CategoryTheory (C : CategoryDefinition).
     apply C.compose_id_left.
   Qed.
 
-  (** In addition, the following properties can be useful to switch
-    between forward and backward maps during equational reasoning. *)
-
-  Lemma eq_fw_bw_l_1 {A B C} (f : iso B C) (x : C.m A B) y :
-    fw f @ x = y <-> x = bw f @ y.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_left x), <- (bw_fw f), C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_left y), <- (fw_bw f), C.compose_assoc.
-      congruence.
-  Qed.
-
-  Lemma eq_fw_bw_r_1 {A B C} (f : iso A B) (x : C.m B C) y :
-    x @ fw f = y <-> x = y @ bw f.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_right x), <- (fw_bw f), <- C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_right y), <- (bw_fw f), <- C.compose_assoc.
-      congruence.
-  Qed.
-
-  Lemma eq_fw_bw_l_2 {A B C} (f : iso B C) x (y : C.m A B) :
-    x = fw f @ y <-> bw f @ x = y.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_left y), <- (bw_fw f), C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_left x), <- (fw_bw f), C.compose_assoc.
-      congruence.
-  Qed.
-
-  Lemma eq_fw_bw_r_2 {A B C} (f : iso A B) x (y : C.m B C) :
-    x = y @ fw f <-> x @ bw f = y.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_right y), <- (fw_bw f), <- C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_right x), <- (bw_fw f), <- C.compose_assoc.
-      congruence.
-  Qed.
-
-  (** We can define some basic instances. *)
+  (** We can define some basic instances. These are quite useful for
+    reasoning about compositions of isomorphisms or backward maps. *)
 
   Program Canonical Structure id_iso {A} :=
     {|
@@ -182,6 +141,83 @@ Module CategoryTheory (C : CategoryDefinition).
     intros;
     rewrite ?C.compose_assoc, ?bw_fw_rewrite, ?fw_bw_rewrite, ?fw_bw, ?bw_fw;
     auto.
+
+  (** Equality of isomorphisms. *)
+
+  Lemma iso_eq_fw {A B} (f g : iso A B) :
+    fw f = fw g -> f = g.
+  Proof.
+    intros Hfw.
+    assert (bw f = bw g).
+    { rewrite <- C.compose_id_left, <- (bw_fw f), C.compose_assoc.
+      rewrite Hfw, fw_bw, C.compose_id_right. auto. }
+    destruct f as [f f' Hf Hf'], g as [g g' Hg Hg']. cbn in *. subst.
+    f_equal; auto using proof_irrelevance.
+  Qed.
+
+  Lemma iso_eq_bw {A B} (f g : iso A B) :
+    bw f = bw g -> f = g.
+  Proof.
+    intros Hbw.
+    apply iso_eq_fw. change (bw (bw_iso f) = bw (bw_iso g)).
+    apply iso_eq_fw in Hbw. congruence.
+  Qed.
+
+  Corollary iso_eq_fw_bw {A B} (f g : iso A B) :
+    fw f = fw g <-> bw f = bw g.
+  Proof.
+    split; eauto using f_equal, iso_eq_fw, iso_eq_bw.
+  Qed.
+
+  (** The properties below are useful to reason about equations
+    involving isomorphisms. *)
+
+  Lemma compose_fw_l_eq {A B C} (f : iso B C) (x y : C.m A B) :
+    f @ x = f @ y <-> x = y.
+  Proof.
+    split; intro; try congruence.
+    rewrite <- (C.compose_id_left x), <- (C.compose_id_left y), <- (bw_fw f).
+    rewrite !C.compose_assoc, H.
+    reflexivity.
+  Qed.
+
+  Lemma compose_bw_l_eq {A B C} (f : iso C B) (x y : C.m A B) :
+    bw f @ x = bw f @ y <-> x = y.
+  Proof.
+    apply compose_fw_l_eq.
+  Qed.
+
+  Lemma eq_fw_bw_l_1 {A B C} (f : iso B C) (x : C.m A B) y :
+    fw f @ x = y <-> x = bw f @ y.
+  Proof.
+    split; intro.
+    - rewrite <- H, <- C.compose_assoc, bw_fw, C.compose_id_left. auto.
+    - rewrite H, <- C.compose_assoc, fw_bw, C.compose_id_left. auto.
+  Qed.
+
+  Lemma eq_fw_bw_r_1 {A B C} (f : iso A B) (x : C.m B C) y :
+    x @ fw f = y <-> x = y @ bw f.
+  Proof.
+    split; intro.
+    - rewrite <- H, C.compose_assoc, fw_bw, C.compose_id_right. auto.
+    - rewrite H, C.compose_assoc, bw_fw, C.compose_id_right. auto.
+  Qed.
+
+  Lemma eq_fw_bw_l_2 {A B C} (f : iso B C) x (y : C.m A B) :
+    x = fw f @ y <-> bw f @ x = y.
+  Proof.
+    split; intro.
+    - rewrite H, <- C.compose_assoc, bw_fw, C.compose_id_left. auto.
+    - rewrite <- H, <- C.compose_assoc, fw_bw, C.compose_id_left. auto.
+  Qed.
+
+  Lemma eq_fw_bw_r_2 {A B C} (f : iso A B) x (y : C.m B C) :
+    x = y @ fw f <-> x @ bw f = y.
+  Proof.
+    split; intro.
+    - rewrite H, C.compose_assoc, fw_bw, C.compose_id_right. auto.
+    - rewrite <- H, C.compose_assoc, bw_fw, C.compose_id_right. auto.
+  Qed.
 
 End CategoryTheory.
 
