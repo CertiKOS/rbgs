@@ -1106,7 +1106,7 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
   Import B.
   Obligation Tactic := intros.
 
-  Module Tens <: MonoidalStructure B.
+  Module Tens <: SymmetricMonoidalStructure B.
 
     (** *** Tensor product of layer interfaces *)
 
@@ -1783,6 +1783,60 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
       apply meq, Reg.fw_bw.
     Qed.
 
+    Variant swap_state {E F}: state _ _ -> Prop :=
+      | swap_state_intro Σ Φ s :
+        iso_tmap (Sig.bw (Sig.Plus.swap_iso E F)) s ->
+        swap_state (mkst (Φ * Σ) s (Σ * Φ)).
+
+    Program Definition swap L1 L2 : L1 * L2 ~~> L2 * L1 :=
+      {| li_impl := Reg.Plus.swap _ _ |}.
+    Next Obligation.
+      set (ϕ := Sig.bw (Sig.Plus.swap_iso (li_sig L1) (li_sig L2))).
+      apply correctness_invariant_sound with swap_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t q m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct q as [|]; cbn in *;
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               destruct q as [|]; apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * apply H in H0. dependent destruction H0. cbn in *.
+            destruct q as [|]; cbn in *;
+            destruct Spec.next eqn:Hnext; dependent destruction H1.
+            -- eapply reachable_step with (mkst (x * Σ) _ (Σ * x)).
+               2: { apply (lcommit t0 (inl o) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inl o) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+            -- eapply reachable_step with (mkst (Φ * x) _ (x * Φ)).
+               2: { apply (lcommit t0 (inr o) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inr o) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+
     (** *** Naturality properties *)
 
     Theorem assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
@@ -1801,6 +1855,12 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
       f @ runit A1 = runit A2 @ fmap f (id unit).
     Proof.
       apply meq, Reg.Plus.runit_nat_bw.
+    Qed.
+
+    Proposition swap_nat {A1 A2 B1 B2} f g :
+      fmap g f @ swap A1 B1 = swap A2 B2 @ fmap f g.
+    Proof.
+      apply meq. symmetry. apply Reg.Plus.swap_nat.
     Qed.
 
     (** *** Coherence diagrams *)
@@ -1822,11 +1882,32 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
       apply meq, Reg.Plus.unit_coh_bw.
     Qed.
 
+    Proposition swap_assoc A B C :
+      fmap (swap A C) (id B) @ assoc A C B @ fmap (id A) (swap B C) =
+      assoc C A B @ swap (omap A B) C @ assoc A B C.
+    Proof.
+      apply meq. cbn -[Reg.Plus.assoc Reg.Plus.swap]. unfold Reg.Op.compose.
+      rewrite !Reg.compose_assoc. apply Reg.Plus.swap_assoc_bw.
+    Qed.
+
+    Proposition runit_swap A :
+      runit A @ swap unit A = lunit A.
+    Proof.
+      apply meq. cbn -[Reg.Plus.lunit Reg.Plus.swap]. unfold Reg.Op.compose.
+      apply Reg.Plus.runit_swap_bw.
+    Qed.
+
+    Proposition swap_swap A B :
+      swap B A @ swap A B = id (omap A B).
+    Proof.
+      apply meq, Reg.Plus.swap_swap.
+    Qed.
+
     Include BifunctorTheory B B B.
-    Include MonoidalStructureTheory B.
+    Include SymmetricMonoidalStructureTheory B.
   End Tens.
 
-  Include MonoidalTheory B.
+  Include SymmetricMonoidalTheory B.
 End LinCCALTens.
 
 (** ** Putting everything together *)

@@ -10,12 +10,7 @@ Require Import interfaces.Category.
 
 (** ** Core definition *)
 
-(** The basic definition of functor is fairly straightforward,
-  to the point that there is barely any theory to derive
-  from the axioms below. As a result, at this time we do not introduce
-  separate [FunctorDefinition] and [FunctorTheory] components. *)
-
-Module Type Functor (C D : CategoryDefinition).
+Module Type FunctorDefinition (C D : CategoryDefinition).
 
   Parameter omap : C.t -> D.t.
   Parameter fmap : forall {A B}, C.m A B -> D.m (omap A) (omap B).
@@ -27,18 +22,39 @@ Module Type Functor (C D : CategoryDefinition).
     forall {A B C} (g : C.m B C) (f : C.m A B),
       fmap (C.compose g f) = D.compose (fmap g) (fmap f).
 
-End Functor.
+End FunctorDefinition.
+
+Module FunctorTheory (C D : Category) (F : FunctorDefinition C D).
+  Import F.
+
+  Program Canonical Structure fmap_iso {A B} (f : C.iso A B) : D.iso (omap A) (omap B) :=
+    {|
+      D.fw := fmap (C.fw f);
+      D.bw := fmap (C.bw f);
+    |}.
+  Next Obligation.
+    rewrite <- F.fmap_compose, C.bw_fw, F.fmap_id. auto.
+  Qed.
+  Next Obligation.
+    rewrite <- F.fmap_compose, C.fw_bw, F.fmap_id. auto.
+  Qed.
+
+End FunctorTheory.
+
+Module Type Functor (C D : Category) :=
+  FunctorDefinition C D <+
+  FunctorTheory C D.
 
 (** ** Additional properties *)
 
-Module Type Faithful (C D : CategoryDefinition) (F : Functor C D).
+Module Type Faithful (C D : CategoryDefinition) (F : FunctorDefinition C D).
 
   Axiom faithful :
     forall {A B} (f g : C.m A B), F.fmap f = F.fmap g -> f = g.
 
 End Faithful.
 
-Module Type Full (C D : CategoryDefinition) (F : Functor C D).
+Module Type Full (C D : CategoryDefinition) (F : FunctorDefinition C D).
 
   Axiom full :
     forall {A B} (d : D.m (F.omap A) (F.omap B)),
@@ -46,13 +62,13 @@ Module Type Full (C D : CategoryDefinition) (F : Functor C D).
 
 End Full.
 
-Module Type FullFunctor (C D : CategoryDefinition) :=
+Module Type FullFunctor (C D : Category) :=
   Functor C D <+ Full C D.
 
-Module Type FaithfulFunctor (C D : CategoryDefinition) :=
+Module Type FaithfulFunctor (C D : Category) :=
   Functor C D <+ Faithful C D.
 
-Module Type FullAndFaithfulFunctor (C D : CategoryDefinition) :=
+Module Type FullAndFaithfulFunctor (C D : Category) :=
   Functor C D <+ Full C D <+ Faithful C D.
 
 
@@ -88,7 +104,21 @@ End BifunctorDefinition.
 
 (** ** Properties *)
 
-Module BifunctorTheory (C1 C2 D : CategoryDefinition) (F : BifunctorDefinition C1 C2 D).
+Module BifunctorTheory (C1 C2 D : Category) (F : BifunctorDefinition C1 C2 D).
+
+  (** Preservation of isomorphisms *)
+
+  Program Canonical Structure fmap_iso {A1 A2 B1 B2} (f1 : C1.iso A1 B1) (f2 : C2.iso A2 B2) :=
+    {|
+      D.fw := F.fmap (C1.fw f1) (C2.fw f2);
+      D.bw := F.fmap (C1.bw f1) (C2.bw f2);
+    |}.
+  Next Obligation.
+    rewrite <- F.fmap_compose, C1.bw_fw, C2.bw_fw, F.fmap_id. auto.
+  Qed.
+  Next Obligation.
+    rewrite <- F.fmap_compose, C1.fw_bw, C2.fw_bw, F.fmap_id. auto.
+  Qed.
 
   (** A bifunctor can be seen as a functor from the product category. *)
 
@@ -114,13 +144,14 @@ Module BifunctorTheory (C1 C2 D : CategoryDefinition) (F : BifunctorDefinition C
       apply F.fmap_compose.
     Qed.
       
+    Include FunctorTheory PC D.
   End PF.
 
 End BifunctorTheory.
 
 (** ** Bundled interface *)
 
-Module Type Bifunctor (C1 C2 D : CategoryDefinition).
+Module Type Bifunctor (C1 C2 D : Category).
   Include BifunctorDefinition C1 C2 D.
   Include BifunctorTheory C1 C2 D.
 End Bifunctor.

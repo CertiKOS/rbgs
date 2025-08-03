@@ -209,6 +209,7 @@ Module SigBase <: CartesianCategory.
   Qed.
 
   Include CategoryTheory.
+  Include AddOp.
 
   (** ** Products *)
 
@@ -534,7 +535,7 @@ Module SigPlus (B : SigPlusReq) <: CocartesianDefinition B.
     apply amap_id.
   Qed.
 
-  Theorem iota_copair {X A B} x :
+  Theorem copair_iota_compose {X A B} x :
     @copair X A B (x @ i1) (x @ i2) = x.
   Proof.
     unfold i1, i2, compose, hmap. cbn.
@@ -544,7 +545,7 @@ Module SigPlus (B : SigPlusReq) <: CocartesianDefinition B.
 
   Include CocartesianStructureTheory B.
   Include BifunctorTheory B B B.
-  Include MonoidalStructureTheory B.
+  Include SymmetricMonoidalStructureTheory B.
 
   End Plus.
 End SigPlus.
@@ -555,11 +556,11 @@ Module Type SigTensReq.
   Include SigBase.
 End SigTensReq.
 
-Module SigTens (B : SigTensReq) <: Monoidal B.
+Module SigTens (B : SigTensReq) <: SymmetricMonoidal B.
   Import B.
   Unset Program Cases.
 
-  Module Tens <: MonoidalStructure B.
+  Module Tens <: SymmetricMonoidalStructure B.
 
   Canonical Structure omap (E F : t) : t :=
     {|
@@ -642,6 +643,9 @@ Module SigTens (B : SigTensReq) <: Monoidal B.
     apply functional_extensionality. intros [n [ ]]. auto.
   Qed.
 
+  Definition swap E F : m (E * F) (F * E) :=
+    fun '(m1, m2) => (m2, m1) >= '(n2, n1) => (n1, n2).
+
   (** Naturality properties *)
 
   Proposition assoc_nat {A1 B1 C1 A2 B2 C2} :
@@ -667,6 +671,14 @@ Module SigTens (B : SigTensReq) <: Monoidal B.
     destruct (f m) as [m' k]. reflexivity.
   Qed.
 
+  Proposition swap_nat {E1 E2 F1 F2} (f : E1 ~~> E2) (g : F1 ~~> F2) :
+    (g * f) @ swap E1 F1 = swap E2 F2 @ (f * g).
+  Proof.
+    unfold compose, hmap, amap.
+    apply functional_extensionality_dep. intros [m1 m2]. cbn. f_equal.
+    apply functional_extensionality. intros [n1 n2]. cbn. auto.
+  Qed.
+
   (** Pentagon identity *)
 
   Proposition assoc_coh E F G H :
@@ -686,7 +698,35 @@ Module SigTens (B : SigTensReq) <: Monoidal B.
     apply functional_extensionality_dep. intros [e [[ ] f]]. cbn. auto.
   Qed.
 
-  Include MonoidalStructureTheory B.
+  (** Hexagon identity *)
+
+  Proposition swap_assoc E F G :
+    fmap (swap E G) (id F) @ assoc E G F @ fmap (id E) (swap F G) =
+    assoc G E F @ swap (omap E F) G @ assoc E F G.
+  Proof.
+    unfold compose, hmap, amap.
+    apply functional_extensionality_dep. intros [e [f g]]. cbn. f_equal.
+    apply functional_extensionality. intros [[p q] r]. cbn. auto.
+  Qed.
+
+  Proposition runit_swap E :
+    runit E @ swap unit E = lunit E.
+  Proof.
+    unfold compose, hmap, amap.
+    apply functional_extensionality_dep. intros [[] m]. cbn. auto.
+  Qed.
+
+  (** The braiding must be its own inverse *)
+
+  Proposition swap_swap E F :
+    swap F E @ swap E F = id (omap E F).
+  Proof.
+    unfold compose, hmap, amap, id.
+    apply functional_extensionality_dep. intros [e f]. cbn. f_equal.
+    apply functional_extensionality. intros [p q]. auto.
+  Qed.
+
+  Include SymmetricMonoidalStructureTheory B.
 
   End Tens.
 End SigTens.
@@ -904,7 +944,7 @@ Module Sig <: SigSpec :=
 
 (** * Interpretation in [SET] endofunctors *)
 
-Module SigEnd <: FullAndFaithfulFunctor Sig (SET.End).
+Module SigEnd <: FullAndFaithfulFunctor Sig SET.End.
   Import (notations) Sig.
   Import (coercions) SET.End.
 
@@ -942,6 +982,8 @@ Module SigEnd <: FullAndFaithfulFunctor Sig (SET.End).
     apply functional_extensionality. intro x.
     apply Sig.hmap_compose.
   Qed.
+
+  Include FunctorTheory Sig SET.End.
 
   (** Every natural transformation between endofunctors derived from
     signatures is completely determined by its action on the terms
@@ -1045,6 +1087,7 @@ Module RegBase <: Category.Category.
   Qed.
 
   Include CategoryTheory.
+  Include AddOp.
 End RegBase.
 
 (** ** Coproducts *)
@@ -1097,7 +1140,7 @@ Module RegPlus (B : RegPlusReq) <: CocartesianDefinition B.
       apply Sig.subst_var_l.
     Qed.
 
-    Theorem iota_copair {X A B} x :
+    Theorem copair_iota_compose {X A B} x :
       @copair X A B (x @ i1) (x @ i2) = x.
     Proof.
       apply functional_extensionality_dep.
@@ -1106,7 +1149,7 @@ Module RegPlus (B : RegPlusReq) <: CocartesianDefinition B.
 
     Include CocartesianStructureTheory B.
     Include BifunctorTheory B B B.
-    Include MonoidalStructureTheory B.
+    Include SymmetricMonoidalStructureTheory B.
 
   End Plus.
 End RegPlus.
@@ -1143,6 +1186,8 @@ Module SigReg <: FaithfulFunctor Sig Reg.
   Proof.
     reflexivity.
   Qed.
+
+  Include FunctorTheory Sig Reg.
 
   Theorem faithful {E F} (f g : E ~~> F) :
     fmap f = fmap g -> f = g.
@@ -1252,6 +1297,8 @@ Module SigMnd <: FullAndFaithfulFunctor Reg SMnd.
     apply functional_extensionality. intro t.
     apply Reg.transform_compose.
   Qed.
+
+  Include FunctorTheory Reg SMnd.
 
   (** In fact, every monad homomorphism corresponds to a unique
     regular map, as we will prove below. To this end, we first show
