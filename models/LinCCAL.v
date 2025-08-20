@@ -40,7 +40,7 @@ Module LinCCALBase <: Category.
       specification by delaying the linearization of [acquire] until
       the lock is released by the thread currently holding it. *)
 
-    Variant outcome {E : Sig.t} {X : Type} {m : Sig.op E} :=
+    Variant outcome {E : Sig.t} {m : Sig.op E} {X : Type} :=
       | bot
       | top
       | ret (n : Sig.ar m) (x : X).
@@ -52,7 +52,7 @@ Module LinCCALBase <: Category.
 
     CoInductive t {E} :=
       {
-        next : tid -> forall m, outcome E (@t E) m;
+        next : tid -> forall m, outcome E m (@t E);
       }.
 
     Arguments t : clear implicits.
@@ -62,7 +62,7 @@ Module LinCCALBase <: Category.
     (** More generally, behaviors of this kind can be described by
       transition systems with the same shape as [next]. *)
 
-    Notation lts E A := (A -> tid -> forall m, outcome E A m).
+    Notation lts E A := (A -> tid -> forall m, outcome E m A).
 
     (** In fact, [next] constitutes a final coalgebra over specifications,
       meaning that states in any transition system can be mapped to
