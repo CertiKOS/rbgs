@@ -2145,4 +2145,76 @@ Module LinCCALExample.
       congruence.
   Qed.
 
+  (** ** Liveness issue *)
+
+  (** Unfortunately, our formulation of correctness only ensures safety.
+    Although our programs all terminate, the underlay specification
+    can still introduce the possibility of deadlocks. In this case,
+    threads will wait on [LinCCAL.Spec.top] and will be considered
+    correct. While we would usually hope that other schedules will
+    allow the underlay to progress, so that the pending underlay calls
+    would eventually have non-[top] results, this is not currently
+    enforced by our correctness property.
+
+    To illustrate this, we show that any overlay can be implemented in
+    terms of the following "deadlock" underlay. *)
+
+  Variant Edeadlock_op :=
+    | deadlock.
+
+  Canonical Structure Edeadlock :=
+    {|
+      Sig.op := Edeadlock_op;
+      Sig.ar _ := Empty_set;
+    |}.
+
+  Definition Σdeadlock : LinCCAL.Spec.t Edeadlock := 
+    {| LinCCAL.Spec.next _ _ := LinCCAL.Spec.top |}.
+
+  Definition Ldeadlock : LinCCAL.t :=
+    {| LinCCAL.li_spec := Σdeadlock |}.
+
+  Definition dead_impl {X} : Sig.term Edeadlock X :=
+    deadlock >= e => match e with end.
+
+  Variant dead_thread {E} : option (LinCCAL.threadstate Edeadlock E) -> Prop :=
+    | dead_ready :
+      dead_thread None
+    | dead_locked q :
+      dead_thread (Some (LinCCAL.mkts (F:=E) q dead_impl None)).
+
+  Variant dead_state {E} {Σ : LinCCAL.spec E} : _ -> Prop :=
+    dead_state_intro s :
+      (forall i, dead_thread (LinCCAL.TMap.find i s)) ->
+      dead_state (LinCCAL.mkst Σ s Σdeadlock).
+
+  Program Definition Mdead L : LinCCAL.m Ldeadlock L :=
+    {| LinCCAL.li_impl q := dead_impl |}.
+  Next Obligation.
+    eapply LinCCAL.correctness_invariant_sound with (P := dead_state).
+    - split.
+      + intros _ [s Hs] _ i q r R Hsi. cbn in *.
+        specialize (Hs i).
+        dependent destruction Hs; unfold dead_impl in *; try congruence.
+        rewrite Hsi in x. dependent destruction x.
+      + intros _ [s Hs] _ i q m k R Hsi. cbn in Hsi |- *.
+        specialize (Hs i). cbn in Hs. rewrite Hsi in Hs.
+        dependent destruction Hs; cbn; try congruence.
+      + intros _ [s Hs] _ s' Hs'.
+        dependent destruction Hs'.
+        * (* incoming call *)
+          apply LinCCAL.reachable_base. constructor.
+          intro i. destruct (classic (i = t)); subst.
+          -- rewrite LinCCAL.TMap.gss. constructor; auto.
+          -- rewrite LinCCAL.TMap.gso; auto.
+        * (* return *)
+          specialize (Hs t). setoid_rewrite H in Hs.
+          dependent destruction Hs.
+    - (* initial state *)
+      constructor.
+      intro i.
+      rewrite LinCCAL.TMap.gempty.
+      constructor.
+  Qed.
+
 End LinCCALExample.
