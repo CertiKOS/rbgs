@@ -298,15 +298,15 @@ Module LinCCALBase <: Category.
     straighforward: as long as the specification dictates that some
     result should be produced, or when a thread has committed a result
     against the specification but not produced it yet, it must be
-    possible to make progress towards that goal. Note that we only
-    consider threads with pending calls to underlay primitives,
-    since threads which are ready to return have already committed a
-    result and as such can no longer affect either specification. *)
+    possible to make progress towards that goal. *)
 
-  Variant progress_expected_by {E F} (Σ: spec F) t : option (threadstate E F) -> Prop :=
-    progress_expected_intro q m k R r Σ' :
-      (R = None -> Spec.next Σ t q = Spec.ret r Σ') ->
-      progress_expected_by Σ t (Some (mkts q (Sig.cons m k) R)).
+  Definition progress_expected_by {E F} Σ t (s : option (threadstate E F)) :=
+    match s with
+      | Some (mkts q (Sig.cons m k) None) =>
+        exists r Σ', Spec.next Σ t q = Spec.ret r Σ'
+      | Some (mkts q T R) => True
+      | None => False
+    end.
 
   Definition progress_expected {E F} (s : state E F) :=
     exists t, progress_expected_by (st_spec s) t (TMap.find t s).
@@ -314,10 +314,13 @@ Module LinCCALBase <: Category.
   (** Progress means that some thread can invoke an underlay primitive
     without waiting. *)
 
-  Variant progress_possible_in {E F} (Δ : spec E) t : option (threadstate E F) -> Prop :=
-    progress_possible_intro q m k R n Δ' :
-      Spec.next Δ t m = Spec.ret n Δ' ->
-      progress_possible_in Δ t (Some (mkts q (Sig.cons m k) R)).
+  Definition progress_possible_in {E F} Δ t (s : option (threadstate E F)) :=
+    match s with
+      | Some (mkts q (Sig.cons m k) R) =>
+        exists n Δ', Spec.next Δ t m = Spec.ret n Δ'
+      | Some (mkts q (Sig.var v) R) => True
+      | _ => False
+    end.
 
   Definition progress_possible {E F} (s : state E F) :=
     exists t, progress_possible_in (st_base s) t (TMap.find t s).
@@ -438,9 +441,9 @@ Module LinCCALBase <: Category.
       dependent destruction Hu.
       eauto.
     - intros _ [Σ u Hu] Hspec [t Ht]. red. cbn in *.
-      pose proof (Hu t) as Hut. exists t. destruct Ht.
-      specialize (Hut _ eq_refl). dependent destruction Hut.
-      econstructor; eauto.
+      pose proof (Hu t) as Hut. exists t.
+      destruct TMap.find as [st | ]; cbn in Ht; try tauto.
+      specialize (Hut _ eq_refl). destruct Hut; eauto.
     - intros _ [Σ u Hu] Hspec u' Hu'.
       dependent destruction Hu'.
       + (* invocation *)
@@ -1566,14 +1569,14 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           destruct q as [[|]|]; cbn in *;
           destruct Spec.next; congruence.
         + destruct 1. intros Hspec [t Ht].
-          specialize (H t). exists t. cbn in *. destruct Ht.
-          specialize (H _ eq_refl). dependent destruction H.
-          specialize (H0 eq_refl).
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; eauto.
+          destruct Ht as (r & Σ' & Hr); auto.
           destruct q as [[|]|]; cbn in *;
-          destruct Spec.next eqn:Hnext; cbn in *; dependent destruction H0.
-          * eapply (progress_possible_intro _ _ (inl (inl o))); cbn; rewrite Hnext; auto.
-          * eapply (progress_possible_intro _ _ (inl (inr o))); cbn; rewrite Hnext; auto.
-          * eapply (progress_possible_intro _ _ (inr o)); cbn; rewrite Hnext; auto.
+          destruct Spec.next; cbn in *;
+          dependent destruction Hr; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1630,14 +1633,14 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           destruct q as [|[|]]; cbn in *;
           destruct Spec.next; congruence.
         + destruct 1. intros Hspec [t Ht].
-          specialize (H t). exists t. cbn in *. destruct Ht.
-          specialize (H _ eq_refl). dependent destruction H.
-          specialize (H0 eq_refl).
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; eauto.
+          destruct Ht as (r & Σ' & Hr); auto.
           destruct q as [|[|]]; cbn in *;
-          destruct Spec.next eqn:Hnext; cbn in *; dependent destruction H0.
-          * eapply (progress_possible_intro _ _ (inl o)); cbn; rewrite Hnext; auto.
-          * eapply (progress_possible_intro _ _ (inr (inl o))); cbn; rewrite Hnext; auto.
-          * eapply (progress_possible_intro _ _ (inr (inr o))); cbn; rewrite Hnext; auto.
+          destruct Spec.next; cbn in *;
+          dependent destruction Hr; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1715,11 +1718,11 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
         + destruct 1. intros Hspec [t Ht].
-          specialize (H t). exists t. cbn in *. destruct Ht.
-          specialize (H _ eq_refl). dependent destruction H.
-          specialize (H0 eq_refl).
-          econstructor. cbn.
-          rewrite H0. reflexivity.
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
+          destruct Ht as (r & Σ' & ->); eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1755,12 +1758,13 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
         + destruct 1. intros Hspec [t Ht].
-          specialize (H t). exists t. cbn in *. destruct Ht.
-          specialize (H _ eq_refl). dependent destruction H.
-          specialize (H0 eq_refl).
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
           destruct q as [[]|]; cbn in *.
-          destruct Spec.next eqn:Hnext; cbn in *; dependent destruction H0.
-          eapply (progress_possible_intro _ _ (inr o)); eauto.
+          destruct Spec.next; cbn in *;
+          destruct Ht as (r & Σ' & Hr); try congruence; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * destruct q as [[]|q].
@@ -1820,11 +1824,11 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
         + destruct 1. intros Hspec [t Ht].
-          specialize (H t). exists t. cbn in *. destruct Ht.
-          specialize (H _ eq_refl). dependent destruction H.
-          specialize (H0 eq_refl).
-          econstructor. cbn.
-          rewrite H0. reflexivity.
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
+          destruct Ht as (r & Σ' & ->); eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1860,12 +1864,13 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
         + destruct 1. intros Hspec [t Ht].
-          specialize (H t). exists t. cbn in *. destruct Ht.
-          specialize (H _ eq_refl). dependent destruction H.
-          specialize (H0 eq_refl).
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
           destruct q as [|[]]; cbn in *.
-          destruct Spec.next eqn:Hnext; cbn in *; dependent destruction H0.
-          eapply (progress_possible_intro _ _ (inl o)); eauto.
+          destruct Spec.next; cbn in *;
+          destruct Ht as (r & Σ' & Hr); try congruence; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * destruct q as [q|[]].
@@ -1918,13 +1923,13 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           destruct q as [|]; cbn in *;
           destruct Spec.next; congruence.
         + destruct 1. intros Hspec [t Ht].
-          specialize (H t). exists t. cbn in *. destruct Ht.
-          specialize (H _ eq_refl). dependent destruction H.
-          specialize (H0 eq_refl).
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
           destruct q as [|]; cbn in *;
-          destruct Spec.next eqn:Hnext; cbn in *; dependent destruction H0.
-          * eapply (progress_possible_intro _ _ (inl o)); cbn; rewrite Hnext; auto.
-          * eapply (progress_possible_intro _ _ (inr o)); cbn; rewrite Hnext; auto.
+          destruct Spec.next; cbn in *;
+          destruct Ht as (r & Σ' & Hr); try congruence; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -2207,14 +2212,14 @@ Module LinCCALExample.
         destruct h as [i | ].
         * (* a thread holding the lock is expected to progress. *)
           exists i; cbn. specialize (Hs i). clear Ht.
-          dependent destruction Hs; try congruence; destruct x;
-            eapply (LinCCAL.progress_possible_intro _ _ fai); cbn; try reflexivity.
-          destruct LinCCAL.TMap.E.eq_dec; try congruence.
-          reflexivity.
+          dependent destruction Hs;
+            rewrite <- x; cbn;
+            try destruct LinCCAL.TMap.E.eq_dec;
+            try congruence; eauto.
         * (* otherwise, any running thread would do *)
-          exists t; cbn. specialize (Hs t). destruct Ht.
-          dependent destruction Hs.
-          econstructor. cbn. reflexivity.
+          exists t; cbn. specialize (Hs t).
+          destruct LinCCAL.TMap.find as [st | ]; try tauto.
+          dependent destruction Hs; cbn; eauto.
       + intros _ [h c s Hs] _ s' Hs'.
         dependent destruction Hs'.
         * (* incoming call *)
