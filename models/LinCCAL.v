@@ -28,21 +28,21 @@ Module LinCCALBase <: Category.
       specify correctness directly in terms of that model. In their
       linearized form, the specifications are deterministic, however
       we allow both undefined and unimplementable behaviors.
-      Undefined behaviors ([bot]) release the implementation of any
+      Undefined behaviors ([undef]) release the implementation of any
       obligation, and are usually a consequence of illegal actions
       by the client (for example, a thread acquiring a lock twice).
-      Conversely, unimplementable behaviors ([top]) are simply
-      impossible for an implementation to obey; this is usually
-      meant to force a different linearization order. For example,
+      The behavior [blocked] denotes that a primitive is waiting for
+      external event before it can proceed, which will force a
+      different linearization order. For example,
       in the atomic specification, acquiring a lock which is already
-      held by a different thread will yield an unimplementable spec.
+      held by a different thread will yield blocked spec.
       However, a lock implementation can still obey the
       specification by delaying the linearization of [acquire] until
       the lock is released by the thread currently holding it. *)
 
     Variant outcome {E : Sig.t} {m : Sig.op E} {X : Type} :=
-      | bot
-      | top
+      | undef
+      | blocked
       | ret (n : Sig.ar m) (x : X).
 
     Arguments outcome : clear implicits.
@@ -70,8 +70,8 @@ Module LinCCALBase <: Category.
 
     CoFixpoint gen {E A} (α : lts E A) x : t E :=
       {| next t m := match α x t m with
-                     | bot => bot
-                     | top => top
+                     | undef => undef
+                     | blocked => blocked
                      | ret n y => ret n (gen α y)
                      end |}.
 
@@ -83,13 +83,13 @@ Module LinCCALBase <: Category.
       fun Σ t m =>
         match m with
         | inl m1 => match next (fst Σ) t m1 with
-                    | bot => bot
-                    | top => top
+                    | undef => undef
+                    | blocked => blocked
                     | ret n Σ1 => ret (m := inl m1) n (Σ1, snd Σ)
                     end
         | inr m2 => match next (snd Σ) t m2 with
-                    | bot => bot
-                    | top => top
+                    | undef => undef
+                    | blocked => blocked
                     | ret n Σ2 =>
                         ret (m := inr m2) n (fst Σ, Σ2)
                     end
@@ -206,7 +206,7 @@ Module LinCCALBase <: Category.
   Definition specified {E F} (s : state E F) :=
     forall t q T,
       TMap.find t s = Some (mkts q T None) ->
-      Spec.next (st_spec s) t q <> Spec.bot.
+      Spec.next (st_spec s) t q <> Spec.undef.
 
   (** ** Correctness *)
 
@@ -220,11 +220,11 @@ Module LinCCALBase <: Category.
   Definition threadstate_valid {E F} (e : option (threadstate E F)) :=
     forall q r R, e = Some (mkts q (Sig.var r) R) -> R = Some r.
 
-  (** Note that if [spec_top] appears in the underlay specification [Σ],
+  (** Note that if [spec_blocked] appears in the underlay specification [Σ],
     there will be no corresponding [eaction] step to take. As a
     result the associated thread will not be scheduled and there are
     no correctness requirements against it at that time. Conversely,
-    if [spec_top] appears in the overlay specification [Δ], there will
+    if [spec_blocked] appears in the overlay specification [Δ], there will
     be no way to commit a result at that point in time. *)
 
   (** *** Rechability predicate *)
@@ -286,7 +286,7 @@ Module LinCCALBase <: Category.
 
   (** *** Liveness *)
 
-  (** Until now, we have considered [Spec.top] as a "magic" behavior,
+  (** Until now, we have considered [Spec.blocked] as a "magic" behavior,
     in the sense that threads which invoke primitives with this outcome
     are expected to wait and considered correct. This is sufficient to
     establish safety (the implementation will only produce outcomes
@@ -355,7 +355,7 @@ Module LinCCALBase <: Category.
         specified s ->
         forall i q m k R,
           TMap.find i s = Some (mkts q (Sig.cons m k) R) ->
-          Spec.next (st_base s) i m <> Spec.bot;
+          Spec.next (st_base s) i m <> Spec.undef;
       correct_live :
         specified s ->
         progress_expected s ->
@@ -382,7 +382,7 @@ Module LinCCALBase <: Category.
         P s -> specified s ->
         forall i q m k R,
           TMap.find i s = Some (mkts q (Sig.cons m k) R) ->
-          Spec.next (st_base s) i m <> Spec.bot;
+          Spec.next (st_base s) i m <> Spec.undef;
       ci_live s :
         P s -> specified s ->
         progress_expected s ->
@@ -2227,13 +2227,13 @@ Module LinCCALExample.
     fun s t m =>
       match s, m with
       | None, acq => LinCCAL.Spec.ret (m:=acq) tt (Some t)
-      | None, rel => LinCCAL.Spec.bot
+      | None, rel => LinCCAL.Spec.undef
       | Some i, acq =>
-          if LinCCAL.TMap.E.eq_dec i t then LinCCAL.Spec.bot
-                                       else LinCCAL.Spec.top
+          if LinCCAL.TMap.E.eq_dec i t then LinCCAL.Spec.undef
+                                       else LinCCAL.Spec.blocked
       | Some i, rel =>
           if LinCCAL.TMap.E.eq_dec i t then LinCCAL.Spec.ret (m:=rel) tt None
-                                       else LinCCAL.Spec.bot
+                                       else LinCCAL.Spec.undef
       end.
 
   Definition Llock : LinCCAL.t :=
@@ -2430,7 +2430,7 @@ Module LinCCALExample.
   (** Although our programs all terminate, underlay primitives can be
     in a waiting state (as with [acq] above) and as a result,
     implementation deadlocks are still possible in a case where all
-    threads are waiting on [LinCCAL.Spec.top]. In the absence of a
+    threads are waiting on [LinCCAL.Spec.blocked]. In the absence of a
     liveness requirement, this behavior would be considered correct
     even if the overlay specification expected a result.
 
@@ -2447,7 +2447,7 @@ Module LinCCALExample.
     |}.
 
   Definition Σdeadlock : LinCCAL.Spec.t Edeadlock := 
-    {| LinCCAL.Spec.next _ _ := LinCCAL.Spec.top |}.
+    {| LinCCAL.Spec.next _ _ := LinCCAL.Spec.blocked |}.
 
   Definition Ldeadlock : LinCCAL.t :=
     {| LinCCAL.li_spec := Σdeadlock |}.
