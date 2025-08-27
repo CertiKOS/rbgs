@@ -304,7 +304,7 @@ Module LinCCALBase <: Category.
     match s with
       | Some (mkts q (Sig.cons m k) None) =>
         exists r Σ', Spec.next Σ t q = Spec.ret r Σ'
-      | Some (mkts q T R) => True
+      | Some (mkts q _ _) => True
       | None => False
     end.
 
