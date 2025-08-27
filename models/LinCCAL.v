@@ -2425,16 +2425,14 @@ Module LinCCALExample.
       congruence.
   Qed.
 
-  (** ** Liveness issue *)
+  (** ** Why the liveness property is needed *)
 
-  (** Unfortunately, our formulation of correctness only ensures safety.
-    Although our programs all terminate, the underlay specification
-    can still introduce the possibility of deadlocks. In this case,
-    threads will wait on [LinCCAL.Spec.top] and will be considered
-    correct. While we would usually hope that other schedules will
-    allow the underlay to progress, so that the pending underlay calls
-    would eventually have non-[top] results, this is not currently
-    enforced by our correctness property.
+  (** Although our programs all terminate, underlay primitives can be
+    in a waiting state (as with [acq] above) and as a result,
+    implementation deadlocks are still possible in a case where all
+    threads are waiting on [LinCCAL.Spec.top]. In the absence of a
+    liveness requirement, this behavior would be considered correct
+    even if the overlay specification expected a result.
 
     To illustrate this, we show that any overlay can be implemented in
     terms of the following "deadlock" underlay. *)
