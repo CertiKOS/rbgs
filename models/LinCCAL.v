@@ -595,6 +595,49 @@ Module LinCCALBase <: Category.
       dependent destruction H; (congruence || constructor).
     Qed.
 
+    (** Liveness properties. *)
+
+    Lemma comp_threadstate_progress_expected (Δ : spec G) i w s12 s1 s2 :
+      progress_expected_by Δ i s12 ->
+      threadstate_valid s12 ->
+      comp_threadstate i w s12 s1 s2 ->
+      progress_expected_by Δ i s1.
+    Proof.
+      intros H Hvalid Hs12.
+      destruct Hs12; cbn in *; auto.
+      - destruct T; cbn in *; auto.
+        destruct N; cbn in *; auto.
+        destruct Reg.transform; cbn in *; auto.
+        rewrite (Hvalid _ _ _ eq_refl). auto.
+      - destruct Sig.subst; cbn in *; auto.
+        + destruct Q as [n | ]; cbn; auto.
+          destruct mk; auto.
+        + rewrite (Hvalid _ _ _ eq_refl); auto.
+          destruct pending_program; auto.
+    Qed.
+
+    Lemma comp_threadstate_progress_possible_expected Σ Γ i s12 s1 s2 :
+      progress_possible_in Σ i s1 ->
+      comp_threadstate i comp_ready s12 s1 s2 ->
+      progress_possible_in Γ i s12 \/
+      progress_expected_by Σ i s2.
+    Proof.
+      intros Hs1 Hs12.
+      destruct Hs12; cbn in *; auto;
+      dependent destruction H; cbn in *; auto.
+      destruct Q; cbn in *; auto.
+    Qed.
+
+    Lemma comp_threadstate_progress_possible Γ i s12 s1 s2 :
+      progress_possible_in Γ i s2 ->
+      comp_threadstate i comp_ready s12 s1 s2 ->
+      progress_possible_in Γ i s12.
+    Proof.
+      intros Hs2 Hs12.
+      destruct Hs12; cbn in *; try tauto.
+      dependent destruction H; cbn in *; auto.
+    Qed.
+
     (** *** Global state invariant *)
 
     Definition comp_tmap w (s12 s1 s2 : tmap (threadstate _ _)) : Prop :=
@@ -856,6 +899,38 @@ Module LinCCALBase <: Category.
       eauto 15 using rt_trans.
     Qed.
 
+    (** Liveness. *)
+
+    Lemma comp_tmap_progress_expected w Δ s1 Σ s2 Γ s12 :
+      progress_expected (mkst Δ s12 Γ) ->
+      comp_tmap w s12 s1 s2 ->
+      (forall i, threadstate_valid (TMap.find i s12)) ->
+      progress_expected (mkst Δ s1 Σ).
+    Proof.
+      intros [i Hi] Hs12 Hvld. red.
+      eauto using comp_threadstate_progress_expected.
+    Qed.
+
+    Lemma comp_tmap_progress_possible_expected Δ s1 Σ s2 Γ s12 :
+      progress_possible (mkst Δ s1 Σ) ->
+      comp_tmap comp_ready s12 s1 s2 ->
+      progress_possible (mkst Δ s12 Γ) \/
+      progress_expected (mkst Σ s2 Γ).
+    Proof.
+      intros [i Hi] Hs12. cbn in *.
+      edestruct comp_threadstate_progress_possible_expected;
+        eauto; [left | right]; exists i; apply H.
+    Qed.
+
+    Lemma comp_tmap_progress_possible Δ s1 Σ s2 Γ s12 :
+      progress_possible (mkst Σ s2 Γ) ->
+      comp_tmap comp_ready s12 s1 s2 ->
+      progress_possible (mkst Δ s12 Γ).
+    Proof.
+      intros [i Hi] Hs12. exists i. cbn in *.
+      eauto using comp_threadstate_progress_possible.
+    Qed.
+
     (** *** Overall invariant *)
 
     (** The overall composition invariant is as follows.
@@ -1035,7 +1110,17 @@ Module LinCCALBase <: Category.
         + dependent destruction H. cbn in *. congruence.
         + dependent destruction H. cbn in *. dependent destruction x0.
           eapply (correct_safe N (mkst Γ s2 Σ)); cbn; eauto using comp_tmap_specified_r.
-      - admit.
+      - intros s Hs Hspec H.
+        destruct Hs as [? ? ? s12 s1 s2 Hs12 Hs1 Hs2]; auto.
+        eapply comp_tmap_progress_expected in H; eauto.
+        + eapply correct_live in H; eauto using comp_tmap_specified_l.
+          eapply comp_tmap_progress_possible_expected in H as [|]; eauto.
+          eapply correct_live in H; eauto using comp_tmap_specified_r.
+          eapply comp_tmap_progress_possible; eauto.
+        + intro i.
+          eapply comp_threadstate_valid; eauto using correct_valid.
+          eapply correct_valid in Hs1; eauto using comp_tmap_specified_l.
+          eapply correct_valid in Hs2; eauto using comp_tmap_specified_r.
       - intros s Hs Hspec s12' H.
         destruct Hs as [? ? ? s12 s1 s2 Hs12 Hs1 Hs2]; auto.
         dependent destruction H.
@@ -1094,7 +1179,7 @@ Module LinCCALBase <: Category.
           eapply reachable_steps; eauto.
           eapply reachable_base.
           econstructor; eauto.
-    Admitted.
+    Qed.
 
     Theorem comp_cal Σ Γ Δ :
       cal Γ M Δ ->
