@@ -1363,6 +1363,52 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
         destruct Spec.next; congruence.
       Qed.
 
+      Lemma fmap_tmap_progress_expected Δ1 s1 Σ1 Δ2 s2 Σ2 s12 :
+        progress_expected (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)) ->
+        fmap_tmap s12 s1 s2 ->
+        progress_expected (mkst Δ1 s1 Σ1) \/
+        progress_expected (mkst Δ2 s2 Σ2).
+      Proof.
+        intros [t Ht] Hs12. specialize (Hs12 t). cbn in *.
+        dependent destruction Hs12; setoid_rewrite <- x0 in Ht; try tauto.
+        - left. exists t. cbn. rewrite <- x1. cbn in *.
+          destruct T; cbn in *; auto.
+          destruct R; cbn in *; auto.
+          destruct Ht as (r & Δ1' & Ht).
+          destruct Spec.next; dependent destruction Ht; eauto.
+        - right. exists t. cbn. rewrite <- x. cbn in *.
+          destruct T; cbn in *; auto.
+          destruct R; cbn in *; auto.
+          destruct Ht as (r & Δ2' & Ht).
+          destruct Spec.next; dependent destruction Ht; eauto.
+      Qed.
+
+      Lemma fmap_tmap_progress_possible_l Δ1 s1 Σ1 Δ2 s2 Σ2 s12 :
+        progress_possible (mkst Δ1 s1 Σ1) ->
+        fmap_tmap s12 s1 s2 ->
+        progress_possible (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)).
+      Proof.
+        intros [t Ht] Hs12. exists t. specialize (Hs12 t). cbn in *.
+        dependent destruction Hs12; setoid_rewrite <- x1 in Ht; try tauto.
+        setoid_rewrite <- x0. cbn in *.
+        destruct T; cbn in *; auto.
+        destruct Ht as (r & Σ1' & Ht).
+        destruct Spec.next; dependent destruction Ht; eauto.
+      Qed.
+
+      Lemma fmap_tmap_progress_possible_r Δ1 s1 Σ1 Δ2 s2 Σ2 s12 :
+        progress_possible (mkst Δ2 s2 Σ2) ->
+        fmap_tmap s12 s1 s2 ->
+        progress_possible (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)).
+      Proof.
+        intros [t Ht] Hs12. exists t. specialize (Hs12 t). cbn in *.
+        dependent destruction Hs12; setoid_rewrite <- x in Ht; try tauto.
+        setoid_rewrite <- x0. cbn in *.
+        destruct T; cbn in *; auto.
+        destruct Ht as (r & Σ1' & Ht).
+        destruct Spec.next; dependent destruction Ht; eauto.
+      Qed.
+
       (** Global state invariant *)
 
       Variant fmap_state : state _ _ -> Prop :=
@@ -1471,7 +1517,14 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
             eapply correct_safe in Hs2; eauto using fmap_tmap_specified_r.
             cbn in *. destruct Spec.next; congruence.
         - (* liveness *)
-          admit.
+          intros _ [s12 s1 s2 Σ1 Σ2 Δ1 Δ2 Hs Hs1 Hs2] Hspec H.
+          edestruct fmap_tmap_progress_expected;
+          eauto using
+            fmap_tmap_progress_possible_l,
+            fmap_tmap_progress_possible_r,
+            correct_live,
+            fmap_tmap_specified_l,
+            fmap_tmap_specified_r.
         - (* preservation by execution steps *)
           intros _ [s12 s1 s2 Σ1 Σ2 Δ1 Δ2 Hs Hs1 Hs2] Hspec s' Hs'.
           dependent destruction Hs'; rename t0 into t.
@@ -1553,7 +1606,7 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
               intros i. destruct (classic (i = t)); subst.
               -- rewrite !TMap.grs, Hs1t. constructor.
               -- rewrite !TMap.gro; auto.
-      Admitted.
+      Qed.
     End CORRECTNESS.
 
     Program Definition fmap {L1 L2 L1' L2'} (M1: L1~~>L1') (M2: L2~~>L2') :
