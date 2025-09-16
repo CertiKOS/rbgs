@@ -28,21 +28,21 @@ Module LinCCALBase <: Category.
       specify correctness directly in terms of that model. In their
       linearized form, the specifications are deterministic, however
       we allow both undefined and unimplementable behaviors.
-      Undefined behaviors ([bot]) release the implementation of any
+      Undefined behaviors ([undef]) release the implementation of any
       obligation, and are usually a consequence of illegal actions
       by the client (for example, a thread acquiring a lock twice).
-      Conversely, unimplementable behaviors ([top]) are simply
-      impossible for an implementation to obey; this is usually
-      meant to force a different linearization order. For example,
+      The behavior [blocked] denotes that a primitive is waiting for
+      external event before it can proceed, which will force a
+      different linearization order. For example,
       in the atomic specification, acquiring a lock which is already
-      held by a different thread will yield an unimplementable spec.
+      held by a different thread will yield blocked spec.
       However, a lock implementation can still obey the
       specification by delaying the linearization of [acquire] until
       the lock is released by the thread currently holding it. *)
 
-    Variant outcome {E : Sig.t} {X : Type} {m : Sig.op E} :=
-      | bot
-      | top
+    Variant outcome {E : Sig.t} {m : Sig.op E} {X : Type} :=
+      | undef
+      | blocked
       | ret (n : Sig.ar m) (x : X).
 
     Arguments outcome : clear implicits.
@@ -52,7 +52,7 @@ Module LinCCALBase <: Category.
 
     CoInductive t {E} :=
       {
-        next : tid -> forall m, outcome E (@t E) m;
+        next : tid -> forall m, outcome E m (@t E);
       }.
 
     Arguments t : clear implicits.
@@ -62,7 +62,7 @@ Module LinCCALBase <: Category.
     (** More generally, behaviors of this kind can be described by
       transition systems with the same shape as [next]. *)
 
-    Notation lts E A := (A -> tid -> forall m, outcome E A m).
+    Notation lts E A := (A -> tid -> forall m, outcome E m A).
 
     (** In fact, [next] constitutes a final coalgebra over specifications,
       meaning that states in any transition system can be mapped to
@@ -70,8 +70,8 @@ Module LinCCALBase <: Category.
 
     CoFixpoint gen {E A} (α : lts E A) x : t E :=
       {| next t m := match α x t m with
-                     | bot => bot
-                     | top => top
+                     | undef => undef
+                     | blocked => blocked
                      | ret n y => ret n (gen α y)
                      end |}.
 
@@ -83,13 +83,13 @@ Module LinCCALBase <: Category.
       fun Σ t m =>
         match m with
         | inl m1 => match next (fst Σ) t m1 with
-                    | bot => bot
-                    | top => top
+                    | undef => undef
+                    | blocked => blocked
                     | ret n Σ1 => ret (m := inl m1) n (Σ1, snd Σ)
                     end
         | inr m2 => match next (snd Σ) t m2 with
-                    | bot => bot
-                    | top => top
+                    | undef => undef
+                    | blocked => blocked
                     | ret n Σ2 =>
                         ret (m := inr m2) n (fst Σ, Σ2)
                     end
@@ -206,7 +206,7 @@ Module LinCCALBase <: Category.
   Definition specified {E F} (s : state E F) :=
     forall t q T,
       TMap.find t s = Some (mkts q T None) ->
-      Spec.next (st_spec s) t q <> Spec.bot.
+      Spec.next (st_spec s) t q <> Spec.undef.
 
   (** ** Correctness *)
 
@@ -220,11 +220,11 @@ Module LinCCALBase <: Category.
   Definition threadstate_valid {E F} (e : option (threadstate E F)) :=
     forall q r R, e = Some (mkts q (Sig.var r) R) -> R = Some r.
 
-  (** Note that if [spec_top] appears in the underlay specification [Σ],
+  (** Note that if [spec_blocked] appears in the underlay specification [Σ],
     there will be no corresponding [eaction] step to take. As a
     result the associated thread will not be scheduled and there are
     no correctness requirements against it at that time. Conversely,
-    if [spec_top] appears in the overlay specification [Δ], there will
+    if [spec_blocked] appears in the overlay specification [Δ], there will
     be no way to commit a result at that point in time. *)
 
   (** *** Rechability predicate *)
@@ -284,6 +284,64 @@ Module LinCCALBase <: Category.
       destruct H; cbn in *; subst; eauto 10.
   Qed.
 
+  (** *** Liveness *)
+
+  (** Until now, we have considered [Spec.blocked] as a "magic" behavior,
+    in the sense that threads which invoke primitives with this outcome
+    are expected to wait and considered correct. This is sufficient to
+    establish safety (the implementation will only produce outcomes
+    which match the specification) but leaves open the possibility of
+    deadlocks and fails to establish liveness (the implementation will
+    eventually produce a result prescribed by the specification).
+
+    In the setting of terminating programs, liveness is fairly
+    straighforward: as long as the specification dictates that some
+    result should be produced, or when a thread has committed a result
+    against the specification but not produced it yet, it must be
+    possible to make progress towards that goal. *)
+
+  Definition progress_expected_by {E F} Σ t (s : option (threadstate E F)) :=
+    match s with
+      | Some (mkts q (Sig.cons m k) None) =>
+        exists r Σ', Spec.next Σ t q = Spec.ret r Σ'
+      | Some (mkts q _ _) => True
+      | None => False
+    end.
+
+  Definition progress_expected {E F} (s : state E F) :=
+    exists t, progress_expected_by (st_spec s) t (TMap.find t s).
+
+  (** Progress means that some thread can invoke an underlay primitive
+    without waiting. *)
+
+  Definition progress_possible_in {E F} Δ t (s : option (threadstate E F)) :=
+    match s with
+      | Some (mkts q (Sig.cons m k) R) =>
+        exists n Δ', Spec.next Δ t m = Spec.ret n Δ'
+      | Some (mkts q (Sig.var v) R) => True
+      | _ => False
+    end.
+
+  Definition progress_possible {E F} (s : state E F) :=
+    exists t, progress_possible_in (st_base s) t (TMap.find t s).
+
+  (** Note that these are global property, and that the thread making
+    progress may be different from the one where a result is expected,
+    since it may be necessary for the former to act on the underlay
+    (say, by releasing a lock) to allow the latter to proceed (now
+    that the lock can be acquired again). The progressing thread may
+    also resolve the situation by elimintating the expectation of
+    further progress through its action on the overlay specification.
+    For example, in a lock implementation, when two calls to [acq] are
+    pending and the lock is available, the linearized specification
+    dictates that either call would produce an immediate outcome,
+    and consequently the situation in each of the threads is
+    sufficient to create the expectation of progress. However,
+    if the call to [acq] is carried out in either thread, this will
+    update the specification and relieve the other thread from the
+    expectation of producing a resultm as the lock is now being held
+    by another thread. *)
+
   (** *** Coinductive property *)
 
   (** The overall correctness property can be given as follows. *)
@@ -297,7 +355,11 @@ Module LinCCALBase <: Category.
         specified s ->
         forall i q m k R,
           TMap.find i s = Some (mkts q (Sig.cons m k) R) ->
-          Spec.next (st_base s) i m <> Spec.bot;
+          Spec.next (st_base s) i m <> Spec.undef;
+      correct_live :
+        specified s ->
+        progress_expected s ->
+        progress_possible s;
       correct_next :
         specified s ->
         forall s', estep M s s' -> reachable lstep (correct M) s';
@@ -320,7 +382,11 @@ Module LinCCALBase <: Category.
         P s -> specified s ->
         forall i q m k R,
           TMap.find i s = Some (mkts q (Sig.cons m k) R) ->
-          Spec.next (st_base s) i m <> Spec.bot;
+          Spec.next (st_base s) i m <> Spec.undef;
+      ci_live s :
+        P s -> specified s ->
+        progress_expected s ->
+        progress_possible s;
       ci_next s :
         P s -> specified s ->
         forall s', estep M s s' -> reachable lstep P s';
@@ -332,6 +398,7 @@ Module LinCCALBase <: Category.
     constructor.
     - apply correct_valid.
     - apply correct_safe.
+    - apply correct_live.
     - intros u Hu Hspec u' Hu'.
       apply correct_next in Hu'; auto.
   Qed.
@@ -345,6 +412,7 @@ Module LinCCALBase <: Category.
     intros s Hs. constructor.
     - eapply ci_valid; eauto.
     - eapply ci_safe; eauto.
+    - eapply ci_live; eauto.
     - intros Hspec s' Hs'. unfold reachable.
       edestruct @ci_next as (s'' & Hs'' & H''); eauto.
   Qed.
@@ -372,6 +440,10 @@ Module LinCCALBase <: Category.
       specialize (Hu _ _ Ht).
       dependent destruction Hu.
       eauto.
+    - intros _ [Σ u Hu] Hspec [t Ht]. red. cbn in *.
+      pose proof (Hu t) as Hut. exists t.
+      destruct TMap.find as [st | ]; cbn in Ht; try tauto.
+      specialize (Hut _ eq_refl). destruct Hut; eauto.
     - intros _ [Σ u Hu] Hspec u' Hu'.
       dependent destruction Hu'.
       + (* invocation *)
@@ -521,6 +593,49 @@ Module LinCCALBase <: Category.
       intros H Hij.
       dependent destruction H; constructor;
       dependent destruction H; (congruence || constructor).
+    Qed.
+
+    (** Liveness properties. *)
+
+    Lemma comp_threadstate_progress_expected (Δ : spec G) i w s12 s1 s2 :
+      progress_expected_by Δ i s12 ->
+      threadstate_valid s12 ->
+      comp_threadstate i w s12 s1 s2 ->
+      progress_expected_by Δ i s1.
+    Proof.
+      intros H Hvalid Hs12.
+      destruct Hs12; cbn in *; auto.
+      - destruct T; cbn in *; auto.
+        destruct N; cbn in *; auto.
+        destruct Reg.transform; cbn in *; auto.
+        rewrite (Hvalid _ _ _ eq_refl). auto.
+      - destruct Sig.subst; cbn in *; auto.
+        + destruct Q as [n | ]; cbn; auto.
+          destruct mk; auto.
+        + rewrite (Hvalid _ _ _ eq_refl); auto.
+          destruct pending_program; auto.
+    Qed.
+
+    Lemma comp_threadstate_progress_possible_expected Σ Γ i s12 s1 s2 :
+      progress_possible_in Σ i s1 ->
+      comp_threadstate i comp_ready s12 s1 s2 ->
+      progress_possible_in Γ i s12 \/
+      progress_expected_by Σ i s2.
+    Proof.
+      intros Hs1 Hs12.
+      destruct Hs12; cbn in *; auto;
+      dependent destruction H; cbn in *; auto.
+      destruct Q; cbn in *; auto.
+    Qed.
+
+    Lemma comp_threadstate_progress_possible Γ i s12 s1 s2 :
+      progress_possible_in Γ i s2 ->
+      comp_threadstate i comp_ready s12 s1 s2 ->
+      progress_possible_in Γ i s12.
+    Proof.
+      intros Hs2 Hs12.
+      destruct Hs12; cbn in *; try tauto.
+      dependent destruction H; cbn in *; auto.
     Qed.
 
     (** *** Global state invariant *)
@@ -784,6 +899,38 @@ Module LinCCALBase <: Category.
       eauto 15 using rt_trans.
     Qed.
 
+    (** Liveness. *)
+
+    Lemma comp_tmap_progress_expected w Δ s1 Σ s2 Γ s12 :
+      progress_expected (mkst Δ s12 Γ) ->
+      comp_tmap w s12 s1 s2 ->
+      (forall i, threadstate_valid (TMap.find i s12)) ->
+      progress_expected (mkst Δ s1 Σ).
+    Proof.
+      intros [i Hi] Hs12 Hvld. red.
+      eauto using comp_threadstate_progress_expected.
+    Qed.
+
+    Lemma comp_tmap_progress_possible_expected Δ s1 Σ s2 Γ s12 :
+      progress_possible (mkst Δ s1 Σ) ->
+      comp_tmap comp_ready s12 s1 s2 ->
+      progress_possible (mkst Δ s12 Γ) \/
+      progress_expected (mkst Σ s2 Γ).
+    Proof.
+      intros [i Hi] Hs12. cbn in *.
+      edestruct comp_threadstate_progress_possible_expected;
+        eauto; [left | right]; exists i; apply H.
+    Qed.
+
+    Lemma comp_tmap_progress_possible Δ s1 Σ s2 Γ s12 :
+      progress_possible (mkst Σ s2 Γ) ->
+      comp_tmap comp_ready s12 s1 s2 ->
+      progress_possible (mkst Δ s12 Γ).
+    Proof.
+      intros [i Hi] Hs12. exists i. cbn in *.
+      eauto using comp_threadstate_progress_possible.
+    Qed.
+
     (** *** Overall invariant *)
 
     (** The overall composition invariant is as follows.
@@ -963,6 +1110,17 @@ Module LinCCALBase <: Category.
         + dependent destruction H. cbn in *. congruence.
         + dependent destruction H. cbn in *. dependent destruction x0.
           eapply (correct_safe N (mkst Γ s2 Σ)); cbn; eauto using comp_tmap_specified_r.
+      - intros s Hs Hspec H.
+        destruct Hs as [? ? ? s12 s1 s2 Hs12 Hs1 Hs2]; auto.
+        eapply comp_tmap_progress_expected in H; eauto.
+        + eapply correct_live in H; eauto using comp_tmap_specified_l.
+          eapply comp_tmap_progress_possible_expected in H as [|]; eauto.
+          eapply correct_live in H; eauto using comp_tmap_specified_r.
+          eapply comp_tmap_progress_possible; eauto.
+        + intro i.
+          eapply comp_threadstate_valid; eauto using correct_valid.
+          eapply correct_valid in Hs1; eauto using comp_tmap_specified_l.
+          eapply correct_valid in Hs2; eauto using comp_tmap_specified_r.
       - intros s Hs Hspec s12' H.
         destruct Hs as [? ? ? s12 s1 s2 Hs12 Hs1 Hs2]; auto.
         dependent destruction H.
@@ -1106,7 +1264,7 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
   Import B.
   Obligation Tactic := intros.
 
-  Module Tens <: MonoidalStructure B.
+  Module Tens <: SymmetricMonoidalStructure B.
 
     (** *** Tensor product of layer interfaces *)
 
@@ -1203,6 +1361,52 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
         symmetry in x0. rename x0 into Hs12i.
         apply Hs12 in Hs12i. cbn in *.
         destruct Spec.next; congruence.
+      Qed.
+
+      Lemma fmap_tmap_progress_expected Δ1 s1 Σ1 Δ2 s2 Σ2 s12 :
+        progress_expected (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)) ->
+        fmap_tmap s12 s1 s2 ->
+        progress_expected (mkst Δ1 s1 Σ1) \/
+        progress_expected (mkst Δ2 s2 Σ2).
+      Proof.
+        intros [t Ht] Hs12. specialize (Hs12 t). cbn in *.
+        dependent destruction Hs12; setoid_rewrite <- x0 in Ht; try tauto.
+        - left. exists t. cbn. rewrite <- x1. cbn in *.
+          destruct T; cbn in *; auto.
+          destruct R; cbn in *; auto.
+          destruct Ht as (r & Δ1' & Ht).
+          destruct Spec.next; dependent destruction Ht; eauto.
+        - right. exists t. cbn. rewrite <- x. cbn in *.
+          destruct T; cbn in *; auto.
+          destruct R; cbn in *; auto.
+          destruct Ht as (r & Δ2' & Ht).
+          destruct Spec.next; dependent destruction Ht; eauto.
+      Qed.
+
+      Lemma fmap_tmap_progress_possible_l Δ1 s1 Σ1 Δ2 s2 Σ2 s12 :
+        progress_possible (mkst Δ1 s1 Σ1) ->
+        fmap_tmap s12 s1 s2 ->
+        progress_possible (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)).
+      Proof.
+        intros [t Ht] Hs12. exists t. specialize (Hs12 t). cbn in *.
+        dependent destruction Hs12; setoid_rewrite <- x1 in Ht; try tauto.
+        setoid_rewrite <- x0. cbn in *.
+        destruct T; cbn in *; auto.
+        destruct Ht as (r & Σ1' & Ht).
+        destruct Spec.next; dependent destruction Ht; eauto.
+      Qed.
+
+      Lemma fmap_tmap_progress_possible_r Δ1 s1 Σ1 Δ2 s2 Σ2 s12 :
+        progress_possible (mkst Δ2 s2 Σ2) ->
+        fmap_tmap s12 s1 s2 ->
+        progress_possible (mkst (Δ1 * Δ2) s12 (Σ1 * Σ2)).
+      Proof.
+        intros [t Ht] Hs12. exists t. specialize (Hs12 t). cbn in *.
+        dependent destruction Hs12; setoid_rewrite <- x in Ht; try tauto.
+        setoid_rewrite <- x0. cbn in *.
+        destruct T; cbn in *; auto.
+        destruct Ht as (r & Σ1' & Ht).
+        destruct Spec.next; dependent destruction Ht; eauto.
       Qed.
 
       (** Global state invariant *)
@@ -1312,6 +1516,15 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
             destruct T; cbn in HT; try congruence. dependent destruction HT.
             eapply correct_safe in Hs2; eauto using fmap_tmap_specified_r.
             cbn in *. destruct Spec.next; congruence.
+        - (* liveness *)
+          intros _ [s12 s1 s2 Σ1 Σ2 Δ1 Δ2 Hs Hs1 Hs2] Hspec H.
+          edestruct fmap_tmap_progress_expected;
+          eauto using
+            fmap_tmap_progress_possible_l,
+            fmap_tmap_progress_possible_r,
+            correct_live,
+            fmap_tmap_specified_l,
+            fmap_tmap_specified_r.
         - (* preservation by execution steps *)
           intros _ [s12 s1 s2 Σ1 Σ2 Δ1 Δ2 Hs Hs1 Hs2] Hspec s' Hs'.
           dependent destruction Hs'; rename t0 into t.
@@ -1425,13 +1638,13 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
       intros. apply meq, Reg.Plus.fmap_compose.
     Qed.
 
-    (** *** Zero layer interface *)
+    (** *** Empty layer interface *)
 
     (** The empty spec is used to define the zero layer interface. *)
 
     Definition unit :=
       {|
-        li_sig := Reg.Plus.unit;
+        li_sig := Sig.Plus.unit;
         li_spec := Spec.gen (fun _ _ => Empty_set_rect _) tt;
       |}.
 
@@ -1493,6 +1706,15 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct q as [[|]|]; cbn in *;
           destruct Spec.next; congruence.
+        + destruct 1. intros Hspec [t Ht].
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; eauto.
+          destruct Ht as (r & Σ' & Hr); auto.
+          destruct q as [[|]|]; cbn in *;
+          destruct Spec.next; cbn in *;
+          dependent destruction Hr; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1548,6 +1770,15 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct q as [|[|]]; cbn in *;
           destruct Spec.next; congruence.
+        + destruct 1. intros Hspec [t Ht].
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; eauto.
+          destruct Ht as (r & Σ' & Hr); auto.
+          destruct q as [|[|]]; cbn in *;
+          destruct Spec.next; cbn in *;
+          dependent destruction Hr; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1624,6 +1855,12 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           specialize (H t _ Ht). dependent destruction H.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
+        + destruct 1. intros Hspec [t Ht].
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
+          destruct Ht as (r & Σ' & ->); eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1658,6 +1895,14 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           specialize (H t _ Ht). dependent destruction H.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
+        + destruct 1. intros Hspec [t Ht].
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
+          destruct q as [[]|]; cbn in *.
+          destruct Spec.next; cbn in *;
+          destruct Ht as (r & Σ' & Hr); try congruence; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * destruct q as [[]|q].
@@ -1716,6 +1961,12 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           specialize (H t _ Ht). dependent destruction H.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
+        + destruct 1. intros Hspec [t Ht].
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
+          destruct Ht as (r & Σ' & ->); eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * apply reachable_base. constructor.
@@ -1750,6 +2001,14 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
           specialize (H t _ Ht). dependent destruction H.
           cbn in *. apply Hspec in Ht. cbn in *.
           destruct Spec.next; congruence.
+        + destruct 1. intros Hspec [t Ht].
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
+          destruct q as [|[]]; cbn in *.
+          destruct Spec.next; cbn in *;
+          destruct Ht as (r & Σ' & Hr); try congruence; eauto.
         + destruct 1. intros Hspec s' Hs'.
           dependent destruction Hs'.
           * destruct q as [q|[]].
@@ -1783,6 +2042,68 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
       apply meq, Reg.fw_bw.
     Qed.
 
+    Variant swap_state {E F}: state _ _ -> Prop :=
+      | swap_state_intro Σ Φ s :
+        iso_tmap (Sig.bw (Sig.Plus.swap_iso E F)) s ->
+        swap_state (mkst (Φ * Σ) s (Σ * Φ)).
+
+    Program Definition swap L1 L2 : L1 * L2 ~~> L2 * L1 :=
+      {| li_impl := Reg.Plus.swap _ _ |}.
+    Next Obligation.
+      set (ϕ := Sig.bw (Sig.Plus.swap_iso (li_sig L1) (li_sig L2))).
+      apply correctness_invariant_sound with swap_state.
+      - constructor.
+        + destruct 1. intros Hspec t q r R Ht.
+          apply H in Ht. dependent destruction Ht. auto.
+        + destruct 1. intros Hspec t q m k R Ht.
+          specialize (H t _ Ht). dependent destruction H.
+          cbn in *. apply Hspec in Ht. cbn in *.
+          destruct q as [|]; cbn in *;
+          destruct Spec.next; congruence.
+        + destruct 1. intros Hspec [t Ht].
+          specialize (H t). exists t. cbn in *.
+          destruct TMap.find as [st | ]; try tauto.
+          specialize (H _ eq_refl).
+          destruct H; cbn in *; auto.
+          destruct q as [|]; cbn in *;
+          destruct Spec.next; cbn in *;
+          destruct Ht as (r & Σ' & Hr); try congruence; eauto.
+        + destruct 1. intros Hspec s' Hs'.
+          dependent destruction Hs'.
+          * apply reachable_base. constructor.
+            intros i x Hi. destruct (classic (i = t0)); subst.
+            -- rewrite !TMap.gss in Hi. dependent destruction Hi.
+               destruct q as [|]; apply (iso_invoked ϕ).
+            -- rewrite !TMap.gso in *; eauto.
+          * apply H in H0. dependent destruction H0. cbn in *.
+            destruct q as [|]; cbn in *;
+            destruct Spec.next eqn:Hnext; dependent destruction H1.
+            -- eapply reachable_step with (mkst (x * Σ) _ (Σ * x)).
+               2: { apply (lcommit t0 (inl o) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inl o) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+            -- eapply reachable_step with (mkst (Φ * x) _ (x * Φ)).
+               2: { apply (lcommit t0 (inr o) n (Sig.var n)); eauto.
+                    ++ rewrite TMap.gss. reflexivity. 
+                    ++ cbn. rewrite Hnext. reflexivity. }
+               apply reachable_base. constructor.
+               intros i si Hi. destruct (classic (i = t0)); subst.
+               ++ rewrite !TMap.gss in Hi. dependent destruction Hi.
+                  apply (iso_returned ϕ (inr o) n).
+               ++ rewrite !TMap.gso in Hi; eauto.
+          * apply reachable_base. constructor.
+            intros i si Hi. destruct (classic (i = t0)); subst.
+            -- rewrite TMap.grs in Hi. congruence.
+            -- rewrite TMap.gro in Hi; eauto.
+      - constructor. intros i si Hi.
+        rewrite TMap.gempty in Hi. congruence.
+    Qed.
+
     (** *** Naturality properties *)
 
     Theorem assoc_nat {A1 B1 C1 A2 B2 C2} f g h :
@@ -1801,6 +2122,12 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
       f @ runit A1 = runit A2 @ fmap f (id unit).
     Proof.
       apply meq, Reg.Plus.runit_nat_bw.
+    Qed.
+
+    Proposition swap_nat {A1 A2 B1 B2} f g :
+      fmap g f @ swap A1 B1 = swap A2 B2 @ fmap f g.
+    Proof.
+      apply meq. symmetry. apply Reg.Plus.swap_nat.
     Qed.
 
     (** *** Coherence diagrams *)
@@ -1822,11 +2149,32 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
       apply meq, Reg.Plus.unit_coh_bw.
     Qed.
 
+    Proposition swap_assoc A B C :
+      fmap (swap A C) (id B) @ assoc A C B @ fmap (id A) (swap B C) =
+      assoc C A B @ swap (omap A B) C @ assoc A B C.
+    Proof.
+      apply meq. cbn -[Reg.Plus.assoc Reg.Plus.swap]. unfold Reg.Op.compose.
+      rewrite !Reg.compose_assoc. apply Reg.Plus.swap_assoc_bw.
+    Qed.
+
+    Proposition runit_swap A :
+      runit A @ swap unit A = lunit A.
+    Proof.
+      apply meq. cbn -[Reg.Plus.lunit Reg.Plus.swap]. unfold Reg.Op.compose.
+      apply Reg.Plus.runit_swap_bw.
+    Qed.
+
+    Proposition swap_swap A B :
+      swap B A @ swap A B = id (omap A B).
+    Proof.
+      apply meq, Reg.Plus.swap_swap.
+    Qed.
+
     Include BifunctorTheory B B B.
-    Include MonoidalStructureTheory B.
+    Include SymmetricMonoidalStructureTheory B.
   End Tens.
 
-  Include MonoidalTheory B.
+  Include SymmetricMonoidalTheory B.
 End LinCCALTens.
 
 (** ** Putting everything together *)
@@ -1879,13 +2227,13 @@ Module LinCCALExample.
     fun s t m =>
       match s, m with
       | None, acq => LinCCAL.Spec.ret (m:=acq) tt (Some t)
-      | None, rel => LinCCAL.Spec.bot
+      | None, rel => LinCCAL.Spec.undef
       | Some i, acq =>
-          if LinCCAL.TMap.E.eq_dec i t then LinCCAL.Spec.bot
-                                       else LinCCAL.Spec.top
+          if LinCCAL.TMap.E.eq_dec i t then LinCCAL.Spec.undef
+                                       else LinCCAL.Spec.blocked
       | Some i, rel =>
           if LinCCAL.TMap.E.eq_dec i t then LinCCAL.Spec.ret (m:=rel) tt None
-                                       else LinCCAL.Spec.bot
+                                       else LinCCAL.Spec.undef
       end.
 
   Definition Llock : LinCCAL.t :=
@@ -1997,6 +2345,19 @@ Module LinCCALExample.
           destruct LinCCAL.TMap.E.eq_dec; congruence.
         * (* release *)
           destruct LinCCAL.TMap.E.eq_dec; congruence.
+      + (* liveness *)
+        intros _ [h c s Hs] _ [t Ht]. cbn in *.
+        destruct h as [i | ].
+        * (* a thread holding the lock is expected to progress. *)
+          exists i; cbn. specialize (Hs i). clear Ht.
+          dependent destruction Hs;
+            rewrite <- x; cbn;
+            try destruct LinCCAL.TMap.E.eq_dec;
+            try congruence; eauto.
+        * (* otherwise, any running thread would do *)
+          exists t; cbn. specialize (Hs t).
+          destruct LinCCAL.TMap.find as [st | ]; try tauto.
+          dependent destruction Hs; cbn; eauto.
       + intros _ [h c s Hs] _ s' Hs'.
         dependent destruction Hs'.
         * (* incoming call *)
@@ -2063,5 +2424,78 @@ Module LinCCALExample.
       constructor.
       congruence.
   Qed.
+
+  (** ** Why the liveness property is needed *)
+
+  (** Although our programs all terminate, underlay primitives can be
+    in a waiting state (as with [acq] above) and as a result,
+    implementation deadlocks are still possible in a case where all
+    threads are waiting on [LinCCAL.Spec.blocked]. In the absence of a
+    liveness requirement, this behavior would be considered correct
+    even if the overlay specification expected a result.
+
+    To illustrate this, we show that any overlay can be implemented in
+    terms of the following "deadlock" underlay. *)
+
+  Variant Edeadlock_op :=
+    | deadlock.
+
+  Canonical Structure Edeadlock :=
+    {|
+      Sig.op := Edeadlock_op;
+      Sig.ar _ := Empty_set;
+    |}.
+
+  Definition Σdeadlock : LinCCAL.Spec.t Edeadlock := 
+    {| LinCCAL.Spec.next _ _ := LinCCAL.Spec.blocked |}.
+
+  Definition Ldeadlock : LinCCAL.t :=
+    {| LinCCAL.li_spec := Σdeadlock |}.
+
+  Definition dead_impl {X} : Sig.term Edeadlock X :=
+    deadlock >= e => match e with end.
+
+  Variant dead_thread {E} : option (LinCCAL.threadstate Edeadlock E) -> Prop :=
+    | dead_ready :
+      dead_thread None
+    | dead_locked q :
+      dead_thread (Some (LinCCAL.mkts (F:=E) q dead_impl None)).
+
+  Variant dead_state {E} {Σ : LinCCAL.spec E} : _ -> Prop :=
+    dead_state_intro s :
+      (forall i, dead_thread (LinCCAL.TMap.find i s)) ->
+      dead_state (LinCCAL.mkst Σ s Σdeadlock).
+
+  Proposition dead_correct E (Σ : LinCCAL.spec E) :
+    LinCCAL.cal Σdeadlock (fun q => dead_impl) Σ.
+  Proof.
+    intros.
+    eapply LinCCAL.correctness_invariant_sound with (P := dead_state).
+    - split.
+      + intros _ [s Hs] _ i q r R Hsi. cbn in *.
+        specialize (Hs i).
+        dependent destruction Hs; unfold dead_impl in *; try congruence.
+        rewrite Hsi in x. dependent destruction x.
+      + intros _ [s Hs] _ i q m k R Hsi. cbn in Hsi |- *.
+        specialize (Hs i). cbn in Hs. rewrite Hsi in Hs.
+        dependent destruction Hs; cbn; try congruence.
+      + (* liveness cannot be proven *)
+        admit.
+      + intros _ [s Hs] _ s' Hs'.
+        dependent destruction Hs'.
+        * (* incoming call *)
+          apply LinCCAL.reachable_base. constructor.
+          intro i. destruct (classic (i = t)); subst.
+          -- rewrite LinCCAL.TMap.gss. constructor; auto.
+          -- rewrite LinCCAL.TMap.gso; auto.
+        * (* return *)
+          specialize (Hs t). setoid_rewrite H in Hs.
+          dependent destruction Hs.
+    - (* initial state *)
+      constructor.
+      intro i.
+      rewrite LinCCAL.TMap.gempty.
+      constructor.
+  Abort.
 
 End LinCCALExample.

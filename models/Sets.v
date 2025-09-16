@@ -36,6 +36,7 @@ Module SetBase <: CategoryWithEndofunctors.
   Qed.
 
   Include CategoryTheory.
+  Include AddOp.
 
   (** ** Endofunctors *)
 
@@ -95,7 +96,7 @@ Module SetMonoidalStructures (B : SetBaseSpec).
       firstorder.
     Qed.
 
-    Theorem pair_pi {X A B} x :
+    Theorem pair_pi_compose {X A B} x :
       @pair X A B (p1 @ x) (p2 @ x) = x.
     Proof.
       apply functional_extensionality.
@@ -105,7 +106,7 @@ Module SetMonoidalStructures (B : SetBaseSpec).
 
     Include CartesianStructureTheory B.
     Include BifunctorTheory B B B.
-    Include MonoidalStructureTheory B.
+    Include SymmetricMonoidalStructureTheory B.
   End Prod.
 
   Module Exp : MonoidalClosureDefinition B Prod.
@@ -171,6 +172,7 @@ End SetMonoidalStructures.
 
 Module Type SetSpec :=
   CartesianCategory <+
+  AddOp <+
   AddEndofunctors.
 
 Module SET <: SetSpec :=

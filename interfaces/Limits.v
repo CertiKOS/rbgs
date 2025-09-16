@@ -110,7 +110,7 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
          false).
   Qed.
 
-  Proposition pair_pi {X A B} (x : C.m X (omap A B)) :
+  Proposition pair_pi_compose {X A B} (x : C.m X (omap A B)) :
     pair (C.compose p1 x) (C.compose p2 x) = x.
   Proof.
     unfold pair, p1, p2.
@@ -126,7 +126,7 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
 
   Include CartesianStructureTheory C.
   Include BifunctorTheory C C C.
-  Include MonoidalStructureTheory C.
+  Include SymmetricMonoidalStructureTheory C.
 End CartesianStructureFromProducts.
 
 Module CartesianFromProducts (C : Category) (P : Products C) <: Cartesian C.
@@ -145,7 +145,7 @@ End CartesianFromProducts.
   a product, which would be best defined elsewhere. *)
 
 Module Type PreservesProducts (C : CategoryDefinition) (D : Category)
-  (PC : Products C) (PD : Products D) (F : Functor C D).
+  (PC : Products C) (PD : Products D) (F : FunctorDefinition C D).
 
   Import (notations, coercions) D.
 
@@ -260,7 +260,7 @@ Module Type Limits (J C : CategoryDefinition).
   Global Existing Instance lim_spec.
 End Limits.
 
-Module Type Colimits (J : CategoryDefinition) (C : Category) :=
+Module Type Colimits (J : CategoryDefinition) (C : CategoryWithOp) :=
   Limits J C.Op.
 
 (** ** Specific types of limits *)
