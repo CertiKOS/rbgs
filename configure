@@ -2,14 +2,42 @@
 
 set -e
 
-if ! [ -e coqrel/configure ] || ! [ -e compcert/configure ]; then
-    if [ -e .git ]; then
+COMPCERT=compcert
+
+# Process arguments
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -nocompcert)
+            COMPCERT=
+            shift;;
+        *)
+            echo >&2 "Usage: $0 [-nocompcert]"
+            exit 1;;
+    esac
+done
+
+# Make sure the relevant submodules are available
+
+if [ -e .git ]; then
+    if ! [ -e coqrel/configure ] ||
+       ! [ "$COMPCERT" != "compcert" -o -e "$COMPCERT/configure" ]
+    then
         git submodule init
         git submodule update
-    else
-        echo >&2 "Coqrel and CompCert not found"
     fi
 fi
+
+if ! [ -e coqrel/configure ] ||
+   ! [ -z "$COMPCERT" -o -e "$COMPCERT/configure" ]
+then
+    echo >&2 "Coqrel and CompCert not found"
+    exit 1
+fi
+
+# Prepare for build
+
+CMFLAGS=
 
 echo >&2 "-- Configuring Coqrel"
 (cd coqrel; ./configure)
@@ -18,9 +46,12 @@ echo >&2 "-- Configuring Coqrel"
 echo >&2 "-- Pre-building Coqrel"
 (cd coqrel; make)
 
-echo >&2 "-- Configuring CompCert"
-(cd compcert; ./configure -coqrel ../coqrel x86_64-linux)
+if [ "$COMPCERT" ]; then
+    echo >&2 "-- Configuring CompCert"
+    (cd "$COMPCERT"; ./configure -coqrel ../coqrel x86_64-linux)
+    CMFLAGS="-f _CoqProject.compcert"
+fi
 
 echo >&2 "-- Creating Makefile"
-coq_makefile -f _CoqProject -o Makefile
+coq_makefile $CMFLAGS -f _CoqProject -o Makefile COMPCERT = "$COMPCERT"
 

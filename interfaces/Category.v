@@ -34,14 +34,17 @@ Require Import Coq.Setoids.Setoid.
 
 (** ** Definition *)
 
+(** Objects and morphisms *)
+
+Module Type Quiver.
+  Parameter t : Type.
+  Parameter m : t -> t -> Type.
+End Quiver.
+
 (** The following interface gives the basic definition of a category. *)
 
 Module Type CategoryDefinition.
-
-  (** Objects and morphisms *)
-
-  Parameter t : Type.
-  Parameter m : t -> t -> Type.
+  Include Quiver.
 
   (** Identity and composition *)
 
@@ -354,7 +357,7 @@ End Two.
 
 (** ** Category of types and functions *)
 
-Module SET.
+Module SET <: Category.
 
   (** Objects and morphisms *)
 
@@ -389,6 +392,7 @@ Module SET.
     reflexivity.
   Qed.
 
+  Include CategoryTheory.
 End SET.
 
 (** ** Product category *)

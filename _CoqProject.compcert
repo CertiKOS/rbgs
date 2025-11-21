@@ -1,0 +1,15 @@
+# Parts of _CoqProject to be added when CompCert is used
+
+-R compcert/lib compcert.lib
+-R compcert/common compcert.common
+-R compcert/x86_64 compcert.x86_64
+-R compcert/x86 compcert.x86
+-R compcert/backend compcert.backend
+-R compcert/cfrontend compcert.cfrontend
+-R compcert/driver compcert.driver
+-R compcert/export compcert.export
+-R compcert/cparser compcert.cparser
+-R compcert/cklr compcert.cklr
+-R compcert/flocq Flocq
+-R compcert/MenhirLib MenhirLib
+
