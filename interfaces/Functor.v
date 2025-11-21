@@ -8,12 +8,24 @@ Require Import interfaces.Category.
 
 (** * Functors *)
 
-(** ** Core definition *)
+(** ** Quiver homorphisms *)
 
-Module Type FunctorDefinition (C D : CategoryDefinition).
+(** In some cases it is useful to define mappings between quivers or
+  mappings between categories which do not preserve composition and
+  identities. The following interface is used for this. *)
 
+Module Type QuiverHomomorphism (C D : Quiver).
   Parameter omap : C.t -> D.t.
   Parameter fmap : forall {A B}, C.m A B -> D.m (omap A) (omap B).
+End QuiverHomomorphism.
+
+(** ** Functors *)
+
+(** Most of the time, we do want the extra properties that the
+  identities and composites are preserved. *)
+
+Module Type FunctorDefinition (C D : CategoryDefinition).
+  Include QuiverHomomorphism C D.
 
   Axiom fmap_id :
     forall A, fmap (C.id A) = D.id (omap A).
@@ -23,6 +35,10 @@ Module Type FunctorDefinition (C D : CategoryDefinition).
       fmap (C.compose g f) = D.compose (fmap g) (fmap f).
 
 End FunctorDefinition.
+
+(** ** Theory *)
+
+(** In that case, the following properties and definitions can be derived. *)
 
 Module FunctorTheory (C D : Category) (F : FunctorDefinition C D).
   Import F.
@@ -47,14 +63,14 @@ Module Type Functor (C D : Category) :=
 
 (** ** Additional properties *)
 
-Module Type Faithful (C D : CategoryDefinition) (F : FunctorDefinition C D).
+Module Type Faithful (C D : Quiver) (F : QuiverHomomorphism C D).
 
   Axiom faithful :
     forall {A B} (f g : C.m A B), F.fmap f = F.fmap g -> f = g.
 
 End Faithful.
 
-Module Type Full (C D : CategoryDefinition) (F : FunctorDefinition C D).
+Module Type Full (C D : Quiver) (F : QuiverHomomorphism C D).
 
   Axiom full :
     forall {A B} (d : D.m (F.omap A) (F.omap B)),
@@ -143,7 +159,7 @@ Module BifunctorTheory (C1 C2 D : Category) (F : BifunctorDefinition C1 C2 D).
     Proof.
       apply F.fmap_compose.
     Qed.
-      
+
     Include FunctorTheory PC D.
   End PF.
 
