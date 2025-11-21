@@ -357,7 +357,7 @@ End Two.
 
 (** ** Category of types and functions *)
 
-Module SET.
+Module SET <: Category.
 
   (** Objects and morphisms *)
 
@@ -392,6 +392,7 @@ Module SET.
     reflexivity.
   Qed.
 
+  Include CategoryTheory.
 End SET.
 
 (** ** Product category *)
