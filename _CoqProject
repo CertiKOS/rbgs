@@ -35,4 +35,5 @@ interfaces/MonoidalCategory.v
 interfaces/ConcreteCategory.v
 interfaces/FunctorCategory.v
 interfaces/Limits.v
+interfaces/Adjunctions.v
 interfaces/Monads.v
