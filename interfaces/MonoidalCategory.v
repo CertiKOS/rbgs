@@ -862,6 +862,57 @@ Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefini
        autorewrite with copair); auto.
   Qed.
 
+
+  (* Monoidal + Cocartesian interaction *)
+  Lemma fmap_i1 {A1 A2 B1 B2} (f : C.m A1 B1) (g : C.m A2 B2) :
+      (f + g) @ i1 = i1 @ f.
+  Proof.
+      unfold fmap. apply copair_i1.
+  Qed.
+
+  Lemma fmap_i2 {A1 A2 B1 B2} (f : C.m A1 B1) (g : C.m A2 B2) :
+      (f + g) @ i2 = i2 @ g.
+  Proof.
+      unfold fmap. apply copair_i2.
+  Qed.
+
+  (* assoc lemmas *)
+  Lemma assoc_i1 (A B C: t) :
+    assoc A B C @ i1 = i1 @ i1.
+  Proof.
+      unfold assoc. cbn [fw].
+      apply copair_i1.
+  Qed.
+
+  Lemma assoc_i2_i1 (A B C: t) :
+      assoc A B C @ i2 @ i1 = i1 @ i2.
+  Proof.
+    Check (assoc A B C @ i2 @ i1).
+      unfold assoc. cbn [C.fw].
+      rewrite copair_i2_rewrite.
+      apply copair_i1.
+  Qed.
+
+  Lemma assoc_i2_i2 (A B C: t) :
+      assoc A B C @ i2 @ i2 = i2.
+  Proof.
+      unfold assoc. cbn [C.fw].
+      rewrite copair_i2_rewrite.
+      apply copair_i2.
+  Qed.
+
+  (* swap lemmas *)
+  Lemma swap_i1 (A B: t) :
+      swap A B @ i1 = i2.
+  Proof.
+      unfold swap. apply copair_i1.
+  Qed.
+
+  Lemma swap_i2 (A B: t) :
+      swap A B @ i2 = i1.
+  Proof.
+      unfold swap. apply copair_i2.
+  Qed.
 End CocartesianStructureTheory.
 
 (** Once we add in the definitions provided by [BifunctorTheory], we
