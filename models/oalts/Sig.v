@@ -275,3 +275,26 @@ Module SigCocartesian (C : CocartesianCategory) <: CocartesianCategory.
 
     Include CocartesianTheory Cat.
 End SigCocartesian.
+
+Module SigToSet (C : CocartesianCategory).
+    Module S := Sig C.
+    Module F <: FunctorDefinition S C.
+    Import C.
+    Open Scope obj_scope.
+
+    Definition omap (X : S.t) : C.t := (fst X) + (snd X).
+
+    Definition fmap {A B : S.t} (f : S.m A B) : C.m (omap A) (omap B) :=
+        f.
+
+    Proposition fmap_id : forall A, fmap (S.id A) = C.id (omap A).
+    Proof. reflexivity. Qed.
+
+    (** Preservation of composition *)
+    Proposition fmap_compose :
+        forall {A B C} (g : S.m B C) (f : S.m A B),
+        fmap (S.compose g f) = (fmap g) @ (fmap f).
+    Proof. reflexivity. Qed.
+
+    End F.
+End SigToSet.
