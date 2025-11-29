@@ -2,13 +2,13 @@ Require Import interfaces.Category.
 Require Import interfaces.Functor.
 Require Import interfaces.MonoidalCategory.
 
-Module Sig (C : CocartesianCategory) <: Category.
+Module SigDefinition (C : CocartesianCategory) <: Category.
     Import C.
     Open Scope obj_scope.
 
     Definition t : Type := C.t * C.t.
-    Definition m : t -> t -> Type := 
-        fun A => fun B => 
+    Definition m : t -> t -> Type :=
+        fun A => fun B =>
             C.m ((fst A) + (snd A)) ((fst B) + (snd B)).
 
     Definition id : forall A, m A A :=
@@ -36,41 +36,44 @@ Module Sig (C : CocartesianCategory) <: Category.
     Qed.
 
     Include CategoryTheory.
+End SigDefinition.
+
+Module Type Sig (C : CocartesianCategory).
+    Include (SigDefinition C).
 End Sig.
 
-Module SigCocartesian (C : CocartesianCategory) <: CocartesianCategory.
-    Module Cat := Sig C.
-    Include Cat.
+Module SigCocartesian (C : CocartesianCategory) (S : Sig C) <: CocartesianCategory.
+    Include S.
     Import C.
     Open Scope obj_scope.
 
-    Module Plus <: CocartesianStructure Cat.
-        Import Cat.
+    Module Plus <: CocartesianStructure S.
+        Import S.
         Local Infix "@" := C.compose (at level 45, right associativity) : hom_scope.
 
         (** Initial object: (0, 0) *)
-        Definition unit : Cat.t := (C.Plus.unit, C.Plus.unit).
+        Definition unit : S.t := (C.Plus.unit, C.Plus.unit).
 
-        Definition ini : forall X, Cat.m unit X :=
+        Definition ini : forall X, S.m unit X :=
             fun X => C.Plus.copair (C.Plus.ini _) (C.Plus.ini _).
 
-        Proposition ini_uni : forall {X} (x y : Cat.m unit X), x = y.
+        Proposition ini_uni : forall {X} (x y : S.m unit X), x = y.
         Proof.
             intros.
-            unfold Cat.m, unit. simpl.
+            unfold S.m, unit. simpl.
             rewrite <- (C.Plus.copair_iota_compose x).
             rewrite <- (C.Plus.copair_iota_compose y).
             f_equal; apply C.Plus.ini_uni.
         Qed.
 
         (** Binary coproducts: (A1, A2) + (B1, B2) = (A1 + B1, A2 + B2) *)
-        Definition omap (A B : Cat.t) : Cat.t :=
+        Definition omap (A B : S.t) : S.t :=
             (C.Plus.omap (fst A) (fst B), C.Plus.omap (snd A) (snd B)).
 
-        Definition i1 : forall {A B : Cat.t}, Cat.m A (omap A B) :=
+        Definition i1 : forall {A B : S.t}, S.m A (omap A B) :=
             fun A B => C.Plus.i1 + C.Plus.i1.
 
-        Definition i2 : forall {A B : Cat.t}, Cat.m B (omap A B) :=
+        Definition i2 : forall {A B : S.t}, S.m B (omap A B) :=
             fun A B => C.Plus.i2 + C.Plus.i2.
 
         Definition interchange (A1 B1 A2 B2 : C.t) : C.iso ((A1 + B1) + (A2 + B2)) ((A1 + A2) + (B1 + B2)) :=
@@ -232,12 +235,12 @@ Module SigCocartesian (C : CocartesianCategory) <: CocartesianCategory.
             apply interchange_i2.
         Qed.
 
-        Definition copair : forall {X A B : Cat.t}, Cat.m A X -> Cat.m B X -> Cat.m (omap A B) X :=
+        Definition copair : forall {X A B : S.t}, S.m A X -> S.m B X -> S.m (omap A B) X :=
             fun X A B f g =>
                 C.Plus.copair f g @ interchange (fst A) (fst B) (snd A) (snd B).
 
-        Proposition copair_i1 : forall {X A B} (f : Cat.m A X) (g : Cat.m B X),
-            Cat.compose (copair f g) i1 = f.
+        Proposition copair_i1 : forall {X A B} (f : S.m A X) (g : S.m B X),
+            S.compose (copair f g) i1 = f.
         Proof.
             intros. unfold compose, copair, i1.
             rewrite C.compose_assoc.
@@ -245,8 +248,8 @@ Module SigCocartesian (C : CocartesianCategory) <: CocartesianCategory.
             apply C.Plus.copair_i1.
         Qed.
 
-        Proposition copair_i2 : forall {X A B} (f : Cat.m A X) (g : Cat.m B X),
-            Cat.compose (copair f g) i2 = g.
+        Proposition copair_i2 : forall {X A B} (f : S.m A X) (g : S.m B X),
+            S.compose (copair f g) i2 = g.
         Proof.
             intros. unfold compose, copair, i2.
             rewrite C.compose_assoc.
@@ -255,7 +258,7 @@ Module SigCocartesian (C : CocartesianCategory) <: CocartesianCategory.
         Qed.
 
         Proposition copair_iota_compose : forall {X A B} x,
-            @copair X A B (Cat.compose x i1) (Cat.compose x i2) = x.
+            @copair X A B (S.compose x i1) (S.compose x i2) = x.
         Proof.
             intros. unfold compose, copair, i1, i2.
             rewrite <- C.Plus.copair_compose.
@@ -267,18 +270,15 @@ Module SigCocartesian (C : CocartesianCategory) <: CocartesianCategory.
             reflexivity.
         Qed.
 
-        (** Bifunctor structure - from CocartesianStructureTheory *)
-        Include CocartesianStructureTheory Cat.
-        Include BifunctorTheory Cat Cat Cat.
-        Include SymmetricMonoidalStructureTheory Cat.
+        Include CocartesianStructureTheory S.
+        Include BifunctorTheory S S S.
+        Include SymmetricMonoidalStructureTheory S.
     End Plus.
 
-    Include CocartesianTheory Cat.
+    Include CocartesianTheory S.
 End SigCocartesian.
 
-Module SigToSet (C : CocartesianCategory).
-    Module S := Sig C.
-    Module F <: FunctorDefinition S C.
+Module SigToSet (C : CocartesianCategory) (S : Sig C) <: FaithfulFunctor S C.
     Import C.
     Open Scope obj_scope.
 
@@ -290,11 +290,14 @@ Module SigToSet (C : CocartesianCategory).
     Proposition fmap_id : forall A, fmap (S.id A) = C.id (omap A).
     Proof. reflexivity. Qed.
 
-    (** Preservation of composition *)
     Proposition fmap_compose :
         forall {A B C} (g : S.m B C) (f : S.m A B),
         fmap (S.compose g f) = (fmap g) @ (fmap f).
     Proof. reflexivity. Qed.
 
-    End F.
+    Proposition faithful : 
+        forall {A B} (f g : S.m A B), fmap f = fmap g -> f = g.
+    Proof. intros; assumption. Qed.
+
+    Include (FunctorTheory S C).
 End SigToSet.
