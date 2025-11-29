@@ -2,19 +2,20 @@ Require Import interfaces.Monads.
 Require Import interfaces.MonoidalCategory.
 Require Import interfaces.Limits.
 
-(* This defines the Lift Monad X |-> 1 + X on any cocartesian category 
+(* This defines the Lift Monad X |-> 1 + X on any cocartesian category
    with terminals *)
 
 Module LiftMonad (C : CocartesianCategory) (T : Terminals C) <: Monad C.
   Import C.
   Open Scope obj_scope.
-  Definition omap := fun X => T.unit + X. 
+
+  Definition omap := fun X => T.unit + X.
 
   Definition fmap {A B} (f : m A B) : m (omap A) (omap B) := (id T.unit) + f.
 
   Proposition fmap_id :
     forall A, fmap (C.id A) = C.id (omap A).
-  Proof. 
+  Proof.
     unfold fmap. intros A. rewrite Plus.fmap_id. reflexivity.
   Qed.
 
@@ -23,11 +24,11 @@ Module LiftMonad (C : CocartesianCategory) (T : Terminals C) <: Monad C.
       fmap (C.compose g f) = C.compose (fmap g) (fmap f).
   Proof.
     intros A B C. intros g f. unfold fmap.
-    pose (Plus.fmap_compose (id T.unit) g (id T.unit) f). 
+    pose (Plus.fmap_compose (id T.unit) g (id T.unit) f).
     rewrite compose_id_left in e. exact e.
   Qed.
-  
-  Definition eta : forall X, C.m X (omap X) := 
+
+  Definition eta : forall X, C.m X (omap X) :=
     fun x => Plus.i2.
   Definition mu : forall X, C.m (omap (omap X)) (omap X) :=
     fun X => Plus.fmap (T.ter _) (id _) @ (Plus.assoc _ _ _).
@@ -44,15 +45,15 @@ Module LiftMonad (C : CocartesianCategory) (T : Terminals C) <: Monad C.
     forall {X Y} (f : C.m X Y),
       C.compose (mu Y) (fmap (fmap f)) = C.compose (fmap f) (mu X).
   Proof.
-    intros. unfold mu, fmap. rewrite compose_assoc. 
+    intros. unfold mu, fmap. rewrite compose_assoc.
     pose (Plus.assoc_nat (id T.unit) (id T.unit) f).
-    symmetry in e. rewrite e at 1. 
+    symmetry in e. rewrite e at 1.
     rewrite <- compose_assoc. rewrite <- compose_assoc. f_equal. clear e.
     pose (Plus.fmap_compose (T.ter (T.unit + T.unit)) (id Y) (id T.unit + id T.unit) f).
     symmetry in e. rewrite e at 1. clear e.
     rewrite compose_id_left. rewrite Plus.fmap_id. rewrite compose_id_right.
     replace f with (f @ id X) at 1 by (apply compose_id_right).
-    replace (T.ter (T.unit + T.unit)) with 
+    replace (T.ter (T.unit + T.unit)) with
       (id T.unit @ T.ter (T.unit + T.unit)) at 1 by (apply compose_id_left).
     rewrite Plus.fmap_compose. reflexivity.
   Qed.
@@ -82,8 +83,8 @@ Module LiftMonad (C : CocartesianCategory) (T : Terminals C) <: Monad C.
     - rewrite compose_id_left. rewrite compose_id_right. symmetry.
       rewrite (T.ter_uni (T.ter _ @ Plus.i1) (id T.unit)).
       rewrite compose_id_right. reflexivity.
-    - rewrite compose_id_left. 
-      rewrite compose_id_right. 
+    - rewrite compose_id_left.
+      rewrite compose_id_right.
       reflexivity.
   Qed.
 
