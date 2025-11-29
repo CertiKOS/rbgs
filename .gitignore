@@ -16,3 +16,4 @@ Makefile.conf
 *.toc
 *.vrb
 *~
+/html
