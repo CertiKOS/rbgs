@@ -17,4 +17,3 @@ Makefile.conf
 *.vrb
 *~
 html/
-.DS_Store
