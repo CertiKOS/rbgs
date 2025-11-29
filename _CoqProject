@@ -35,6 +35,7 @@ interfaces/MonoidalCategory.v
 interfaces/ConcreteCategory.v
 interfaces/FunctorCategory.v
 interfaces/Limits.v
+interfaces/Pullbacks.v
 interfaces/Adjunctions.v
 interfaces/Monads.v
 interfaces/LiftMonad.v
