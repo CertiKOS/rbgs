@@ -15,18 +15,18 @@ Module Type TerminalsDefinition (C : CategoryDefinition).
   Axiom ter_uni : forall {X} (x y : C.m X unit), x = y.
 End TerminalsDefinition.
 
-Module Type Terminals (C : CategoryDefinition) := 
+Module Type Terminals (C : CategoryDefinition) :=
   TerminalsDefinition C.
 
-Module TerminalFromCartesian (C : CartesianCategory) <: Terminals C.
-  Import C. 
+Module TerminalsFromCartesian (C : CartesianCategory) <: Terminals C.
+  Import C.
 
   Definition unit := C.Prod.unit.
   Definition ter := C.Prod.ter.
 
   Proposition ter_uni : forall {X} (x y : C.m X unit), x = y.
   Proof. unfold unit. intros X. exact C.Prod.ter_uni. Qed.
-End TerminalFromCartesian.
+End TerminalsFromCartesian.
 
 (** * Products *)
 
@@ -111,7 +111,7 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
     P.pi false.
 
   Definition pair {X A B} (f : C.m X A) (g : C.m X B) : C.m X (omap A B) :=
-    P.tuple 
+    P.tuple
       (fun i:bool => if i return C.m X (if i then A else B) then f else g).
 
   Proposition p1_pair {X A B} (f : C.m X A) (g : C.m X B) :
@@ -225,7 +225,6 @@ End CoproductsTheory.
 Module Type Coproducts (C : CategoryDefinition) :=
   CoproductsDefinition C <+
   CoproductsTheory C.
-
 
 (** * Limits in general *)
 
