@@ -16,3 +16,5 @@ Makefile.conf
 *.toc
 *.vrb
 *~
+html/
+.DS_Store
