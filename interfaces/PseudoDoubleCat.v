@@ -244,7 +244,12 @@ End DblCategoryDefinition.
 Module DblCategoryTheory (V : CategoryDefinition) (P : DblCategoryDefinition V).
   Import P.
 
-  (** These are just sanity checks *)
+  (** These are just sanity checks (they are official axioms though)*)
+  Axiom hid_src :
+    forall {a : V.t}, src (hid a) = a.
+  Axiom hid_tgt :
+    forall {a : V.t}, tgt (hid a) = a.
+
   Axiom hcomp_src :
     forall {a b c : V.t}, forall {B : b -o-> c} {A : a -o-> b},
       src (B ⊙ A) = src A.
