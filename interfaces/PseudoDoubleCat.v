@@ -79,6 +79,7 @@ Module Type DblVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefinit
   Definition hcell_to_harr {s t : V.t} (hc: s -o-> t) : harr :=
     mk_harrow s t hc.
   Coercion hcell_to_harr : hcell >-> harr.
+
   (** The definition of [hcell] induces the underlying
     left frame [src] and right frame [tgt] functor object maps *)
   Definition src {s t : V.t} (hc : s -o-> t) : V.t := s.
@@ -157,6 +158,26 @@ Module Type DblTgtFunctorDef (V : CategoryDefinition)
 
 End DblTgtFunctorDef.
 
+Module Type DblIdFunctorDef (V : CategoryDefinition)
+  (H : DblVerticalCatDefinition V) <: FunctorDefinition V H.
+  Import H.
+
+  Parameter hid :
+    forall (a : V.t), a -o-> a.
+
+  Definition omap : V.t -> H.t :=
+    fun a => hid a.
+  Parameter fmap : forall {A B}, V.m A B -> H.m (omap A) (omap B).
+
+  Axiom fmap_id :
+    forall A, fmap (V.id A) = H.id (omap A).
+
+  Axiom fmap_compose :
+    forall {A B C} (g : V.m B C) (f : V.m A B),
+      fmap (V.compose g f) = H.compose (fmap g) (fmap f).
+End DblIdFunctorDef.
+
+
 Module Type DblCategoryDefinition (V : CategoryDefinition).
 
 Declare Module Vert : DblVerticalCatDefinition V.
@@ -165,11 +186,69 @@ Declare Module Vert : DblVerticalCatDefinition V.
 
   Declare Module Src : DblSrcFunctorDef V Vert.
   Declare Module Tgt : DblTgtFunctorDef V Vert.
-  Declare Module HId : FunctorDefinition Vert V.
+  Declare Module Hid : DblIdFunctorDef V Vert.
 
+  Definition hid (A : V.t) := Hid.hid A.
+
+  Axiom hid_src : forall A, src (hid A) = A.
+  Axiom hid_tgt : forall A, tgt (hid A) = A.
+
+  Parameter hcomp :
+    forall {a b c : V.t},
+      (b -o-> c) -> (a -o-> b) -> (a -o-> c).
+  Infix "⊙" := hcomp (at level 40, left associativity) : type_scope.
+
+  (* need to add hcomp_fmap *)
+
+  (* below still under work *)
+
+  Include CategoryTheory.
+
+  (** *** Structural isomorphisms *)
+  Parameter assoc : forall A B C, C.iso (hcomp A (omap B C)) (omap (omap A B) C).
+  Parameter lunit : forall A, C.iso (omap unit A) A.
+  Parameter runit : forall A, C.iso (omap A unit) A.
+
+  (** *** Naturality properties *)
+
+  Axiom assoc_nat :
+    forall {A1 B1 C1 A2 B2 C2: C.t} (f: C.m A1 A2) (g: C.m B1 B2) (h: C.m C1 C2),
+      fmap (fmap f g) h @ assoc A1 B1 C1 = assoc A2 B2 C2 @ fmap f (fmap g h).
+
+  Axiom lunit_nat :
+    forall {A1 A2 : C.t} (f : C.m A1 A2),
+      f @ lunit A1 = lunit A2 @ fmap (C.id unit) f.
+
+  Axiom runit_nat :
+    forall {A1 A2 : C.t} (f : C.m A1 A2),
+      f @ runit A1 = runit A2 @ fmap f (C.id unit).
+
+  (** *** Pentagon identity *)
+
+  Axiom assoc_coh :
+    forall A B C D : C.t,
+      fmap (assoc A B C) (C.id D) @
+        assoc A (omap B C) D @
+        fmap (C.id A) (assoc B C D) =
+      assoc (omap A B) C D @
+        assoc A B (omap C D).
+
+  (** *** Triangle identity *)
+
+  Axiom unit_coh :
+    forall A B : C.t,
+      fmap (runit A) (C.id B) @ assoc A unit B =
+      fmap (C.id A) (lunit B).
 End DblCategoryDefinition.
 
 Module DblCategoryTheory (V : CategoryDefinition) (P : DblCategoryDefinition V).
   Import P.
 
+  (** These are just sanity checks *)
+  Axiom hcomp_src :
+    forall {a b c : V.t}, forall {B : b -o-> c} {A : a -o-> b},
+      src (B ⊙ A) = src A.
+  Axiom hcomp_tgt :
+    forall {a b c : V.t}, forall {B : b -o-> c} {A : a -o-> b},
+      tgt (B ⊙ A) = tgt A.
 End DblCategoryTheory.
