@@ -3,33 +3,28 @@ Require Import interfaces.Functor.
 
 Require Import interfaces.Pullbacks.
 
-Require Import Coq.Logic.JMeq.
 Require Import ProofIrrelevance.
 
-(** * Span Arrows *)
-
-(** This defines the category of Span Arrows, which makes for
-  the vertical arrows in the double category of spans, or the 2-cells in
-  the bicategory of spans. *)
-
-Module SpanArrowCategory (C : CategoryDefinition) <: Category.
-  Import C.
-
-(**
+Module SpansDefinition (C : CategoryDefinition).
+  (**
   A span is just a diagram of the form:
 
   <<[src] <--[src_leg]-- [vtx] --[src_tgt]--> [tgt]>>
 
   These are the objects of the category of span arrows.
 *)
-  Record span :=
+  Record span (src tgt : C.t) :=
     mk_span {
       vtx : C.t;
-      src: C.t;
-      tgt: C.t;
       src_leg : C.m vtx src;
       tgt_leg : C.m vtx tgt;
     }.
+  Arguments vtx {_ _}.
+  Arguments src_leg {_ _}.
+  Arguments tgt_leg {_ _}.
+
+  Definition src {src tgt : C.t} (A : span src tgt) := src.
+  Definition tgt {src tgt : C.t} (A : span src tgt) := tgt.
 
 (**
   The morphisms consist of the morphisms in C completing the squares between two
@@ -44,7 +39,8 @@ Module SpanArrowCategory (C : CategoryDefinition) <: Category.
 >>
   And compose by stacking diagrams vertically.
 *)
-  Record span_mor {A B : span} :=
+  Record span_mor {srcA tgtA srcB tgtB : C.t}
+    {A : span srcA tgtA} {B : span srcB tgtB} :=
     mk_span_mor {
       vtx_mor : C.m (vtx A) (vtx B);
       src_mor : C.m (src A) (src B);
@@ -55,17 +51,43 @@ Module SpanArrowCategory (C : CategoryDefinition) <: Category.
       mor_tgt_leg_eq :
         C.compose (tgt_leg B) vtx_mor = C.compose tgt_mor (tgt_leg A);
     }.
-  Arguments span_mor : clear implicits.
+  Arguments span_mor {_ _ _ _} (A B).
 
-  Proposition meq {A B : span} (f g : span_mor A B) :
+  Proposition  meq {srcA tgtA srcB tgtB : C.t}
+    {A : span srcA tgtA} {B : span srcB tgtB} (f g : span_mor A B) :
     vtx_mor f = vtx_mor g -> src_mor f = src_mor g -> tgt_mor f = tgt_mor g ->
       f = g.
   Proof.
     intros. destruct f, g; cbn in *; subst. f_equal; apply proof_irrelevance.
   Qed.
+End SpansDefinition.
 
-  Definition t : Type := span.
-  Definition m : t -> t -> Type := span_mor.
+Module Type Spans (C : CategoryDefinition).
+  Include (SpansDefinition C).
+End Spans.
+
+(** * Span Arrows *)
+
+(** This defines the category of Span Arrows, which makes for
+  the vertical arrows in the double category of spans, or the 2-cells in
+  the bicategory of spans (when src_mor and tgt_mor are identities) *)
+
+Module SpanArrowCategory (C : CategoryDefinition) (S : Spans C)  <: Category.
+  Import C.
+  Import S.
+
+  Record span' :=
+  mk_span' {
+    src' : C.t;
+    tgt' : C.t;
+    carrier :> span src' tgt';
+  }.
+  Arguments mk_span' {_ _} (carrier).
+  Coercion mk_span' : span >-> span'.
+
+  Definition t : Type := span'.
+  Definition m : t -> t -> Type :=
+    fun A B => span_mor A B.
 
   Program Definition id : forall A, m A A :=
     fun A =>
@@ -127,15 +149,22 @@ Module SpanArrowCategory (C : CategoryDefinition) <: Category.
 
 End SpanArrowCategory.
 
-Module Type SpanArrowCategoryInstance (C : CategoryDefinition).
-  Include (SpanArrowCategory C).
+Module Type SpanArrowCategoryInstance (C : CategoryDefinition) (S : Spans C).
+  Include (SpanArrowCategory C S).
 End SpanArrowCategoryInstance.
 
-Module Src (C : Category) (S : SpanArrowCategoryInstance C) <: Functor S C.
+Module SpanNotations (C : CategoryDefinition) (Sp : Spans C)
+  (S : SpanArrowCategoryInstance C Sp).
+  Coercion S.mk_span' : Sp.span >-> S.span'.
+End SpanNotations.
 
-  Definition omap : S.t -> C.t := fun A => S.src A.
+Module Src (C : Category) (Sp : Spans C)
+  (S : SpanArrowCategoryInstance C Sp) <: Functor S C.
+  Import Sp.
+
+  Definition omap : S.t -> C.t := fun A => S.src' A.
   Definition fmap : forall {A B}, S.m A B -> C.m (omap A) (omap B) :=
-    fun _ _ => fun f => S.src_mor f.
+    fun _ _ => fun f => src_mor f.
 
   Proposition fmap_id :
     forall A, fmap (S.id A) = C.id (omap A).
@@ -153,11 +182,13 @@ Module Src (C : Category) (S : SpanArrowCategoryInstance C) <: Functor S C.
   Include (FunctorTheory S C).
 End Src.
 
-Module Tgt (C : Category) (S : SpanArrowCategoryInstance C) <: Functor S C.
+Module Tgt (C : Category) (Sp : Spans C)
+  (S : SpanArrowCategoryInstance C Sp) <: Functor S C.
+  Import Sp.
 
-  Definition omap : S.t -> C.t := fun A => S.tgt A.
+  Definition omap : S.t -> C.t := fun A => S.tgt' A.
   Definition fmap : forall {A B}, S.m A B -> C.m (omap A) (omap B) :=
-    fun _ _ => fun f => S.tgt_mor f.
+    fun _ _ => fun f => Sp.tgt_mor f.
 
   Proposition fmap_id :
     forall A, fmap (S.id A) = C.id (omap A).
@@ -175,22 +206,21 @@ Module Tgt (C : Category) (S : SpanArrowCategoryInstance C) <: Functor S C.
   Include (FunctorTheory S C).
 End Tgt.
 
-Module IdSpan (C : Category) (S : SpanArrowCategoryInstance C) : Functor C S.
+Module IdSpan (C : Category) (Sp : Spans C)
+  (S : SpanArrowCategoryInstance C Sp) <: Functor C S.
+  Include (SpanNotations C Sp S).
+  Import Sp.
+
   Program Definition omap : C.t -> S.t :=
-    fun A =>
-    {|
-      S.vtx := A;
-      S.src := A;
-      S.tgt := A;
-      S.src_leg := C.id A;
-      S.tgt_leg := C.id A;
-    |}.
+  fun A =>
+    {| vtx := A; src_leg := C.id A; tgt_leg := C.id A |}.
+
   Program Definition fmap : forall {A B}, C.m A B -> S.m (omap A) (omap B) :=
     fun A B => fun f =>
     {|
-      S.vtx_mor := f;
-      S.src_mor := f;
-      S.tgt_mor := f;
+      vtx_mor := f;
+      src_mor := f;
+      tgt_mor := f;
     |}.
   Next Obligation.
     rewrite C.compose_id_left, C.compose_id_right; reflexivity.
@@ -202,57 +232,23 @@ Module IdSpan (C : Category) (S : SpanArrowCategoryInstance C) : Functor C S.
   Proposition fmap_id :
     forall A, fmap (C.id A) = S.id (omap A).
   Proof.
-    intros; unfold fmap; cbn; apply S.meq; cbn; reflexivity.
+    intros; unfold fmap; cbn; apply meq; cbn; reflexivity.
   Qed.
 
   Proposition fmap_compose :
     forall {A B C} (g : C.m B C) (f : C.m A B),
       fmap (C.compose g f) = S.compose (fmap g) (fmap f).
   Proof.
-    intros; unfold fmap; cbn; apply S.meq; cbn; reflexivity.
+    intros; unfold fmap; cbn; apply meq; cbn; reflexivity.
   Qed.
 
   Include (FunctorTheory C S).
 End IdSpan.
 
-Module Type SrcInstance (C : Category) (S : SpanArrowCategoryInstance C).
-  Include (Src C S).
+Module Type SrcInstance (C : Category) (Sp : Spans C) (S : SpanArrowCategoryInstance C Sp).
+  Include (Src C Sp S).
 End SrcInstance.
 
-Module Type TgtInstance (C : Category) (S : SpanArrowCategoryInstance C).
-  Include (Tgt C S).
+Module Type TgtInstance (C : Category) (Sp : Spans C) (S : SpanArrowCategoryInstance C Sp).
+  Include (Tgt C Sp S).
 End TgtInstance.
-
-Module SpanComp (C : Category) (PB : Pullbacks C) (S : SpanArrowCategoryInstance C)
-  (SF : SrcInstance C S) (TF : TgtInstance C S) (SP : FunctorPullbackCatInstance C S S TF SF) <:
-  Functor SP S.
-
-  Program Definition omap : SP.t -> S.t :=
-    fun pb_span =>
-    {|
-      S.vtx := PB.pb_prod (S.tgt_leg (SP.fst pb_span)) (S.src_leg (SP.snd pb_span));
-      S.src := S.src (SP.fst pb_span);
-      S.tgt := S.tgt (SP.snd pb_span);
-      S.src_leg :=
-        C.compose (S.src_leg (SP.fst pb_span))
-        (PB.pb_p1 (S.tgt_leg (SP.fst pb_span)) (S.src_leg (SP.snd pb_span)));
-      S.tgt_leg :=
-        C.compose (S.tgt_leg (SP.snd pb_span))
-        (PB.pb_p2 (S.tgt_leg (SP.fst pb_span)) (S.src_leg (SP.snd pb_span)));
-    |}.
-  Next Obligation.
-    destruct pb_span. simpl. unfold SF.omap, TF.omap in pb_eq_fst.
-    rewrite pb_eq_fst. reflexivity.
-  Defined.
-
-  Program Definition fmap : forall {A B}, SP.m A B -> S.m (omap A) (omap B) :=
-    fun A B => fun pb_span_mor =>
-      {|
-        S.vtx_mor := PB.pb_pair (f := S.tgt_leg (SP.fst B)) (g := S.src_leg (SP.snd B))
-        (ll := C.compose (S.vtx_mor (SP.fst_mor pb_span_mor))
-          (PB.pb_p1 (S.tgt_leg (SP.fst A)) (S.src_leg (SP.snd A))))
-        (rl := C.compose (S.vtx_mor (SP.snd_mor pb_span_mor))
-          (PB.pb_p2 (S.tgt_leg (SP.fst A)) (S.src_leg (SP.snd A))));
-        S.src_mor := S.src_mor (SP.fst_mor pb_span_mor);
-        S.tgt_mor := S.tgt_mor (SP.snd_mor pb_span_mor);
-      |}.
