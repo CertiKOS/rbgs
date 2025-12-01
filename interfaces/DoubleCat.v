@@ -1,7 +1,5 @@
 Require Import interfaces.Category.
 Require Import interfaces.Functor.
-Require Import interfaces.Pullbacks.
-
 
 (** * Double Categories *)
 
