@@ -81,11 +81,49 @@ Module Type PullbacksDefinition (C : CategoryDefinition).
         forall {p : C.m X (pb_prod f g)},
           C.compose (pb_p1 f g) p = ll ->
           C.compose (pb_p2 f g) p = rl ->
-          p = (pb_pair sq).
+          pb_pair sq = p.
 End PullbacksDefinition.
 
+Module PullbacksTheory (C : CategoryDefinition) (P : PullbacksDefinition C).
+  Import P.
+
+  (** Two morphisms into a pullback are equal if they have the same projections. *)
+  (** In other words, projections out of a pullback are jointly monic. *)
+  Proposition pb_mor_eq : forall {A B C} {f : C.m A C} {g : C.m B C}
+    {X} (h k : C.m X (pb_prod f g)),
+    C.compose (pb_p1 f g) h = C.compose (pb_p1 f g) k ->
+    C.compose (pb_p2 f g) h = C.compose (pb_p2 f g) k ->
+    h = k.
+  Proof.
+    intros A B C0 f g X h k Hp1 Hp2.
+    assert (cone : pb_cone f g (C.compose (pb_p1 f g) h) (C.compose (pb_p2 f g) h)).
+    { unfold pb_cone. rewrite <- !C.compose_assoc. f_equal. apply pb_square. }
+    transitivity (pb_pair cone).
+    - symmetry. apply pb_pair_uni; reflexivity.
+    - apply pb_pair_uni; symmetry; assumption.
+  Qed.
+
+  (** The canonical pairing of projections is the identity. *)
+  Lemma pb_pair_id : forall {A B C} (f : C.m A C) (g : C.m B C),
+    pb_pair (pb_square f g) = C.id (pb_prod f g).
+  Proof.
+    intros. apply pb_pair_uni; rewrite C.compose_id_right; reflexivity.
+  Qed.
+
+End PullbacksTheory.
+
 Module Type Pullbacks (C : CategoryDefinition) :=
-  PullbacksDefinition C.
+  PullbacksDefinition C <+ PullbacksTheory C.
+
+(** ** Category with pullbacks *)
+
+(** A category bundled with a pullback structure. *)
+
+Module Type CategoryWithPullbacks.
+  Declare Module C : Category.
+  Declare Module Pb : Pullbacks C.
+  Include C.
+End CategoryWithPullbacks.
 
 Module FunctorPullbackCat
   (C : CategoryDefinition) (CL : CategoryDefinition) (CR : CategoryDefinition)

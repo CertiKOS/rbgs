@@ -69,14 +69,14 @@ Module Type DoubleCellData (V : CategoryDefinition).
 
   (** A 2-cell [A =[f,g]=> B] fills a square:
 <<
-           A
-       sA -o-> tA
+            A
+       sA --o--> tA
        |       |
      f |   α   | g
        |       |
        v       v
-       sB -o-> tB
-           B
+       sB --o--> tB
+            B
 >>
   *)
 
@@ -127,13 +127,39 @@ Module Type DoubleCellData (V : CategoryDefinition).
 End DoubleCellData.
 
 
-(** ** Vertical category *)
+(** ** Double cell notations *)
 
-(** The category [Vert] has horizontal 1-cells as objects and 2-cells
-    as morphisms. Composition is vertical composition of 2-cells. *)
+(** Notation functor that sets up standard notations for double category cells.
+    Include this after providing DoubleCellData. *)
 
-Module Type DoubleVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefinition.
-  Include (DoubleCellData V).
+Module DoubleCellNotations (V : CategoryDefinition) (D : DoubleCellData V).
+  Import D.
+
+  Infix "-o->" := hcell (at level 90, right associativity) : type_scope.
+  Infix "~~>" := V.m (at level 90, right associativity) : type_scope.
+
+  Notation "A =[ f , g ]=> B" := (tcell A B f g)
+    (at level 70, f at next level, g at next level, no associativity).
+
+  Infix "⨀" := hcomp (at level 45, right associativity) : type_scope.
+
+  Declare Scope hom_scope.
+  Delimit Scope hom_scope with hom.
+  Bind Scope hom_scope with tcell.
+  Open Scope hom_scope.
+
+  Infix "⊙" := hcomp_fmap (at level 45, right associativity) : hom_scope.
+End DoubleCellNotations.
+
+
+(** ** Derived definitions *)
+
+(** Given cell data, derive the horizontal arrow packaging, category structure,
+    and coercions. These are always the same and should not be redefined. *)
+
+Module DoubleCellDerived (V : CategoryDefinition) (D : DoubleCellData V).
+  Import D.
+  Include (DoubleCellNotations V D).
 
   (** *** Objects: horizontal arrows *)
 
@@ -189,6 +215,46 @@ Module Type DoubleVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefi
   Definition compose : forall {A B C}, m B C -> m A B -> m A C :=
     fun A B C g f => mk_harr_mor _ _ _ _ (vcomp f g).
 
+  Notation "f ;; g" := (compose g f)
+    (at level 50, left associativity) : hom_scope.
+
+  (** *** Special cells and isocells *)
+
+  (** A special cell is a 2-cell with vertical 1-cells. *)
+
+  Definition scell {a b : V.t} (A B : a -o-> b) : Type :=
+    A =[V.id a, V.id b]=> B.
+
+  (** A special isocell is a special cell which is a isomorphism in [Vert] *)
+
+  Record sisocell {a b : V.t} (A B : a -o-> b) := mk_sisocell {
+    fw :> A =[V.id a, V.id b]=> B;
+    bw :> B =[V.id a, V.id b]=> A;
+    bw_fw : bw ;; fw = id B;
+    fw_bw : fw ;; bw = id A;
+  }.
+  Arguments mk_sisocell {a b A B}.
+  Arguments sisocell {a b} A B.
+  Arguments fw {a b A B}.
+  Arguments bw {a b A B}.
+  Arguments bw_fw {a b A B}.
+  Arguments fw_bw {a b A B}.
+
+  Definition sisocell_to_scell {a b : V.t} {A B : a -o-> b}
+    (s : sisocell A B) : scell A B := fw s.
+  Coercion sisocell_to_scell : sisocell >-> scell.
+
+End DoubleCellDerived.
+
+(** ** Vertical category *)
+
+(** The category [Vert] has horizontal 1-cells as objects and 2-cells
+    as morphisms. Composition is vertical composition of 2-cells. *)
+
+Module Type DoubleVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefinition.
+  Include (DoubleCellData V).
+  Include (DoubleCellDerived V).
+
   (** *** Axioms *)
 
   Axiom compose_id_left :
@@ -203,16 +269,12 @@ Module Type DoubleVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefi
 
 End DoubleVerticalCatDefinition.
 
-
 (** ** Definition *)
 
 Module Type DoubleCategoryDefinition.
   Declare Module V : CategoryDefinition.
   Declare Module Vert : DoubleVerticalCatDefinition V.
   Import Vert.
-
-  Notation "f ;; g" := (Vert.compose g f)
-    (at level 50, left associativity) : hom_scope.
 
   (** *** Functoriality of [hid] *)
 
@@ -242,32 +304,6 @@ Module Type DoubleCategoryDefinition.
       (α : A =[f,g]=> A') (α' : A' =[f',g']=> A'')
       (β : B =[g,h]=> B') (β' : B' =[g',h']=> B''),
       (vcomp α α') ⊙ (vcomp β β') = vcomp (α ⊙ β) (α' ⊙ β').
-
-  (** *** Special cells and isocells *)
-
-  (** A special cell is a 2-cell with vertical 1-cells. *)
-
-  Definition scell {a b : V.t} (A B : a -o-> b) : Type :=
-    A =[V.id a, V.id b]=> B.
-
-  (** A special isocell is a special cell which is a isomorphism in [Vert] *)
-
-  Record sisocell {a b : V.t} (A B : a -o-> b) := mk_sisocell {
-    fw :> A =[V.id a, V.id b]=> B;
-    bw :> B =[V.id a, V.id b]=> A;
-    bw_fw : bw ;; fw = Vert.id B;
-    fw_bw : fw ;; bw = Vert.id A;
-  }.
-  Arguments mk_sisocell {a b A B}.
-  Arguments sisocell {a b} A B.
-  Arguments fw {a b A B}.
-  Arguments bw {a b A B}.
-  Arguments bw_fw {a b A B}.
-  Arguments fw_bw {a b A B}.
-
-  Definition sisocell_to_scell {a b : V.t} {A B : a -o-> b}
-    (s : sisocell A B) : scell A B := fw s.
-  Coercion sisocell_to_scell : sisocell >-> scell.
 
   (** *** Structural isomorphisms *)
 

@@ -1,254 +1,436 @@
 Require Import interfaces.Category.
 Require Import interfaces.Functor.
-
 Require Import interfaces.Pullbacks.
+Require Import interfaces.DoubleCat.
 
+Require Import Program.Equality.
 Require Import ProofIrrelevance.
 
-Module SpansDefinition (C : CategoryDefinition).
-  (**
-  A span is just a diagram of the form:
+(** * Spans *)
 
-  <<[src] <--[src_leg]-- [vtx] --[src_tgt]--> [tgt]>>
+(** ** Span data *)
 
-  These are the objects of the category of span arrows.
-*)
-  Record span (src tgt : C.t) :=
-    mk_span {
-      vtx : C.t;
-      src_leg : C.m vtx src;
-      tgt_leg : C.m vtx tgt;
-    }.
-  Arguments vtx {_ _}.
-  Arguments src_leg {_ _}.
-  Arguments tgt_leg {_ _}.
+(** Basic span definitions that can be used independently of the
+    double category structure. *)
 
-  Definition src {src tgt : C.t} (A : span src tgt) := src.
-  Definition tgt {src tgt : C.t} (A : span src tgt) := tgt.
+Module SpanData (C : CategoryDefinition).
 
-(**
-  The morphisms consist of the morphisms in C completing the squares between two
-  spans:
-<<
-    A  <------ S ------> B
-    |          |         |
- [src_mor] [vtx_mor] [tgt_mor]
-    |          |         |
-    V          V         V
-    A' <------ T ------> B'
->>
-  And compose by stacking diagrams vertically.
-*)
-  Record span_mor {srcA tgtA srcB tgtB : C.t}
-    {A : span srcA tgtA} {B : span srcB tgtB} :=
-    mk_span_mor {
-      vtx_mor : C.m (vtx A) (vtx B);
-      src_mor : C.m (src A) (src B);
-      tgt_mor : C.m (tgt A) (tgt B);
-
-      mor_src_leg_eq :
-        C.compose (src_leg B) vtx_mor = C.compose src_mor (src_leg A);
-      mor_tgt_leg_eq :
-        C.compose (tgt_leg B) vtx_mor = C.compose tgt_mor (tgt_leg A);
-    }.
-  Arguments span_mor {_ _ _ _} (A B).
-
-  Proposition  meq {srcA tgtA srcB tgtB : C.t}
-    {A : span srcA tgtA} {B : span srcB tgtB} (f g : span_mor A B) :
-    vtx_mor f = vtx_mor g -> src_mor f = src_mor g -> tgt_mor f = tgt_mor g ->
-      f = g.
-  Proof.
-    intros. destruct f, g; cbn in *; subst. f_equal; apply proof_irrelevance.
-  Qed.
-End SpansDefinition.
-
-Module Type Spans (C : CategoryDefinition).
-  Include (SpansDefinition C).
-End Spans.
-
-(** * Span Arrows *)
-
-(** This defines the category of Span Arrows, which makes for
-  the vertical arrows in the double category of spans, or the 2-cells in
-  the bicategory of spans (when src_mor and tgt_mor are identities) *)
-
-Module SpanArrowCategory (C : CategoryDefinition) (S : Spans C)  <: Category.
-  Import C.
-  Import S.
-
-  Record span' :=
-  mk_span' {
-    src' : C.t;
-    tgt' : C.t;
-    carrier :> span src' tgt';
+  (** A span from [a] to [b] is a diagram [a <-- vtx --> b]. *)
+  Record span (a b : C.t) := mk_span {
+    vtx : C.t;
+    src_leg : C.m vtx a;
+    tgt_leg : C.m vtx b;
   }.
-  Arguments mk_span' {_ _} (carrier).
-  Coercion mk_span' : span >-> span'.
+  Arguments mk_span {a b}.
+  Arguments vtx {a b}.
+  Arguments src_leg {a b}.
+  Arguments tgt_leg {a b}.
 
-  Definition t : Type := span'.
-  Definition m : t -> t -> Type :=
-    fun A B => span_mor A B.
+  (** A morphism of spans with frame morphisms [f] and [g]:
+<<
+           A
+       a <----- vtx(A) -----> b
+       |          |           |
+     f |          | vtx_mor   | g
+       |          |           |
+       v          v           v
+       a' <---- vtx(B) -----> b'
+           B
+>>
+  *)
 
-  Program Definition id : forall A, m A A :=
-    fun A =>
+  Record span_mor {a b a' b' : C.t}
+    (A : span a b) (B : span a' b') (f : C.m a a') (g : C.m b b') :=
+  mk_span_mor {
+    vtx_mor :> C.m (vtx A) (vtx B);
+    src_leg_eq : C.compose (src_leg B) vtx_mor = C.compose f (src_leg A);
+    tgt_leg_eq : C.compose (tgt_leg B) vtx_mor = C.compose g (tgt_leg A);
+  }.
+  Arguments mk_span_mor {a b a' b' A B f g}.
+  Arguments vtx_mor {a b a' b' A B f g}.
+  Arguments src_leg_eq {a b a' b' A B f g}.
+  Arguments tgt_leg_eq {a b a' b' A B f g}.
+
+  (** Equality of span morphisms. *)
+
+  Proposition meq {a b a' b' : C.t}
+    {A : span a b} {B : span a' b'} {f : C.m a a'} {g : C.m b b'}
+    (α β : span_mor A B f g) :
+    vtx_mor α = vtx_mor β -> α = β.
+  Proof.
+    intros H. destruct α, β; cbn in *; subst.
+    f_equal; apply proof_irrelevance.
+  Qed.
+
+End SpanData.
+
+
+(** * Double Category of Spans *)
+
+(** The double category [Span(C)] has:
+    - Objects: objects of [C]
+    - Vertical 1-cells: morphisms of [C]
+    - Horizontal 1-cells: spans in [C]
+    - 2-cells: morphisms of spans
+
+    Horizontal composition is given by pullback. This requires [C] to
+    have pullbacks. *)
+
+Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition.
+
+  (** ** Base category *)
+
+  Import V.
+
+  (** ** Vertical category of spans *)
+
+  Module Vert <: DoubleVerticalCatDefinition V.
+
+    (** *** Span data *)
+
+    Include (SpanData C).
+
+    (** *** Cell data *)
+    Module CD <: DoubleCellData V.
+      Definition hcell : V.t -> V.t -> Type := span.
+
+      Infix "-o->" := hcell (at level 90, right associativity) : type_scope.
+      Infix "~~>" := V.m (at level 90, right associativity) : type_scope.
+
+      Definition tcell {sA tA sB tB : V.t}
+        (A : sA -o-> tA) (B : sB -o-> tB) (f : sA ~~> sB) (g : tA ~~> tB) : Type :=
+        span_mor A B f g.
+
+      Notation "A =[ f , g ]=> B" := (tcell A B f g)
+        (at level 70, f at next level, g at next level, no associativity).
+
+      (** *** Vertical composition *)
+
+      Program Definition vid {s t : V.t} (A : s -o-> t) : A =[V.id s, V.id t]=> A :=
+        {| vtx_mor := V.id (vtx A) |}.
+      Next Obligation.
+        rewrite V.compose_id_right, V.compose_id_left. reflexivity.
+      Qed.
+      Next Obligation.
+        rewrite V.compose_id_right, V.compose_id_left. reflexivity.
+      Qed.
+
+      Program Definition vcomp {sA tA sB tB sC tC : V.t}
+        {A : sA -o-> tA} {B : sB -o-> tB} {D : sC -o-> tC}
+        {sf : sA ~~> sB} {tf : tA ~~> tB} {sg : sB ~~> sC} {tg : tB ~~> tC}
+        (α : A =[sf, tf]=> B) (β : B =[sg, tg]=> D) :
+        A =[V.compose sg sf, V.compose tg tf]=> D :=
+        {| vtx_mor := V.compose (vtx_mor β) (vtx_mor α) |}.
+      Next Obligation.
+        rewrite <- V.compose_assoc, src_leg_eq.
+        rewrite V.compose_assoc, src_leg_eq.
+        rewrite V.compose_assoc. reflexivity.
+      Qed.
+      Next Obligation.
+        rewrite <- V.compose_assoc, tgt_leg_eq.
+        rewrite V.compose_assoc, tgt_leg_eq.
+        rewrite V.compose_assoc. reflexivity.
+      Qed.
+
+      (** *** Horizontal identity *)
+
+      Definition hid (a : V.t) : a -o-> a :=
+        {| vtx := a; src_leg := V.id a; tgt_leg := V.id a |}.
+
+      Program Definition hid_mor {a b : V.t} (f : a ~~> b) : hid a =[f, f]=> hid b :=
+        {| vtx_mor := f |}.
+      Next Obligation.
+        rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+      Qed.
+      Next Obligation.
+        rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+      Qed.
+
+    (** *** Horizontal composition *)
+
+    (** Horizontal composition of spans is given by pullback:
+<<
+                          A ⨀ B
+                        pb_prod
+                          /   \
+                    pb_p1 /     \ pb_p2
+                        /         \
+                       v           v
+            a <--- vtx(A) --->b<--- vtx(B) ---> c
+                        tgt_leg   src_leg
+>>
+    *)
+
+      Definition hcomp {a b c : V.t} (A : a -o-> b) (B : b -o-> c) : a -o-> c :=
+        {|
+          vtx := V.Pb.pb_prod (tgt_leg A) (src_leg B);
+          src_leg := V.compose (src_leg A) (V.Pb.pb_p1 _ _);
+          tgt_leg := V.compose (tgt_leg B) (V.Pb.pb_p2 _ _);
+        |}.
+
+      Infix "⨀" := hcomp (at level 45, right associativity) : type_scope.
+
+      (** *** Scopes and notations *)
+
+      Declare Scope hom_scope.
+      Delimit Scope hom_scope with hom.
+      Bind Scope hom_scope with tcell.
+      Open Scope hom_scope.
+
+      (** *** Horizontal composition of 2-cells *)
+
+      (** Uses the universal property of pullbacks. *)
+
+      Lemma hcomp_fmap_cone {a a' b b' c c' : V.t}
+        {A : a -o-> b} {A' : a' -o-> b'} {B : b -o-> c} {B' : b' -o-> c'}
+        {f : a ~~> a'} {g : b ~~> b'} {h : c ~~> c'}
+        (α : A =[f,g]=> A') (β : B =[g,h]=> B') :
+        V.Pb.pb_cone (tgt_leg A') (src_leg B')
+          (V.compose (vtx_mor α) (V.Pb.pb_p1 (tgt_leg A) (src_leg B)))
+          (V.compose (vtx_mor β) (V.Pb.pb_p2 (tgt_leg A) (src_leg B))).
+      Proof.
+        unfold V.Pb.pb_cone.
+        rewrite <- !V.compose_assoc.
+        rewrite tgt_leg_eq, src_leg_eq.
+        rewrite !V.compose_assoc.
+        rewrite (V.Pb.pb_square (tgt_leg A) (src_leg B)).
+        reflexivity.
+      Qed.
+
+      Program Definition hcomp_fmap {a a' b b' c c' : V.t}
+        {A : a -o-> b} {A' : a' -o-> b'} {B : b -o-> c} {B' : b' -o-> c'}
+        {f : a ~~> a'} {g : b ~~> b'} {h : c ~~> c'}
+        (α : A =[f,g]=> A') (β : B =[g,h]=> B') : (A ⨀ B) =[f,h]=> (A' ⨀ B') :=
+        {| vtx_mor := V.Pb.pb_pair (hcomp_fmap_cone α β) |}.
+      Next Obligation.
+        unfold hcomp; cbn.
+        rewrite V.compose_assoc, V.Pb.pb_p1_pair.
+        rewrite <- V.compose_assoc, src_leg_eq.
+        rewrite V.compose_assoc. reflexivity.
+      Qed.
+      Next Obligation.
+        unfold hcomp; cbn.
+        rewrite V.compose_assoc, V.Pb.pb_p2_pair.
+        rewrite <- V.compose_assoc, tgt_leg_eq.
+        rewrite V.compose_assoc. reflexivity.
+      Qed.
+
+      Infix "⊙" := hcomp_fmap (at level 45, right associativity) : hom_scope.
+    End CD.
+    Include CD.
+    Include (DoubleCellDerived V CD).
+
+    Lemma harr_meq {A B : harr} (f g : harr_mor A B) :
+      src_mor f = src_mor g ->
+      tgt_mor f = tgt_mor g ->
+      vtx_mor (carrier_mor f) = vtx_mor (carrier_mor g) ->
+      f = g.
+    Proof.
+      intros Hs Ht Hc.
+      destruct f as [sf tf cf], g as [sg tg cg]; cbn in *.
+      subst. f_equal. apply meq. exact Hc.
+    Qed.
+
+    (** *** Category axioms *)
+    Proposition compose_id_left :
+      forall {A B} (f : m A B), compose (id B) f = f.
+    Proof.
+      intros. apply harr_meq; cbn; apply V.compose_id_left.
+    Qed.
+
+    Proposition compose_id_right :
+      forall {A B} (f : m A B), compose f (id A) = f.
+    Proof.
+      intros. apply harr_meq; cbn; apply V.compose_id_right.
+    Qed.
+
+    Proposition compose_assoc :
+      forall {A B C D} (f : m A B) (g : m B C) (h : m C D),
+        compose (compose h g) f = compose h (compose g f).
+    Proof.
+      intros. apply harr_meq; cbn; apply V.compose_assoc.
+    Qed.
+
+  End Vert.
+  Import Vert.
+
+  Notation "f ;; g" := (Vert.compose g f)
+    (at level 50, left associativity) : hom_scope.
+
+  (** ** Functoriality of [hid] *)
+
+  Proposition hid_fmap_id :
+    forall A, Vert.hid_mor (V.id A) = Vert.id (Vert.hid A).
+  Proof.
+    intros. unfold Vert.hid_mor, Vert.id, Vert.vid.
+    f_equal. apply meq; cbn. reflexivity.
+  Qed.
+
+  Proposition hid_fmap_compose :
+    forall {A B C} (g : V.m B C) (f : V.m A B),
+      Vert.hid_mor (V.compose g f) = Vert.compose (Vert.hid_mor g) (Vert.hid_mor f).
+  Proof.
+    intros. unfold Vert.hid_mor, Vert.compose, Vert.vcomp.
+    f_equal. apply meq; cbn. reflexivity.
+  Qed.
+
+  (** ** Functoriality of [hcomp] *)
+
+  Proposition hcomp_fmap_id :
+    forall {a b c : V.t} (A : a -o-> b) (B : b -o-> c),
+      (Vert.vid A ⊙ Vert.vid B) = Vert.vid (A ⨀ B).
+    Proof.
+      intros. apply meq. unfold vid, hcomp_fmap; cbn.
+      apply Pb.pb_pair_uni;
+      rewrite V.compose_id_right, V.compose_id_left; reflexivity.
+    Qed.
+
+  Proposition hcomp_fmap_compose :
+    forall {a a' a'' b b' b'' c c' c'' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'} {A'' : a'' -o-> b''}
+      {B : b -o-> c} {B' : b' -o-> c'} {B'' : b'' -o-> c''}
+      {f : a ~~> a'} {f' : a' ~~> a''} {g : b ~~> b'} {g' : b' ~~> b''}
+      {h : c ~~> c'} {h' : c' ~~> c''}
+      (α : A =[f,g]=> A') (α' : A' =[f',g']=> A'')
+      (β : B =[g,h]=> B') (β' : B' =[g',h']=> B''),
+      (vcomp α α') ⊙ (vcomp β β') = vcomp (α ⊙ β) (α' ⊙ β').
+    Proof.
+      intros. apply meq. unfold vcomp, hcomp; cbn.
+      apply Pb.pb_pair_uni.
+      - rewrite <- V.compose_assoc, Pb.pb_p1_pair.
+        rewrite V.compose_assoc, Pb.pb_p1_pair.
+        rewrite V.compose_assoc; reflexivity.
+      - rewrite <- V.compose_assoc, Pb.pb_p2_pair.
+        rewrite V.compose_assoc, Pb.pb_p2_pair.
+        rewrite V.compose_assoc; reflexivity.
+    Qed.
+
+  (** ** Structural isomorphisms *)
+
+  (** TODO: These require constructing isomorphisms from pullback universal
+      properties. The key is that pullbacks are unique up to unique isomorphism. *)
+
+  (** Associator: [(A ⨀ B) ⨀ C ≅ A ⨀ (B ⨀ C)] *)
+  Axiom assoc : forall {a b c d : V.t}
+    (A : a -o-> b) (B : b -o-> c) (C : c -o-> d),
+    sisocell ((A ⨀ B) ⨀ C) (A ⨀ (B ⨀ C)).
+
+  (** Left unitor: [hid a ⨀ A ≅ A] *)
+  Program Definition lunit {a b : V.t} (A : a -o-> b) :
+    sisocell (hid a ⨀ A) A :=
     {|
-      vtx_mor := id (vtx A);
-      src_mor := id (src A);
-      tgt_mor := id (tgt A);
+      fw := {| vtx_mor := Pb.pb_p2 (V.id a) (src_leg A); |};
+      bw := {| vtx_mor :=
+        Pb.pb_pair (f := V.id a) (g := src_leg A) (ll := src_leg A) (rl := V.id (vtx A)) _|};
     |}.
   Next Obligation.
-    rewrite C.compose_id_right, C.compose_id_left; reflexivity.
+    rewrite V.compose_id_left. rewrite <- Pb.pb_square. reflexivity.
   Qed.
   Next Obligation.
-    rewrite C.compose_id_right, C.compose_id_left; reflexivity.
+    rewrite V.compose_id_left. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold Pb.pb_cone. rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite !V.compose_id_left. rewrite Pb.pb_p1_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite V.compose_assoc. rewrite Pb.pb_p2_pair.
+    rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
+    rewrite Pb.pb_p2_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
+    apply Pb.pb_mor_eq.
+    - rewrite <- V.compose_assoc, Pb.pb_p1_pair.
+      rewrite <- Pb.pb_square, V.compose_id_left, V.compose_id_right. reflexivity.
+    - rewrite <- V.compose_assoc, Pb.pb_p2_pair.
+      rewrite V.compose_id_left, V.compose_id_right. reflexivity.
   Defined.
 
-  Program Definition compose : forall {A B C}, m B C -> m A B -> m A C :=
-    fun A B C => fun g f =>
+  (** Right unitor: [A ⨀ hid b ≅ A] *)
+  Program Definition runit {a b : V.t} (A : a -o-> b) :
+    sisocell (A ⨀ hid b) A :=
     {|
-      vtx_mor := C.compose (vtx_mor g) (vtx_mor f);
-      src_mor := C.compose (src_mor g) (src_mor f);
-      tgt_mor := C.compose (tgt_mor g) (tgt_mor f);
+      fw := {| vtx_mor := Pb.pb_p1 (tgt_leg A) (V.id b); |};
+      bw := {| vtx_mor :=
+        Pb.pb_pair (f := tgt_leg A) (g := V.id b) (ll := V.id (vtx A)) (rl := tgt_leg A) _|};
     |}.
-  Next Obligation.
-    rewrite <- C.compose_assoc. rewrite mor_src_leg_eq.
-    rewrite compose_assoc. rewrite mor_src_leg_eq.
-    rewrite compose_assoc. reflexivity.
-  Qed.
-  Next Obligation.
-    rewrite <- C.compose_assoc. rewrite mor_tgt_leg_eq.
-    rewrite compose_assoc. rewrite mor_tgt_leg_eq.
-    rewrite compose_assoc. reflexivity.
-  Qed.
+    Next Obligation.
+      rewrite V.compose_id_left. reflexivity.
+    Qed.
+    Next Obligation.
+      rewrite V.compose_id_left. rewrite <- Pb.pb_square. reflexivity.
+    Qed.
+    Next Obligation.
+      unfold Pb.pb_cone. rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+    Qed.
+    Next Obligation.
+      rewrite !V.compose_id_left. rewrite V.compose_assoc.
+      rewrite Pb.pb_p1_pair. rewrite V.compose_id_right. reflexivity.
+    Qed.
+    Next Obligation.
+      rewrite !V.compose_id_left. rewrite Pb.pb_p2_pair. reflexivity.
+    Qed.
+    Next Obligation.
+      unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
+      rewrite Pb.pb_p1_pair. reflexivity.
+    Qed.
+    Next Obligation.
+      unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
+      apply Pb.pb_mor_eq.
+      - rewrite <- V.compose_assoc, Pb.pb_p1_pair.
+        rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+      - rewrite <- V.compose_assoc, Pb.pb_p2_pair.
+        rewrite Pb.pb_square, V.compose_id_left, V.compose_id_right. reflexivity.
+    Qed.
 
-  (** Properties *)
+  (** ** Naturality *)
 
-  Proposition compose_id_left :
-    forall {A B} (f : m A B), compose (id B) f = f.
-  Proof.
-    intros; unfold compose, id.
-    apply meq; cbn; rewrite C.compose_id_left; reflexivity.
-  Qed.
+  Axiom assoc_nat :
+    forall {a a' b b' c c' d d' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {B : b -o-> c} {B' : b' -o-> c'}
+      {C : c -o-> d} {C' : c' -o-> d'}
+      {f : V.m a a'} {g : V.m b b'} {h : V.m c c'} {k : V.m d d'}
+      (α : A =[f,g]=> A') (β : B =[g,h]=> B') (γ : C =[h,k]=> C'),
+      (assoc A B C) ;; (α ⊙ (β ⊙ γ)) = ((α ⊙ β) ⊙ γ) ;; (assoc A' B' C').
 
-  Proposition compose_id_right :
-    forall {A B} (f : m A B), compose f (id A) = f.
-  Proof.
-    intros; unfold compose, id.
-    apply meq; cbn; rewrite C.compose_id_right; reflexivity.
-  Qed.
+  Axiom lunit_nat :
+    forall {a a' b b' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {f : V.m a a'} {g : V.m b b'}
+      (α : A =[f,g]=> A'),
+      (lunit A) ;; α = (hid_mor f ⊙ α) ;; (lunit A').
 
-  Proposition compose_assoc :
-    forall {A B C D} (f : m A B) (g : m B C) (h : m C D),
-      compose (compose h g) f = compose h (compose g f).
-  Proof.
-    intros; unfold compose, id.
-    apply meq; cbn; rewrite C.compose_assoc; reflexivity.
-  Qed.
+  Axiom runit_nat :
+    forall {a a' b b' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {f : V.m a a'} {g : V.m b b'}
+      (α : A =[f,g]=> A'),
+      (runit A) ;; α = (α ⊙ hid_mor g) ;; (runit A').
 
-  Include CategoryTheory.
+  (** ** Coherence *)
 
-End SpanArrowCategory.
+  Axiom assoc_coh :
+    forall {a b c d e : V.t}
+      (A : a -o-> b) (B : b -o-> c) (C : c -o-> d) (D : d -o-> e),
+      ((assoc A B C) ⊙ vid D) ;; (assoc A (B ⨀ C) D) ;; (vid A ⊙ (assoc B C D))
+      = (assoc (A ⨀ B) C D) ;; (assoc A B (C ⨀ D)).
 
-Module Type SpanArrowCategoryInstance (C : CategoryDefinition) (S : Spans C).
-  Include (SpanArrowCategory C S).
-End SpanArrowCategoryInstance.
+  Axiom unit_coh :
+    forall {a b c : V.t} (A : a -o-> b) (B : b -o-> c),
+      ((runit A) ⊙ vid B : Vert.m _ _) =
+      (assoc A (hid b) B) ;; (vid A ⊙ (lunit B)).
 
-Module SpanNotations (C : CategoryDefinition) (Sp : Spans C)
-  (S : SpanArrowCategoryInstance C Sp).
-  Coercion S.mk_span' : Sp.span >-> S.span'.
-End SpanNotations.
+End SpanDoubleCat.
 
-Module Src (C : Category) (Sp : Spans C)
-  (S : SpanArrowCategoryInstance C Sp) <: Functor S C.
-  Import Sp.
 
-  Definition omap : S.t -> C.t := fun A => S.src' A.
-  Definition fmap : forall {A B}, S.m A B -> C.m (omap A) (omap B) :=
-    fun _ _ => fun f => src_mor f.
+(** ** Full double category instance *)
 
-  Proposition fmap_id :
-    forall A, fmap (S.id A) = C.id (omap A).
-  Proof.
-    intros; unfold fmap; cbn; reflexivity.
-  Qed.
-
-  Proposition fmap_compose :
-    forall {A B C} (g : S.m B C) (f : S.m A B),
-      fmap (S.compose g f) = C.compose (fmap g) (fmap f).
-  Proof.
-    intros; unfold fmap; cbn; reflexivity.
-  Qed.
-
-  Include (FunctorTheory S C).
-End Src.
-
-Module Tgt (C : Category) (Sp : Spans C)
-  (S : SpanArrowCategoryInstance C Sp) <: Functor S C.
-  Import Sp.
-
-  Definition omap : S.t -> C.t := fun A => S.tgt' A.
-  Definition fmap : forall {A B}, S.m A B -> C.m (omap A) (omap B) :=
-    fun _ _ => fun f => Sp.tgt_mor f.
-
-  Proposition fmap_id :
-    forall A, fmap (S.id A) = C.id (omap A).
-  Proof.
-    intros; unfold fmap; cbn; reflexivity.
-  Qed.
-
-  Proposition fmap_compose :
-    forall {A B C} (g : S.m B C) (f : S.m A B),
-      fmap (S.compose g f) = C.compose (fmap g) (fmap f).
-  Proof.
-    intros; unfold fmap; cbn; reflexivity.
-  Qed.
-
-  Include (FunctorTheory S C).
-End Tgt.
-
-Module IdSpan (C : Category) (Sp : Spans C)
-  (S : SpanArrowCategoryInstance C Sp) <: Functor C S.
-  Include (SpanNotations C Sp S).
-  Import Sp.
-
-  Program Definition omap : C.t -> S.t :=
-  fun A =>
-    {| vtx := A; src_leg := C.id A; tgt_leg := C.id A |}.
-
-  Program Definition fmap : forall {A B}, C.m A B -> S.m (omap A) (omap B) :=
-    fun A B => fun f =>
-    {|
-      vtx_mor := f;
-      src_mor := f;
-      tgt_mor := f;
-    |}.
-  Next Obligation.
-    rewrite C.compose_id_left, C.compose_id_right; reflexivity.
-  Qed.
-  Next Obligation.
-    rewrite C.compose_id_left, C.compose_id_right; reflexivity.
-  Defined.
-
-  Proposition fmap_id :
-    forall A, fmap (C.id A) = S.id (omap A).
-  Proof.
-    intros; unfold fmap; cbn; apply meq; cbn; reflexivity.
-  Qed.
-
-  Proposition fmap_compose :
-    forall {A B C} (g : C.m B C) (f : C.m A B),
-      fmap (C.compose g f) = S.compose (fmap g) (fmap f).
-  Proof.
-    intros; unfold fmap; cbn; apply meq; cbn; reflexivity.
-  Qed.
-
-  Include (FunctorTheory C S).
-End IdSpan.
-
-Module Type SrcInstance (C : Category) (Sp : Spans C) (S : SpanArrowCategoryInstance C Sp).
-  Include (Src C Sp S).
-End SrcInstance.
-
-Module Type TgtInstance (C : Category) (Sp : Spans C) (S : SpanArrowCategoryInstance C Sp).
-  Include (Tgt C Sp S).
-End TgtInstance.
+Module SpanDouble (C : CategoryWithPullbacks) :=
+  SpanDoubleCat C <+ DoubleCategoryTheory.
