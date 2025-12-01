@@ -1,5 +1,12 @@
 Require Import interfaces.Category.
 Require Import interfaces.Functor.
+Require Import interfaces.Pullbacks.
+
+(* TODOS:
+  - Coherence axioms for hcomp
+  - fix notation to make sure @ and ~~> are for V not Vert
+
+*)
 
 (** Pseudo-double category interface *)
 
@@ -59,6 +66,37 @@ Module Type DblCellData (V : CategoryDefinition).
   Notation "A =[ f , g ]=> B" := (tcell A B f g)
     (at level 70, f at next level, g at next level, no associativity).
 
+  (** *** Vertical composition of 2-cells *)
+  Parameter vid : forall {s t : V.t}, forall (A : s -o-> t),
+    A =[V.id s, V.id t]=> A.
+  Parameter vcomp : forall {sA tA sB tB sC tC : V.t},
+    forall {A : sA -o-> tA} {B : sB -o-> tB} {C : sC -o-> tC},
+    forall {sf : sA ~~> sB} {tf : tA ~~> tB} {sg : sB ~~> sC} {tg : tB ~~> tC},
+      A =[sf, tf]=> B -> B =[sg, tg]=> C ->
+        A =[V.compose sg sf, V.compose tg tf]=> C.
+
+  (** *** Horizontal composition of 2-cells *)
+  Parameter hid : forall (a : V.t), a -o-> a.
+  Parameter hid_mor : forall {a b}, forall (f : a ~~> b),
+    hid a =[f, f]=> hid b.
+
+  Parameter hcomp :
+    forall {a b c : V.t},
+      (a -o-> b) -> (b -o-> c) -> (a -o-> c).
+  Infix "⨀" := hcomp (at level 45, right associativity) : type_scope.
+
+  Declare Scope hom_scope.
+  Delimit Scope hom_scope with hom.
+  Bind Scope hom_scope with tcell.
+  Open Scope hom_scope.
+
+  Parameter hcomp_fmap :
+    forall {a a' b b' c c' : V.t},
+      forall {A : a -o-> b} {A' : a' -o-> b'} {B : b -o-> c} {B' : b' -o-> c'}
+        {f : a ~~> a'} {g : b ~~> b'} {h : c ~~> c'},
+          A =[f,g]=> A' -> B =[g,h]=> B' -> (A ⨀ B) =[f,h]=> (A' ⨀ B').
+  Infix "⊙" := hcomp_fmap (at level 45, right associativity) : hom_scope.
+
 End DblCellData.
 
 Module Type DblVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefinition.
@@ -88,9 +126,9 @@ Module Type DblVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefinit
   (** 2-cells define arrows between horizontal arrows *)
   Record harr_mor {A B : harr} :=
     mk_harr_mor {
-      src_mor : V.m (src A) (src B);
-      tgt_mor : V.m (tgt A) (tgt B);
-      carrier_mor :> tcell A B src_mor tgt_mor;
+      src_mor : src A ~~> src B;
+      tgt_mor : tgt A ~~> tgt B;
+      carrier_mor :>  A =[src_mor,tgt_mor]=> B;
     }.
   Arguments harr_mor : clear implicits.
   (** and we define compatible coercions for horizontal arrow morphisms *)
@@ -101,73 +139,33 @@ Module Type DblVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefinit
   Coercion tcell_to_harr_mor : tcell >-> harr_mor.
   (** Similarly, [tcell] induces underlying left frame [src_vmor] and
     right frame [tgt_vmor] morphisms *)
-  Definition src_vmor {A B : harr} (tc: harr_mor A B) : V.m (src A) (src B)
+  Definition src_vmor {A B : harr} (tc: harr_mor A B) : src A ~~> src B
     := src_mor tc.
-  Definition tgt_vmor {A B : harr} (tc : harr_mor A B) : V.m (tgt A) (tgt B)
+  Definition tgt_vmor {A B : harr} (tc : harr_mor A B) : tgt A ~~> tgt B
     := tgt_mor tc.
 
   Definition t := harr.
   Definition m := harr_mor.
 
-  Parameter id : forall A, m A A.
-  Parameter compose : forall {A B C}, m B C -> m A B -> m A C.
+  Definition id : forall A, m A A :=
+    fun A => mk_harr_mor _ _ _ _ (vid A).
+  Definition compose : forall {A B C}, m B C -> m A B -> m A C :=
+    fun A B C => fun g f => mk_harr_mor _ _ _ _ (vcomp f g).
 
   Axiom compose_id_left : forall {A B} (f : m A B), compose (id B) f = f.
   Axiom compose_id_right : forall {A B} (f : m A B), compose f (id A) = f.
   Axiom compose_assoc : forall {A B C D} (f : m A B) (g : m B C) (h : m C D),
     compose (compose h g) f = compose h (compose g f).
-
-  Notation vid := id.
-  Notation vcomp := compose.
-
 End DblVerticalCatDefinition.
-
-Module Type DblSrcFunctorDef (V : CategoryDefinition)
-  (H : DblVerticalCatDefinition V) <: FunctorDefinition H V.
-  Import H.
-
-  Definition omap : H.t -> V.t :=
-    fun hc => H.src hc.
-  Definition fmap : forall {A B}, H.m A B -> V.m (omap A) (omap B) :=
-    fun A B => fun hc_mor => src_vmor hc_mor.
-
-  Axiom fmap_id :
-    forall A, fmap (H.id A) = V.id (omap A).
-
-  Axiom fmap_compose :
-    forall {A B C} (g : H.m B C) (f : H.m A B),
-      fmap (H.compose g f) = V.compose (fmap g) (fmap f).
-
-End DblSrcFunctorDef.
-
-Module Type DblTgtFunctorDef (V : CategoryDefinition)
-  (H : DblVerticalCatDefinition V) <: FunctorDefinition H V.
-  Import H.
-
-  Definition omap : H.t -> V.t :=
-    fun hc => H.tgt hc.
-  Definition fmap : forall {A B}, H.m A B -> V.m (omap A) (omap B) :=
-    fun A B => fun hc_mor => tgt_vmor hc_mor.
-
-  Axiom fmap_id :
-    forall A, fmap (H.id A) = V.id (omap A).
-
-  Axiom fmap_compose :
-    forall {A B C} (g : H.m B C) (f : H.m A B),
-      fmap (H.compose g f) = V.compose (fmap g) (fmap f).
-
-End DblTgtFunctorDef.
 
 Module Type DblIdFunctorDef (V : CategoryDefinition)
   (H : DblVerticalCatDefinition V) <: FunctorDefinition V H.
   Import H.
 
-  Parameter hid :
-    forall (a : V.t), a -o-> a.
-
   Definition omap : V.t -> H.t :=
     fun a => hid a.
-  Parameter fmap : forall {A B}, V.m A B -> H.m (omap A) (omap B).
+  Definition fmap : forall {A B}, V.m A B -> H.m (omap A) (omap B) :=
+    fun A B => fun f => hid_mor f.
 
   Axiom fmap_id :
     forall A, fmap (V.id A) = H.id (omap A).
@@ -177,83 +175,240 @@ Module Type DblIdFunctorDef (V : CategoryDefinition)
       fmap (V.compose g f) = H.compose (fmap g) (fmap f).
 End DblIdFunctorDef.
 
-
+(** ** Double Category Full Definition *)
 Module Type DblCategoryDefinition (V : CategoryDefinition).
 
-Declare Module Vert : DblVerticalCatDefinition V.
+  Declare Module Vert : DblVerticalCatDefinition V.
+  Import Vert.
 
-  Include Vert.
+  Declare Module HId : DblIdFunctorDef V Vert.
 
-  Declare Module Src : DblSrcFunctorDef V Vert.
-  Declare Module Tgt : DblTgtFunctorDef V Vert.
-  Declare Module Hid : DblIdFunctorDef V Vert.
+  Module VertTheory := CategoryTheory Vert.
 
-  Definition hid (A : V.t) := Hid.hid A.
-
-  Axiom hid_src : forall A, src (hid A) = A.
-  Axiom hid_tgt : forall A, tgt (hid A) = A.
-
-  Parameter hcomp :
-    forall {a b c : V.t},
-      (b -o-> c) -> (a -o-> b) -> (a -o-> c).
-  Infix "⊙" := hcomp (at level 40, left associativity) : type_scope.
-
-  (* need to add hcomp_fmap *)
-
-  (* below still under work *)
-
-  Include CategoryTheory.
+  Parameter hcomp_fmap_id :
+    forall {a b c : V.t}, forall (A : a -o-> b) (B : b -o-> c),
+      (Vert.vid A ⊙ Vert.vid B) = Vert.vid (A ⨀ B).
+  Parameter hcomp_fmap_compose :
+    forall {a a' a'' b b' b'' c c' c'' : V.t},
+      forall {A : a -o-> b} {A' : a' -o-> b'} {A'' : a'' -o-> b''}
+        {B : b -o-> c}  {B' : b' -o-> c'} {B'' : b'' -o-> c''}
+        {f : a ~~> a'} {f' : a' ~~> a''} {g : b ~~> b'} {g' : b' ~~> b''}
+        {h : c ~~> c'} {h' : c' ~~> c''},
+      forall (tcA : A =[f,g]=> A') (tcA' : A' =[f',g']=> A'')
+        (tcB : B =[g,h]=> B')  (tcB' : B' =[g',h']=> B''),
+        (vcomp tcA tcA') ⊙ (vcomp tcB tcB') = vcomp (tcA ⊙ tcB) (tcA' ⊙ tcB').
 
   (** *** Structural isomorphisms *)
-  Parameter assoc : forall A B C, C.iso (hcomp A (omap B C)) (omap (omap A B) C).
-  Parameter lunit : forall A, C.iso (omap unit A) A.
-  Parameter runit : forall A, C.iso (omap A unit) A.
+
+  (** The structural isomorphisms are vertical isos (2-cells with identity frame
+      morphisms). This ensures they can be whiskered using hcomp_fmap. *)
+
+  (** Vertical (globular) isomorphism: isomorphism between horizontal 1-cells
+      with the same frame endpoints. The frame morphisms are constrained to be
+      identities in the type itself. *)
+  Record viso {a b : V.t} (A B : a -o-> b) := {
+    fw :> A =[V.id a, V.id b]=> B;
+    bw :> B =[V.id a, V.id b]=> A;
+    bw_fw : Vert.compose bw fw = Vert.id A;
+    fw_bw : Vert.compose fw bw = Vert.id B;
+  }.
+  Arguments viso {a b} A B.
+  Arguments fw {a b A B}.
+  Arguments bw {a b A B}.
+  Arguments bw_fw {a b A B}.
+  Arguments fw_bw {a b A B}.
+
+  (** Associator: (A ⨀ B) ⨀ C ≅ A ⨀ (B ⨀ C) *)
+  Parameter assoc : forall {a b c d : V.t}
+    (A : a -o-> b) (B : b -o-> c) (C : c -o-> d),
+    viso ((A ⨀ B) ⨀ C) (A ⨀ (B ⨀ C)).
+
+  (** Left unitor: hid a ⨀ A ≅ A *)
+  Parameter lunit : forall {a b : V.t} (A : a -o-> b),
+    viso (hid a ⨀ A) A.
+
+  (** Right unitor: A ⨀ hid b ≅ A *)
+  Parameter runit : forall {a b : V.t} (A : a -o-> b),
+    viso (A ⨀ hid b) A.
 
   (** *** Naturality properties *)
+  (** Stated at harr_mor level to handle frame morphism composition *)
 
+  (** Naturality of associator:
+      assoc ; (α ⊙ (β ⊙ γ)) = ((α ⊙ β) ⊙ γ) ; assoc *)
   Axiom assoc_nat :
-    forall {A1 B1 C1 A2 B2 C2: C.t} (f: C.m A1 A2) (g: C.m B1 B2) (h: C.m C1 C2),
-      fmap (fmap f g) h @ assoc A1 B1 C1 = assoc A2 B2 C2 @ fmap f (fmap g h).
+    forall {a a' b b' c c' d d' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {B : b -o-> c} {B' : b' -o-> c'}
+      {C : c -o-> d} {C' : c' -o-> d'}
+      {f : V.m a a'} {g : V.m b b'} {h : V.m c c'} {k : V.m d d'}
+      (α : A =[f,g]=> A') (β : B =[g,h]=> B') (γ : C =[h,k]=> C'),
+      Vert.compose (α ⊙ (β ⊙ γ)) (assoc A B C) =
+      Vert.compose (assoc A' B' C') ((α ⊙ β) ⊙ γ).
 
+  (** Naturality of left unitor:
+      lunit ; α = (hid_mor ⊙ α) ; lunit *)
   Axiom lunit_nat :
-    forall {A1 A2 : C.t} (f : C.m A1 A2),
-      f @ lunit A1 = lunit A2 @ fmap (C.id unit) f.
+    forall {a a' b b' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {f : V.m a a'} {g : V.m b b'}
+      (α : A =[f,g]=> A'),
+      Vert.compose α (lunit A) =
+      Vert.compose (lunit A') (hid_mor f ⊙ α).
 
+  (** Naturality of right unitor:
+      runit ; α = (α ⊙ hid_mor) ; runit *)
   Axiom runit_nat :
-    forall {A1 A2 : C.t} (f : C.m A1 A2),
-      f @ runit A1 = runit A2 @ fmap f (C.id unit).
+    forall {a a' b b' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {f : V.m a a'} {g : V.m b b'}
+      (α : A =[f,g]=> A'),
+      Vert.compose α (runit A) =
+      Vert.compose (runit A') (α ⊙ hid_mor g).
 
   (** *** Pentagon identity *)
+  (** (α_{A,B,C} ⊙ id_D) ; α_{A,B⊙C,D} ; (id_A ⊙ α_{B,C,D})
+      = α_{A⊙B,C,D} ; α_{A,B,C⊙D} *)
 
   Axiom assoc_coh :
-    forall A B C D : C.t,
-      fmap (assoc A B C) (C.id D) @
-        assoc A (omap B C) D @
-        fmap (C.id A) (assoc B C D) =
-      assoc (omap A B) C D @
-        assoc A B (omap C D).
+    forall {a b c d e : V.t}
+      (A : a -o-> b) (B : b -o-> c) (C : c -o-> d) (D : d -o-> e),
+      Vert.compose
+        (Vert.compose
+          (vid A ⊙ (assoc B C D))
+          ((assoc A (B ⨀ C) D)))
+        (fw (assoc A B C) ⊙ vid D)
+      =
+      Vert.compose
+        (fw (assoc A B (C ⨀ D)))
+        (fw (assoc (A ⨀ B) C D)).
 
   (** *** Triangle identity *)
+  (** ρ_A ⊙ id_B = (id_A ⊙ λ_B) ∘ α_{A,I,B} *)
 
   Axiom unit_coh :
-    forall A B : C.t,
-      fmap (runit A) (C.id B) @ assoc A unit B =
-      fmap (C.id A) (lunit B).
+    forall {a b c : V.t}
+      (A : a -o-> b) (B : b -o-> c),
+      (fw (runit A) ⊙ vid B : Vert.m _ _) =
+      Vert.compose (vid A ⊙ fw (lunit B)) (fw (assoc A (hid b) B)).
+
 End DblCategoryDefinition.
 
 Module DblCategoryTheory (V : CategoryDefinition) (P : DblCategoryDefinition V).
   Import P.
+  Import P.Vert.
 
-  (** These are just sanity checks (they are official axioms though)*)
-  Axiom hid_src :
-    forall {a : V.t}, src (hid a) = a.
-  Axiom hid_tgt :
-    forall {a : V.t}, tgt (hid a) = a.
+  (** Before developing the theory of double categories we make several
+    sanity checks *)
 
-  Axiom hcomp_src :
+  (** [src], [src_mor] defines a functor on the vertical category *)
+  Module Src <: FunctorDefinition P.Vert V.
+    Import P.Vert.
+
+    Definition omap : P.Vert.t -> V.t :=
+      fun hc => P.Vert.src hc.
+    Definition fmap : forall {A B}, P.Vert.m A B -> V.m (omap A) (omap B) :=
+      fun A B => fun hc_mor => src_vmor hc_mor.
+
+    Proposition fmap_id :
+      forall A, fmap (P.Vert.id A) = V.id (omap A).
+    Proof.
+      reflexivity.
+    Qed.
+
+    Proposition fmap_compose :
+      forall {A B C} (g : P.Vert.m B C) (f : P.Vert.m A B),
+        fmap (P.Vert.compose g f) = V.compose (fmap g) (fmap f).
+    Proof.
+      reflexivity.
+    Qed.
+  End Src.
+
+  (** [tgt], [tgt_mor] defines a functor on the vertical category *)
+  Module Tgt <: FunctorDefinition P.Vert V.
+    Import P.Vert.
+
+    Definition omap : P.Vert.t -> V.t :=
+      fun hc => P.Vert.tgt hc.
+    Definition fmap : forall {A B}, P.Vert.m A B -> V.m (omap A) (omap B) :=
+      fun A B => fun hc_mor => tgt_vmor hc_mor.
+
+    Proposition fmap_id :
+      forall A, fmap (P.Vert.id A) = V.id (omap A).
+    Proof.
+      reflexivity.
+    Qed.
+
+    Proposition fmap_compose :
+      forall {A B C} (g : P.Vert.m B C) (f : P.Vert.m A B),
+        fmap (P.Vert.compose g f) = V.compose (fmap g) (fmap f).
+    Proof.
+      reflexivity.
+    Qed.
+  End Tgt.
+
+  (** Src ∘ HId = Id *)
+  Proposition hid_src :
+    forall {a : V.t}, Src.omap (HId.omap a) = a.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Proposition hid_mor_src : forall {a b : V.t}, forall (f : V.m a b),
+    Src.fmap (HId.fmap f) = f.
+  Proof.
+    reflexivity.
+  Qed.
+
+  (** Tgt ∘ HId = Id *)
+  Proposition hid_tgt :
+    forall {a : V.t}, Tgt.omap (HId.omap a) = a.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Proposition hid_mor_tgt : forall {a b : V.t}, forall (f : V.m a b),
+    Tgt.fmap (HId.fmap f) = f.
+  Proof.
+    reflexivity.
+  Qed.
+
+  (** We could fight the dependent typing to show HComp is a [Functor] as so:
+    HComp : Vert ×_V Vert → Vert *)
+
+  (* Src ∘ HComp = Src ∘ π_1 *)
+  Proposition hcomp_src :
     forall {a b c : V.t}, forall {B : b -o-> c} {A : a -o-> b},
-      src (B ⊙ A) = src A.
-  Axiom hcomp_tgt :
+      Src.omap (A ⨀ B) = Src.omap A.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Proposition hcomp_fmap_src :
+    forall {a b c a' b' c' : V.t},
+      forall {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
+        {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
+        (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
+        Src.fmap (hcomp_fmap α β) = Src.fmap α.
+  Proof.
+    reflexivity.
+  Qed.
+
+  (* Tgt ∘ HComp = Tgt ∘ π_1 *)
+  Proposition hcomp_tgt :
     forall {a b c : V.t}, forall {B : b -o-> c} {A : a -o-> b},
-      tgt (B ⊙ A) = tgt A.
+      Tgt.omap (A ⨀ B) = Tgt.omap B.
+  Proof.
+    intros. unfold tgt. reflexivity.
+  Qed.
+
+  Proposition hcomp_fmap_tgt :
+    forall {a b c a' b' c' : V.t},
+      forall {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
+        {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
+        (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
+        Tgt.fmap (hcomp_fmap α β) = Tgt.fmap β.
+  Proof.
+    reflexivity.
+  Qed.
 End DblCategoryTheory.
