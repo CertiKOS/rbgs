@@ -36,6 +36,7 @@ interfaces/ConcreteCategory.v
 interfaces/FunctorCategory.v
 interfaces/Limits.v
 interfaces/Pullbacks.v
+interfaces/DoubleCat.v
 interfaces/Spans.v
 interfaces/Adjunctions.v
 interfaces/Monads.v

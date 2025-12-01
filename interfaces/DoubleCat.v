@@ -1,0 +1,543 @@
+Require Import interfaces.Category.
+Require Import interfaces.Functor.
+Require Import interfaces.Pullbacks.
+
+
+(** * Double Categories *)
+
+(** A pseudo-double category consists of:
+    - Objects (0-cells)
+    - Vertical 1-cells forming a category [V]
+    - Horizontal 1-cells between objects
+    - 2-cells filling squares of 1-cells
+    - Horizontal composition of 1-cells and 2-cells, coherent up to isomorphism
+
+    The interface is divided into:
+    - [DoubleCategoryDefinition]: the data and axioms
+    - [DoubleCategoryTheory]: derived definitions and sanity checks *)
+
+(** ** Design notes *)
+
+(** The approach that would exploit modules and module functors the best
+    is a definition like that appearing in:
+
+    Michael Shulman, Framed bicategories and monoidal fibrations,
+      Theory Appl. Categ. 20 (2008), No. 18, 650-738. MR 2534210
+
+    That is, we would require the user to provide:
+    - a category of vertical 1-cells [C_0]
+    - a category of horizontal 1-cells [C_1]
+    - functors satisfying some laws:
+      - [Src : C_1 -> C_0]
+      - [Tgt : C_1 -> C_0]
+      - [Id  : C_0 -> C_1]
+    - a functor [HComp : C_1 ×_{C_0} C_1 -> C_1] satisfying coherence laws
+
+    While this definition is possible, taking the pullback of categories
+    necessarily introduces dependent types (see its definition in Pullbacks.v).
+    Unfortunately, these dependent types get quite complex to handle once
+    one has to prove [HComp] is a functor (or even to define it!). It seems
+    unlikely such a design would lead to a usable infrastructure for the
+    end-user of the library.
+
+    We opt for a more intensional design, which unfortunately re-uses less of
+    the existing interfaces. Instead of requiring the user to provide
+    category and functor modules as described before, and then adding some
+    definitions and axioms on top, we codify directly the axioms that these
+    modules would enforce.
+
+    This does mean we do not enjoy the fact that most of these laws are already
+    codified in other interfaces if instantiated like above. However, it does
+    mean we will be able to derive the corresponding modules from a
+    pseudo-double category definition. *)
+
+
+(** ** Cell data *)
+
+(** The basic data of horizontal 1-cells and 2-cells, parameterized
+    by a category [V] of vertical 1-cells. *)
+
+Module Type DoubleCellData (V : CategoryDefinition).
+  Import V.
+
+  (** *** Horizontal 1-cells *)
+
+  Parameter hcell : V.t -> V.t -> Type.
+
+  Infix "-o->" := hcell (at level 90, right associativity) : type_scope.
+  Infix "~~>" := V.m (at level 90, right associativity) : type_scope.
+
+  (** *** 2-cells *)
+
+  (** A 2-cell [A =[f,g]=> B] fills a square:
+<<
+           A
+       sA -o-> tA
+       |       |
+     f |   α   | g
+       |       |
+       v       v
+       sB -o-> tB
+           B
+>>
+  *)
+
+  Parameter tcell : forall {sA tA sB tB : V.t},
+    (sA -o-> tA) -> (sB -o-> tB) ->
+    (sA ~~> sB) -> (tA ~~> tB) -> Type.
+
+  Notation "A =[ f , g ]=> B" := (tcell A B f g)
+    (at level 70, f at next level, g at next level, no associativity).
+
+  (** *** Vertical composition *)
+
+  Parameter vid : forall {s t : V.t} (A : s -o-> t),
+    A =[V.id s, V.id t]=> A.
+
+  Parameter vcomp : forall {sA tA sB tB sC tC : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB} {C : sC -o-> tC}
+    {sf : sA ~~> sB} {tf : tA ~~> tB} {sg : sB ~~> sC} {tg : tB ~~> tC},
+    A =[sf, tf]=> B -> B =[sg, tg]=> C ->
+    A =[V.compose sg sf, V.compose tg tf]=> C.
+
+  (** *** Horizontal composition *)
+
+  Parameter hid : forall (a : V.t), a -o-> a.
+
+  Parameter hid_mor : forall {a b} (f : a ~~> b),
+    hid a =[f, f]=> hid b.
+
+  Parameter hcomp : forall {a b c : V.t},
+    (a -o-> b) -> (b -o-> c) -> (a -o-> c).
+
+  Infix "⨀" := hcomp (at level 45, right associativity) : type_scope.
+
+  (** *** Scopes and notations *)
+
+  Declare Scope hom_scope.
+  Delimit Scope hom_scope with hom.
+  Bind Scope hom_scope with tcell.
+  Open Scope hom_scope.
+
+  Parameter hcomp_fmap : forall {a a' b b' c c' : V.t}
+    {A : a -o-> b} {A' : a' -o-> b'} {B : b -o-> c} {B' : b' -o-> c'}
+    {f : a ~~> a'} {g : b ~~> b'} {h : c ~~> c'},
+    A =[f,g]=> A' -> B =[g,h]=> B' -> (A ⨀ B) =[f,h]=> (A' ⨀ B').
+
+  Infix "⊙" := hcomp_fmap (at level 45, right associativity) : hom_scope.
+
+End DoubleCellData.
+
+
+(** ** Vertical category *)
+
+(** The category [Vert] has horizontal 1-cells as objects and 2-cells
+    as morphisms. Composition is vertical composition of 2-cells. *)
+
+Module Type DoubleVerticalCatDefinition (V : CategoryDefinition) <: CategoryDefinition.
+  Include (DoubleCellData V).
+
+  (** *** Objects: horizontal arrows *)
+
+  (** A horizontal arrow [harr] packages a horizontal 1-cell together
+      with its source and target objects. *)
+
+  Record harr := mk_harrow {
+    arr_src : V.t;
+    arr_tgt : V.t;
+    carrier :> hcell arr_src arr_tgt;
+  }.
+
+  Definition hcell_to_harr {s t : V.t} (hc: s -o-> t) : harr :=
+    mk_harrow s t hc.
+  Coercion hcell_to_harr : hcell >-> harr.
+
+  (** The [src] and [tgt] projections give the frame of a horizontal arrow. *)
+
+  Definition src {s t : V.t} (hc : s -o-> t) : V.t := s.
+  Definition tgt {s t : V.t} (hc : s -o-> t) : V.t := t.
+
+  (** *** Morphisms: 2-cells *)
+
+  (** A morphism [harr_mor A B] packages a 2-cell together with its
+      frame morphisms. *)
+
+  Record harr_mor {A B : harr} := mk_harr_mor {
+    src_mor : src A ~~> src B;
+    tgt_mor : tgt A ~~> tgt B;
+    carrier_mor :> A =[src_mor,tgt_mor]=> B;
+  }.
+  Arguments harr_mor : clear implicits.
+
+  Definition tcell_to_harr_mor {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf : sA ~~> sB} {tf : tA ~~> tB} (α : A =[sf,tf]=> B) : harr_mor A B :=
+    mk_harr_mor A B sf tf α.
+  Coercion tcell_to_harr_mor : tcell >-> harr_mor.
+
+  Definition src_vmor {A B : harr} (α: harr_mor A B) : src A ~~> src B :=
+    src_mor α.
+  Definition tgt_vmor {A B : harr} (α : harr_mor A B) : tgt A ~~> tgt B :=
+    tgt_mor α.
+
+  (** *** Category structure *)
+
+  Definition t := harr.
+  Definition m := harr_mor.
+
+  Definition id : forall A, m A A :=
+    fun A => mk_harr_mor _ _ _ _ (vid A).
+
+  Definition compose : forall {A B C}, m B C -> m A B -> m A C :=
+    fun A B C g f => mk_harr_mor _ _ _ _ (vcomp f g).
+
+  (** *** Axioms *)
+
+  Axiom compose_id_left :
+    forall {A B} (f : m A B), compose (id B) f = f.
+
+  Axiom compose_id_right :
+    forall {A B} (f : m A B), compose f (id A) = f.
+
+  Axiom compose_assoc :
+    forall {A B C D} (f : m A B) (g : m B C) (h : m C D),
+      compose (compose h g) f = compose h (compose g f).
+
+End DoubleVerticalCatDefinition.
+
+
+(** ** Definition *)
+
+Module Type DoubleCategoryDefinition.
+  Declare Module V : CategoryDefinition.
+  Declare Module Vert : DoubleVerticalCatDefinition V.
+  Import Vert.
+
+  Notation "f ;; g" := (Vert.compose g f)
+    (at level 50, left associativity) : hom_scope.
+
+  (** *** Functoriality of [hid] *)
+
+  (** The operations [hid] and [hid_mor] form a functor [V -> Vert]. *)
+
+  Axiom hid_fmap_id :
+    forall A, Vert.hid_mor (V.id A) = Vert.id (Vert.hid A).
+
+  Axiom hid_fmap_compose :
+    forall {A B C} (g : V.m B C) (f : V.m A B),
+      Vert.hid_mor (V.compose g f) = Vert.compose (Vert.hid_mor g) (Vert.hid_mor f).
+
+  (** *** Functoriality of [hcomp] *)
+
+  (** Horizontal composition [hcomp_fmap] preserves identities and composition. *)
+
+  Parameter hcomp_fmap_id :
+    forall {a b c : V.t} (A : a -o-> b) (B : b -o-> c),
+      (Vert.vid A ⊙ Vert.vid B) = Vert.vid (A ⨀ B).
+
+  Parameter hcomp_fmap_compose :
+    forall {a a' a'' b b' b'' c c' c'' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'} {A'' : a'' -o-> b''}
+      {B : b -o-> c} {B' : b' -o-> c'} {B'' : b'' -o-> c''}
+      {f : a ~~> a'} {f' : a' ~~> a''} {g : b ~~> b'} {g' : b' ~~> b''}
+      {h : c ~~> c'} {h' : c' ~~> c''}
+      (α : A =[f,g]=> A') (α' : A' =[f',g']=> A'')
+      (β : B =[g,h]=> B') (β' : B' =[g',h']=> B''),
+      (vcomp α α') ⊙ (vcomp β β') = vcomp (α ⊙ β) (α' ⊙ β').
+
+  (** *** Special cells and isocells *)
+
+  (** A special cell is a 2-cell with vertical 1-cells. *)
+
+  Definition scell {a b : V.t} (A B : a -o-> b) : Type :=
+    A =[V.id a, V.id b]=> B.
+
+  (** A special isocell is a special cell which is a isomorphism in [Vert] *)
+
+  Record sisocell {a b : V.t} (A B : a -o-> b) := mk_sisocell {
+    fw :> A =[V.id a, V.id b]=> B;
+    bw :> B =[V.id a, V.id b]=> A;
+    bw_fw : bw ;; fw = Vert.id B;
+    fw_bw : fw ;; bw = Vert.id A;
+  }.
+  Arguments mk_sisocell {a b A B}.
+  Arguments sisocell {a b} A B.
+  Arguments fw {a b A B}.
+  Arguments bw {a b A B}.
+  Arguments bw_fw {a b A B}.
+  Arguments fw_bw {a b A B}.
+
+  Definition sisocell_to_scell {a b : V.t} {A B : a -o-> b}
+    (s : sisocell A B) : scell A B := fw s.
+  Coercion sisocell_to_scell : sisocell >-> scell.
+
+  (** *** Structural isomorphisms *)
+
+  (** Associator: [(A ⨀ B) ⨀ C ≅ A ⨀ (B ⨀ C)] *)
+  Parameter assoc : forall {a b c d : V.t}
+    (A : a -o-> b) (B : b -o-> c) (C : c -o-> d),
+    sisocell ((A ⨀ B) ⨀ C) (A ⨀ (B ⨀ C)).
+
+  (** Left unitor: [hid a ⨀ A ≅ A] *)
+  Parameter lunit : forall {a b : V.t} (A : a -o-> b),
+    sisocell (hid a ⨀ A) A.
+
+  (** Right unitor: [A ⨀ hid b ≅ A] *)
+  Parameter runit : forall {a b : V.t} (A : a -o-> b),
+    sisocell (A ⨀ hid b) A.
+
+  (** *** Naturality *)
+
+  (** Naturality of [assoc]:
+      [assoc ;; (α ⊙ (β ⊙ γ)) = ((α ⊙ β) ⊙ γ) ;; assoc] *)
+  Axiom assoc_nat :
+    forall {a a' b b' c c' d d' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {B : b -o-> c} {B' : b' -o-> c'}
+      {C : c -o-> d} {C' : c' -o-> d'}
+      {f : V.m a a'} {g : V.m b b'} {h : V.m c c'} {k : V.m d d'}
+      (α : A =[f,g]=> A') (β : B =[g,h]=> B') (γ : C =[h,k]=> C'),
+      (assoc A B C) ;; (α ⊙ (β ⊙ γ)) = ((α ⊙ β) ⊙ γ) ;; (assoc A' B' C').
+
+  (** Naturality of [lunit]:
+      [lunit ;; α = (hid_mor f ⊙ α) ;; lunit] *)
+  Axiom lunit_nat :
+    forall {a a' b b' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {f : V.m a a'} {g : V.m b b'}
+      (α : A =[f,g]=> A'),
+      (lunit A) ;; α = (hid_mor f ⊙ α) ;; (lunit A').
+
+  (** Naturality of [runit]:
+      [runit ;; α = (α ⊙ hid_mor g) ;; runit] *)
+  Axiom runit_nat :
+    forall {a a' b b' : V.t}
+      {A : a -o-> b} {A' : a' -o-> b'}
+      {f : V.m a a'} {g : V.m b b'}
+      (α : A =[f,g]=> A'),
+      (runit A) ;; α = (α ⊙ hid_mor g) ;; (runit A').
+
+  (** *** Coherence *)
+
+  (** Pentagon identity:
+      [(assoc ⊙ vid) ;; assoc ;; (vid ⊙ assoc) = assoc ;; assoc] *)
+  Axiom assoc_coh :
+    forall {a b c d e : V.t}
+      (A : a -o-> b) (B : b -o-> c) (C : c -o-> d) (D : d -o-> e),
+      ((assoc A B C) ⊙ vid D) ;; (assoc A (B ⨀ C) D) ;; (vid A ⊙ (assoc B C D))
+      = (assoc (A ⨀ B) C D) ;; (assoc A B (C ⨀ D)).
+
+  (** Triangle identity:
+      [runit ⊙ vid = assoc ;; (vid ⊙ lunit)] *)
+  Axiom unit_coh :
+    forall {a b c : V.t} (A : a -o-> b) (B : b -o-> c),
+      ((runit A) ⊙ vid B : Vert.m _ _) =
+      (assoc A (hid b) B) ;; (vid A ⊙ (lunit B)).
+
+End DoubleCategoryDefinition.
+
+
+(** ** Theory *)
+
+(** Once the fields enumerated in [DoubleCategoryDefinition] have been
+    defined, the user should include the following module, which provides
+    derived definitions and sanity checks. *)
+
+Module DoubleCategoryTheory (P : DoubleCategoryDefinition).
+  Import P.
+  Import P.V.
+  Import P.Vert.
+
+  (** Include category theory for the base category [V]. *)
+  Module VT := CategoryTheory P.V.
+  Export VT.
+
+  (** *** Sanity checks *)
+
+  (** We verify that our axioms imply [Src] and [Tgt] are functors,
+      and that the expected functorial equalities hold. *)
+
+  (** [Src] is a functor [Vert -> V]. *)
+  Module Src <: FunctorDefinition P.Vert P.V.
+    Import P.Vert.
+
+    Definition omap : P.Vert.t -> P.V.t :=
+      fun A => P.Vert.src A.
+
+    Definition fmap : forall {A B}, P.Vert.m A B -> P.V.m (omap A) (omap B) :=
+      fun A B α => src_vmor α.
+
+    Proposition fmap_id :
+      forall A, fmap (P.Vert.id A) = P.V.id (omap A).
+    Proof. reflexivity. Qed.
+
+    Proposition fmap_compose :
+      forall {A B C} (g : P.Vert.m B C) (f : P.Vert.m A B),
+        fmap (f ;; g) = P.V.compose (fmap g) (fmap f).
+    Proof. reflexivity. Qed.
+  End Src.
+
+  (** [Tgt] is a functor [Vert -> V]. *)
+  Module Tgt <: FunctorDefinition P.Vert P.V.
+    Import P.Vert.
+
+    Definition omap : P.Vert.t -> P.V.t :=
+      fun A => P.Vert.tgt A.
+
+    Definition fmap : forall {A B}, P.Vert.m A B -> P.V.m (omap A) (omap B) :=
+      fun A B α => tgt_vmor α.
+
+    Proposition fmap_id :
+      forall A, fmap (P.Vert.id A) = P.V.id (omap A).
+    Proof. reflexivity. Qed.
+
+    Proposition fmap_compose :
+      forall {A B C} (g : P.Vert.m B C) (f : P.Vert.m A B),
+        fmap (f ;; g) = P.V.compose (fmap g) (fmap f).
+    Proof. reflexivity. Qed.
+  End Tgt.
+
+  (** [Src] and [Tgt] commute with [HId]. *)
+
+  Proposition hid_src :
+    forall {a : P.V.t}, Src.omap (P.Vert.hid a) = a.
+  Proof. reflexivity. Qed.
+
+  Proposition hid_mor_src :
+    forall {a b : P.V.t} (f : P.V.m a b),
+      Src.fmap (P.Vert.hid_mor f) = f.
+  Proof. reflexivity. Qed.
+
+  Proposition hid_tgt :
+    forall {a : P.V.t}, Tgt.omap (P.Vert.hid a) = a.
+  Proof. reflexivity. Qed.
+
+  Proposition hid_mor_tgt :
+    forall {a b : P.V.t} (f : P.V.m a b),
+      Tgt.fmap (P.Vert.hid_mor f) = f.
+  Proof. reflexivity. Qed.
+
+  (** [Src] and [Tgt] interact with [HComp] as expected. *)
+
+  Proposition hcomp_src :
+    forall {a b c : P.V.t} {B : b -o-> c} {A : a -o-> b},
+      Src.omap (A ⨀ B) = Src.omap A.
+  Proof. reflexivity. Qed.
+
+  Proposition hcomp_fmap_src :
+    forall {a b c a' b' c' : P.V.t}
+      {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
+      {f : P.V.m a a'} {g : P.V.m b b'} {h : P.V.m c c'}
+      (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
+      Src.fmap (hcomp_fmap α β) = Src.fmap α.
+  Proof. reflexivity. Qed.
+
+  Proposition hcomp_tgt :
+    forall {a b c : P.V.t} {B : b -o-> c} {A : a -o-> b},
+      Tgt.omap (A ⨀ B) = Tgt.omap B.
+  Proof. intros. unfold tgt. reflexivity. Qed.
+
+  Proposition hcomp_fmap_tgt :
+    forall {a b c a' b' c' : P.V.t}
+      {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
+      {f : P.V.m a a'} {g : P.V.m b b'} {h : P.V.m c c'}
+      (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
+      Tgt.fmap (hcomp_fmap α β) = Tgt.fmap β.
+  Proof. reflexivity. Qed.
+
+  (** The structural isomorphisms have identity frame morphisms. *)
+
+  Proposition assoc_src_id :
+    forall {a b c d : P.V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
+      Src.fmap (assoc A B C) = P.V.id _.
+  Proof. reflexivity. Qed.
+
+  Proposition assoc_tgt_id :
+    forall {a b c d : P.V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
+      Tgt.fmap (assoc A B C) = P.V.id _.
+  Proof. reflexivity. Qed.
+
+  Proposition lunit_src_id :
+    forall {a b : P.V.t} {A : a -o-> b},
+      Src.fmap (lunit A) = P.V.id _.
+  Proof. reflexivity. Qed.
+
+  Proposition lunit_tgt_id :
+    forall {a b : P.V.t} {A : a -o-> b},
+      Tgt.fmap (lunit A) = P.V.id _.
+  Proof. reflexivity. Qed.
+
+  Proposition runit_src_id :
+    forall {a b : P.V.t} {A : a -o-> b},
+      Src.fmap (runit A) = P.V.id _.
+  Proof. reflexivity. Qed.
+
+  Proposition runit_tgt_id :
+    forall {a b : P.V.t} {A : a -o-> b},
+      Tgt.fmap (runit A) = P.V.id _.
+  Proof. reflexivity. Qed.
+
+  (** *** Cell types *)
+
+  (** A globular cell is a 2-cell between horizontal identities. *)
+
+  Definition gcell {a b : P.V.t} (f : P.V.m a b) (g : P.V.m a b) : Type :=
+    hid a =[f, g]=> hid b.
+
+  (** *** Isomorphisms *)
+
+  (** A general vertical isocell has explicit (possibly non-identity)
+      frame morphisms. *)
+
+  Module Viso.
+    Record visocell {sA tA sB tB : P.V.t}
+      {sf : P.V.m sA sB} {tf : P.V.m tA tB}
+      {sb : P.V.m sB sA} {tb : P.V.m tB tA}
+      (A : sA -o-> tA) (B : sB -o-> tB) := mk_visocell {
+      fw :> A =[sf, tf]=> B;
+      bw :> B =[sb, tb]=> A;
+      bw_fw : bw ;; fw = Vert.id B;
+      fw_bw : fw ;; bw = Vert.id A;
+    }.
+    Arguments visocell {sA tA sB tB sf tf sb tb} A B.
+    Arguments mk_visocell {sA tA sB tB sf tf sb tb A B}.
+    Arguments fw {sA tA sB tB sf tf sb tb A B}.
+    Arguments bw {sA tA sB tB sf tf sb tb A B}.
+    Arguments bw_fw {sA tA sB tB sf tf sb tb A B}.
+    Arguments fw_bw {sA tA sB tB sf tf sb tb A B}.
+  End Viso.
+  Export Viso.
+
+  Definition sisocell_to_visocell {a b : P.V.t} {A B : a -o-> b}
+    (s : sisocell A B) :
+    @Viso.visocell a b a b (P.V.id a) (P.V.id b) (P.V.id a) (P.V.id b) A B :=
+    match s with
+    | mk_sisocell f b bf fb => Viso.mk_visocell f b bf fb
+    end.
+  Coercion sisocell_to_visocell : sisocell >-> Viso.visocell.
+
+  (** A horizontal equivalence between objects [a] and [b] consists of
+      horizontal arrows [M : a -o-> b] and [N : b -o-> a] with special
+      isocells [M ⨀ N ≅ hid a] and [N ⨀ M ≅ hid b]. *)
+
+  Module Hiso.
+    Record hiso (a b : P.V.t) := mk_hiso {
+      fw :> a -o-> b;
+      bw :> b -o-> a;
+      fw_bw : sisocell (fw ⨀ bw) (hid a);
+      bw_fw : sisocell (bw ⨀ fw) (hid b);
+    }.
+    Arguments mk_hiso {a b}.
+    Arguments fw {a b}.
+    Arguments bw {a b}.
+    Arguments fw_bw {a b}.
+    Arguments bw_fw {a b}.
+  End Hiso.
+  Export Hiso.
+
+End DoubleCategoryTheory.
+
+(** ** Overall interface *)
+
+Module Type DoubleCategory :=
+  DoubleCategoryDefinition <+ DoubleCategoryTheory.
