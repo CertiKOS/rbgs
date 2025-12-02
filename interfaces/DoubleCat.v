@@ -271,8 +271,7 @@ End DoubleVerticalCatDefinition.
 
 (** ** Definition *)
 
-Module Type DoubleCategoryDefinition.
-  Declare Module V : CategoryDefinition.
+Module Type DoubleCategoryDefinition (V : CategoryDefinition).
   Declare Module Vert : DoubleVerticalCatDefinition V.
   Import Vert.
 
@@ -377,13 +376,13 @@ End DoubleCategoryDefinition.
     defined, the user should include the following module, which provides
     derived definitions and sanity checks. *)
 
-Module DoubleCategoryTheory (P : DoubleCategoryDefinition).
+Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefinition V).
   Import P.
-  Import P.V.
-  Import P.Vert.
+  Import V.
+  Import Vert.
 
   (** Include category theory for the base category [V]. *)
-  Module VT := CategoryTheory P.V.
+  Module VT := CategoryTheory V.
   Export VT.
 
   (** *** Sanity checks *)
@@ -392,89 +391,89 @@ Module DoubleCategoryTheory (P : DoubleCategoryDefinition).
       and that the expected functorial equalities hold. *)
 
   (** [Src] is a functor [Vert -> V]. *)
-  Module Src <: FunctorDefinition P.Vert P.V.
-    Import P.Vert.
+  Module Src <: FunctorDefinition Vert V.
+    Import Vert.
 
-    Definition omap : P.Vert.t -> P.V.t :=
-      fun A => P.Vert.src A.
+    Definition omap : Vert.t -> V.t :=
+      fun A => Vert.src A.
 
-    Definition fmap : forall {A B}, P.Vert.m A B -> P.V.m (omap A) (omap B) :=
+    Definition fmap : forall {A B}, Vert.m A B -> V.m (omap A) (omap B) :=
       fun A B α => src_vmor α.
 
     Proposition fmap_id :
-      forall A, fmap (P.Vert.id A) = P.V.id (omap A).
+      forall A, fmap (Vert.id A) = V.id (omap A).
     Proof. reflexivity. Qed.
 
     Proposition fmap_compose :
-      forall {A B C} (g : P.Vert.m B C) (f : P.Vert.m A B),
-        fmap (f ;; g) = P.V.compose (fmap g) (fmap f).
+      forall {A B C} (g : Vert.m B C) (f : Vert.m A B),
+        fmap (f ;; g) = V.compose (fmap g) (fmap f).
     Proof. reflexivity. Qed.
   End Src.
 
   (** [Tgt] is a functor [Vert -> V]. *)
-  Module Tgt <: FunctorDefinition P.Vert P.V.
-    Import P.Vert.
+  Module Tgt <: FunctorDefinition Vert V.
+    Import Vert.
 
-    Definition omap : P.Vert.t -> P.V.t :=
-      fun A => P.Vert.tgt A.
+    Definition omap : Vert.t -> V.t :=
+      fun A => Vert.tgt A.
 
-    Definition fmap : forall {A B}, P.Vert.m A B -> P.V.m (omap A) (omap B) :=
+    Definition fmap : forall {A B}, Vert.m A B -> V.m (omap A) (omap B) :=
       fun A B α => tgt_vmor α.
 
     Proposition fmap_id :
-      forall A, fmap (P.Vert.id A) = P.V.id (omap A).
+      forall A, fmap (Vert.id A) = V.id (omap A).
     Proof. reflexivity. Qed.
 
     Proposition fmap_compose :
-      forall {A B C} (g : P.Vert.m B C) (f : P.Vert.m A B),
-        fmap (f ;; g) = P.V.compose (fmap g) (fmap f).
+      forall {A B C} (g : Vert.m B C) (f : Vert.m A B),
+        fmap (f ;; g) = V.compose (fmap g) (fmap f).
     Proof. reflexivity. Qed.
   End Tgt.
 
   (** [Src] and [Tgt] commute with [HId]. *)
 
   Proposition hid_src :
-    forall {a : P.V.t}, Src.omap (P.Vert.hid a) = a.
+    forall {a : V.t}, Src.omap (Vert.hid a) = a.
   Proof. reflexivity. Qed.
 
   Proposition hid_mor_src :
-    forall {a b : P.V.t} (f : P.V.m a b),
-      Src.fmap (P.Vert.hid_mor f) = f.
+    forall {a b : V.t} (f : V.m a b),
+      Src.fmap (Vert.hid_mor f) = f.
   Proof. reflexivity. Qed.
 
   Proposition hid_tgt :
-    forall {a : P.V.t}, Tgt.omap (P.Vert.hid a) = a.
+    forall {a : V.t}, Tgt.omap (Vert.hid a) = a.
   Proof. reflexivity. Qed.
 
   Proposition hid_mor_tgt :
-    forall {a b : P.V.t} (f : P.V.m a b),
-      Tgt.fmap (P.Vert.hid_mor f) = f.
+    forall {a b : V.t} (f : V.m a b),
+      Tgt.fmap (Vert.hid_mor f) = f.
   Proof. reflexivity. Qed.
 
   (** [Src] and [Tgt] interact with [HComp] as expected. *)
 
   Proposition hcomp_src :
-    forall {a b c : P.V.t} {B : b -o-> c} {A : a -o-> b},
+    forall {a b c : V.t} {B : b -o-> c} {A : a -o-> b},
       Src.omap (A ⨀ B) = Src.omap A.
   Proof. reflexivity. Qed.
 
   Proposition hcomp_fmap_src :
-    forall {a b c a' b' c' : P.V.t}
+    forall {a b c a' b' c' : V.t}
       {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
-      {f : P.V.m a a'} {g : P.V.m b b'} {h : P.V.m c c'}
+      {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
       (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
       Src.fmap (hcomp_fmap α β) = Src.fmap α.
   Proof. reflexivity. Qed.
 
   Proposition hcomp_tgt :
-    forall {a b c : P.V.t} {B : b -o-> c} {A : a -o-> b},
+    forall {a b c : V.t} {B : b -o-> c} {A : a -o-> b},
       Tgt.omap (A ⨀ B) = Tgt.omap B.
   Proof. intros. unfold tgt. reflexivity. Qed.
 
   Proposition hcomp_fmap_tgt :
-    forall {a b c a' b' c' : P.V.t}
+    forall {a b c a' b' c' : V.t}
       {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
-      {f : P.V.m a a'} {g : P.V.m b b'} {h : P.V.m c c'}
+      {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
       (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
       Tgt.fmap (hcomp_fmap α β) = Tgt.fmap β.
   Proof. reflexivity. Qed.
@@ -482,40 +481,40 @@ Module DoubleCategoryTheory (P : DoubleCategoryDefinition).
   (** The structural isomorphisms have identity frame morphisms. *)
 
   Proposition assoc_src_id :
-    forall {a b c d : P.V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
-      Src.fmap (assoc A B C) = P.V.id _.
+    forall {a b c d : V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
+      Src.fmap (assoc A B C) = V.id _.
   Proof. reflexivity. Qed.
 
   Proposition assoc_tgt_id :
-    forall {a b c d : P.V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
-      Tgt.fmap (assoc A B C) = P.V.id _.
+    forall {a b c d : V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
+      Tgt.fmap (assoc A B C) = V.id _.
   Proof. reflexivity. Qed.
 
   Proposition lunit_src_id :
-    forall {a b : P.V.t} {A : a -o-> b},
-      Src.fmap (lunit A) = P.V.id _.
+    forall {a b : V.t} {A : a -o-> b},
+      Src.fmap (lunit A) = V.id _.
   Proof. reflexivity. Qed.
 
   Proposition lunit_tgt_id :
-    forall {a b : P.V.t} {A : a -o-> b},
-      Tgt.fmap (lunit A) = P.V.id _.
+    forall {a b : V.t} {A : a -o-> b},
+      Tgt.fmap (lunit A) = V.id _.
   Proof. reflexivity. Qed.
 
   Proposition runit_src_id :
-    forall {a b : P.V.t} {A : a -o-> b},
-      Src.fmap (runit A) = P.V.id _.
+    forall {a b : V.t} {A : a -o-> b},
+      Src.fmap (runit A) = V.id _.
   Proof. reflexivity. Qed.
 
   Proposition runit_tgt_id :
-    forall {a b : P.V.t} {A : a -o-> b},
-      Tgt.fmap (runit A) = P.V.id _.
+    forall {a b : V.t} {A : a -o-> b},
+      Tgt.fmap (runit A) = V.id _.
   Proof. reflexivity. Qed.
 
   (** *** Cell types *)
 
   (** A globular cell is a 2-cell between horizontal identities. *)
 
-  Definition gcell {a b : P.V.t} (f : P.V.m a b) (g : P.V.m a b) : Type :=
+  Definition gcell {a b : V.t} (f : V.m a b) (g : V.m a b) : Type :=
     hid a =[f, g]=> hid b.
 
   (** *** Isomorphisms *)
@@ -524,9 +523,9 @@ Module DoubleCategoryTheory (P : DoubleCategoryDefinition).
       frame morphisms. *)
 
   Module Viso.
-    Record visocell {sA tA sB tB : P.V.t}
-      {sf : P.V.m sA sB} {tf : P.V.m tA tB}
-      {sb : P.V.m sB sA} {tb : P.V.m tB tA}
+    Record visocell {sA tA sB tB : V.t}
+      {sf : V.m sA sB} {tf : V.m tA tB}
+      {sb : V.m sB sA} {tb : V.m tB tA}
       (A : sA -o-> tA) (B : sB -o-> tB) := mk_visocell {
       fw :> A =[sf, tf]=> B;
       bw :> B =[sb, tb]=> A;
@@ -542,9 +541,9 @@ Module DoubleCategoryTheory (P : DoubleCategoryDefinition).
   End Viso.
   Export Viso.
 
-  Definition sisocell_to_visocell {a b : P.V.t} {A B : a -o-> b}
+  Definition sisocell_to_visocell {a b : V.t} {A B : a -o-> b}
     (s : sisocell A B) :
-    @Viso.visocell a b a b (P.V.id a) (P.V.id b) (P.V.id a) (P.V.id b) A B :=
+    @Viso.visocell a b a b (V.id a) (V.id b) (V.id a) (V.id b) A B :=
     match s with
     | mk_sisocell f b bf fb => Viso.mk_visocell f b bf fb
     end.
@@ -555,7 +554,7 @@ Module DoubleCategoryTheory (P : DoubleCategoryDefinition).
       isocells [M ⨀ N ≅ hid a] and [N ⨀ M ≅ hid b]. *)
 
   Module Hiso.
-    Record hiso (a b : P.V.t) := mk_hiso {
+    Record hiso (a b : V.t) := mk_hiso {
       fw :> a -o-> b;
       bw :> b -o-> a;
       fw_bw : sisocell (fw ⨀ bw) (hid a);
@@ -573,5 +572,5 @@ End DoubleCategoryTheory.
 
 (** ** Overall interface *)
 
-Module Type DoubleCategory :=
-  DoubleCategoryDefinition <+ DoubleCategoryTheory.
+Module Type DoubleCategory (V : CategoryDefinition) :=
+  DoubleCategoryDefinition V <+ DoubleCategoryTheory V.

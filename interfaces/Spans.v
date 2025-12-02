@@ -76,10 +76,9 @@ End SpanData.
     Horizontal composition is given by pullback. This requires [C] to
     have pullbacks. *)
 
-Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition.
+Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition V.
 
-  (** ** Base category *)
-
+  (** ** Vertical 1-cell category *)
   Import V.
 
   (** ** Vertical category of spans *)
@@ -307,13 +306,91 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition.
 
   (** ** Structural isomorphisms *)
 
-  (** TODO: These require constructing isomorphisms from pullback universal
-      properties. The key is that pullbacks are unique up to unique isomorphism. *)
-
   (** Associator: [(A ⨀ B) ⨀ C ≅ A ⨀ (B ⨀ C)] *)
-  Axiom assoc : forall {a b c d : V.t}
-    (A : a -o-> b) (B : b -o-> c) (C : c -o-> d),
-    sisocell ((A ⨀ B) ⨀ C) (A ⨀ (B ⨀ C)).
+  Program Definition assoc {a b c d : V.t}
+    (A : a -o-> b) (B : b -o-> c) (C : c -o-> d) :
+    sisocell ((A ⨀ B) ⨀ C) (A ⨀ (B ⨀ C)) :=
+    {|
+      fw := {| vtx_mor :=
+        let rl := Pb.pb_pair (f := tgt_leg B) (g := src_leg C)
+          (ll := Pb.pb_p2 (tgt_leg A) (src_leg B) @ Pb.pb_p1 (tgt_leg (A ⨀ B)) (src_leg C))
+          (rl := Pb.pb_p2 (tgt_leg (A ⨀ B)) (src_leg C)) _ in
+        Pb.pb_pair (f := tgt_leg A) (g := src_leg (B ⨀ C))
+          (ll := Pb.pb_p1 (tgt_leg A) (src_leg B) @ Pb.pb_p1 (tgt_leg (A ⨀ B)) (src_leg C))
+          (rl := rl) _ |};
+      bw := {| vtx_mor :=
+        let ll := Pb.pb_pair (f := tgt_leg A) (g := src_leg B)
+          (ll := Pb.pb_p1 (tgt_leg A) (src_leg (B ⨀ C)))
+          (rl := Pb.pb_p1 (tgt_leg B) (src_leg C) @ Pb.pb_p2 (tgt_leg A) (src_leg (B ⨀ C))) _ in
+        Pb.pb_pair (f := tgt_leg (A ⨀ B)) (g := src_leg C)
+          (ll := ll)
+          (rl := Pb.pb_p2 (tgt_leg B) (src_leg C) @ Pb.pb_p2 (tgt_leg A) (src_leg (B ⨀ C))) _ |};
+    |}.
+  Next Obligation.
+    unfold Pb.pb_cone. rewrite <- V.compose_assoc, Pb.pb_square. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold Pb.pb_cone.
+    rewrite <- !V.compose_assoc, (Pb.pb_square (tgt_leg A) (src_leg B)).
+    rewrite !V.compose_assoc, Pb.pb_p1_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold Pb.pb_cone. rewrite V.compose_id_left.
+    rewrite !V.compose_assoc. f_equal.
+    rewrite Pb.pb_p1_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite !V.compose_assoc. rewrite V.compose_id_left.
+    rewrite Pb.pb_p2_pair. rewrite Pb.pb_p2_pair.
+    reflexivity.
+  Qed.
+  Next Obligation.
+    unfold Pb.pb_cone. rewrite Pb.pb_square.
+    rewrite !V.compose_assoc. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold Pb.pb_cone. rewrite !V.compose_assoc, Pb.pb_p2_pair.
+    rewrite <- !V.compose_assoc, Pb.pb_square. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite V.compose_id_left, !V.compose_assoc, !Pb.pb_p1_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite V.compose_id_left.
+    rewrite !V.compose_assoc, Pb.pb_p2_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold compose. apply harr_meq; cbn; try apply V.compose_id_left.
+    apply Pb.pb_mor_eq.
+    - rewrite V.compose_id_right.
+      rewrite <- !V.compose_assoc, Pb.pb_p1_pair.
+      rewrite !V.compose_assoc, Pb.pb_p1_pair.
+      rewrite Pb.pb_p1_pair. reflexivity.
+    - rewrite V.compose_id_right.
+      rewrite <- !V.compose_assoc, Pb.pb_p2_pair.
+      apply Pb.pb_mor_eq.
+      + rewrite <- !V.compose_assoc, Pb.pb_p1_pair.
+        rewrite !V.compose_assoc, Pb.pb_p1_pair.
+        rewrite Pb.pb_p2_pair. reflexivity.
+      + rewrite <- !V.compose_assoc, Pb.pb_p2_pair.
+        rewrite Pb.pb_p2_pair. reflexivity.
+  Qed.
+  (* fw_bw: fw @ bw = id *)
+  Next Obligation.
+    unfold compose. apply harr_meq; cbn; try apply V.compose_id_left.
+    apply Pb.pb_mor_eq.
+    - rewrite V.compose_id_right. rewrite <- !V.compose_assoc, Pb.pb_p1_pair.
+      apply Pb.pb_mor_eq.
+      + rewrite <- !V.compose_assoc, Pb.pb_p1_pair. rewrite Pb.pb_p1_pair.
+        reflexivity.
+      + rewrite <- !V.compose_assoc, Pb.pb_p2_pair.
+        rewrite !V.compose_assoc, Pb.pb_p2_pair.
+        rewrite Pb.pb_p1_pair. reflexivity.
+    - rewrite V.compose_id_right.
+      rewrite <- !V.compose_assoc, Pb.pb_p2_pair.
+      rewrite !V.compose_assoc, Pb.pb_p2_pair.
+      rewrite Pb.pb_p2_pair. reflexivity.
+  Defined.
 
   (** Left unitor: [hid a ⨀ A ≅ A] *)
   Program Definition lunit {a b : V.t} (A : a -o-> b) :
@@ -360,38 +437,38 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition.
       bw := {| vtx_mor :=
         Pb.pb_pair (f := tgt_leg A) (g := V.id b) (ll := V.id (vtx A)) (rl := tgt_leg A) _|};
     |}.
-    Next Obligation.
-      rewrite V.compose_id_left. reflexivity.
-    Qed.
-    Next Obligation.
-      rewrite V.compose_id_left. rewrite <- Pb.pb_square. reflexivity.
-    Qed.
-    Next Obligation.
-      unfold Pb.pb_cone. rewrite V.compose_id_left, V.compose_id_right. reflexivity.
-    Qed.
-    Next Obligation.
-      rewrite !V.compose_id_left. rewrite V.compose_assoc.
-      rewrite Pb.pb_p1_pair. rewrite V.compose_id_right. reflexivity.
-    Qed.
-    Next Obligation.
-      rewrite !V.compose_id_left. rewrite Pb.pb_p2_pair. reflexivity.
-    Qed.
-    Next Obligation.
-      unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
-      rewrite Pb.pb_p1_pair. reflexivity.
-    Qed.
-    Next Obligation.
-      unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
-      apply Pb.pb_mor_eq.
-      - rewrite <- V.compose_assoc, Pb.pb_p1_pair.
-        rewrite V.compose_id_left, V.compose_id_right. reflexivity.
-      - rewrite <- V.compose_assoc, Pb.pb_p2_pair.
-        rewrite Pb.pb_square, V.compose_id_left, V.compose_id_right. reflexivity.
-    Qed.
+  Next Obligation.
+    rewrite V.compose_id_left. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite V.compose_id_left. rewrite <- Pb.pb_square. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold Pb.pb_cone. rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite !V.compose_id_left. rewrite V.compose_assoc.
+    rewrite Pb.pb_p1_pair. rewrite V.compose_id_right. reflexivity.
+  Qed.
+  Next Obligation.
+    rewrite !V.compose_id_left. rewrite Pb.pb_p2_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
+    rewrite Pb.pb_p1_pair. reflexivity.
+  Qed.
+  Next Obligation.
+    unfold compose. apply harr_meq; cbn; try (apply V.compose_id_left).
+    apply Pb.pb_mor_eq.
+    - rewrite <- V.compose_assoc, Pb.pb_p1_pair.
+      rewrite V.compose_id_left, V.compose_id_right. reflexivity.
+    - rewrite <- V.compose_assoc, Pb.pb_p2_pair.
+      rewrite Pb.pb_square, V.compose_id_left, V.compose_id_right. reflexivity.
+  Defined.
 
   (** ** Naturality *)
 
-  Axiom assoc_nat :
+  Proposition assoc_nat :
     forall {a a' b b' c c' d d' : V.t}
       {A : a -o-> b} {A' : a' -o-> b'}
       {B : b -o-> c} {B' : b' -o-> c'}
@@ -399,38 +476,131 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition.
       {f : V.m a a'} {g : V.m b b'} {h : V.m c c'} {k : V.m d d'}
       (α : A =[f,g]=> A') (β : B =[g,h]=> B') (γ : C =[h,k]=> C'),
       (assoc A B C) ;; (α ⊙ (β ⊙ γ)) = ((α ⊙ β) ⊙ γ) ;; (assoc A' B' C').
+  Proof.
+    intros. apply harr_meq; cbn;
+      try (rewrite V.compose_id_left, V.compose_id_right; reflexivity).
+    apply Pb.pb_mor_eq.
+    - rewrite <- !V.compose_assoc, !Pb.pb_p1_pair.
+      rewrite !V.compose_assoc, !Pb.pb_p1_pair.
+      rewrite <- !V.compose_assoc. rewrite Pb.pb_p1_pair. reflexivity.
+    - rewrite <- !V.compose_assoc, !Pb.pb_p2_pair.
+      rewrite !V.compose_assoc. rewrite Pb.pb_p2_pair.
+      apply Pb.pb_mor_eq.
+      + rewrite <- !V.compose_assoc, !Pb.pb_p1_pair.
+        rewrite !V.compose_assoc, !Pb.pb_p1_pair.
+        rewrite <- !V.compose_assoc, Pb.pb_p2_pair. reflexivity.
+      + rewrite <- !V.compose_assoc, !Pb.pb_p2_pair.
+        rewrite !V.compose_assoc, Pb.pb_p2_pair. reflexivity.
+  Qed.
 
-  Axiom lunit_nat :
+  Proposition lunit_nat :
     forall {a a' b b' : V.t}
       {A : a -o-> b} {A' : a' -o-> b'}
       {f : V.m a a'} {g : V.m b b'}
       (α : A =[f,g]=> A'),
       (lunit A) ;; α = (hid_mor f ⊙ α) ;; (lunit A').
+  Proof.
+    intros. apply harr_meq; cbn;
+      try (rewrite V.compose_id_left, V.compose_id_right; reflexivity).
+    rewrite Pb.pb_p2_pair. reflexivity.
+  Qed.
 
-  Axiom runit_nat :
+  Proposition runit_nat :
     forall {a a' b b' : V.t}
       {A : a -o-> b} {A' : a' -o-> b'}
       {f : V.m a a'} {g : V.m b b'}
       (α : A =[f,g]=> A'),
       (runit A) ;; α = (α ⊙ hid_mor g) ;; (runit A').
+  Proof.
+    intros. apply harr_meq; cbn;
+    try (rewrite V.compose_id_left, V.compose_id_right; reflexivity).
+    rewrite Pb.pb_p1_pair. reflexivity.
+  Qed.
 
   (** ** Coherence *)
 
-  Axiom assoc_coh :
+  Proposition assoc_coh :
     forall {a b c d e : V.t}
       (A : a -o-> b) (B : b -o-> c) (C : c -o-> d) (D : d -o-> e),
       ((assoc A B C) ⊙ vid D) ;; (assoc A (B ⨀ C) D) ;; (vid A ⊙ (assoc B C D))
       = (assoc (A ⨀ B) C D) ;; (assoc A B (C ⨀ D)).
+  Proof.
+    intros. apply harr_meq; cbn; (try (rewrite !V.compose_id_left; reflexivity)).
+    apply Pb.pb_mor_eq.
+    - rewrite <- !V.compose_assoc, !Pb.pb_p1_pair, V.compose_id_left.
+      rewrite Pb.pb_p1_pair. rewrite !V.compose_assoc, !Pb.pb_p1_pair.
+      rewrite <- !V.compose_assoc, Pb.pb_p1_pair.
+      reflexivity.
+    - rewrite <- !V.compose_assoc, !Pb.pb_p2_pair.
+      apply Pb.pb_mor_eq.
+      + rewrite <- !V.compose_assoc, !Pb.pb_p1_pair.
+        rewrite !V.compose_assoc, Pb.pb_p1_pair.
+        rewrite <- V.compose_assoc.
+        set (p2term := Pb.pb_p2 (tgt_leg A)
+         ((src_leg B @ Pb.pb_p1 (tgt_leg B) (src_leg C)) @ _)).
+        set (pair1 := Pb.pb_pair _).
+        set (pair2 := Pb.pb_pair _).
+        replace (p2term @ pair1 @ pair2) with ((p2term @ pair1) @ pair2)
+            by (apply V.compose_assoc).
+        unfold p2term, pair1.  clear pair1. rewrite Pb.pb_p2_pair.
+        rewrite V.compose_assoc.
+        set (p1term := Pb.pb_p1 _ (src_leg D)).
+        set (pair1 := Pb.pb_pair _).
+        replace (p1term @ pair1 @ pair2) with ((p1term @ pair1) @ pair2)
+          by (apply V.compose_assoc).
+        unfold p1term, pair1; rewrite Pb.pb_p1_pair; clear p1term; clear pair1.
+        rewrite !V.compose_assoc. unfold pair2; clear pair2.
+        rewrite Pb.pb_p1_pair. rewrite <- !V.compose_assoc. f_equal.
+        rewrite !V.compose_assoc. rewrite Pb.pb_p2_pair. rewrite Pb.pb_p1_pair.
+        reflexivity.
+      + rewrite <- !V.compose_assoc. rewrite !Pb.pb_p2_pair.
+        symmetry. apply Pb.pb_pair_uni.
+        * rewrite <- !V.compose_assoc. rewrite Pb.pb_p1_pair.
+          rewrite !V.compose_assoc.
+          set (p2term :=
+            Pb.pb_p2 _ ((src_leg B @ Pb.pb_p1 (tgt_leg B) (src_leg C)) @ _)).
+          set (pair1 := Pb.pb_pair _). set (pair2 := Pb.pb_pair _).
+          replace (p2term @ pair1 @ pair2) with ((p2term @ pair1) @ pair2)
+            by (apply V.compose_assoc).
+          unfold p2term, pair1; clear p2term; clear pair1. rewrite Pb.pb_p2_pair.
+          set (p1term := Pb.pb_p1 (tgt_leg C @ _) _).
+          set (pair1 := Pb.pb_pair _).
+          replace (p1term @ pair1 @ pair2) with ((p1term @ pair1) @ pair2)
+            by (apply V.compose_assoc).
+          unfold p1term, pair1; clear pair1; clear p1term. rewrite Pb.pb_p1_pair.
+          rewrite !V.compose_assoc. unfold pair2; clear pair2.
+          rewrite Pb.pb_p1_pair. rewrite <- !V.compose_assoc. f_equal.
+          rewrite !V.compose_assoc. rewrite !Pb.pb_p2_pair. reflexivity.
+        * rewrite <- !V.compose_assoc. rewrite Pb.pb_p2_pair.
+          rewrite !V.compose_assoc.
+          set (p2term := Pb.pb_p2 (tgt_leg A)
+            ((src_leg B @ Pb.pb_p1 (tgt_leg B) (src_leg C)) @ _)).
+          set (pair1 := Pb.pb_pair _). set (pair2 := Pb.pb_pair _).
+          replace (p2term @ pair1 @ pair2) with ((p2term @ pair1) @ pair2)
+            by (apply V.compose_assoc).
+          unfold p2term, pair1; clear p2term; clear pair1. rewrite Pb.pb_p2_pair.
+          rewrite <- V.compose_assoc. rewrite Pb.pb_p2_pair.
+          unfold pair2; clear pair2.  rewrite Pb.pb_p2_pair.
+          rewrite V.compose_id_left. reflexivity.
+  Qed.
 
-  Axiom unit_coh :
+  Proposition unit_coh :
     forall {a b c : V.t} (A : a -o-> b) (B : b -o-> c),
       ((runit A) ⊙ vid B : Vert.m _ _) =
       (assoc A (hid b) B) ;; (vid A ⊙ (lunit B)).
+  Proof.
+    intros. apply harr_meq; cbn; (try (rewrite !V.compose_id_left; reflexivity)).
+    apply Pb.pb_pair_uni.
+    - rewrite <- !V.compose_assoc. rewrite Pb.pb_p1_pair.
+      rewrite !V.compose_assoc. rewrite Pb.pb_p1_pair.
+      rewrite !V.compose_id_left. reflexivity.
+    - rewrite <- !V.compose_assoc. rewrite Pb.pb_p2_pair.
+      rewrite !V.compose_assoc. rewrite !Pb.pb_p2_pair.
+      rewrite !V.compose_id_left. reflexivity.
+  Qed.
 
 End SpanDoubleCat.
 
-
 (** ** Full double category instance *)
-
-Module SpanDouble (C : CategoryWithPullbacks) :=
-  SpanDoubleCat C <+ DoubleCategoryTheory.
+Module SpanDouble (V : CategoryWithPullbacks) :=
+  SpanDoubleCat V <+ DoubleCategoryTheory V.
