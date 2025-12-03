@@ -208,19 +208,12 @@ Module Type BifunctorPreservesPullbacks
   (D : CategoryDefinition) (PbD : PullbackSquare D)
   (F : BifunctorDefinition C1 C2 D).
 
-  (** Preserves pullbacks in the first argument *)
-  Axiom preserves_pb_fst : forall (X2 : C2.t) {A B X P : C1.t}
-    {f : C1.m A X} {g : C1.m B X} {p1 : C1.m P A} {p2 : C1.m P B},
-    PbC1.IsPullback f g p1 p2 ->
-    PbD.IsPullback (F.fmap f (C2.id X2)) (F.fmap g (C2.id X2))
-                   (F.fmap p1 (C2.id X2)) (F.fmap p2 (C2.id X2)).
-
-  (** Preserves pullbacks in the second argument *)
-  Axiom preserves_pb_snd : forall (X1 : C1.t) {A B X P : C2.t}
-    {f : C2.m A X} {g : C2.m B X} {p1 : C2.m P A} {p2 : C2.m P B},
-    PbC2.IsPullback f g p1 p2 ->
-    PbD.IsPullback (F.fmap (C1.id X1) f) (F.fmap (C1.id X1) g)
-                   (F.fmap (C1.id X1) p1) (F.fmap (C1.id X1) p2).
+  Axiom preserves_pb_joint : forall {A1 B1 X1 P1 : C1.t} {A2 B2 X2 P2 : C2.t}
+    {f1 : C1.m A1 X1} {g1 : C1.m B1 X1} {p1_1 : C1.m P1 A1} {p1_2 : C1.m P1 B1}
+    {f2 : C2.m A2 X2} {g2 : C2.m B2 X2} {p2_1 : C2.m P2 A2} {p2_2 : C2.m P2 B2},
+    PbC1.IsPullback f1 g1 p1_1 p1_2 ->
+    PbC2.IsPullback f2 g2 p2_1 p2_2 ->
+    PbD.IsPullback (F.fmap f1 f2) (F.fmap g1 g2) (F.fmap p1_1 p2_1) (F.fmap p1_2 p2_2).
 
 End BifunctorPreservesPullbacks.
 
