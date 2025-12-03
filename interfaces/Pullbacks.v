@@ -202,6 +202,28 @@ Module Type PreservesPullbacks (C : CategoryDefinition) (PbC : PullbackSquare C)
 
 End PreservesPullbacks.
 
+Module Type BifunctorPreservesPullbacks
+  (C1 : CategoryDefinition) (PbC1 : PullbackSquare C1)
+  (C2 : CategoryDefinition) (PbC2 : PullbackSquare C2)
+  (D : CategoryDefinition) (PbD : PullbackSquare D)
+  (F : BifunctorDefinition C1 C2 D).
+
+  (** Preserves pullbacks in the first argument *)
+  Axiom preserves_pb_fst : forall (X2 : C2.t) {A B X P : C1.t}
+    {f : C1.m A X} {g : C1.m B X} {p1 : C1.m P A} {p2 : C1.m P B},
+    PbC1.IsPullback f g p1 p2 ->
+    PbD.IsPullback (F.fmap f (C2.id X2)) (F.fmap g (C2.id X2))
+                   (F.fmap p1 (C2.id X2)) (F.fmap p2 (C2.id X2)).
+
+  (** Preserves pullbacks in the second argument *)
+  Axiom preserves_pb_snd : forall (X1 : C1.t) {A B X P : C2.t}
+    {f : C2.m A X} {g : C2.m B X} {p1 : C2.m P A} {p2 : C2.m P B},
+    PbC2.IsPullback f g p1 p2 ->
+    PbD.IsPullback (F.fmap (C1.id X1) f) (F.fmap (C1.id X1) g)
+                   (F.fmap (C1.id X1) p1) (F.fmap (C1.id X1) p2).
+
+End BifunctorPreservesPullbacks.
+
 (** ** Category with pullbacks *)
 
 (** A category bundled with a pullback structure. *)
