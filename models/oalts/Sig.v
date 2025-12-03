@@ -1,7 +1,13 @@
 Require Import interfaces.Category.
 Require Import interfaces.Functor.
 Require Import interfaces.MonoidalCategory.
+Require Import interfaces.Limits.
+Require Import models.oalts.AsyncEvent.
 
+(** * Polarized Signatures *)
+
+(** ** A Polarized signature is a pair of two objects [(A^-, A^+)] of C.
+  A morphism of signatures is a morphism f : A^- + A^+ -> A^- + B^+ *)
 Module SigDefinition (C : CocartesianCategory) <: Category.
   Import C.
   Open Scope obj_scope.
@@ -42,6 +48,7 @@ Module Type Sig (C : CocartesianCategory).
   Include (SigDefinition C).
 End Sig.
 
+(** ** With some work we can always derive a cocartesian structure to [Sig C]*)
 Module SigCocartesian (C : CocartesianCategory) (S : Sig C) <: CocartesianCategory.
   Include S.
   Import C.
@@ -278,6 +285,7 @@ Module SigCocartesian (C : CocartesianCategory) (S : Sig C) <: CocartesianCatego
   Include CocartesianTheory S.
 End SigCocartesian.
 
+(** ** There is an obvious embedding from [Sig C] to [C] *)
 Module SigToC (C : CocartesianCategory) (S : Sig C) <: FaithfulFunctor S C.
   Import C.
   Open Scope obj_scope.
@@ -301,3 +309,33 @@ Module SigToC (C : CocartesianCategory) (S : Sig C) <: FaithfulFunctor S C.
 
   Include (FunctorTheory S C).
 End SigToC.
+
+(** ** Polarized signatures generate corresponding sets of async events *)
+Module SigToAsyncEvent (C : CocartesianCategory) (T : Terminals C)
+  (S : Sig C) (Ev : AsyncEvents C T) <: Functor S Ev.
+
+  Module SC := SigToC C S.
+
+  Definition omap (X : S.t) : Ev.t := SC.omap X.
+
+  Definition fmap {A B : S.t} (f : S.m A B) : Ev.m (omap A) (omap B) :=
+    Ev.L.KlF.fmap (SC.fmap f).
+
+  Proposition fmap_id : forall A, fmap (S.id A) = Ev.id (omap A).
+  Proof.
+    intros. unfold fmap, omap.
+    rewrite SC.fmap_id.
+    apply Ev.L.KlF.fmap_id.
+  Qed.
+
+  Proposition fmap_compose :
+    forall {A B C} (g : S.m B C) (f : S.m A B),
+    fmap (S.compose g f) = Ev.compose (fmap g) (fmap f).
+  Proof.
+    intros. unfold fmap.
+    rewrite SC.fmap_compose.
+    apply Ev.L.KlF.fmap_compose.
+  Qed.
+
+  Include (FunctorTheory S Ev).
+End SigToAsyncEvent.
