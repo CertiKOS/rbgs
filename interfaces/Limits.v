@@ -9,10 +9,12 @@ Require Import ProofIrrelevance.
 (** * Terminal Object *)
 
 Module Type TerminalsDefinition (C : CategoryDefinition).
+
   Parameter unit: C.t.
   Parameter ter : forall X, C.m X unit.
 
   Axiom ter_uni : forall {X} (x y : C.m X unit), x = y.
+
 End TerminalsDefinition.
 
 Module Type Terminals (C : CategoryDefinition) :=
@@ -25,7 +27,9 @@ Module TerminalsFromCartesian (C : CartesianCategory) <: Terminals C.
   Definition ter := C.Prod.ter.
 
   Proposition ter_uni : forall {X} (x y : C.m X unit), x = y.
-  Proof. unfold unit. intros X. exact C.Prod.ter_uni. Qed.
+  Proof.
+    unfold unit. intros X. exact C.Prod.ter_uni.
+  Qed.
 End TerminalsFromCartesian.
 
 (** * Products *)
