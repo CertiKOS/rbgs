@@ -84,7 +84,35 @@ Module Type PullbacksDefinition (C : CategoryDefinition).
           pb_pair sq = p.
 End PullbacksDefinition.
 
-Module PullbacksTheory (C : CategoryDefinition) (P : PullbacksDefinition C).
+Module Type PullbackSquare (C : CategoryDefinition).
+  Record IsPullback {A B X P : C.t}
+    (f : C.m A X) (g : C.m B X)
+    (p1 : C.m P A) (p2 : C.m P B) :=
+  {
+    is_pb_pair : forall {Y} (ll : C.m Y A) (rl : C.m Y B),
+      C.compose f ll = C.compose g rl -> C.m Y P;
+    is_pb_square : C.compose f p1 = C.compose g p2;
+    is_pb_p1_pair : forall {Y} (ll : C.m Y A) (rl : C.m Y B)
+      (sq : C.compose f ll = C.compose g rl),
+      C.compose p1 (is_pb_pair ll rl sq) = ll;
+    is_pb_p2_pair : forall {Y} (ll : C.m Y A) (rl : C.m Y B)
+      (sq : C.compose f ll = C.compose g rl),
+      C.compose p2 (is_pb_pair ll rl sq) = rl;
+    is_pb_uni : forall {Y} (ll : C.m Y A) (rl : C.m Y B)
+      (sq : C.compose f ll = C.compose g rl) (h : C.m Y P),
+      C.compose p1 h = ll -> C.compose p2 h = rl ->
+      h = is_pb_pair ll rl sq;
+  }.
+
+  Arguments is_pb_pair {A B X P f g p1 p2} _ {Y} ll rl _.
+  Arguments is_pb_square {A B X P f g p1 p2} _.
+  Arguments is_pb_p1_pair {A B X P f g p1 p2} _ {Y} ll rl sq.
+  Arguments is_pb_p2_pair {A B X P f g p1 p2} _ {Y} ll rl sq.
+  Arguments is_pb_uni {A B X P f g p1 p2} _ {Y} ll rl sq h _ _.
+End PullbackSquare.
+
+Module PullbacksTheory (C : Category) (P : PullbacksDefinition C).
+  Include (PullbackSquare C).
   Import P.
 
   (** Two morphisms into a pullback are equal if they have the same projections. *)
@@ -110,10 +138,69 @@ Module PullbacksTheory (C : CategoryDefinition) (P : PullbacksDefinition C).
     intros. apply pb_pair_uni; rewrite C.compose_id_right; reflexivity.
   Qed.
 
+  Program Definition pb_is_pb {A B X : C.t} (f : C.m A X) (g : C.m B X) :
+      IsPullback f g (pb_p1 f g) (pb_p2 f g) :=
+      {|
+        is_pb_pair := fun Y ll rl sq => pb_pair sq;
+      |}.
+  Next Obligation.
+    exact (pb_square f g).
+  Qed.
+  Next Obligation.
+    exact (pb_p1_pair sq).
+  Qed.
+  Next Obligation.
+    exact (pb_p2_pair sq).
+  Qed.
+  Next Obligation.
+    symmetry. apply pb_pair_uni; reflexivity.
+  Defined.
+
+  Program Definition is_pb_iso {A B X P : C.t}
+    {f : C.m A X} {g : C.m B X} {p1 : C.m P A} {p2 : C.m P B}
+    (is_pb : IsPullback f g p1 p2) : C.iso P (P.pb_prod f g) :=
+  {|
+    C.fw := pb_pair (is_pb_square is_pb);
+    C.bw := is_pb_pair is_pb (pb_p1 f g) (pb_p2 f g) (pb_square f g);
+  |}.
+  Next Obligation.
+    rewrite (is_pb_uni is_pb p1 p2 (is_pb_square is_pb) (C.id P)).
+    - apply is_pb_uni.
+      + rewrite <- C.compose_assoc.
+        rewrite is_pb_p1_pair.
+        apply pb_p1_pair.
+      + rewrite <- C.compose_assoc.
+        rewrite is_pb_p2_pair.
+        apply pb_p2_pair.
+    - apply C.compose_id_right.
+    - apply C.compose_id_right.
+  Qed.
+  Next Obligation.
+    apply pb_mor_eq.
+    - rewrite C.compose_id_right.
+      rewrite <- C.compose_assoc.
+      rewrite pb_p1_pair.
+      apply is_pb_p1_pair.
+    - rewrite C.compose_id_right.
+      rewrite <- C.compose_assoc.
+      rewrite pb_p2_pair.
+      apply is_pb_p2_pair.
+  Defined.
+
 End PullbacksTheory.
 
-Module Type Pullbacks (C : CategoryDefinition) :=
+Module Type Pullbacks (C : Category) :=
   PullbacksDefinition C <+ PullbacksTheory C.
+
+Module Type PreservesPullbacks (C : CategoryDefinition) (PbC : PullbackSquare C)
+  (D : CategoryDefinition) (PbD : PullbackSquare D) (F : FunctorDefinition C D).
+
+  Axiom preserves_pb : forall {A B X P : C.t}
+    {f : C.m A X} {g : C.m B X} {p1 : C.m P A} {p2 : C.m P B},
+    PbC.IsPullback f g p1 p2 ->
+    PbD.IsPullback (F.fmap f) (F.fmap g) (F.fmap p1) (F.fmap p2).
+
+End PreservesPullbacks.
 
 (** ** Category with pullbacks *)
 
@@ -124,6 +211,7 @@ Module Type CategoryWithPullbacks.
   Declare Module Pb : Pullbacks C.
   Include C.
 End CategoryWithPullbacks.
+
 
 Module FunctorPullbackCat
   (C : CategoryDefinition) (CL : CategoryDefinition) (CR : CategoryDefinition)
