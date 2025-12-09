@@ -42,7 +42,9 @@ interfaces/Adjunctions.v
 interfaces/Monads.v
 interfaces/LiftMonad.v
 
-models/oalts/DCPOEnrichedCat.v
+models/oalts/interfaces/DCPOEnrichedCat.v
+models/oalts/interfaces/LiftToKleisli.v
 models/oalts/AsyncEvent.v
 models/oalts/LCoalg.v
 models/oalts/Sig.v
+models/oalts/TimeFunctor.v

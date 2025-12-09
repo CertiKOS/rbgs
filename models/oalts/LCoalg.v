@@ -279,7 +279,7 @@ End LCoalgWithPullbacks.
 
 Require Import coqrel.LogicalRelations.
 Require Import models.DCPO.
-Require Import models.oalts.DCPOEnrichedCat.
+Require Import models.oalts.interfaces.DCPOEnrichedCat.
 
 (** For now, we just derive CategoryDefinition. The DCPO enrichment
     (hom_dcpo, compose_continuous_l, compose_continuous__r) can be added later. *)
