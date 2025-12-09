@@ -894,6 +894,14 @@ Module Type CocartesianCategory :=
   Category.Category <+
   Cocartesian.
 
+(** ** Bicartesian category interface *)
+Module Type BicartesianCategory.
+  Declare Module C : CartesianCategory.
+  Declare Module CC : Cocartesian C.
+  Include C.
+  Include CC.
+End BicartesianCategory.
+
 
 (** * Monoidal functors *)
 
