@@ -41,6 +41,8 @@ interfaces/Spans.v
 interfaces/Adjunctions.v
 interfaces/Monads.v
 interfaces/LiftMonad.v
+
+models/oalts/DCPOEnrichedCat.v
 models/oalts/AsyncEvent.v
 models/oalts/LCoalg.v
 models/oalts/Sig.v
