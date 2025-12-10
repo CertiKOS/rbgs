@@ -18,105 +18,95 @@ Require Import coqrel.LogicalRelations.
     - mu_X : MMX -> MX is the union
 *)
 
-(** ** Downset structure on Poset objects *)
-
-Section DownsetConstruction.
-  Variable P : Type.
-  Variable PO : DCPO.PartialOrder P.
-
-  (** A downset is a downward-closed predicate *)
-  Record dset :=
-    mk_dset {
-      has : P -> Prop;
-      closed : forall x y, x [= y -> has y -> has x;
-    }.
-
-  (** Partial order on downsets by inclusion *)
-  Definition dset_le (D1 D2 : dset) : Prop :=
-    forall x, has D1 x -> has D2 x.
-
-  Lemma dset_le_preo : PreOrder dset_le.
-  Proof.
-    constructor.
-    - intros D x H. exact H.
-    - intros D1 D2 D3 H12 H23 x H1. apply H23, H12, H1.
-  Qed.
-
-  Lemma dset_le_po : Antisymmetric dset eq dset_le.
-  Proof.
-    intros [h1 c1] [h2 c2] H12 H21. simpl in *.
-    assert (h1 = h2) as Heq.
-    { apply functional_extensionality. intros z.
-      apply propositional_extensionality.
-      split; [apply H12 | apply H21]. }
-    subst. f_equal. apply proof_irrelevance.
-  Qed.
-
-  Instance dset_PO : DCPO.PartialOrder dset :=
-    {| le := dset_le;
-       le_preo := dset_le_preo;
-       le_po := dset_le_po |}.
-
-  (** Principal downset *)
-  Definition emb (p : P) : dset :=
-    {| has := fun y => y [= p;
-       closed := fun a b Hab Hbp => transitivity Hab Hbp |}.
-
-End DownsetConstruction.
-
-Arguments dset P {_}.
-Arguments mk_dset {P _}.
-Arguments has {P _}.
-Arguments emb {P _}.
-Arguments dset_PO {P _}.
-
-(** Union of downsets *)
-Section DownsetMu.
-  Variable P : Type.
-  Variable PO : DCPO.PartialOrder P.
-
-  Definition mu (DD : @dset (dset P) dset_PO) : dset P.
-  Proof.
-    refine (@mk_dset P PO (fun z => exists D, has DD D /\ has D z) _).
-    intros a b Hab [D [HDD HD]].
-    exists D. split; auto.
-    eapply closed; eauto.
-  Defined.
-
-End DownsetMu.
-
-Arguments mu {P _}.
-
 (** ** Downset Monad Definition *)
 
 Module DownsetMonadDef <: MonadDefinition Poset.
   Import Poset.
 
-  (** Object map: X -> Downset X *)
-  Definition omap (X : Poset.t) : Poset.t :=
-    @Poset.mkt (dset X) (@dset_PO _ (Poset.structure X)).
+  (** *** Downset structure on Poset objects *)
 
-  (** fmap: direct image with downward closure *)
+  Section DownsetConstruction.
+    Variable P : Type.
+    Variable PO : DCPO.PartialOrder P.
+
+    (** A downset is a downward-closed predicate *)
+    Record dset :=
+      mk_dset {
+        has : P -> Prop;
+        closed : forall x y, x [= y -> has y -> has x;
+      }.
+
+    (** Partial order on downsets by inclusion *)
+    Definition dset_le (D1 D2 : dset) : Prop :=
+      forall x, has D1 x -> has D2 x.
+
+    Lemma dset_le_preo : PreOrder dset_le.
+    Proof.
+      constructor.
+      - intros D x H. exact H.
+      - intros D1 D2 D3 H12 H23 x H1. apply H23, H12, H1.
+    Qed.
+
+    Lemma dset_le_po : Antisymmetric dset eq dset_le.
+    Proof.
+      intros [h1 c1] [h2 c2] H12 H21. simpl in *.
+      assert (h1 = h2) as Heq.
+      { apply functional_extensionality. intros z.
+        apply propositional_extensionality.
+        split; [apply H12 | apply H21]. }
+      subst. f_equal. apply proof_irrelevance.
+    Qed.
+
+    Instance dset_PO : DCPO.PartialOrder dset :=
+      {| le := dset_le;
+         le_preo := dset_le_preo;
+         le_po := dset_le_po |}.
+
+    (** Principal downset *)
+    Definition emb (p : P) : dset :=
+      {| has := fun y => y [= p;
+         closed := fun a b Hab Hbp => transitivity Hab Hbp |}.
+
+  End DownsetConstruction.
+
+  Arguments dset {P} PO.
+  Arguments mk_dset {P PO}.
+  Arguments has {P PO}.
+  Arguments emb {P PO}.
+  Arguments dset_PO {P} PO.
+
+  (** Union of downsets - defined outside section so dset can be applied to itself *)
+  Definition mu_fun {P} {PO : DCPO.PartialOrder P} (DD : dset (dset_PO PO)) : dset PO.
+  Proof.
+    refine (@mk_dset P PO (fun z => exists D, has DD D /\ has D z) _).
+    intros a b Hab [D [HDD HD]].
+    exists D. split; auto.
+    eapply (@closed P PO); eauto.
+  Defined.
+
+  (** *** Object map: X -> Downset X *)
+  Definition omap (X : Poset.t) : Poset.t :=
+    @Poset.mkt (dset (Poset.structure X)) (dset_PO (Poset.structure X)).
+
+  (** *** fmap: direct image with downward closure *)
   Section FmapDef.
     Variables X Y : Poset.t.
     Variable f : Poset.m X Y.
 
     Let POX : DCPO.PartialOrder X := Poset.structure X.
     Let POY : DCPO.PartialOrder Y := Poset.structure Y.
-    Let dset_POX : DCPO.PartialOrder (@dset _ POX) := @dset_PO _ POX.
-    Let dset_POY : DCPO.PartialOrder (@dset _ POY) := @dset_PO _ POY.
 
     Let ff (x : X) : Y := @Poset.apply X Y f x.
 
-    Definition fmap_fun_aux (D : @dset _ POX) : @dset _ POY.
+    Definition fmap_fun (D : dset POX) : dset POY.
     Proof.
-      refine (@mk_dset _ POY (fun y => exists x, has D x /\ y [= (ff x)) _).
+      refine (@mk_dset Y POY (fun y => exists x, has D x /\ y [= (ff x)) _).
       intros y1 y2 Hy [a [Ha Hy1]].
       exists a. split; auto.
       etransitivity; eauto.
     Defined.
 
-    Lemma fmap_mor_aux : @Poset.Morphism _ _ dset_POX dset_POY fmap_fun_aux.
+    Lemma fmap_mor : @Poset.Morphism _ _ (dset_PO POX) (dset_PO POY) fmap_fun.
     Proof.
       intros D1 D2 HD. simpl.
       intros y [a [Ha Hy]].
@@ -125,15 +115,14 @@ Module DownsetMonadDef <: MonadDefinition Poset.
   End FmapDef.
 
   Definition fmap {X Y : Poset.t} (f : Poset.m X Y) : Poset.m (omap X) (omap Y) :=
-    @Poset.mkm (omap X) (omap Y) (fmap_fun_aux X Y f) (fmap_mor_aux X Y f).
+    @Poset.mkm (omap X) (omap Y) (fmap_fun X Y f) (fmap_mor X Y f).
 
-  (** Unit: eta *)
+  (** *** Unit: eta *)
   Section EtaDef.
     Variable X : Poset.t.
     Let POX : DCPO.PartialOrder X := Poset.structure X.
-    Let dset_POX : DCPO.PartialOrder (@dset _ POX) := @dset_PO _ POX.
 
-    Lemma eta_mor_aux : @Poset.Morphism _ _ POX dset_POX emb.
+    Lemma eta_mor : @Poset.Morphism _ _ POX (dset_PO POX) emb.
     Proof.
       intros x y Hxy. unfold dset_le. simpl.
       intros z Hz. simpl in Hz.
@@ -142,16 +131,14 @@ Module DownsetMonadDef <: MonadDefinition Poset.
   End EtaDef.
 
   Definition eta (X : Poset.t) : Poset.m X (omap X) :=
-    @Poset.mkm X (omap X) emb (eta_mor_aux X).
+    @Poset.mkm X (omap X) emb (eta_mor X).
 
-  (** Multiplication: mu *)
+  (** *** Multiplication: mu *)
   Section MuDef.
     Variable X : Poset.t.
     Let POX : DCPO.PartialOrder (Poset.carrier X) := Poset.structure X.
-    Let dset_POX : DCPO.PartialOrder (@dset _ POX) := @dset_PO _ POX.
-    Let dset_dset_POX : DCPO.PartialOrder (@dset (@dset _ POX) dset_POX) := @dset_PO _ dset_POX.
 
-    Lemma mu_mor_aux : @Poset.Morphism _ _ dset_dset_POX dset_POX (@mu _ POX).
+    Lemma mu_mor : @Poset.Morphism _ _ (dset_PO (dset_PO POX)) (dset_PO POX) mu_fun.
     Proof.
       intros DD1 DD2 HDD. simpl.
       intros x [D [HD1 Hx]].
@@ -160,10 +147,10 @@ Module DownsetMonadDef <: MonadDefinition Poset.
   End MuDef.
 
   Definition mu (X : Poset.t) : Poset.m (omap (omap X)) (omap X) :=
-    @Poset.mkm (omap (omap X)) (omap X) mu (mu_mor_aux X).
+    @Poset.mkm (omap (omap X)) (omap X) mu_fun (mu_mor X).
 
-  (** Helper lemma for equality of downsets *)
-  Lemma dset_eq {P} `{PO: DCPO.PartialOrder P} (D1 D2 : dset P) :
+  (** *** Helper lemma for equality of downsets *)
+  Lemma dset_eq {P} {PO: DCPO.PartialOrder P} (D1 D2 : dset PO) :
     (forall x, has D1 x <-> has D2 x) -> D1 = D2.
   Proof.
     intros Heq.
@@ -171,7 +158,7 @@ Module DownsetMonadDef <: MonadDefinition Poset.
       intros x Hx; apply Heq; auto.
   Qed.
 
-  (** Functor laws *)
+  (** *** Functor laws *)
   Proposition fmap_id : forall X, fmap (Poset.id X) = Poset.id (omap X).
   Proof.
     intros X. apply Poset.meq. intros D.
@@ -200,7 +187,7 @@ Module DownsetMonadDef <: MonadDefinition Poset.
       apply (Poset.morphism Y Z g). exact Hxy.
   Qed.
 
-  (** Naturality of eta *)
+  (** *** Naturality of eta *)
   Proposition eta_natural {X Y} (f : Poset.m X Y) :
     Poset.compose (eta Y) f = Poset.compose (fmap f) (eta X).
   Proof.
@@ -214,7 +201,7 @@ Module DownsetMonadDef <: MonadDefinition Poset.
       apply (Poset.morphism X Y f). exact Hx'.
   Qed.
 
-  (** Naturality of mu *)
+  (** *** Naturality of mu *)
   Proposition mu_natural {X Y} (f : Poset.m X Y) :
     Poset.compose (mu Y) (fmap (fmap f)) = Poset.compose (fmap f) (mu X).
   Proof.
@@ -254,7 +241,7 @@ Module DownsetMonadDef <: MonadDefinition Poset.
       + simpl. exists x. split; auto.
   Qed.
 
-  (** Left unit law *)
+  (** *** Left unit law *)
   Proposition mu_eta_l X :
     Poset.compose (mu X) (eta (omap X)) = Poset.id (omap X).
   Proof.
@@ -270,7 +257,7 @@ Module DownsetMonadDef <: MonadDefinition Poset.
       + exact Hx.
   Qed.
 
-  (** Right unit law *)
+  (** *** Right unit law *)
   Proposition mu_eta_r X :
     Poset.compose (mu X) (fmap (eta X)) = Poset.id (omap X).
   Proof.
@@ -289,7 +276,7 @@ Module DownsetMonadDef <: MonadDefinition Poset.
       + simpl. apply (@reflexivity _ (@le _ (Poset.structure X)) _).
   Qed.
 
-  (** Associativity *)
+  (** *** Associativity *)
   Proposition mu_mu X :
     Poset.compose (mu X) (mu (omap X)) = Poset.compose (mu X) (fmap (mu X)).
   Proof.
@@ -319,5 +306,5 @@ End DownsetMonadDef.
 Module DownsetMonad := MonadTheory Poset DownsetMonadDef.
 
 (** Convenient aliases *)
-Notation "'dset'" := DownsetMonadDef.omap.
-Notation "'dset'" := DownsetMonadDef.fmap.
+Notation "'Downset'" := DownsetMonadDef.omap.
+Notation "'dset'" := (DownsetMonadDef.dset _) (only parsing).
