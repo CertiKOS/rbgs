@@ -42,9 +42,12 @@ interfaces/Adjunctions.v
 interfaces/Monads.v
 interfaces/LiftMonad.v
 
+models/PosetBicartesian.v
 models/oalts/interfaces/DCPOEnrichedCat.v
 models/oalts/interfaces/LiftToKleisli.v
+models/oalts/DownsetMonad.v
 models/oalts/AsyncEvent.v
 models/oalts/LCoalg.v
 models/oalts/Sig.v
 models/oalts/TimeFunctor.v
+models/oalts/TimeDownset.v
