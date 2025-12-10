@@ -301,6 +301,9 @@ Module DownsetMonadDef <: MonadDefinition Poset.
 
 End DownsetMonadDef.
 
-(** ** Full Downset Monad with Kleisli category *)
+(** ** Full Downset Monad (combining definition and theory) *)
 
-Module DownsetMonad := MonadTheory Poset DownsetMonadDef.
+Module DownsetMonad <: Monad Poset.
+  Include DownsetMonadDef.
+  Include MonadTheory Poset DownsetMonadDef.
+End DownsetMonad.
