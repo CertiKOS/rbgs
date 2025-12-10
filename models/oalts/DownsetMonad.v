@@ -10,7 +10,6 @@ Require Import coqrel.LogicalRelations.
 (** * The Downset (Possibility) Monad *)
 
 (** The downset construction forms a monad on the category of posets.
-    This is also known as the "possibility" monad or lower set monad.
 
     - Objects: posets (using the ConcreteCategory structure from DCPO.v)
     - Morphisms: monotone maps
