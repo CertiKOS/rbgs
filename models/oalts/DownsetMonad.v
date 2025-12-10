@@ -304,7 +304,3 @@ End DownsetMonadDef.
 (** ** Full Downset Monad with Kleisli category *)
 
 Module DownsetMonad := MonadTheory Poset DownsetMonadDef.
-
-(** Convenient aliases *)
-Notation "'Downset'" := DownsetMonadDef.omap.
-Notation "'dset'" := (DownsetMonadDef.dset _) (only parsing).
