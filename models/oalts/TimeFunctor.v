@@ -10,14 +10,11 @@ Require Import models.oalts.AsyncEvent.
 Module TimeFunctorDefinition (C : BicartesianCategory) (T : Terminals C)
   (Ev : AsyncEvents C T) <: BifunctorDefinition Ev C C.
 
-  Import C.
-  Open Scope obj_scope.
-
-  Definition omap (E : Ev.t) (S : C.t) : C.t := Ev.L.omap E  && S.
+  Definition omap (E : Ev.t) (S : C.t) : C.t := C.Prod.omap (Ev.L.omap E) S.
 
   Definition fmap {E1 : Ev.t} {X1 : C.t} {E2 : Ev.t} {X2 : C.t}
     (e : Ev.m E1 E2) (f : C.m X1 X2) : C.m (omap E1 X1) (omap E2 X2) :=
-    (Ev.L.KlU.fmap e) && f.
+    C.Prod.fmap (Ev.L.KlU.fmap e) f.
 
   Proposition fmap_id : forall E X,
     fmap (Ev.id E) (C.id X) = C.id (omap E X).
