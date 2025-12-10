@@ -118,18 +118,12 @@ Module TimeDownsetDistr <: BiDistributiveLaw
     Poset.compose (DownsetMonad.fmap (PosetTimeFunctor.fmap e (Poset.id S))) (distr E1 S).
   Proof.
     intros E1 E2 e S.
-    apply Poset.meq. intro p; destruct p as [α D].
-    apply dset_eq. intro q; destruct q as [α' s].
-    split; intro H.
-    - simpl in H. destruct H as [Hα' Hs].
-      simpl. exists (α, s). split.
-      + split; [reflexivity | exact Hs].
-      + simpl. split; [exact Hα' | reflexivity].
-    - simpl in H. destruct H as [[α'' s'] [[Hα'' Hs'] [Hα' Hs]]].
-      simpl. split.
-      + eapply (@transitivity _ _ _ α' (PosetAsyncEvents.L.KlU.fmap e α'') _); auto.
-        apply (Poset.morphism _ _ (PosetAsyncEvents.L.KlU.fmap e)). exact Hα''.
-      + eapply (@closed _ (Poset.structure S)); eauto.
+    apply Poset.meq; intros [α D]; apply dset_eq; intros [α' s]; split; simpl.
+    - intros [Hα' Hs]. exists (α, s); simpl.
+      split; [split; [reflexivity | exact Hs] | split; [exact Hα' | reflexivity]].
+    - intros [[α'' s'] [[Hα'' Hs'] [Hα' Hs]]]; split.
+      + etransitivity; eauto. apply (Poset.morphism _ _ (PosetAsyncEvents.L.KlU.fmap e)); auto.
+      + eapply closed; eauto.
   Qed.
 
   (** ** Naturality in the second argument *)
@@ -139,21 +133,16 @@ Module TimeDownsetDistr <: BiDistributiveLaw
     Poset.compose (DownsetMonad.fmap (PosetTimeFunctor.fmap (PosetAsyncEvents.id E) f)) (distr E S1).
   Proof.
     intros E S1 S2 f.
-    apply Poset.meq. intros p; destruct p as [α D].
-    apply dset_eq. intros p; destruct p as [α' s2]. simpl.
-    split.
-    - intros [Hα' [s1 [Hs1 Hfs1]]].
-      simpl. exists (α, s1).
-      split; [split; [reflexivity | exact Hs1] |].
-      simpl. split; [exact Hα' | exact Hfs1].
-    - intros [[α'' s1] [H1 H2]].
-      destruct H1 as [Hα'' Hs1]. destruct H2 as [Hα' Hs2].
+    apply Poset.meq; intros [α D]; apply dset_eq; intros [α' s2]; simpl; split.
+    - intros [Hα' [s1 [Hs1 Hfs1]]]. exists (α, s1); simpl.
+      split; [split; [reflexivity | exact Hs1] | split; [exact Hα' | exact Hfs1]].
+    - intros [[α'' s1] [[Hα'' Hs1] [Hα' Hs2]]].
       destruct α'' as [u'' | e'']; destruct α as [u | e]; destruct α' as [u' | e'];
         simpl in *; try contradiction.
-      + split; auto. exists s1. split; auto.
-      + split; auto.
-        eapply (@transitivity _ _ _ e' e'' _); auto.
-        exists s1. split; auto.
+      + split; auto. exists s1; auto.
+      + split.
+        * eapply (@transitivity _ _ _ e' e'' _); auto.
+        * exists s1; auto.
   Qed.
 
   (** ** Compatibility with unit: λ ∘ Time(id, η) = η *)
@@ -163,13 +152,27 @@ Module TimeDownsetDistr <: BiDistributiveLaw
     DownsetMonad.eta (PosetTimeFunctor.omap E S).
   Proof.
     intros E S.
-    apply Poset.meq. intros p; destruct p as [α s].
-    apply dset_eq. intros p; destruct p as [α' s']. simpl.
+    apply Poset.meq; intros [α s]; apply dset_eq; intros [α' s']; simpl.
     destruct α as [u | e]; destruct α' as [u' | e']; simpl;
       split; intros [H1 H2]; split; auto.
   Qed.
 
   (** ** Compatibility with multiplication: λ ∘ Time(id, μ) = μ ∘ D(λ) ∘ λ *)
+
+  (* Helper for building intermediate downsets in distr_mult *)
+  Local Lemma distr_mult_closed (E : PosetAsyncEvents.t) (S : Poset.t)
+    (α : PosetAsyncEvents.L.omap E) (D : dset (Poset.structure S)) :
+    let POTimES := Poset.structure (PosetTimeFunctor.omap E S) in
+    let POLE := Poset.structure (PosetAsyncEvents.L.omap E) in
+    forall p1 p2 : PosetAsyncEvents.L.omap E * S,
+      @le _ POTimES p1 p2 ->
+      (@le _ POLE (fst p2) α /\ has D (snd p2)) ->
+      (@le _ POLE (fst p1) α /\ has D (snd p1)).
+  Proof.
+    intros POTimES POLE [a1 b1] [a2 b2] [Ha Hb] [Ha2 Hb2]; simpl in *.
+    split; [eapply (@transitivity _ (@le _ POLE) _ a1 a2 _); auto | eapply closed; eauto].
+  Qed.
+
   Proposition distr_mult :
     forall (E : PosetAsyncEvents.t) (S : Poset.t),
     Poset.compose (distr E S) (PosetTimeFunctor.fmap (PosetAsyncEvents.id E) (DownsetMonad.mu S)) =
@@ -177,69 +180,44 @@ Module TimeDownsetDistr <: BiDistributiveLaw
       (Poset.compose (DownsetMonad.fmap (distr E S)) (distr E (DownsetMonad.omap S))).
   Proof.
     intros E S.
-    apply Poset.meq. intros p; destruct p as [α DD].
-    apply dset_eq. intros p; destruct p as [α' s]. simpl.
+    apply Poset.meq; intros [α DD]; apply dset_eq; intros [α' s]; simpl.
+    set (POTimES := Poset.structure (PosetTimeFunctor.omap E S)).
+    set (POLE := Poset.structure (PosetAsyncEvents.L.omap E)).
     destruct α as [u | e]; destruct α' as [u' | e']; simpl.
     - split.
       + intros [Hα' [D [HDD Hs]]].
-        set (POTimES := Poset.structure (PosetTimeFunctor.omap E S)).
-        set (POLE := Poset.structure (PosetAsyncEvents.L.omap E)).
-        assert (Hclosed : forall p1 p2 : PosetAsyncEvents.L.omap E * S,
-          @le _ POTimES p1 p2 ->
-          (@le _ POLE (fst p2) (inl u) /\ has D (snd p2)) ->
-          (@le _ POLE (fst p1) (inl u) /\ has D (snd p1))).
-        { intros [a1 b1] [a2 b2] [Ha Hb] [Ha2 Hb2]. simpl in *.
-          split; [eapply (@transitivity _ (@le _ POLE) _ a1 a2 _); auto |
-                  eapply (@closed _ (Poset.structure S)); eauto]. }
-        set (D' := @mk_dset _ POTimES (fun p => @le _ POLE (fst p) (inl u) /\ has D (snd p)) Hclosed).
+        set (D' := @mk_dset _ POTimES (fun p => @le _ POLE (fst p) (inl u) /\ has D (snd p))
+                     (distr_mult_closed E S (inl u) D)).
         exists D'. split.
         * exists (inl u, D). split.
           { split; [reflexivity | exact HDD]. }
           { simpl. intros [a b] [Ha Hb]. split; [exact Ha | exact Hb]. }
         * simpl. split; [exact Hα' | exact Hs].
-      + intros [D' [[[α1 D1] [[Hα1 HD1] HD']] Hin]].
-        simpl in *.
-        specialize (HD' (inl u', s) Hin).
-        destruct HD' as [Hα'_le Hs'].
-        split.
-        * eapply (@transitivity _ _ _ (inl u') α1 _); eauto.
-        * exists D1. split; [exact HD1 | exact Hs'].
+      + intros [D' [[[α1 D1] [[Hα1 HD1] HD']] Hin]]; simpl in *.
+        destruct (HD' (inl u', s) Hin) as [Hα'_le Hs'].
+        split; [eapply (@transitivity _ _ _ (inl u') α1 _); eauto | exists D1; auto].
     - split; intros H.
-      + destruct H as [Hcontra _]. simpl in Hcontra. destruct Hcontra.
-      + destruct H as [D' [[[α1 D1] [[Hα1 _] HD']] Hin]].
-        simpl in *. specialize (HD' (inr e', s) Hin).
-        destruct α1 as [u1 | e1]; simpl in *; [|contradiction].
-        destruct HD' as [Hcontra _]. destruct Hcontra.
+      + destruct H as [[] _].
+      + destruct H as [D' [[[α1 D1] [[Hα1 _] HD']] Hin]]; simpl in *.
+        destruct α1 as [|]; simpl in *; [|contradiction].
+        destruct (HD' (inr e', s) Hin) as [[] _].
     - split; intros H.
-      + destruct H as [Hcontra _]. simpl in Hcontra. destruct Hcontra.
-      + destruct H as [D' [[[α1 D1] [[Hα1 _] HD']] Hin]].
-        simpl in *. specialize (HD' (inl u', s) Hin).
-        destruct α1 as [u1 | e1]; simpl in *; [contradiction|].
-        destruct HD' as [Hcontra _]. destruct Hcontra.
+      + destruct H as [[] _].
+      + destruct H as [D' [[[α1 D1] [[Hα1 _] HD']] Hin]]; simpl in *.
+        destruct α1 as [|]; simpl in *; [contradiction|].
+        destruct (HD' (inl u', s) Hin) as [[] _].
     - split.
       + intros [Hα' [D [HDD Hs]]].
-        set (POTimES := Poset.structure (PosetTimeFunctor.omap E S)).
-        set (POLE := Poset.structure (PosetAsyncEvents.L.omap E)).
-        assert (Hclosed : forall p1 p2 : PosetAsyncEvents.L.omap E * S,
-          @le _ POTimES p1 p2 ->
-          (@le _ POLE (fst p2) (inr e) /\ has D (snd p2)) ->
-          (@le _ POLE (fst p1) (inr e) /\ has D (snd p1))).
-        { intros [a1 b1] [a2 b2] [Ha Hb] [Ha2 Hb2]. simpl in *.
-          split; [eapply (@transitivity _ (@le _ POLE) _ a1 a2 _); auto |
-                  eapply (@closed _ (Poset.structure S)); eauto]. }
-        set (D' := @mk_dset _ POTimES (fun p => @le _ POLE (fst p) (inr e) /\ has D (snd p)) Hclosed).
+        set (D' := @mk_dset _ POTimES (fun p => @le _ POLE (fst p) (inr e) /\ has D (snd p))
+                     (distr_mult_closed E S (inr e) D)).
         exists D'. split.
         * exists (inr e, D). split.
           { split; [reflexivity | exact HDD]. }
           { simpl. intros [a b] [Ha Hb]. split; [exact Ha | exact Hb]. }
         * simpl. split; [exact Hα' | exact Hs].
-      + intros [D' [[[α1 D1] [[Hα1 HD1] HD']] Hin]].
-        simpl in *.
-        specialize (HD' (inr e', s) Hin).
-        destruct HD' as [Hα'_le Hs'].
-        split.
-        * eapply (@transitivity _ _ _ (inr e') α1 _); eauto.
-        * exists D1. split; [exact HD1 | exact Hs'].
+      + intros [D' [[[α1 D1] [[Hα1 HD1] HD']] Hin]]; simpl in *.
+        destruct (HD' (inr e', s) Hin) as [Hα'_le Hs'].
+        split; [eapply (@transitivity _ _ _ (inr e') α1 _); eauto | exists D1; auto].
   Qed.
 
 End TimeDownsetDistr.
