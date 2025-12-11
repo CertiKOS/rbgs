@@ -1,6 +1,7 @@
 Require Import interfaces.Category.
 Require Import interfaces.Functor.
 Require Import Coq.Program.Equality.
+Require Import Coq.Logic.ProofIrrelevance.
 
 (** Enable primitive projections for better type inference with coercions *)
 Set Primitive Projections.
@@ -526,6 +527,35 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Definition gcell {a b : V.t} (f : V.m a b) (g : V.m a b) : Type :=
     hid a =[f, g]=> hid b.
 
+  Proposition carrier_mor_tcell_to_harr_mor {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf : sA ~~> sB} {tf : tA ~~> tB}
+    (α : A =[sf,tf]=> B) :
+    carrier_mor (tcell_to_harr_mor α) = α.
+  Proof. reflexivity. Qed.
+
+  Proposition tcell_to_harr_mor_cong {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf : sA ~~> sB} {tf : tA ~~> tB}
+    (α β : A =[sf,tf]=> B) :
+    (α : harr_mor A B) = (β : harr_mor A B) <-> α = β.
+  Proof.
+    split.
+    - intro H. dependent destruction H. reflexivity.
+    - intro H. congruence.
+  Qed.
+
+  Proposition compose_vcomp {A B C : Vert.t} (f : Vert.m A B) (g : Vert.m B C) :
+    (f ;; g : Vert.m A C) = (vcomp f g : Vert.m A C).
+  Proof. reflexivity. Qed.
+
+  Proposition tcell_to_harr_mor_compose {sA tA sB tB sC tC : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB} {C : sC -o-> tC}
+    {sf : sA ~~> sB} {tf : tA ~~> tB} {sf' : sB ~~> sC} {tf' : tB ~~> tC}
+    (α : A =[sf,tf]=> B) (β : B =[sf',tf']=> C) :
+    tcell_to_harr_mor α ;; tcell_to_harr_mor β = tcell_to_harr_mor (vcomp α β).
+  Proof. reflexivity. Qed.
+
   (** *** Isomorphisms *)
 
   (** *** Sisocell manipulation *)
@@ -611,6 +641,40 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       - rewrite <- H, Vert.compose_assoc, fw_bw, Vert.compose_id_right. auto.
       - rewrite H, Vert.compose_assoc, bw_fw, Vert.compose_id_right. auto.
     Qed.
+
+    (** Inverses are unique: if fw f = fw g, then bw f = bw g *)
+    Lemma bw_unique {a b : V.t} {A B : a -o-> b}
+      (f g : sisocell A B) :
+      fw f = fw g -> bw f = bw g.
+    Proof.
+      intro Hfw. apply tcell_to_harr_mor_cong.
+      apply (compose_fw_r_eq f).
+      rewrite bw_fw.
+      rewrite Hfw.
+      rewrite bw_fw.
+      reflexivity.
+    Qed.
+
+    (** Two sisocells are equal iff their forward components are equal.
+        This requires proof irrelevance for the equality proofs. *)
+    Proposition sisocell_eq {a b : V.t} {A B : a -o-> b}
+      (f g : sisocell A B) :
+      fw f = fw g -> f = g.
+    Proof.
+      intro Hfw.
+      destruct f as [ffw fbw fbw_fw ffw_bw].
+      destruct g as [gfw gbw gbw_fw gfw_bw].
+      simpl in *.
+      subst gfw.
+      (* Now we need gbw = fbw *)
+      assert (Hbw : fbw = gbw).
+      { apply (bw_unique (mk_sisocell ffw fbw fbw_fw ffw_bw)
+                         (mk_sisocell ffw gbw gbw_fw gfw_bw)).
+        reflexivity. }
+      subst gbw.
+      f_equal; apply proof_irrelevance.
+    Qed.
+
   End Siso'.
 
   (** A general vertical isocell has explicit (possibly non-identity)
@@ -733,28 +797,6 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     Arguments bw_fw {a b}.
   End Hiso.
 
-  Proposition carrier_mor_tcell_to_harr_mor {sA tA sB tB : V.t}
-    {A : sA -o-> tA} {B : sB -o-> tB}
-    {sf : sA ~~> sB} {tf : tA ~~> tB}
-    (α : A =[sf,tf]=> B) :
-    carrier_mor (tcell_to_harr_mor α) = α.
-  Proof. reflexivity. Qed.
-
-  Proposition tcell_to_harr_mor_cong {sA tA sB tB : V.t}
-    {A : sA -o-> tA} {B : sB -o-> tB}
-    {sf : sA ~~> sB} {tf : tA ~~> tB}
-    (α β : A =[sf,tf]=> B) :
-    (α : harr_mor A B) = (β : harr_mor A B) <-> α = β.
-  Proof.
-    split.
-    - intro H. dependent destruction H. reflexivity.
-    - intro H. congruence.
-  Qed.
-
-  Proposition compose_vcomp {A B C : Vert.t} (f : Vert.m A B) (g : Vert.m B C) :
-    (f ;; g : Vert.m A C) = (vcomp f g : Vert.m A C).
-  Proof. reflexivity. Qed.
-
   (** *** Derived Equations *)
 
   Proposition vid_hid {a : V.t} :
@@ -804,55 +846,94 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       4. The "dual triangle" λ_I ⊙ id_I = α ∘ (id_I ⊙ λ_I) follows from coherence
       5. Hence λ_I ⊙ id_I = ρ_I ⊙ id_I, so λ_I = ρ_I by faithfulness *)
 
-    Proposition hcomp_vid_faithful {a a' b : V.t}
-      {A : a -o-> b} {B : a' -o-> b}
-      {f : a ~~> a'}
-      (α β : A =[f, V.id b]=> B) :
-      α ⊙ vid (hid b) = β ⊙ vid (hid b) -> α = β.
-    Proof.
-      intro H.
-      apply tcell_to_harr_mor_cong.
-      rewrite <- (Siso'.compose_fw_l_eq (runit A)).
-      rewrite !(runit_nat). rewrite <- !vid_hid.
-      apply Siso'.compose_fw_r_eq. apply tcell_to_harr_mor_cong.
-      congruence.
-    Qed.
+  Proposition hcomp_vid_faithful {a a' b : V.t}
+    {A : a -o-> b} {B : a' -o-> b}
+    {f : a ~~> a'}
+    (α β : A =[f, V.id b]=> B) :
+    α ⊙ vid (hid b) = β ⊙ vid (hid b) -> α = β.
+  Proof.
+    intro H.
+    apply tcell_to_harr_mor_cong.
+    rewrite <- (Siso'.compose_fw_l_eq (runit A)).
+    rewrite !(runit_nat). rewrite <- !vid_hid.
+    apply Siso'.compose_fw_r_eq. apply tcell_to_harr_mor_cong.
+    congruence.
+  Qed.
 
-    Proposition vid_hcomp_faithful {a b b' : V.t}
-      {A : a -o-> b} {B : a -o-> b'}
-      {f : b ~~> b'}
-      (α β : A =[V.id a, f]=> B) :
-      vid (hid a) ⊙ α = vid (hid a) ⊙ β -> α = β.
-    Proof.
-      intro H.
-      apply tcell_to_harr_mor_cong.
-      rewrite <- (Siso'.compose_fw_l_eq (lunit A)).
-      rewrite !(lunit_nat). rewrite <- !vid_hid.
-      apply Siso'.compose_fw_r_eq. apply tcell_to_harr_mor_cong.
-      congruence.
-    Qed.
+  Proposition vid_hcomp_faithful {a b b' : V.t}
+    {A : a -o-> b} {B : a -o-> b'}
+    {f : b ~~> b'}
+    (α β : A =[V.id a, f]=> B) :
+    vid (hid a) ⊙ α = vid (hid a) ⊙ β -> α = β.
+  Proof.
+    intro H.
+    apply tcell_to_harr_mor_cong.
+    rewrite <- (Siso'.compose_fw_l_eq (lunit A)).
+    rewrite !(lunit_nat). rewrite <- !vid_hid.
+    apply Siso'.compose_fw_r_eq. apply tcell_to_harr_mor_cong.
+    congruence.
+  Qed.
 
-    Proposition lunit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
-      assoc (hid a) A B ;; lunit (A ⨀ B) = lunit A ⊙ vid B.
-    Proof.
-      Set Printing Coercions.
-      (* Kelly's lemma 1: λ_{A⨀B} ∘ α = λ_A ⊙ id_B
-         The proof requires showing vcomp assoc lunit = lunit A ⊙ vid B.
-         This follows from naturality of lunit and the coherence axioms,
-         but needs additional lemmas to handle frame morphism equality
-         (V.compose (id a) (id a) = id a). *)
-    Admitted.
+  Proposition tcell_to_harr_mor_hcomp_cong_r {sA tA sB tB tC tD : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB} {C : tA -o-> tC} {D : tB -o-> tD}
+    {sf : sA ~~> sB} {tf : tA ~~> tB} {tg : tC ~~> tD}
+    {f g : A =[sf,tf]=> B} (h : C =[tf,tg]=> D) :
+    tcell_to_harr_mor f = tcell_to_harr_mor g ->
+    tcell_to_harr_mor (f ⊙ h) = tcell_to_harr_mor (g ⊙ h).
+  Proof.
+    intro H. dependent destruction H. reflexivity.
+  Qed.
 
-    Proposition runit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
-      assoc A B (hid c) ;; (vid A ⊙ runit B) = runit (A ⨀ B).
-    Proof.
-    Admitted.
+  Proposition lunit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
+    assoc (hid a) A B ;; lunit (A ⨀ B) = lunit A ⊙ vid B.
+  Proof.
+    assert (Perim : assoc (hid a) (hid a) A ⊙ vid B ;; assoc (hid a) (hid a ⨀ A) B ;;
+      vid (hid a) ⊙ assoc (hid a) A B ;; vid (hid a) ⊙ lunit (A ⨀ B) =
+      (runit (hid a) ⊙ vid A) ⊙ vid B  ;; assoc (hid a) A B).
+    {
+      admit.
+    }
+    assert (Diff: assoc (hid a) (hid a) A ⊙ vid B ;; assoc (hid a) (hid a ⨀ A) B ;; vid (hid a) ⊙ lunit A ⊙ vid B
+      = (runit (hid a) ⊙ vid A) ⊙ vid B  ;; assoc (hid a) A B).
+    {
+      admit.
+    }
+    assert ((((runit (hid a) ⊙ vid A) ⊙ vid B) : Vert.m (((hid a ⨀ hid a) ⨀ A) ⨀ B) ((hid a ⨀ A) ⨀ B)) =
+      assoc (hid a) (hid a) A ⊙ vid B;; (vid (hid a) ⊙ lunit A) ⊙ vid B) as T.
+    {
+      pose proof (unit_coh (hid a) A) as UC.
+      admit.
+    }
+    assert (((vid (hid a) ⊙ lunit A) ⊙ vid B) ;; assoc (hid a) A B =
+      assoc (hid a) (hid a ⨀ A) B ;; vid (hid a) ⊙ lunit A ⊙ vid B) as N.
+    {
+      admit.
+    }
+    assert (vid (hid a) ⊙ assoc (hid a) A B ;; vid (hid a) ⊙ lunit (A ⨀ B) =
+      vid (hid a) ⊙ lunit A ⊙ vid B) as H.
+    {
+      admit.
+    }
+  Admitted.
+
+  Proposition runit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
+    assoc A B (hid c) ;; (vid A ⊙ runit B) = runit (A ⨀ B).
+  Proof.
+  Admitted.
 
 
   Proposition lunit_hid_runit_hid {a : V.t} :
     lunit (hid a) = runit (hid a).
   Proof.
-  Admitted.
+    apply Siso'.sisocell_eq.
+    apply (hcomp_vid_faithful (lunit (hid a)) (runit (hid a))).
+    pose proof (lunit_hcomp_assoc (hid a) (hid a)).
+    rewrite tcell_to_harr_mor_compose in H.
+    apply tcell_to_harr_mor_cong. rewrite <- H. clear H.
+    rewrite <- tcell_to_harr_mor_compose.
+    rewrite <- hid_hcomp_lunit_lunit. rewrite <- unit_coh.
+    reflexivity.
+  Qed.
 
 End DoubleCategoryTheory.
 
