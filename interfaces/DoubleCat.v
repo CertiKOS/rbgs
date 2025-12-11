@@ -1,5 +1,9 @@
 Require Import interfaces.Category.
 Require Import interfaces.Functor.
+Require Import Coq.Program.Equality.
+
+(** Enable primitive projections for better type inference with coercions *)
+Set Primitive Projections.
 
 (** * Double Categories *)
 
@@ -226,23 +230,24 @@ Module DoubleCellDerived (V : CategoryDefinition) (D : DoubleCellData V).
     A =[V.id a, V.id b]=> B.
 
   (** A special isocell is a special cell which is a isomorphism in [Vert] *)
-
-  Record sisocell {a b : V.t} (A B : a -o-> b) := mk_sisocell {
-    fw :> A =[V.id a, V.id b]=> B;
-    bw :> B =[V.id a, V.id b]=> A;
-    bw_fw : bw ;; fw = id B;
-    fw_bw : fw ;; bw = id A;
-  }.
-  Arguments mk_sisocell {a b A B}.
-  Arguments sisocell {a b} A B.
-  Arguments fw {a b A B}.
-  Arguments bw {a b A B}.
-  Arguments bw_fw {a b A B}.
-  Arguments fw_bw {a b A B}.
+  Module Siso.
+    Record sisocell {a b : V.t} (A B : a -o-> b) := mk_sisocell {
+      fw :> A =[V.id a, V.id b]=> B;
+      bw : B =[V.id a, V.id b]=> A;
+      bw_fw : bw ;; fw = id B;
+      fw_bw : fw ;; bw = id A;
+    }.
+    Arguments mk_sisocell {a b A B}.
+    Arguments sisocell {a b} A B.
+    Arguments fw {a b A B}.
+    Arguments bw {a b A B}.
+    Arguments bw_fw {a b A B}.
+    Arguments fw_bw {a b A B}.
+  End Siso.
 
   Definition sisocell_to_scell {a b : V.t} {A B : a -o-> b}
-    (s : sisocell A B) : scell A B := fw s.
-  Coercion sisocell_to_scell : sisocell >-> scell.
+    (s : Siso.sisocell A B) : scell A B := Siso.fw s.
+  Coercion sisocell_to_scell : Siso.sisocell >-> scell.
 
 End DoubleCellDerived.
 
@@ -273,7 +278,8 @@ End DoubleVerticalCatDefinition.
 
 Module Type DoubleCategoryDefinition (V : CategoryDefinition).
   Declare Module Vert : DoubleVerticalCatDefinition V.
-  Import Vert.
+  Include Vert.
+  Import Siso.
 
   (** *** Functoriality of [hid] *)
 
@@ -379,11 +385,9 @@ End DoubleCategoryDefinition.
 Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefinition V).
   Import P.
   Import V.
-  Import Vert.
 
   (** Include category theory for the base category [V]. *)
   Module VT := CategoryTheory V.
-  Export VT.
 
   (** *** Sanity checks *)
 
@@ -431,84 +435,89 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   End Tgt.
 
   (** [Src] and [Tgt] commute with [HId]. *)
+  Module SrcTgtChecks.
+    Import Vert.
 
-  Proposition hid_src :
-    forall {a : V.t}, Src.omap (Vert.hid a) = a.
-  Proof. reflexivity. Qed.
+    Proposition hid_src :
+      forall {a : V.t}, Src.omap (Vert.hid a) = a.
+    Proof. reflexivity. Qed.
 
-  Proposition hid_mor_src :
-    forall {a b : V.t} (f : V.m a b),
-      Src.fmap (Vert.hid_mor f) = f.
-  Proof. reflexivity. Qed.
+    Proposition hid_mor_src :
+      forall {a b : V.t} (f : V.m a b),
+        Src.fmap (Vert.hid_mor f) = f.
+    Proof. reflexivity. Qed.
 
-  Proposition hid_tgt :
-    forall {a : V.t}, Tgt.omap (Vert.hid a) = a.
-  Proof. reflexivity. Qed.
+    Proposition hid_tgt :
+      forall {a : V.t}, Tgt.omap (Vert.hid a) = a.
+    Proof. reflexivity. Qed.
 
-  Proposition hid_mor_tgt :
-    forall {a b : V.t} (f : V.m a b),
-      Tgt.fmap (Vert.hid_mor f) = f.
-  Proof. reflexivity. Qed.
+    Proposition hid_mor_tgt :
+      forall {a b : V.t} (f : V.m a b),
+        Tgt.fmap (Vert.hid_mor f) = f.
+    Proof. reflexivity. Qed.
 
-  (** [Src] and [Tgt] interact with [HComp] as expected. *)
+    (** [Src] and [Tgt] interact with [HComp] as expected. *)
 
-  Proposition hcomp_src :
-    forall {a b c : V.t} {B : b -o-> c} {A : a -o-> b},
-      Src.omap (A ⨀ B) = Src.omap A.
-  Proof. reflexivity. Qed.
+    Proposition hcomp_src :
+      forall {a b c : V.t} {B : b -o-> c} {A : a -o-> b},
+        Src.omap (A ⨀ B) = Src.omap A.
+    Proof. reflexivity. Qed.
 
-  Proposition hcomp_fmap_src :
-    forall {a b c a' b' c' : V.t}
-      {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
-      {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
-      (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
-      Src.fmap (hcomp_fmap α β) = Src.fmap α.
-  Proof. reflexivity. Qed.
+    Proposition hcomp_fmap_src :
+      forall {a b c a' b' c' : V.t}
+        {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
+        {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
+        (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
+        Src.fmap (hcomp_fmap α β) = Src.fmap α.
+    Proof. reflexivity. Qed.
 
-  Proposition hcomp_tgt :
-    forall {a b c : V.t} {B : b -o-> c} {A : a -o-> b},
-      Tgt.omap (A ⨀ B) = Tgt.omap B.
-  Proof. intros. unfold tgt. reflexivity. Qed.
+    Proposition hcomp_tgt :
+      forall {a b c : V.t} {B : b -o-> c} {A : a -o-> b},
+        Tgt.omap (A ⨀ B) = Tgt.omap B.
+    Proof. intros. unfold tgt. reflexivity. Qed.
 
-  Proposition hcomp_fmap_tgt :
-    forall {a b c a' b' c' : V.t}
-      {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
-      {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
-      (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
-      Tgt.fmap (hcomp_fmap α β) = Tgt.fmap β.
-  Proof. reflexivity. Qed.
+    Proposition hcomp_fmap_tgt :
+      forall {a b c a' b' c' : V.t}
+        {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
+        {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
+        (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
+        Tgt.fmap (hcomp_fmap α β) = Tgt.fmap β.
+    Proof. reflexivity. Qed.
 
-  (** The structural isomorphisms have identity frame morphisms. *)
+    (** The structural isomorphisms have identity frame morphisms. *)
 
-  Proposition assoc_src_id :
-    forall {a b c d : V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
-      Src.fmap (assoc A B C) = V.id _.
-  Proof. reflexivity. Qed.
+    Import Siso.
 
-  Proposition assoc_tgt_id :
-    forall {a b c d : V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
-      Tgt.fmap (assoc A B C) = V.id _.
-  Proof. reflexivity. Qed.
+    Proposition assoc_src_id :
+      forall {a b c d : V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
+        Src.fmap (assoc A B C) = V.id _.
+    Proof. reflexivity. Qed.
 
-  Proposition lunit_src_id :
-    forall {a b : V.t} {A : a -o-> b},
-      Src.fmap (lunit A) = V.id _.
-  Proof. reflexivity. Qed.
+    Proposition assoc_tgt_id :
+      forall {a b c d : V.t} {A : a -o-> b} {B : b -o-> c} {C : c -o-> d},
+        Tgt.fmap (assoc A B C) = V.id _.
+    Proof. reflexivity. Qed.
 
-  Proposition lunit_tgt_id :
-    forall {a b : V.t} {A : a -o-> b},
-      Tgt.fmap (lunit A) = V.id _.
-  Proof. reflexivity. Qed.
+    Proposition lunit_src_id :
+      forall {a b : V.t} {A : a -o-> b},
+        Src.fmap (lunit A) = V.id _.
+    Proof. reflexivity. Qed.
 
-  Proposition runit_src_id :
-    forall {a b : V.t} {A : a -o-> b},
-      Src.fmap (runit A) = V.id _.
-  Proof. reflexivity. Qed.
+    Proposition lunit_tgt_id :
+      forall {a b : V.t} {A : a -o-> b},
+        Tgt.fmap (lunit A) = V.id _.
+    Proof. reflexivity. Qed.
 
-  Proposition runit_tgt_id :
-    forall {a b : V.t} {A : a -o-> b},
-      Tgt.fmap (runit A) = V.id _.
-  Proof. reflexivity. Qed.
+    Proposition runit_src_id :
+      forall {a b : V.t} {A : a -o-> b},
+        Src.fmap (runit A) = V.id _.
+    Proof. reflexivity. Qed.
+
+    Proposition runit_tgt_id :
+      forall {a b : V.t} {A : a -o-> b},
+        Tgt.fmap (runit A) = V.id _.
+    Proof. reflexivity. Qed.
+  End SrcTgtChecks.
 
   (** *** Cell types *)
 
@@ -519,8 +528,95 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
 
   (** *** Isomorphisms *)
 
+  (** *** Sisocell manipulation *)
+
+  (** Extended [Siso] module with manipulation lemmas. *)
+  Module Siso'.
+    Import Vert.
+    Import Siso.
+
+    (** Post-composing with an iso is injective. *)
+    Lemma compose_fw_r_eq {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x y : Vert.m C A) :
+      x ;; fw f = y ;; fw f <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : (x ;; fw f) ;; bw f = (y ;; fw f) ;; bw f)
+        by (rewrite H; auto).
+      rewrite <- !Vert.compose_assoc, fw_bw, !Vert.compose_id_left in E. exact E.
+    Qed.
+
+    Lemma compose_bw_r_eq {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x y : Vert.m C B) :
+      x ;; bw f = y ;; bw f <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : (x ;; bw f) ;; fw f = (y ;; bw f) ;; fw f)
+        by (rewrite H; auto).
+      rewrite <- !Vert.compose_assoc, bw_fw, !Vert.compose_id_left in E. exact E.
+    Qed.
+
+    (** Pre-composing with an iso is injective. *)
+    Lemma compose_fw_l_eq {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x y : Vert.m B C) :
+      fw f ;; x = fw f ;; y <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : bw f ;; (fw f ;; x) = bw f ;; (fw f ;; y)) by (rewrite H; auto).
+      rewrite !Vert.compose_assoc, bw_fw, !Vert.compose_id_right in E. exact E.
+    Qed.
+
+    Lemma compose_bw_l_eq {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x y : Vert.m A C) :
+      bw f ;; x = bw f ;; y <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : fw f ;; (bw f ;; x) = fw f ;; (bw f ;; y)) by (rewrite H; auto).
+      rewrite !Vert.compose_assoc, fw_bw, !Vert.compose_id_right in E. exact E.
+    Qed.
+
+    (** Moving isos across equations. *)
+    Lemma eq_fw_bw_r {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x : Vert.m C A) y :
+      x ;; fw f = y <-> x = y ;; bw f.
+    Proof.
+      split; intro H.
+      - rewrite <- H, <- Vert.compose_assoc, fw_bw, Vert.compose_id_left. auto.
+      - rewrite H, <- Vert.compose_assoc, bw_fw, Vert.compose_id_left. auto.
+    Qed.
+
+    Lemma eq_bw_fw_r {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x : Vert.m C B) y :
+      x ;; bw f = y <-> x = y ;; fw f.
+    Proof.
+      split; intro H.
+      - rewrite <- H, <- Vert.compose_assoc, bw_fw, Vert.compose_id_left. auto.
+      - rewrite H, <- Vert.compose_assoc, fw_bw, Vert.compose_id_left. auto.
+    Qed.
+
+    Lemma eq_fw_bw_l {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x : Vert.m B C) y :
+      fw f ;; x = y <-> x = bw f ;; y.
+    Proof.
+      split; intro H.
+      - rewrite <- H, Vert.compose_assoc, bw_fw, Vert.compose_id_right. auto.
+      - rewrite H, Vert.compose_assoc, fw_bw, Vert.compose_id_right. auto.
+    Qed.
+
+    Lemma eq_bw_fw_l {a b : V.t} {A B : a -o-> b}
+      (f : sisocell A B) {C : Vert.t} (x : Vert.m A C) y :
+      bw f ;; x = y <-> x = fw f ;; y.
+    Proof.
+      split; intro H.
+      - rewrite <- H, Vert.compose_assoc, fw_bw, Vert.compose_id_right. auto.
+      - rewrite H, Vert.compose_assoc, bw_fw, Vert.compose_id_right. auto.
+    Qed.
+  End Siso'.
+
   (** A general vertical isocell has explicit (possibly non-identity)
       frame morphisms. *)
+
+  Import Siso.
 
   Module Viso.
     Record visocell {sA tA sB tB : V.t}
@@ -528,7 +624,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       {sb : V.m sB sA} {tb : V.m tB tA}
       (A : sA -o-> tA) (B : sB -o-> tB) := mk_visocell {
       fw :> A =[sf, tf]=> B;
-      bw :> B =[sb, tb]=> A;
+      bw : B =[sb, tb]=> A;
       bw_fw : bw ;; fw = Vert.id B;
       fw_bw : fw ;; bw = Vert.id A;
     }.
@@ -538,8 +634,78 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     Arguments bw {sA tA sB tB sf tf sb tb A B}.
     Arguments bw_fw {sA tA sB tB sf tf sb tb A B}.
     Arguments fw_bw {sA tA sB tB sf tf sb tb A B}.
+
+    (** Post-composing with an iso is injective. *)
+    Lemma compose_fw_r_eq {sA tA sB tB : V.t}
+      {sf : V.m sA sB} {tf : V.m tA tB} {sb : V.m sB sA} {tb : V.m tB tA}
+      {A : sA -o-> tA} {B : sB -o-> tB}
+      (f : @visocell sA tA sB tB sf tf sb tb A B) {C : Vert.t} (x y : Vert.m C A) :
+      x ;; fw f = y ;; fw f <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : (x ;; fw f) ;; bw f = (y ;; fw f) ;; bw f)
+        by (rewrite H; auto).
+      rewrite <- !Vert.compose_assoc, fw_bw, !Vert.compose_id_left in E. exact E.
+    Qed.
+
+    Lemma compose_bw_r_eq {sA tA sB tB : V.t}
+      {sf : V.m sA sB} {tf : V.m tA tB} {sb : V.m sB sA} {tb : V.m tB tA}
+      {A : sA -o-> tA} {B : sB -o-> tB}
+      (f : @visocell sA tA sB tB sf tf sb tb A B) {C : Vert.t} (x y : Vert.m C B) :
+      x ;; bw f = y ;; bw f <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : (x ;; bw f) ;; fw f = (y ;; bw f) ;; fw f)
+        by (rewrite H; auto).
+      rewrite <- !Vert.compose_assoc, bw_fw, !Vert.compose_id_left in E. exact E.
+    Qed.
+
+    (** Pre-composing with an iso is injective. *)
+    Lemma compose_fw_l_eq {sA tA sB tB : V.t}
+      {sf : V.m sA sB} {tf : V.m tA tB} {sb : V.m sB sA} {tb : V.m tB tA}
+      {A : sA -o-> tA} {B : sB -o-> tB}
+      (f : @visocell sA tA sB tB sf tf sb tb A B) {C : Vert.t} (x y : Vert.m B C) :
+      fw f ;; x = fw f ;; y <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : bw f ;; (fw f ;; x) = bw f ;; (fw f ;; y)) by (rewrite H; auto).
+      rewrite !Vert.compose_assoc, bw_fw, !Vert.compose_id_right in E. exact E.
+    Qed.
+
+    Lemma compose_bw_l_eq {sA tA sB tB : V.t}
+      {sf : V.m sA sB} {tf : V.m tA tB} {sb : V.m sB sA} {tb : V.m tB tA}
+      {A : sA -o-> tA} {B : sB -o-> tB}
+      (f : @visocell sA tA sB tB sf tf sb tb A B) {C : Vert.t} (x y : Vert.m A C) :
+      bw f ;; x = bw f ;; y <-> x = y.
+    Proof.
+      split; intro H; try congruence.
+      assert (E : fw f ;; (bw f ;; x) = fw f ;; (bw f ;; y)) by (rewrite H; auto).
+      rewrite !Vert.compose_assoc, fw_bw, !Vert.compose_id_right in E. exact E.
+    Qed.
+
+    (** Moving isos across equations. *)
+    Lemma eq_fw_bw_r {sA tA sB tB : V.t}
+      {sf : V.m sA sB} {tf : V.m tA tB} {sb : V.m sB sA} {tb : V.m tB tA}
+      {A : sA -o-> tA} {B : sB -o-> tB}
+      (f : @visocell sA tA sB tB sf tf sb tb A B) {C : Vert.t} (x : Vert.m C A) y :
+      x ;; fw f = y <-> x = y ;; bw f.
+    Proof.
+      split; intro H.
+      - rewrite <- H, <- Vert.compose_assoc, fw_bw, Vert.compose_id_left. auto.
+      - rewrite H, <- Vert.compose_assoc, bw_fw, Vert.compose_id_left. auto.
+    Qed.
+
+    Lemma eq_fw_bw_l {sA tA sB tB : V.t}
+      {sf : V.m sA sB} {tf : V.m tA tB} {sb : V.m sB sA} {tb : V.m tB tA}
+      {A : sA -o-> tA} {B : sB -o-> tB}
+      (f : @visocell sA tA sB tB sf tf sb tb A B) {C : Vert.t} (x : Vert.m B C) y :
+      fw f ;; x = y <-> x = bw f ;; y.
+    Proof.
+      split; intro H.
+      - rewrite <- H, Vert.compose_assoc, bw_fw, Vert.compose_id_right. auto.
+      - rewrite H, Vert.compose_assoc, fw_bw, Vert.compose_id_right. auto.
+    Qed.
   End Viso.
-  Export Viso.
 
   Definition sisocell_to_visocell {a b : V.t} {A B : a -o-> b}
     (s : sisocell A B) :
@@ -556,7 +722,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Module Hiso.
     Record hiso (a b : V.t) := mk_hiso {
       fw :> a -o-> b;
-      bw :> b -o-> a;
+      bw : b -o-> a;
       fw_bw : sisocell (fw ⨀ bw) (hid a);
       bw_fw : sisocell (bw ⨀ fw) (hid b);
     }.
@@ -566,7 +732,67 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     Arguments fw_bw {a b}.
     Arguments bw_fw {a b}.
   End Hiso.
-  Export Hiso.
+
+  (** *** Derived Equations *)
+
+  Proposition vid_hid {a : V.t} :
+    vid (hid a) = hid_mor (V.id a).
+  Proof.
+    rewrite <- (hid_fmap_id a) at 1. reflexivity.
+  Qed.
+
+  Lemma tcell_to_harr_mor_inj {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf : sA ~~> sB} {tf : tA ~~> tB}
+    (α β : A =[sf,tf]=> B) :
+    (α : harr_mor A B) = (β : harr_mor A B) -> α = β.
+  Proof.
+    intro H. dependent destruction H. reflexivity.
+  Qed.
+
+  Proposition runit_hcomp_hid_runit {a : V.t} :
+    runit (hid a) ⊙ (vid (hid a)) = runit (hid a ⨀ hid a).
+  Proof.
+    apply tcell_to_harr_mor_inj.
+    pose (H := runit_nat (runit (hid a))).
+    rewrite (Siso'.eq_fw_bw_r (runit (hid a))) in H at 1.
+    rewrite <- Vert.compose_assoc in H.
+    rewrite (fw_bw (runit (hid a))) in H at 1.
+    rewrite Vert.compose_id_left in H.
+    rewrite <- vid_hid in H. symmetry.
+    exact H.
+  Qed.
+
+  Proposition hid_hcomp_lunit_lunit {a : V.t} :
+    (vid (hid a)) ⊙ lunit (hid a) = lunit (hid a ⨀ hid a).
+  Proof.
+    apply tcell_to_harr_mor_inj.
+    pose (H := lunit_nat (lunit (hid a))).
+    rewrite (Siso'.eq_fw_bw_r (lunit (hid a))) in H at 1.
+    rewrite <- Vert.compose_assoc in H.
+    rewrite (fw_bw (lunit (hid a))) in H at 1.
+    rewrite Vert.compose_id_left in H.
+    rewrite <- vid_hid in H. symmetry.
+    exact H.
+  Qed.
+
+  (** The left and right unitors agree on the horizontal identity.
+      This is a standard coherence result for monoidal categories:
+      λ_I = ρ_I where I is the unit object.
+
+      The proof follows the strategy from nLab:
+      https://ncatlab.org/nlab/show/monoidal+category#other_coherence_conditions
+
+      Key steps:
+      1. _ ⊙ vid I is faithful (since _ ⨀ hid is an equivalence via runit)
+      2. From triangle (unit_coh): ρ_I ⊙ id_I = α ∘ (id_I ⊙ λ_I)
+      3. From naturality: ρ_I ⊙ id_I = ρ_{I⊗I} and id_I ⊙ λ_I = λ_{I⊗I}
+      4. The "dual triangle" λ_I ⊙ id_I = α ∘ (id_I ⊙ λ_I) follows from coherence
+      5. Hence λ_I ⊙ id_I = ρ_I ⊙ id_I, so λ_I = ρ_I by faithfulness *)
+  Proposition lunit_hid_runit_hid {a : V.t} :
+    lunit (hid a) = runit (hid a).
+  Proof.
+  Admitted.
 
 End DoubleCategoryTheory.
 

@@ -251,7 +251,8 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition V.
     Qed.
 
   End Vert.
-  Import Vert.
+  Include Vert.
+  Import Siso.
 
   Notation "f ;; g" := (Vert.compose g f)
     (at level 50, left associativity) : hom_scope.
@@ -309,16 +310,16 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition V.
   (** Associator: [(A ⨀ B) ⨀ C ≅ A ⨀ (B ⨀ C)] *)
   Program Definition assoc {a b c d : V.t}
     (A : a -o-> b) (B : b -o-> c) (C : c -o-> d) :
-    sisocell ((A ⨀ B) ⨀ C) (A ⨀ (B ⨀ C)) :=
+    Siso.sisocell ((A ⨀ B) ⨀ C) (A ⨀ (B ⨀ C)) :=
     {|
-      fw := {| vtx_mor :=
+      Siso.fw := {| vtx_mor :=
         let rl := Pb.pb_pair (f := tgt_leg B) (g := src_leg C)
           (ll := Pb.pb_p2 (tgt_leg A) (src_leg B) @ Pb.pb_p1 (tgt_leg (A ⨀ B)) (src_leg C))
           (rl := Pb.pb_p2 (tgt_leg (A ⨀ B)) (src_leg C)) _ in
         Pb.pb_pair (f := tgt_leg A) (g := src_leg (B ⨀ C))
           (ll := Pb.pb_p1 (tgt_leg A) (src_leg B) @ Pb.pb_p1 (tgt_leg (A ⨀ B)) (src_leg C))
           (rl := rl) _ |};
-      bw := {| vtx_mor :=
+      Siso.bw := {| vtx_mor :=
         let ll := Pb.pb_pair (f := tgt_leg A) (g := src_leg B)
           (ll := Pb.pb_p1 (tgt_leg A) (src_leg (B ⨀ C)))
           (rl := Pb.pb_p1 (tgt_leg B) (src_leg C) @ Pb.pb_p2 (tgt_leg A) (src_leg (B ⨀ C))) _ in
@@ -394,10 +395,10 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition V.
 
   (** Left unitor: [hid a ⨀ A ≅ A] *)
   Program Definition lunit {a b : V.t} (A : a -o-> b) :
-    sisocell (hid a ⨀ A) A :=
+    Siso.sisocell (hid a ⨀ A) A :=
     {|
-      fw := {| vtx_mor := Pb.pb_p2 (V.id a) (src_leg A); |};
-      bw := {| vtx_mor :=
+      Siso.fw := {| vtx_mor := Pb.pb_p2 (V.id a) (src_leg A); |};
+      Siso.bw := {| vtx_mor :=
         Pb.pb_pair (f := V.id a) (g := src_leg A) (ll := src_leg A) (rl := V.id (vtx A)) _|};
     |}.
   Next Obligation.
@@ -431,10 +432,10 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition V.
 
   (** Right unitor: [A ⨀ hid b ≅ A] *)
   Program Definition runit {a b : V.t} (A : a -o-> b) :
-    sisocell (A ⨀ hid b) A :=
+    Siso.sisocell (A ⨀ hid b) A :=
     {|
-      fw := {| vtx_mor := Pb.pb_p1 (tgt_leg A) (V.id b); |};
-      bw := {| vtx_mor :=
+      Siso.fw := {| vtx_mor := Pb.pb_p1 (tgt_leg A) (V.id b); |};
+      Siso.bw := {| vtx_mor :=
         Pb.pb_pair (f := tgt_leg A) (g := V.id b) (ll := V.id (vtx A)) (rl := tgt_leg A) _|};
     |}.
   Next Obligation.
