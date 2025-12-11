@@ -733,6 +733,28 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     Arguments bw_fw {a b}.
   End Hiso.
 
+  Proposition carrier_mor_tcell_to_harr_mor {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf : sA ~~> sB} {tf : tA ~~> tB}
+    (α : A =[sf,tf]=> B) :
+    carrier_mor (tcell_to_harr_mor α) = α.
+  Proof. reflexivity. Qed.
+
+  Proposition tcell_to_harr_mor_cong {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf : sA ~~> sB} {tf : tA ~~> tB}
+    (α β : A =[sf,tf]=> B) :
+    (α : harr_mor A B) = (β : harr_mor A B) <-> α = β.
+  Proof.
+    split.
+    - intro H. dependent destruction H. reflexivity.
+    - intro H. congruence.
+  Qed.
+
+  Proposition compose_vcomp {A B C : Vert.t} (f : Vert.m A B) (g : Vert.m B C) :
+    (f ;; g : Vert.m A C) = (vcomp f g : Vert.m A C).
+  Proof. reflexivity. Qed.
+
   (** *** Derived Equations *)
 
   Proposition vid_hid {a : V.t} :
@@ -741,19 +763,10 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     rewrite <- (hid_fmap_id a) at 1. reflexivity.
   Qed.
 
-  Lemma tcell_to_harr_mor_inj {sA tA sB tB : V.t}
-    {A : sA -o-> tA} {B : sB -o-> tB}
-    {sf : sA ~~> sB} {tf : tA ~~> tB}
-    (α β : A =[sf,tf]=> B) :
-    (α : harr_mor A B) = (β : harr_mor A B) -> α = β.
-  Proof.
-    intro H. dependent destruction H. reflexivity.
-  Qed.
-
   Proposition runit_hcomp_hid_runit {a : V.t} :
     runit (hid a) ⊙ (vid (hid a)) = runit (hid a ⨀ hid a).
   Proof.
-    apply tcell_to_harr_mor_inj.
+    apply tcell_to_harr_mor_cong.
     pose (H := runit_nat (runit (hid a))).
     rewrite (Siso'.eq_fw_bw_r (runit (hid a))) in H at 1.
     rewrite <- Vert.compose_assoc in H.
@@ -766,7 +779,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Proposition hid_hcomp_lunit_lunit {a : V.t} :
     (vid (hid a)) ⊙ lunit (hid a) = lunit (hid a ⨀ hid a).
   Proof.
-    apply tcell_to_harr_mor_inj.
+    apply tcell_to_harr_mor_cong.
     pose (H := lunit_nat (lunit (hid a))).
     rewrite (Siso'.eq_fw_bw_r (lunit (hid a))) in H at 1.
     rewrite <- Vert.compose_assoc in H.
@@ -776,7 +789,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     exact H.
   Qed.
 
-  (** The left and right unitors agree on the horizontal identity.
+  (** *** The left and right unitors agree on the horizontal identity.
+      This fact is due to Kelly and quite challenging to prove.
       This is a standard coherence result for monoidal categories:
       λ_I = ρ_I where I is the unit object.
 
@@ -789,6 +803,52 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       3. From naturality: ρ_I ⊙ id_I = ρ_{I⊗I} and id_I ⊙ λ_I = λ_{I⊗I}
       4. The "dual triangle" λ_I ⊙ id_I = α ∘ (id_I ⊙ λ_I) follows from coherence
       5. Hence λ_I ⊙ id_I = ρ_I ⊙ id_I, so λ_I = ρ_I by faithfulness *)
+
+    Proposition hcomp_vid_faithful {a a' b : V.t}
+      {A : a -o-> b} {B : a' -o-> b}
+      {f : a ~~> a'}
+      (α β : A =[f, V.id b]=> B) :
+      α ⊙ vid (hid b) = β ⊙ vid (hid b) -> α = β.
+    Proof.
+      intro H.
+      apply tcell_to_harr_mor_cong.
+      rewrite <- (Siso'.compose_fw_l_eq (runit A)).
+      rewrite !(runit_nat). rewrite <- !vid_hid.
+      apply Siso'.compose_fw_r_eq. apply tcell_to_harr_mor_cong.
+      congruence.
+    Qed.
+
+    Proposition vid_hcomp_faithful {a b b' : V.t}
+      {A : a -o-> b} {B : a -o-> b'}
+      {f : b ~~> b'}
+      (α β : A =[V.id a, f]=> B) :
+      vid (hid a) ⊙ α = vid (hid a) ⊙ β -> α = β.
+    Proof.
+      intro H.
+      apply tcell_to_harr_mor_cong.
+      rewrite <- (Siso'.compose_fw_l_eq (lunit A)).
+      rewrite !(lunit_nat). rewrite <- !vid_hid.
+      apply Siso'.compose_fw_r_eq. apply tcell_to_harr_mor_cong.
+      congruence.
+    Qed.
+
+    Proposition lunit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
+      assoc (hid a) A B ;; lunit (A ⨀ B) = lunit A ⊙ vid B.
+    Proof.
+      Set Printing Coercions.
+      (* Kelly's lemma 1: λ_{A⨀B} ∘ α = λ_A ⊙ id_B
+         The proof requires showing vcomp assoc lunit = lunit A ⊙ vid B.
+         This follows from naturality of lunit and the coherence axioms,
+         but needs additional lemmas to handle frame morphism equality
+         (V.compose (id a) (id a) = id a). *)
+    Admitted.
+
+    Proposition runit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
+      assoc A B (hid c) ;; (vid A ⊙ runit B) = runit (A ⨀ B).
+    Proof.
+    Admitted.
+
+
   Proposition lunit_hid_runit_hid {a : V.t} :
     lunit (hid a) = runit (hid a).
   Proof.
