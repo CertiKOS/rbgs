@@ -1143,7 +1143,6 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Proposition runit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
     assoc A B (hid c) ;; (vid A ⊙ runit B) = runit (A ⨀ B).
   Proof.
-    admit.
   Admitted.
 
   Proposition lunit_hid_runit_hid {a : V.t} :
