@@ -968,8 +968,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     exact H.
   Qed.
 
-  (** *** The left and right unitors agree on the horizontal identity.
-      This fact is due to Kelly and quite challenging to realize
+  (** *** The left and right unitors agree on the horizontal identity. *)
+  (**    This fact is due to Kelly and quite challenging to realize
       (even MacLane did not realize this when he first showed the coherence theorem).
       This is a standard coherence result for monoidal categories:
       λ_I = ρ_I where I is the unit object.
