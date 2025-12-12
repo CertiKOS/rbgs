@@ -572,8 +572,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Lemma tcell_harr_mor_hcomp_cong {a b c : V.t}
     {A A' : a -o-> b} {B B' : b -o-> c}
     {sf1 tf1 ug1 sf2 tf2 ug2 : _}
-    (α1 : A =[sf1, tf1]=> A') (β1 : B =[tf1, ug1]=> B')
-    (α2 : A =[sf2, tf2]=> A') (β2 : B =[tf2, ug2]=> B') :
+    {α1 : A =[sf1, tf1]=> A'} {β1 : B =[tf1, ug1]=> B'}
+    {α2 : A =[sf2, tf2]=> A'} {β2 : B =[tf2, ug2]=> B'} :
     tcell_to_harr_mor α1 = tcell_to_harr_mor α2 ->
     tcell_to_harr_mor β1 = tcell_to_harr_mor β2 ->
     tcell_to_harr_mor (α1 ⊙ β1) = tcell_to_harr_mor (α2 ⊙ β2).
@@ -624,14 +624,14 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       rewrite tcell_to_harr_mor_compose. rewrite <- hcomp_fmap_compose.
       pose proof (bw_fw f) as Hf. rewrite tcell_to_harr_mor_compose in Hf.
       pose proof (bw_fw g) as Hg. rewrite tcell_to_harr_mor_compose in Hg.
-      pose proof (tcell_harr_mor_hcomp_cong _ _ _ _ Hf Hg) as H.
+      pose proof (tcell_harr_mor_hcomp_cong Hf Hg) as H.
       rewrite hcomp_fmap_id in H. exact H.
     Qed.
     Next Obligation.
       rewrite tcell_to_harr_mor_compose. rewrite <- hcomp_fmap_compose.
       pose proof (fw_bw f) as Hf. rewrite tcell_to_harr_mor_compose in Hf.
       pose proof (fw_bw g) as Hg. rewrite tcell_to_harr_mor_compose in Hg.
-      pose proof (tcell_harr_mor_hcomp_cong _ _ _ _ Hf Hg) as H.
+      pose proof (tcell_harr_mor_hcomp_cong Hf Hg) as H.
       rewrite hcomp_fmap_id in H. exact H.
     Qed.
 
@@ -915,6 +915,10 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     rewrite <- (hid_fmap_id a) at 1. reflexivity.
   Qed.
 
+  Proposition vid_is_Vert_id {a b : V.t} (A : a -o-> b) :
+    (vid A : harr_mor A A) = Vert.id A.
+  Proof. reflexivity. Qed.
+
   Proposition runit_hcomp_hid_runit {a : V.t} :
     runit (hid a) ⊙ (vid (hid a)) = runit (hid a ⨀ hid a).
   Proof.
@@ -942,7 +946,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Qed.
 
   (** *** The left and right unitors agree on the horizontal identity.
-      This fact is due to Kelly and quite challenging to prove.
+      This fact is due to Kelly and quite challenging to realize
+      (even MacLane did not realize this when he first showed the coherence theorem).
       This is a standard coherence result for monoidal categories:
       λ_I = ρ_I where I is the unit object.
 
@@ -998,8 +1003,24 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     assert ((((runit (hid a) ⊙ vid A) ⊙ vid B) : Vert.m (((hid a ⨀ hid a) ⨀ A) ⨀ B) ((hid a ⨀ A) ⨀ B)) =
       assoc (hid a) (hid a) A ⊙ vid B;; (vid (hid a) ⊙ lunit A) ⊙ vid B) as T.
     {
-      pose proof (unit_coh (hid a) A) as UC; cbn in UC.
-      admit.
+      clear Perim. pose proof (unit_coh (hid a) A) as UC; cbn in UC.
+      rewrite tcell_to_harr_mor_compose.
+      assert (vcomp (fw (assoc (hid a) (hid a) A) ⊙ vid B)
+          ((vid (hid a) ⊙ fw (lunit A)) ⊙ vid B) =
+        (vcomp (fw (assoc (hid a) (hid a) A))
+          ((vid (hid a) ⊙ fw (lunit A)))) ⊙ (vcomp (vid B) (vid B))).
+      {
+        rewrite hcomp_fmap_compose. reflexivity.
+      } rewrite H; clear H.
+      assert (tcell_to_harr_mor (vid B) = tcell_to_harr_mor (vcomp (vid B) (vid B)))
+        as VIDB.
+      {
+        rewrite <- tcell_to_harr_mor_compose.
+        pose proof (Vert.compose_id_left (vid B)). cbn in H.
+        rewrite vid_is_Vert_id in H. symmetry. exact H.
+      }
+      rewrite tcell_to_harr_mor_compose in UC.
+      apply tcell_harr_mor_hcomp_cong; assumption.
     }
     assert (Diff: assoc (hid a) (hid a) A ⊙ vid B ;; assoc (hid a) (hid a ⨀ A) B ;; vid (hid a) ⊙ lunit A ⊙ vid B
       = (runit (hid a) ⊙ vid A) ⊙ vid B  ;; assoc (hid a) A B).
@@ -1016,7 +1037,9 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       rewrite <- !Vert.compose_assoc in Perim.
       apply Siso'.compose_fw_l_eq in Perim. apply Siso'.compose_fw_l_eq in Perim.
       exact Perim.
-    } clear Diff. clear Perim.
+    } clear Diff; clear Perim.
+
+    admit.
   Admitted.
 
   Proposition runit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
