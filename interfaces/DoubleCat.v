@@ -584,6 +584,29 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     reflexivity.
   Qed.
 
+  (** Frame transport: cast a tcell along frame equalities *)
+  Definition tcell_frame_cast {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf sf' : sA ~~> sB} {tf tf' : tA ~~> tB}
+    (Hsf : sf = sf') (Htf : tf = tf')
+    (α : A =[sf, tf]=> B) : A =[sf', tf']=> B :=
+    match Hsf in _ = sf' return A =[sf', tf']=> B with
+    | eq_refl =>
+      match Htf in _ = tf' return A =[sf, tf']=> B with
+      | eq_refl => α
+      end
+    end.
+
+  Lemma tcell_frame_cast_harr {sA tA sB tB : V.t}
+    {A : sA -o-> tA} {B : sB -o-> tB}
+    {sf sf' : sA ~~> sB} {tf tf' : tA ~~> tB}
+    (Hsf : sf = sf') (Htf : tf = tf')
+    (α : A =[sf, tf]=> B) :
+    tcell_to_harr_mor α = tcell_to_harr_mor (tcell_frame_cast Hsf Htf α).
+  Proof.
+    destruct Hsf, Htf. reflexivity.
+  Qed.
+
   (** *** Isomorphisms *)
 
   (** *** Sisocell manipulation *)
@@ -989,6 +1012,75 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     congruence.
   Qed.
 
+  (** Interchange for vid ⊙ scells at harr_mor level.
+      This lemma shows that (vid ⊙ f) ;; (vid ⊙ g) = vid ⊙ (f ;; g) at harr_mor level,
+      where the frame mismatch is resolved via frame transport. *)
+  Lemma vid_hcomp_scell_compose {a b : V.t}
+    {A A' A'' : a -o-> b}
+    (f : scell A A') (g : scell A' A'') :
+    (vid (hid a) ⊙ f : harr_mor _ _) ;; (vid (hid a) ⊙ g : harr_mor _ _) =
+    tcell_to_harr_mor (vid (hid a) ⊙
+      tcell_frame_cast (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
+  Proof.
+    rewrite tcell_to_harr_mor_compose.
+    rewrite <- hcomp_fmap_compose.
+    (* Goal: tcell_to_harr_mor ((vcomp vid vid) ⊙ (vcomp f g)) =
+             tcell_to_harr_mor (vid ⊙ tcell_frame_cast ... (vcomp f g)) *)
+    apply tcell_harr_mor_hcomp_cong.
+    - (* vcomp vid vid = vid at harr_mor level *)
+      rewrite <- tcell_to_harr_mor_compose.
+      rewrite !vid_is_Vert_id.
+      rewrite Vert.compose_id_left.
+      rewrite <- vid_is_Vert_id. reflexivity.
+    - (* vcomp f g = frame_cast (vcomp f g) at harr_mor level *)
+      exact (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
+  Qed.
+
+  (** Faithfulness of vid ⊙ _ at harr_mor level for scells *)
+  Lemma vid_hcomp_scell_faithful {a b : V.t}
+    {A A' : a -o-> b}
+    (f g : scell A A') :
+    (vid (hid a) ⊙ f : harr_mor _ _) = (vid (hid a) ⊙ g : harr_mor _ _) ->
+    (f : harr_mor A A') = (g : harr_mor A A').
+  Proof.
+    intro H.
+    apply tcell_to_harr_mor_cong.
+    apply (vid_hcomp_faithful f g).
+    apply tcell_to_harr_mor_cong in H. exact H.
+  Qed.
+
+  (** Interchange for _ ⊙ vid scells at harr_mor level (right-hand version) *)
+  Lemma hcomp_scell_vid_compose {a b : V.t}
+    {A A' A'' : a -o-> b}
+    (f : scell A A') (g : scell A' A'') :
+    (f ⊙ vid (hid b) : harr_mor _ _) ;; (g ⊙ vid (hid b) : harr_mor _ _) =
+    tcell_to_harr_mor (tcell_frame_cast (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g) ⊙ vid (hid b)).
+  Proof.
+    rewrite tcell_to_harr_mor_compose.
+    rewrite <- hcomp_fmap_compose.
+    apply tcell_harr_mor_hcomp_cong.
+    - (* vcomp f g = tcell_frame_cast (vcomp f g) at harr_mor level *)
+      exact (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
+    - (* vcomp vid vid = vid at harr_mor level *)
+      rewrite <- tcell_to_harr_mor_compose.
+      rewrite !vid_is_Vert_id.
+      rewrite Vert.compose_id_left.
+      rewrite <- vid_is_Vert_id. reflexivity.
+  Qed.
+
+  (** Faithfulness of _ ⊙ vid at harr_mor level for scells (right-hand version) *)
+  Lemma hcomp_scell_vid_faithful {a b : V.t}
+    {A A' : a -o-> b}
+    (f g : scell A A') :
+    (f ⊙ vid (hid b) : harr_mor _ _) = (g ⊙ vid (hid b) : harr_mor _ _) ->
+    (f : harr_mor A A') = (g : harr_mor A A').
+  Proof.
+    intro H.
+    apply tcell_to_harr_mor_cong.
+    apply (hcomp_vid_faithful f g).
+    apply tcell_to_harr_mor_cong in H. exact H.
+  Qed.
+
   Proposition lunit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
     assoc (hid a) A B ;; lunit (A ⨀ B) = lunit A ⊙ vid B.
   Proof.
@@ -1039,12 +1131,19 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       exact Perim.
     } clear Diff; clear Perim.
 
-    admit.
-  Admitted.
+    rewrite vid_hcomp_scell_compose in H.
+    apply vid_hcomp_scell_faithful in H.
+    rewrite tcell_to_harr_mor_compose.
+    rewrite (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id c))
+               (vcomp (fw (assoc (hid a) A B)) (fw (lunit (A ⨀ B))))).
+    exact H.
+  Qed.
 
+  (** This is dual to the proposition above, but not necessary for λ_1 = ρ_1 *)
   Proposition runit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
     assoc A B (hid c) ;; (vid A ⊙ runit B) = runit (A ⨀ B).
   Proof.
+    admit.
   Admitted.
 
   Proposition lunit_hid_runit_hid {a : V.t} :
