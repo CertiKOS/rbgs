@@ -556,6 +556,34 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     tcell_to_harr_mor α ;; tcell_to_harr_mor β = tcell_to_harr_mor (vcomp α β).
   Proof. reflexivity. Qed.
 
+  Lemma hcomp_harr_mor_eq {a b c : V.t}
+    {A A' : a -o-> b} {B B' : b -o-> c}
+    (α α' : scell A A') (β β' : scell B B') :
+    (α : harr_mor A A') = (α' : harr_mor A A') ->
+    (β : harr_mor B B') = (β' : harr_mor B B') ->
+    (α ⊙ β : harr_mor (A ⨀ B) (A' ⨀ B')) = (α' ⊙ β' : harr_mor (A ⨀ B) (A' ⨀ B')).
+  Proof.
+    intros Hα Hβ.
+    dependent destruction Hα.
+    dependent destruction Hβ.
+    reflexivity.
+  Qed.
+
+  Lemma tcell_harr_mor_hcomp_cong {a b c : V.t}
+    {A A' : a -o-> b} {B B' : b -o-> c}
+    {sf1 tf1 ug1 sf2 tf2 ug2 : _}
+    (α1 : A =[sf1, tf1]=> A') (β1 : B =[tf1, ug1]=> B')
+    (α2 : A =[sf2, tf2]=> A') (β2 : B =[tf2, ug2]=> B') :
+    tcell_to_harr_mor α1 = tcell_to_harr_mor α2 ->
+    tcell_to_harr_mor β1 = tcell_to_harr_mor β2 ->
+    tcell_to_harr_mor (α1 ⊙ β1) = tcell_to_harr_mor (α2 ⊙ β2).
+  Proof.
+    intros Hα Hβ.
+    dependent destruction Hα.
+    dependent destruction Hβ.
+    reflexivity.
+  Qed.
+
   (** *** Isomorphisms *)
 
   (** *** Sisocell manipulation *)
@@ -564,6 +592,88 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Module Siso'.
     Import Vert.
     Import Siso.
+
+    Program Definition vid_siso {a b : V.t} (A : a -o-> b) : sisocell A A :=
+    {|
+      fw := vid A;
+      bw := vid A;
+    |}.
+    Next Obligation.
+      exact (compose_id_left (vid A)).
+    Qed.
+    Next Obligation.
+      exact (compose_id_left (vid A)).
+    Qed.
+
+    Proposition vid_siso_fw {a b : V.t} (A : a -o-> b) :
+      vid A = fw (vid_siso A).
+    Proof. reflexivity. Qed.
+
+    Proposition vid_siso_bw {a b : V.t} (A : a -o-> b) :
+      vid A = bw (vid_siso A).
+    Proof. reflexivity. Qed.
+
+    Program Definition hcomp_siso {a b c : V.t}
+      {A A' : a -o-> b} {B B' : b -o-> c}
+      (f : sisocell A A') (g : sisocell B B') : sisocell (A ⨀ B) (A' ⨀ B') :=
+    {|
+      fw := fw f ⊙ fw g;
+      bw := bw f ⊙ bw g;
+    |}.
+    Next Obligation.
+      rewrite tcell_to_harr_mor_compose. rewrite <- hcomp_fmap_compose.
+      pose proof (bw_fw f) as Hf. rewrite tcell_to_harr_mor_compose in Hf.
+      pose proof (bw_fw g) as Hg. rewrite tcell_to_harr_mor_compose in Hg.
+      pose proof (tcell_harr_mor_hcomp_cong _ _ _ _ Hf Hg) as H.
+      rewrite hcomp_fmap_id in H. exact H.
+    Qed.
+    Next Obligation.
+      rewrite tcell_to_harr_mor_compose. rewrite <- hcomp_fmap_compose.
+      pose proof (fw_bw f) as Hf. rewrite tcell_to_harr_mor_compose in Hf.
+      pose proof (fw_bw g) as Hg. rewrite tcell_to_harr_mor_compose in Hg.
+      pose proof (tcell_harr_mor_hcomp_cong _ _ _ _ Hf Hg) as H.
+      rewrite hcomp_fmap_id in H. exact H.
+    Qed.
+
+    (** Rewriting hcomp of sisos into their components *)
+
+    Proposition hcomp_siso_fw {a b c : V.t}
+      {A A' : a -o-> b} {B B' : b -o-> c}
+      (f : sisocell A A') (g : sisocell B B') :
+      fw (hcomp_siso f g) = fw f ⊙ fw g.
+    Proof. reflexivity. Qed.
+
+    Proposition hcomp_siso_bw {a b c : V.t}
+      {A A' : a -o-> b} {B B' : b -o-> c}
+      (f : sisocell A A') (g : sisocell B B') :
+      bw (hcomp_siso f g) = bw f ⊙ bw g.
+    Proof. reflexivity. Qed.
+
+    (** Simplification when one component is the identity siso *)
+
+    Proposition hcomp_siso_vid_l_fw {a b c : V.t}
+      (A : a -o-> b) {B B' : b -o-> c}
+      (g : sisocell B B') :
+      fw (hcomp_siso (vid_siso A) g) = vid A ⊙ fw g.
+    Proof. reflexivity. Qed.
+
+    Proposition hcomp_siso_vid_l_bw {a b c : V.t}
+      (A : a -o-> b) {B B' : b -o-> c}
+      (g : sisocell B B') :
+      bw (hcomp_siso (vid_siso A) g) = vid A ⊙ bw g.
+    Proof. reflexivity. Qed.
+
+    Proposition hcomp_siso_vid_r_fw {a b c : V.t}
+      {A A' : a -o-> b} (B : b -o-> c)
+      (f : sisocell A A') :
+      fw (hcomp_siso f (vid_siso B)) = fw f ⊙ vid B.
+    Proof. reflexivity. Qed.
+
+    Proposition hcomp_siso_vid_r_bw {a b c : V.t}
+      {A A' : a -o-> b} (B : b -o-> c)
+      (f : sisocell A A') :
+      bw (hcomp_siso f (vid_siso B)) = bw f ⊙ vid B.
+    Proof. reflexivity. Qed.
 
     (** Post-composing with an iso is injective. *)
     Lemma compose_fw_r_eq {a b : V.t} {A B : a -o-> b}
@@ -874,16 +984,6 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     congruence.
   Qed.
 
-  Proposition tcell_to_harr_mor_hcomp_cong_r {sA tA sB tB tC tD : V.t}
-    {A : sA -o-> tA} {B : sB -o-> tB} {C : tA -o-> tC} {D : tB -o-> tD}
-    {sf : sA ~~> sB} {tf : tA ~~> tB} {tg : tC ~~> tD}
-    {f g : A =[sf,tf]=> B} (h : C =[tf,tg]=> D) :
-    tcell_to_harr_mor f = tcell_to_harr_mor g ->
-    tcell_to_harr_mor (f ⊙ h) = tcell_to_harr_mor (g ⊙ h).
-  Proof.
-    intro H. dependent destruction H. reflexivity.
-  Qed.
-
   Proposition lunit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
     assoc (hid a) A B ;; lunit (A ⨀ B) = lunit A ⊙ vid B.
   Proof.
@@ -891,36 +991,38 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       vid (hid a) ⊙ assoc (hid a) A B ;; vid (hid a) ⊙ lunit (A ⨀ B) =
       (runit (hid a) ⊙ vid A) ⊙ vid B  ;; assoc (hid a) A B).
     {
+      rewrite <- (assoc_nat (runit (hid a)) (vid A) (vid B)).
+      rewrite hcomp_fmap_id. rewrite unit_coh.
+      rewrite assoc_coh. rewrite Vert.compose_assoc. reflexivity.
+    }
+    assert ((((runit (hid a) ⊙ vid A) ⊙ vid B) : Vert.m (((hid a ⨀ hid a) ⨀ A) ⨀ B) ((hid a ⨀ A) ⨀ B)) =
+      assoc (hid a) (hid a) A ⊙ vid B;; (vid (hid a) ⊙ lunit A) ⊙ vid B) as T.
+    {
+      pose proof (unit_coh (hid a) A) as UC; cbn in UC.
       admit.
     }
     assert (Diff: assoc (hid a) (hid a) A ⊙ vid B ;; assoc (hid a) (hid a ⨀ A) B ;; vid (hid a) ⊙ lunit A ⊙ vid B
       = (runit (hid a) ⊙ vid A) ⊙ vid B  ;; assoc (hid a) A B).
     {
-      admit.
-    }
-    assert ((((runit (hid a) ⊙ vid A) ⊙ vid B) : Vert.m (((hid a ⨀ hid a) ⨀ A) ⨀ B) ((hid a ⨀ A) ⨀ B)) =
-      assoc (hid a) (hid a) A ⊙ vid B;; (vid (hid a) ⊙ lunit A) ⊙ vid B) as T.
-    {
-      pose proof (unit_coh (hid a) A) as UC.
-      admit.
-    }
-    assert (((vid (hid a) ⊙ lunit A) ⊙ vid B) ;; assoc (hid a) A B =
-      assoc (hid a) (hid a ⨀ A) B ;; vid (hid a) ⊙ lunit A ⊙ vid B) as N.
-    {
-      admit.
-    }
+      rewrite T.
+      pose proof (assoc_nat (vid (hid a)) (lunit A) (vid B)).
+      rewrite <- !Vert.compose_assoc. rewrite H. reflexivity.
+    } clear T.
     assert (vid (hid a) ⊙ assoc (hid a) A B ;; vid (hid a) ⊙ lunit (A ⨀ B) =
       vid (hid a) ⊙ lunit A ⊙ vid B) as H.
     {
-      admit.
-    }
+      rewrite <- Diff in Perim. clear Diff.
+      rewrite <- Siso'.hcomp_siso_vid_r_fw in Perim.
+      rewrite <- !Vert.compose_assoc in Perim.
+      apply Siso'.compose_fw_l_eq in Perim. apply Siso'.compose_fw_l_eq in Perim.
+      exact Perim.
+    } clear Diff. clear Perim.
   Admitted.
 
   Proposition runit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
     assoc A B (hid c) ;; (vid A ⊙ runit B) = runit (A ⨀ B).
   Proof.
   Admitted.
-
 
   Proposition lunit_hid_runit_hid {a : V.t} :
     lunit (hid a) = runit (hid a).
