@@ -2,6 +2,7 @@ Require Import interfaces.Category.
 Require Import interfaces.Functor.
 Require Import Coq.Program.Equality.
 Require Import Coq.Logic.ProofIrrelevance.
+Require Import Coq.Logic.JMeq.
 
 (** Enable primitive projections for better type inference with coercions *)
 Set Primitive Projections.
@@ -122,12 +123,11 @@ Module Type DoubleCellData (V : CategoryDefinition).
   Bind Scope hom_scope with tcell.
   Open Scope hom_scope.
 
-  Parameter hcomp_fmap : forall {a a' b b' c c' : V.t}
+  (** Core horizontal composition requiring definitionally matching middle frames *)
+  Parameter hcomp_fmap_core : forall {a a' b b' c c' : V.t}
     {A : a -o-> b} {A' : a' -o-> b'} {B : b -o-> c} {B' : b' -o-> c'}
     {f : a ~~> a'} {g : b ~~> b'} {h : c ~~> c'},
     A =[f,g]=> A' -> B =[g,h]=> B' -> (A ⨀ B) =[f,h]=> (A' ⨀ B').
-
-  Infix "⊙" := hcomp_fmap (at level 45, right associativity) : hom_scope.
 
 End DoubleCellData.
 
@@ -153,7 +153,19 @@ Module DoubleCellNotations (V : CategoryDefinition) (D : DoubleCellData V).
   Bind Scope hom_scope with tcell.
   Open Scope hom_scope.
 
-  Infix "⊙" := hcomp_fmap (at level 45, right associativity) : hom_scope.
+  (** User-facing horizontal composition with propositional frame matching *)
+  Definition hcomp_fmap {a a' b b' c c' : V.t}
+    {A : a -o-> b} {A' : a' -o-> b'} {B : b -o-> c} {B' : b' -o-> c'}
+    {f : a ~~> a'} {g g' : b ~~> b'} {h : c ~~> c'}
+    (α : A =[f,g]=> A') (β : B =[g',h]=> B')
+    (Hmid : g = g') : (A ⨀ B) =[f,h]=> (A' ⨀ B') :=
+    hcomp_fmap_core α (eq_rect g' (fun m => B =[m,h]=> B') β g (eq_sym Hmid)).
+
+  (** Notation for when middle frames match definitionally *)
+  Notation "α ⊙ β" := (hcomp_fmap α β eq_refl) (at level 45, right associativity) : hom_scope.
+
+  (** Notation for explicit equality proof *)
+  Notation "α ⊙[ H ] β" := (hcomp_fmap α β H) (at level 45, H at next level, right associativity) : hom_scope.
 End DoubleCellNotations.
 
 
@@ -469,7 +481,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
         {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
         {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
         (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
-        Src.fmap (hcomp_fmap α β) = Src.fmap α.
+        Src.fmap (α ⊙ β) = Src.fmap α.
     Proof. reflexivity. Qed.
 
     Proposition hcomp_tgt :
@@ -482,7 +494,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
         {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
         {f : V.m a a'} {g : V.m b b'} {h : V.m c c'}
         (α : A =[f,g]=> A') (β : B =[g,h]=> B'),
-        Tgt.fmap (hcomp_fmap α β) = Tgt.fmap β.
+        Tgt.fmap (α ⊙ β) = Tgt.fmap β.
     Proof. reflexivity. Qed.
 
     (** The structural isomorphisms have identity frame morphisms. *)
@@ -519,6 +531,18 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
         Tgt.fmap (runit A) = V.id _.
     Proof. reflexivity. Qed.
   End SrcTgtChecks.
+
+  (** Proof irrelevance for [hcomp_fmap]: the result is independent of the equality proof. *)
+  Lemma hcomp_fmap_proof_irrel {a b c a' b' c' : V.t}
+    {A : a -o-> b} {B : b -o-> c} {A' : a' -o-> b'} {B' : b' -o-> c'}
+    {f : V.m a a'} {g g' : V.m b b'} {h : V.m c c'}
+    (α : A =[f,g]=> A') (β : B =[g',h]=> B')
+    (H1 H2 : g = g') :
+    hcomp_fmap α β H1 = hcomp_fmap α β H2.
+  Proof.
+    assert (H1 = H2) by apply proof_irrelevance.
+    subst. reflexivity.
+  Qed.
 
   (** *** Cell types *)
 
@@ -842,6 +866,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       rewrite hcomp_fmap_id. reflexivity.
     Qed.
 
+    (** Interchange law for hcomp_scell: composition distributes over horizontal composition.
+        Uses tcell_frame_cast to preserve scell property (definitional identity frames). *)
     Lemma hcomp_scell_compose {a b c : V.t}
       {A A' A'' : a -o-> b} {B B' B'' : b -o-> c}
       (α : scell A A') (α' : scell A' A'')
@@ -1071,7 +1097,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
 
   (** Interchange for vid ⊙ scells at harr_mor level.
         This lemma shows that (vid ⊙ f) ;; (vid ⊙ g) = vid ⊙ (f ;; g) at harr_mor level,
-        where the frame mismatch is resolved via frame transport. *)
+        where the frame mismatch is resolved via frame transport to preserve scell property. *)
   Lemma vid_hcomp_scell_compose {a b : V.t}
     {A A' A'' : a -o-> b}
     (f : scell A A') (g : scell A' A'') :
@@ -1079,6 +1105,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     tcell_to_harr_mor (vid (hid a) ⊙
       tcell_frame_cast (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
   Proof.
+    (* Use hcomp_fmap_compose via harr_mor congruence *)
     rewrite tcell_to_harr_mor_compose.
     rewrite <- hcomp_fmap_compose.
     apply tcell_harr_mor_hcomp_cong.
@@ -1102,13 +1129,15 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     apply tcell_to_harr_mor_cong in H. exact H.
   Qed.
 
-  (** Interchange for _ ⊙ vid scells at harr_mor level (right-hand version) *)
+  (** Interchange for _ ⊙ vid scells at harr_mor level (right-hand version).
+        Frame transport preserves scell property. *)
   Lemma hcomp_scell_vid_compose {a b : V.t}
     {A A' A'' : a -o-> b}
     (f : scell A A') (g : scell A' A'') :
     (f ⊙ vid (hid b) : harr_mor _ _) ;; (g ⊙ vid (hid b) : harr_mor _ _) =
     tcell_to_harr_mor (tcell_frame_cast (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g) ⊙ vid (hid b)).
   Proof.
+    (* Use hcomp_fmap_compose via harr_mor congruence *)
     rewrite tcell_to_harr_mor_compose.
     rewrite <- hcomp_fmap_compose.
     apply tcell_harr_mor_hcomp_cong.

@@ -196,7 +196,7 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition V.
         reflexivity.
       Qed.
 
-      Program Definition hcomp_fmap {a a' b b' c c' : V.t}
+      Program Definition hcomp_fmap_core {a a' b b' c c' : V.t}
         {A : a -o-> b} {A' : a' -o-> b'} {B : b -o-> c} {B' : b' -o-> c'}
         {f : a ~~> a'} {g : b ~~> b'} {h : c ~~> c'}
         (α : A =[f,g]=> A') (β : B =[g,h]=> B') : (A ⨀ B) =[f,h]=> (A' ⨀ B') :=
@@ -213,8 +213,6 @@ Module SpanDoubleCat (V : CategoryWithPullbacks) <: DoubleCategoryDefinition V.
         rewrite <- V.compose_assoc, tgt_leg_eq.
         rewrite V.compose_assoc. reflexivity.
       Qed.
-
-      Infix "⊙" := hcomp_fmap (at level 45, right associativity) : hom_scope.
     End CD.
     Include CD.
     Include (DoubleCellDerived V CD).
