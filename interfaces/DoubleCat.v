@@ -616,6 +616,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     Import Vert.
     Import Siso.
 
+    (** The siso corresponding to [vid] *)
     Program Definition vid_siso {a b : V.t} (A : a -o-> b) : sisocell A A :=
     {|
       fw := vid A;
@@ -628,6 +629,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       exact (compose_id_left (vid A)).
     Qed.
 
+    (** Useful rewrites to be able to use siso statements with vid *)
     Proposition vid_siso_fw {a b : V.t} (A : a -o-> b) :
       vid A = fw (vid_siso A).
     Proof. reflexivity. Qed.
@@ -636,6 +638,9 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       vid A = bw (vid_siso A).
     Proof. reflexivity. Qed.
 
+    (** Horizontal composition for sisos *)
+
+    (** A hcomp of sisos is a siso *)
     Program Definition hcomp_siso {a b c : V.t}
       {A A' : a -o-> b} {B B' : b -o-> c}
       (f : sisocell A A') (g : sisocell B B') : sisocell (A ⨀ B) (A' ⨀ B') :=
@@ -698,7 +703,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       bw (hcomp_siso f (vid_siso B)) = bw f ⊙ vid B.
     Proof. reflexivity. Qed.
 
-    (** Post-composing with an iso is injective. *)
+    (** Post-composing with a siso is injective. *)
     Lemma compose_fw_r_eq {a b : V.t} {A B : a -o-> b}
       (f : sisocell A B) {C : Vert.t} (x y : Vert.m C A) :
       x ;; fw f = y ;; fw f <-> x = y.
@@ -719,7 +724,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       rewrite <- !Vert.compose_assoc, bw_fw, !Vert.compose_id_left in E. exact E.
     Qed.
 
-    (** Pre-composing with an iso is injective. *)
+    (** Pre-composing with a siso is injective. *)
     Lemma compose_fw_l_eq {a b : V.t} {A B : a -o-> b}
       (f : sisocell A B) {C : Vert.t} (x y : Vert.m B C) :
       fw f ;; x = fw f ;; y <-> x = y.
@@ -738,7 +743,7 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       rewrite !Vert.compose_assoc, fw_bw, !Vert.compose_id_right in E. exact E.
     Qed.
 
-    (** Moving isos across equations. *)
+    (** Moving sisos across equations. *)
     Lemma eq_fw_bw_r {a b : V.t} {A B : a -o-> b}
       (f : sisocell A B) {C : Vert.t} (x : Vert.m C A) y :
       x ;; fw f = y <-> x = y ;; bw f.
@@ -788,8 +793,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       reflexivity.
     Qed.
 
-    (** Two sisocells are equal iff their forward components are equal.
-        This requires proof irrelevance for the equality proofs. *)
+    (** This implies that it is enough to show fw f = fw g to get that two
+      sisos are the same *)
     Proposition sisocell_eq {a b : V.t} {A B : a -o-> b}
       (f g : sisocell A B) :
       fw f = fw g -> f = g.
@@ -808,6 +813,58 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       f_equal; apply proof_irrelevance.
     Qed.
 
+    (** ** Horizontal composition for scells at harr_mor level *)
+
+    (** For scells (cells with identity frames), horizontal composition is
+        well-defined without additional constraints since id b = id b. *)
+    (** We can therefore give them special treatment *)
+
+    Definition hcomp_scell {a b c : V.t}
+      {A A' : a -o-> b} {B B' : b -o-> c}
+      (α : scell A A') (β : scell B B') : harr_mor (A ⨀ B) (A' ⨀ B') :=
+      tcell_to_harr_mor (α ⊙ β).
+
+    Lemma hcomp_scell_cong {a b c : V.t}
+      {A A' : a -o-> b} {B B' : b -o-> c}
+      (α α' : scell A A') (β β' : scell B B') :
+      (α : harr_mor A A') = α' -> (β : harr_mor B B') = β' ->
+      hcomp_scell α β = hcomp_scell α' β'.
+    Proof.
+      intros Hα Hβ. unfold hcomp_scell.
+      apply tcell_harr_mor_hcomp_cong; exact Hα || exact Hβ.
+    Qed.
+
+    Lemma hcomp_scell_id {a b c : V.t}
+      (A : a -o-> b) (B : b -o-> c) :
+      hcomp_scell (vid A) (vid B) = Vert.id (A ⨀ B).
+    Proof.
+      unfold hcomp_scell. simpl.
+      rewrite hcomp_fmap_id. reflexivity.
+    Qed.
+
+    Lemma hcomp_scell_compose {a b c : V.t}
+      {A A' A'' : a -o-> b} {B B' B'' : b -o-> c}
+      (α : scell A A') (α' : scell A' A'')
+      (β : scell B B') (β' : scell B' B'') :
+      hcomp_scell α β ;; hcomp_scell α' β' =
+      hcomp_scell (tcell_frame_cast (V.compose_id_left _) (V.compose_id_left _) (vcomp α α'))
+                  (tcell_frame_cast (V.compose_id_left _) (V.compose_id_left _) (vcomp β β')).
+    Proof.
+      unfold hcomp_scell.
+      rewrite tcell_to_harr_mor_compose.
+      rewrite <- hcomp_fmap_compose.
+      apply tcell_harr_mor_hcomp_cong.
+      - exact (tcell_frame_cast_harr (V.compose_id_left _) (V.compose_id_left _) (vcomp α α')).
+      - exact (tcell_frame_cast_harr (V.compose_id_left _) (V.compose_id_left _) (vcomp β β')).
+    Qed.
+
+    Lemma hcomp_scell_tcell {a b c : V.t}
+      {A A' : a -o-> b} {B B' : b -o-> c}
+      (α : scell A A') (β : scell B B') :
+      hcomp_scell α β = tcell_to_harr_mor (α ⊙ β).
+    Proof.
+      unfold hcomp_scell. reflexivity.
+    Qed.
   End Siso'.
 
   (** A general vertical isocell has explicit (possibly non-identity)
@@ -1013,8 +1070,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Qed.
 
   (** Interchange for vid ⊙ scells at harr_mor level.
-      This lemma shows that (vid ⊙ f) ;; (vid ⊙ g) = vid ⊙ (f ;; g) at harr_mor level,
-      where the frame mismatch is resolved via frame transport. *)
+        This lemma shows that (vid ⊙ f) ;; (vid ⊙ g) = vid ⊙ (f ;; g) at harr_mor level,
+        where the frame mismatch is resolved via frame transport. *)
   Lemma vid_hcomp_scell_compose {a b : V.t}
     {A A' A'' : a -o-> b}
     (f : scell A A') (g : scell A' A'') :
@@ -1024,16 +1081,12 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
   Proof.
     rewrite tcell_to_harr_mor_compose.
     rewrite <- hcomp_fmap_compose.
-    (* Goal: tcell_to_harr_mor ((vcomp vid vid) ⊙ (vcomp f g)) =
-             tcell_to_harr_mor (vid ⊙ tcell_frame_cast ... (vcomp f g)) *)
     apply tcell_harr_mor_hcomp_cong.
-    - (* vcomp vid vid = vid at harr_mor level *)
-      rewrite <- tcell_to_harr_mor_compose.
+    - rewrite <- tcell_to_harr_mor_compose.
       rewrite !vid_is_Vert_id.
       rewrite Vert.compose_id_left.
-      rewrite <- vid_is_Vert_id. reflexivity.
-    - (* vcomp f g = frame_cast (vcomp f g) at harr_mor level *)
-      exact (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
+      reflexivity.
+    - exact (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
   Qed.
 
   (** Faithfulness of vid ⊙ _ at harr_mor level for scells *)
@@ -1059,10 +1112,8 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     rewrite tcell_to_harr_mor_compose.
     rewrite <- hcomp_fmap_compose.
     apply tcell_harr_mor_hcomp_cong.
-    - (* vcomp f g = tcell_frame_cast (vcomp f g) at harr_mor level *)
-      exact (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
-    - (* vcomp vid vid = vid at harr_mor level *)
-      rewrite <- tcell_to_harr_mor_compose.
+    - exact (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
+    - rewrite <- tcell_to_harr_mor_compose.
       rewrite !vid_is_Vert_id.
       rewrite Vert.compose_id_left.
       rewrite <- vid_is_Vert_id. reflexivity.
@@ -1080,6 +1131,37 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
     apply (hcomp_vid_faithful f g).
     apply tcell_to_harr_mor_cong in H. exact H.
   Qed.
+
+  (** ** Alternative statements using hcomp_scell *)
+
+  (** These express the same facts using hcomp_scell notation. *)
+
+  Lemma vid_hcomp_is_hcomp_scell {a b : V.t}
+    {A A' : a -o-> b} (f : scell A A') :
+    (vid (hid a) ⊙ f : harr_mor _ _) = Siso'.hcomp_scell (vid (hid a)) f.
+  Proof. reflexivity. Qed.
+
+  Lemma hcomp_vid_is_hcomp_scell {a b : V.t}
+    {A A' : a -o-> b} (f : scell A A') :
+    (f ⊙ vid (hid b) : harr_mor _ _) = Siso'.hcomp_scell f (vid (hid b)).
+  Proof. reflexivity. Qed.
+
+  (** Interchange using hcomp_scell notation *)
+  Lemma vid_hcomp_scell_interchange {a b : V.t}
+    {A A' A'' : a -o-> b}
+    (f : scell A A') (g : scell A' A'') :
+    Siso'.hcomp_scell (vid (hid a)) f ;; Siso'.hcomp_scell (vid (hid a)) g =
+    Siso'.hcomp_scell (vid (hid a))
+      (tcell_frame_cast (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g)).
+  Proof. exact (vid_hcomp_scell_compose f g). Qed.
+
+  Lemma hcomp_scell_vid_interchange {a b : V.t}
+    {A A' A'' : a -o-> b}
+    (f : scell A A') (g : scell A' A'') :
+    Siso'.hcomp_scell f (vid (hid b)) ;; Siso'.hcomp_scell g (vid (hid b)) =
+    Siso'.hcomp_scell (tcell_frame_cast (V.compose_id_left (V.id a)) (V.compose_id_left (V.id b)) (vcomp f g))
+                (vid (hid b)).
+  Proof. exact (hcomp_scell_vid_compose f g). Qed.
 
   Proposition lunit_hcomp_assoc {a b c : V.t} (A : a -o-> b) (B : b -o-> c) :
     assoc (hid a) A B ;; lunit (A ⨀ B) = lunit A ⊙ vid B.
@@ -1131,7 +1213,9 @@ Module DoubleCategoryTheory (V : CategoryDefinition) (P : DoubleCategoryDefiniti
       exact Perim.
     } clear Diff; clear Perim.
 
-    rewrite vid_hcomp_scell_compose in H.
+    (* Convert to hcomp_scell notation and apply interchange/injectivity *)
+    rewrite !vid_hcomp_is_hcomp_scell in H.
+    rewrite vid_hcomp_scell_interchange in H.
     apply vid_hcomp_scell_faithful in H.
     rewrite tcell_to_harr_mor_compose.
     rewrite (tcell_frame_cast_harr (V.compose_id_left (V.id a)) (V.compose_id_left (V.id c))
