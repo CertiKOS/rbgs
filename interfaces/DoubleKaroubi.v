@@ -22,6 +22,6 @@ Module Idempotents (V : CategoryDefinition) (D : DoubleCategory V).
   Next Obligation.
     rewrite <- lunit_hid_runit_hid. rewrite <- unit_coh.
     rewrite lunit_hid_runit_hid. reflexivity.
-  Qed.
+  Defined.
 
 End Idempotents.
