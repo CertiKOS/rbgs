@@ -29,6 +29,7 @@ models/DCPO.v
 models/IntStrat.v
 models/LinCCAL.v
 examples/CAL.v
+examples/LinCCALFlip.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
