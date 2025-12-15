@@ -270,7 +270,7 @@ To work around this issue, we need to proceed as follows:
     be implicitly instantiated by the total module being defined.
 
 For example, this strategy is used to define the
-[Sig](../models/EffectSignature.v) category, which provides various
+[Sig](../models/EffectSignatures.v) category, which provides various
 monoidal structures. To implement it, we must also introduce a module
 *type* which captures the contents of the base module, so that the
 submodule-defining module may use the definitions provided therein.
