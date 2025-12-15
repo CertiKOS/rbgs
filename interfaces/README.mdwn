@@ -138,10 +138,143 @@ applicable.
 
 # Tips and tricks
 
-## Dealing with submodules
+## Dealing with nested modules
 
-[Should write something here about the issues that come up and ways to
-work around them]
+Sometimes, multiple instances of the same structure are provided
+by a single model. For example, in many cases a category will have
+cartesian products (×), coproducts (+), tensor products (⊗) and more,
+all of them instances of monoidal structures, which accordingly
+should offer consistent interfaces.
+
+To make this possible, we can encapsulate definitions for these
+structures into individual submodules. Each submodule can then meet
+a particular interface. The Rocq module system allows module types to
+require the presence of submodules of particular types. For example,
+the property of a particular category being a model of
+multiplicative-additive linear logic could be formalized along the
+following lines:
+
+    Module Type MALL (C : Category).
+      Import C.
+
+      Declare Module With : MonoidalStructure C.
+      Declare Module Plus : MonoidalStructure C.
+      Declare Module Tens : MonoidalStructure C.
+      Declare Module Parr : MonoidalStructure C.
+
+      Parameter dup : forall A, A ~~> With.omap A A.
+      (* ... *)
+
+    End MALL.
+
+The expected contents of the nested module can also be written in-line,
+for example:
+
+    Module Type MALL (C : Category).
+      Import C.
+
+      Module With.
+        Include MonoidalStructure C.
+        Parameter dup : forall A, A ~~> omap A A.
+        (* ... *)
+      End With.
+
+      (* ... *)
+    End MALL.
+
+There are however some subtleties associated with using nested modules
+in this way, having to do with two main issues.
+
+### Nested modules can only be defined all at once
+
+The first issue is that since modules (nested or otherwise) cannot be
+``reopened'' once they have been defined, the presence of submodules
+interferes with our usual approach to `FooDefinition` interfaces and
+`FooTheory` modules. For example, the following code would not work:
+
+    Module Type MALLDefinition (C : Category).
+      (* ... *)
+      Declare Module With : MonoidalStructureDefinition C.
+      (* ... *)
+    End MALLDefinition.
+
+    Module MALLTheory (C : Category) (L : MALLDefinition).
+      (* ... *)
+      Module With.
+        Include MonoidalStructureTheory L.With.
+      End With.
+      (* ... *)
+    End MALLTheory.
+
+Specifically, any attempt to use this interface in the way intended
+would fail because the module system would consider the `With` module
+provided by `MALLTheory` an attempt at redefinition rather than
+an extension of the original's contents:
+
+    Module Foo <: MALL.
+      (* ... *)
+      Module With <: MonoidalStructureDefinition.
+        (* ... *)
+      End With.
+      (* ... *)
+      Include MALLTheory.  (* With submodule conflicts with the one above *)
+    End Foo.
+
+This means that our `FooDefinition`/`FooTheory` pattern can only operate
+at the level of the submodule itself, and the outer definition module type
+must usually `Declare` and already complete `Module` of type `Foo`. 
+The [monoidal category](MonoidalCategory.v) interfaces provide some
+examples.
+
+### We cannot refer to the enclosing module
+
+In turn, the problem described above amplifies another difficulty.
+When a module is being defined, there is no way to refer to it directly.
+In general, this can be worked around thanks to the behavior of
+`Include` on partially applied module functors, which can use the
+current module to instantiate missing parameters. However, in the
+context of a submodule, the submodule becomes this "current module"
+and we lose any way to use the enclosing module as a parameter.
+
+For example, this problem comes up when defining monoidal structures
+as submodules of some category. The `MoniodalStructureTheory` module
+functor requires the enclosing category to be provided as a parameter,
+but this is impossible as we cannot refer to the enclosing module in
+this context:
+
+    Module SomeMonCat <: MonoidalCategory.
+
+      (* ...usual category definitions... *)
+
+      Include CategoryTheory.
+
+      (* ...any additional definitions used by tensor products... *)
+
+      Module Tens <: MonoidalStructure.
+
+        (* ...define bifunctor, isomorphisms, etc... *)
+
+        Include MonoidalStructureTheory XXX. (* cannot refer to SomeMonCat *)
+      End Tens.
+
+    End SomeMonCat.
+
+To work around this issue, we need to proceed as follows:
+
+  * First, define a base module containing everything in the enclosing
+    module that the submodule requires.
+  * Then defined a module *functor* whose parameter will be the base
+    module, and whose role will be to define one of more submodules.
+  * Finally, define the total module by include first the base module,
+    then the submodule-containing functor, whose "base" parameter will
+    be implicitly instantiated by the total module being defined.
+
+For example, this strategy is used to define the
+[Sig](../models/EffectSignature.v) category, which provides various
+monoidal structures. To implement it, we must also introduce a module
+*type* which captures the contents of the base module, so that the
+submodule-defining module may use the definitions provided therein.
+This is discussed below.
 
 ## Module functor instances
 
@@ -172,8 +305,8 @@ an instance of the free category using the module functor above:
     End IntF.
 
 To make this construction into a generic module functor, we need
-to reify the fact that [C] was constructed as a free category
-generated by [Q] into a module type:
+to reify the fact that `C` was constructed as a free category
+generated by `Q` into a module type:
 
     Module Type FreeCategoryInstance (Q : Quiver).
       Include FreeCategory Q.
@@ -181,7 +314,7 @@ generated by [Q] into a module type:
 
 We can then define
 
-    Module IntF (Q : Quiver) (C : FreeCategoryInstance) (D : Category)
+    Module IntF (Q : Quiver) (C : FreeCategoryInstance Q) (D : Category)
         (F : QuiverHomomorphism Q D) <: Functor C D.
       ...
     End IntF.
