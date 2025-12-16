@@ -170,4 +170,14 @@ Module LinCCALFlip.
       congruence.
   Qed.
 
+  Lemma flip_state_init :
+    flip_state
+      (LinCCAL.mkst (LinCCAL.Spec.gen Σflip false)
+                    (LinCCAL.TMap.empty _)
+                    (LinCCAL.Spec.gen Σlock None *
+                     LinCCAL.Spec.gen (Σreg _) false)).
+  Proof.
+    constructor. intros i. rewrite LinCCAL.TMap.gempty. constructor; congruence.
+  Qed.
+
 End LinCCALFlip.
