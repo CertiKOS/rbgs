@@ -1,5 +1,6 @@
 Makefile
 Makefile.conf
+ResearchOptions.md
 .coqdeps.d
 .lia.cache
 *.vo
