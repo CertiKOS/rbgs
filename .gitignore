@@ -16,3 +16,6 @@ Makefile.conf
 *.toc
 *.vrb
 *~
+
+# opam
+_opam
