@@ -1,3 +1,4 @@
+Require Import Coq.Logic.ProofIrrelevance.
 Require Import Coq.Program.Tactics.
 Require Import Coq.Setoids.Setoid.
 
@@ -33,14 +34,17 @@ Require Import Coq.Setoids.Setoid.
 
 (** ** Definition *)
 
+(** Objects and morphisms *)
+
+Module Type Quiver.
+  Parameter t : Type.
+  Parameter m : t -> t -> Type.
+End Quiver.
+
 (** The following interface gives the basic definition of a category. *)
 
 Module Type CategoryDefinition.
-
-  (** Objects and morphisms *)
-
-  Parameter t : Type.
-  Parameter m : t -> t -> Type.
+  Include Quiver.
 
   (** Identity and composition *)
 
@@ -112,50 +116,8 @@ Module CategoryTheory (C : CategoryDefinition).
     apply C.compose_id_left.
   Qed.
 
-  (** In addition, the following properties can be useful to switch
-    between forward and backward maps during equational reasoning. *)
-
-  Lemma eq_fw_bw_l_1 {A B C} (f : iso B C) (x : C.m A B) y :
-    fw f @ x = y <-> x = bw f @ y.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_left x), <- (bw_fw f), C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_left y), <- (fw_bw f), C.compose_assoc.
-      congruence.
-  Qed.
-
-  Lemma eq_fw_bw_r_1 {A B C} (f : iso A B) (x : C.m B C) y :
-    x @ fw f = y <-> x = y @ bw f.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_right x), <- (fw_bw f), <- C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_right y), <- (bw_fw f), <- C.compose_assoc.
-      congruence.
-  Qed.
-
-  Lemma eq_fw_bw_l_2 {A B C} (f : iso B C) x (y : C.m A B) :
-    x = fw f @ y <-> bw f @ x = y.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_left y), <- (bw_fw f), C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_left x), <- (fw_bw f), C.compose_assoc.
-      congruence.
-  Qed.
-
-  Lemma eq_fw_bw_r_2 {A B C} (f : iso A B) x (y : C.m B C) :
-    x = y @ fw f <-> x @ bw f = y.
-  Proof.
-    split; intro.
-    - rewrite <- (C.compose_id_right y), <- (fw_bw f), <- C.compose_assoc.
-      congruence.
-    - rewrite <- (C.compose_id_right x), <- (bw_fw f), <- C.compose_assoc.
-      congruence.
-  Qed.
-
-  (** We can define some basic instances. *)
+  (** We can define some basic instances. These are quite useful for
+    reasoning about compositions of isomorphisms or backward maps. *)
 
   Program Canonical Structure id_iso {A} :=
     {|
@@ -183,46 +145,82 @@ Module CategoryTheory (C : CategoryDefinition).
     rewrite ?C.compose_assoc, ?bw_fw_rewrite, ?fw_bw_rewrite, ?fw_bw, ?bw_fw;
     auto.
 
-  (** *** Opposite category *)
+  (** Equality of isomorphisms. *)
 
-  (** Note that we cannot recursively include the whole theory,
-    so [Op] can only be a [CategoryDefinition], but that is still
-    useful in many contexts. *)
+  Lemma iso_eq_fw {A B} (f g : iso A B) :
+    fw f = fw g -> f = g.
+  Proof.
+    intros Hfw.
+    assert (bw f = bw g).
+    { rewrite <- C.compose_id_left, <- (bw_fw f), C.compose_assoc.
+      rewrite Hfw, fw_bw, C.compose_id_right. auto. }
+    destruct f as [f f' Hf Hf'], g as [g g' Hg Hg']. cbn in *. subst.
+    f_equal; auto using proof_irrelevance.
+  Qed.
 
-  Module Op <: CategoryDefinition.
+  Lemma iso_eq_bw {A B} (f g : iso A B) :
+    bw f = bw g -> f = g.
+  Proof.
+    intros Hbw.
+    apply iso_eq_fw. change (bw (bw_iso f) = bw (bw_iso g)).
+    apply iso_eq_fw in Hbw. congruence.
+  Qed.
 
-    (** Objects and morphisms *)
+  Corollary iso_eq_fw_bw {A B} (f g : iso A B) :
+    fw f = fw g <-> bw f = bw g.
+  Proof.
+    split; eauto using f_equal, iso_eq_fw, iso_eq_bw.
+  Qed.
 
-    Definition t := C.t.
-    Definition m (A B : t) : Type := C.m B A.
+  (** The properties below are useful to reason about equations
+    involving isomorphisms. *)
 
-    (** Composition *)
+  Lemma compose_fw_l_eq {A B C} (f : iso B C) (x y : C.m A B) :
+    f @ x = f @ y <-> x = y.
+  Proof.
+    split; intro; try congruence.
+    rewrite <- (C.compose_id_left x), <- (C.compose_id_left y), <- (bw_fw f).
+    rewrite !C.compose_assoc, H.
+    reflexivity.
+  Qed.
 
-    Definition id A : m A A := C.id A.
-    Definition compose {A B C} (g : m B C) (f : m A B) : m A C := C.compose f g.
+  Lemma compose_bw_l_eq {A B C} (f : iso C B) (x y : C.m A B) :
+    bw f @ x = bw f @ y <-> x = y.
+  Proof.
+    apply compose_fw_l_eq.
+  Qed.
 
-    (** Proofs *)
+  Lemma eq_fw_bw_l_1 {A B C} (f : iso B C) (x : C.m A B) y :
+    fw f @ x = y <-> x = bw f @ y.
+  Proof.
+    split; intro.
+    - rewrite <- H, <- C.compose_assoc, bw_fw, C.compose_id_left. auto.
+    - rewrite H, <- C.compose_assoc, fw_bw, C.compose_id_left. auto.
+  Qed.
 
-    Lemma compose_id_left {A B} (f : m A B) :
-        compose (id B) f = f.
-    Proof.
-        apply C.compose_id_right.
-    Qed.
+  Lemma eq_fw_bw_r_1 {A B C} (f : iso A B) (x : C.m B C) y :
+    x @ fw f = y <-> x = y @ bw f.
+  Proof.
+    split; intro.
+    - rewrite <- H, C.compose_assoc, fw_bw, C.compose_id_right. auto.
+    - rewrite H, C.compose_assoc, bw_fw, C.compose_id_right. auto.
+  Qed.
 
-    Lemma compose_id_right {A B} (f : m A B) :
-        compose f (id A) = f.
-    Proof.
-        apply C.compose_id_left.
-    Qed.
+  Lemma eq_fw_bw_l_2 {A B C} (f : iso B C) x (y : C.m A B) :
+    x = fw f @ y <-> bw f @ x = y.
+  Proof.
+    split; intro.
+    - rewrite H, <- C.compose_assoc, bw_fw, C.compose_id_left. auto.
+    - rewrite <- H, <- C.compose_assoc, fw_bw, C.compose_id_left. auto.
+  Qed.
 
-    Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
-        compose (compose h g) f = compose h (compose g f).
-    Proof.
-        symmetry.
-        apply C.compose_assoc.
-    Qed.
-
-  End Op.
+  Lemma eq_fw_bw_r_2 {A B C} (f : iso A B) x (y : C.m B C) :
+    x = y @ fw f <-> x @ bw f = y.
+  Proof.
+    split; intro.
+    - rewrite H, C.compose_assoc, fw_bw, C.compose_id_right. auto.
+    - rewrite <- H, C.compose_assoc, bw_fw, C.compose_id_right. auto.
+  Qed.
 
 End CategoryTheory.
 
@@ -359,7 +357,7 @@ End Two.
 
 (** ** Category of types and functions *)
 
-Module SET.
+Module SET <: Category.
 
   (** Objects and morphisms *)
 
@@ -394,6 +392,7 @@ Module SET.
     reflexivity.
   Qed.
 
+  Include CategoryTheory.
 End SET.
 
 (** ** Product category *)
@@ -444,3 +443,59 @@ Module Prod (C D : CategoryDefinition) <: Category.
   Include CategoryTheory.
 
 End Prod.
+
+(** ** Opposite category *)
+
+(** *** Definition *)
+
+Module OppositeCategory (C : CategoryDefinition) <: Category.
+
+  (** Objects and morphisms *)
+
+  Definition t := C.t.
+  Definition m (A B : t) : Type := C.m B A.
+
+  (** Composition *)
+
+  Definition id A : m A A := C.id A.
+  Definition compose {A B C} (g : m B C) (f : m A B) : m A C := C.compose f g.
+
+  (** Proofs *)
+
+  Lemma compose_id_left {A B} (f : m A B) :
+    compose (id B) f = f.
+  Proof.
+    apply C.compose_id_right.
+  Qed.
+
+  Lemma compose_id_right {A B} (f : m A B) :
+    compose f (id A) = f.
+  Proof.
+    apply C.compose_id_left.
+  Qed.
+
+  Lemma compose_assoc {A B C D} (f : m A B) (g : m B C) (h : m C D) :
+    compose (compose h g) f = compose h (compose g f).
+  Proof.
+    symmetry.
+    apply C.compose_assoc.
+  Qed.
+
+  Include CategoryTheory.
+
+End OppositeCategory.
+
+(** *** Standard interface *)
+
+(** Sometimes we will need the opposite category to be available under
+  a standard name. One example is constructions involving contravariant
+  functors as in monoidal closed categories. To add the standard
+  opposite category instance to a category as it is being defined, we
+  can include the following module functor. *)
+
+Module AddOp (C : CategoryDefinition).
+  Module Op := OppositeCategory C.
+End AddOp.
+
+Module Type CategoryWithOp :=
+  Category <+ AddOp.

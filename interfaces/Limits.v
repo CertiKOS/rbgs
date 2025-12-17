@@ -6,6 +6,33 @@ Require Import FunctionalExtensionality.
 Require Import ProofIrrelevance.
 
 
+(** * Terminal Object *)
+
+Module Type TerminalsDefinition (C : CategoryDefinition).
+
+  Parameter unit: C.t.
+  Parameter ter : forall X, C.m X unit.
+
+  Axiom ter_uni : forall {X} (x y : C.m X unit), x = y.
+
+End TerminalsDefinition.
+
+Module Type Terminals (C : CategoryDefinition) :=
+  TerminalsDefinition C.
+
+Module TerminalFromCartesian (C : CartesianCategory) <: Terminals C.
+  Import C.
+
+  Definition unit := C.Prod.unit.
+  Definition ter := C.Prod.ter.
+
+  Proposition ter_uni : forall {X} (x y : C.m X unit), x = y.
+  Proof.
+    unfold unit. intros X. exact C.Prod.ter_uni.
+  Qed.
+
+End TerminalFromCartesian.
+
 (** * Products *)
 
 (** ** Category with all products *)
@@ -89,7 +116,7 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
     P.pi false.
 
   Definition pair {X A B} (f : C.m X A) (g : C.m X B) : C.m X (omap A B) :=
-    P.tuple 
+    P.tuple
       (fun i:bool => if i return C.m X (if i then A else B) then f else g).
 
   Proposition p1_pair {X A B} (f : C.m X A) (g : C.m X B) :
@@ -110,7 +137,7 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
          false).
   Qed.
 
-  Proposition pair_pi {X A B} (x : C.m X (omap A B)) :
+  Proposition pair_pi_compose {X A B} (x : C.m X (omap A B)) :
     pair (C.compose p1 x) (C.compose p2 x) = x.
   Proof.
     unfold pair, p1, p2.
@@ -126,7 +153,7 @@ Module CartesianStructureFromProducts (C : Category) (P : Products C)
 
   Include CartesianStructureTheory C.
   Include BifunctorTheory C C C.
-  Include MonoidalStructureTheory C.
+  Include SymmetricMonoidalStructureTheory C.
 End CartesianStructureFromProducts.
 
 Module CartesianFromProducts (C : Category) (P : Products C) <: Cartesian C.
@@ -145,7 +172,7 @@ End CartesianFromProducts.
   a product, which would be best defined elsewhere. *)
 
 Module Type PreservesProducts (C : CategoryDefinition) (D : Category)
-  (PC : Products C) (PD : Products D) (F : Functor C D).
+  (PC : Products C) (PD : Products D) (F : FunctorDefinition C D).
 
   Import (notations, coercions) D.
 
@@ -260,7 +287,7 @@ Module Type Limits (J C : CategoryDefinition).
   Global Existing Instance lim_spec.
 End Limits.
 
-Module Type Colimits (J : CategoryDefinition) (C : Category) :=
+Module Type Colimits (J : CategoryDefinition) (C : CategoryWithOp) :=
   Limits J C.Op.
 
 (** ** Specific types of limits *)
