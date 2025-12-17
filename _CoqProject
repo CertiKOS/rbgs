@@ -38,3 +38,14 @@ interfaces/Limits.v
 interfaces/Adjunctions.v
 interfaces/Monads.v
 interfaces/LiftMonad.v
+
+
+models/simlin/LTS.v
+models/simlin/Lang.v
+models/simlin/Semantics.v
+models/simlin/TPSimulation.v
+models/simlin/Assertion.v
+models/simlin/RGISimulation.v
+models/simlin/RGILogic.v
+
+examples/Specs.v
