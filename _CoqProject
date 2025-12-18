@@ -28,6 +28,9 @@ models/Coherence.v
 models/DCPO.v
 models/IntStrat.v
 models/LinCCAL.v
+models/Pi/Syntax.v
+models/Pi/Semantics.v
+RBGS.v
 examples/CAL.v
 examples/LinCCALFlip.v
 examples/PiCalculus.v
