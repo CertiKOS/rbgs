@@ -45,7 +45,9 @@ End Poset.
 (** ** Directed-complete partial orders *)
 
 Class Directed `{PartialOrder} (D : P -> Prop) :=
-  directed : forall x y, D x -> D y -> exists z, D z /\ x [= z /\ y [= z.
+  directed : 
+    (exists x, D x) /\
+    (forall x y, D x -> D y -> exists z, D z /\ x [= z /\ y [= z).
 
 Class IsSup `{PartialOrder} (D : P -> Prop) (u : P) :=
   {
@@ -106,8 +108,10 @@ Class ScottContinuous {P Q} `{HP: DirectedComplete P} `{HQ: PartialOrder Q} (f :
 Lemma le_directed `{PartialOrder} p q :
   p [= q -> Directed (fun x => x = p \/ x = q).
 Proof.
-  intros Hpq x y Hx Hy.
-  destruct Hx, Hy; subst; eauto using (reflexivity (R:=le)).
+  intros Hpq. split.
+  - exists p; auto.
+  - intros x y Hx Hy.
+    destruct Hx, Hy; subst; eauto using (reflexivity (R:=le)).
 Qed.
 
 Instance sc_le `{ScottContinuous} :
@@ -139,10 +143,11 @@ Instance im_directed {P Q} `{!PartialOrder P} `{!PartialOrder Q} (f : P -> Q) (D
   Directed D ->
   Directed (im f D).
 Proof.
-  intros Hf HD.
-  intros _ _ [x Hx] [y Hy].
-  edestruct (HD x y) as (z & Hz & Hxz & Hyz); auto.
-  eauto 10 using im_intro.
+  intros Hf [Hex HD]. split.
+  - destruct Hex as [x H]. exists (f x). constructor. exact H.
+  - intros _ _ [x Hx] [y Hy].
+    edestruct (HD x y) as (z & Hz & Hxz & Hyz); auto.
+    eauto 10 using im_intro.
 Qed.
 
 Lemma sc_dsup {P Q} `{!DirectedComplete P} `{!DirectedComplete Q} (f:P->Q) `{!ScottContinuous f}:
