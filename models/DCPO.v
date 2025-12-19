@@ -45,10 +45,11 @@ End Poset.
 (** ** Directed-complete partial orders *)
 
 Class Directed `{PartialOrder} (D : P -> Prop) :=
-  directed : 
-    (exists x, D x) /\
-    (forall x y, D x -> D y -> exists z, D z /\ x [= z /\ y [= z).
-
+  { 
+    non_empty_wit : P;
+    non_empty : D non_empty_wit;
+    upper : forall x y, D x -> D y -> exists z, D z /\ x [= z /\ y [= z;
+  }.
 Class IsSup `{PartialOrder} (D : P -> Prop) (u : P) :=
   {
     sup_ub x : D x -> x [= u;
@@ -108,8 +109,8 @@ Class ScottContinuous {P Q} `{HP: DirectedComplete P} `{HQ: PartialOrder Q} (f :
 Lemma le_directed `{PartialOrder} p q :
   p [= q -> Directed (fun x => x = p \/ x = q).
 Proof.
-  intros Hpq. split.
-  - exists p; auto.
+  intros Hpq. exists p.
+  - auto.
   - intros x y Hx Hy.
     destruct Hx, Hy; subst; eauto using (reflexivity (R:=le)).
 Qed.
@@ -143,8 +144,8 @@ Instance im_directed {P Q} `{!PartialOrder P} `{!PartialOrder Q} (f : P -> Q) (D
   Directed D ->
   Directed (im f D).
 Proof.
-  intros Hf [Hex HD]. split.
-  - destruct Hex as [x H]. exists (f x). constructor. exact H.
+  intros Hf [p Hex HD]. exists (f p).
+  - constructor. exact Hex.
   - intros _ _ [x Hx] [y Hy].
     edestruct (HD x y) as (z & Hz & Hxz & Hyz); auto.
     eauto 10 using im_intro.
