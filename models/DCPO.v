@@ -192,4 +192,9 @@ Module DCPO <: ConcreteCategory.
   Qed.
 
   Include ConcreteCategoryTheory.
+
+  Definition to_poset (X : t) : Poset.t :=
+    @Poset.mkt (carrier X) (@dc_po _ (structure X)).
+
+  Coercion to_poset : t >-> Poset.t.
 End DCPO.
