@@ -9,6 +9,7 @@ Require Import LinCCAL.
 Require Import LTS.
 Require Import Lang.
 Require Import Semantics.
+Require Import TPSimulationSet.
 
 Module Type ProofState.
   Import Reg LinCCALBase LTSSpec Semantics.
@@ -324,4 +325,108 @@ Module AssertionsSingle.
   End AssertionLemmas.
 
 End AssertionsSingle.
+
+
+Module SetPossState <: ProofState.
+  Import Reg LinCCALBase LTSSpec Semantics.
+
+  Record ProofStateSet {E : Op.t} {F : Op.t} {VE : @LTS E} {VF : @LTS F} : Type :=
+  {
+    σ : State VE;
+    Δ : AbstractConfig VF;
+  }.
+
+  Notation "( σ , ρ , π )" := (Build_ProofStateSet  _ _ _ _ σ (ac_singleton ρ π)).
+  Notation "( σ , Δ )" := (Build_ProofStateSet  _ _ _ _ σ Δ).
+
+  Definition ProofState {E F VE VF} : Type := @ProofStateSet E F VE VF.
+
+End SetPossState.
+
+
+Module AssertionsSet.
+  Module A := Assertions (SetPossState).
+  Export A.
+  Export SetPossState.
+
+  Import Reg.
+  Import LinCCALBase.
+  Import LTSSpec.
+  Import Semantics.
+  Import TPSimulation.
+
+  Open Scope ac_scope.
+
+  Section AssertionDef.
+    Context {E : Op.t}.
+    Context {F : Op.t}.
+    Context {VE : @LTS E}.
+    Context {VF : @LTS F}.
+
+    Definition LiftRelation_σ (Rσ : relation (State VE)) : @RGRelation _ _ VE VF :=
+      fun x y => Rσ (σ x) (σ y) /\ Δ x = Δ y.
+
+    Definition LiftRelation_Δ (RΔ : relation (AbstractConfig VF)) : @RGRelation _ _ VE VF :=
+      fun x y => σ x = σ y /\ RΔ (Δ x) (Δ y).
+
+    Definition Ginv t f : @RGRelation _ _ VE VF :=
+      LiftRelation_Δ (fun Δ1 Δ2 => 
+        (forall ρ π, Δ1 ρ π -> TMap.find t π = None) /\
+        Δ2 ≡ (ac_inv Δ1 t f)).
+
+    Definition GINV t : @RGRelation _ _ VE VF :=
+      fun x y => exists f, Ginv t f x y.
+
+    Definition Gret t f ret : @RGRelation _ _ VE VF :=
+      LiftRelation_Δ (fun Δ1 Δ2 => 
+        (forall ρ π, Δ1 ρ π -> TMap.find t π = Some (ls_linr f ret)) /\
+        Δ2 ≡ (ac_res Δ1 t)).
+
+    Definition GRET t : @RGRelation _ _ VE VF :=
+      fun x y => exists f ret, Gret t f ret x y.
     
+    Variant APError : @Assertion _ _ VE VF :=
+    | APErrorSome s ρ π : Δ s ρ π -> poss_steps (ρ, π) PossError -> APError s.
+
+    Definition PUpdate (G : @RGRelation _ _ VE VF) (ev : ThreadEvent) (P Q : Assertion) : Prop :=
+      forall σ Δ, P (σ, Δ) ->
+      forall σ', Step VE ev σ σ' ->
+      exists Δ', (Δ' ⊆ ac_steps Δ)%AbstractConfig
+        /\ Q (σ', Δ') /\ G (σ, Δ) (σ', Δ').
+
+    Definition PUpdateId (G : @RGRelation _ _ VE VF) (P Q : Assertion) : Prop :=
+      forall σ Δ, P (σ, Δ) ->
+      exists Δ', (Δ' ⊆ ac_steps Δ)%AbstractConfig
+        /\ Q (σ, Δ') /\ G (σ, Δ) (σ, Δ').
+    
+    Definition ALin (t : tid) (ls : LinState) : @Assertion _ _ VE VF :=
+      fun s => forall ρ π, Δ s ρ π -> TMap.find t π = Some ls.
+  
+  End AssertionDef.
+
+  Notation "G ⊨ P [ ev ]⭆ Q" := (PUpdate G ev P Q) (at level 100) : assertion_scope.
+  Notation "G ⊨ P ⭆ Q" := (PUpdateId G P Q) (at level 100) : assertion_scope.
+
+  
+  Section AssertionLemmas.
+    Context {E : Op.t}.
+    Context {F : Op.t}.
+    Context {VE : @LTS E}.
+    Context {VF : @LTS F}.
+
+    Lemma PUpdateConseq {P Q P' Q' : @Assertion _ _ VE VF} {ev} {G} :
+      (⊨ P' ==>> P) ->
+      (⊨ Q ==>> Q') ->
+      (G ⊨ P [ ev ]⭆ Q) ->
+      G ⊨ P' [ ev ]⭆ Q'.
+    Proof.
+      intros. intros ?; intros.
+      apply H in H2.
+      apply H1 in H2.
+      apply H2 in H3 as (? & ?& ? & ?).
+      apply H0 in H4.
+      eauto.
+    Qed.
+  End AssertionLemmas.
+
+End AssertionsSet.

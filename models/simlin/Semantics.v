@@ -287,6 +287,10 @@ Module Semantics.
 
   End Semantics.
 
-  Notation "( ρ , π )" := (PossOk ρ π).
+  
+  Delimit Scope poss_scope with Poss.
+  Bind Scope poss_scope with Poss.
+  
+  Notation "( ρ , π )" := (PossOk ρ π) : poss_scope.
 
 End Semantics.
