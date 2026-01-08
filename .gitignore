@@ -16,6 +16,7 @@ Makefile.conf
 *.toc
 *.vrb
 *~
+html/
 
 # opam
 _opam
