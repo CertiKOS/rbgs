@@ -37,4 +37,3 @@ interfaces/FunctorCategory.v
 interfaces/Limits.v
 interfaces/Adjunctions.v
 interfaces/Monads.v
-interfaces/LiftMonad.v
