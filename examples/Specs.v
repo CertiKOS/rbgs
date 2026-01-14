@@ -332,3 +332,57 @@ Module TicketSpec.
   Definition VTicket : @LTS ETicket := VAE StepTicket (AError ErrorTicket).
 End TicketSpec.
 
+
+
+(* START WITH THE FOLLOWING TEMPLATE *)
+(* Module TemplateSpec.
+  Import LTSSpec.
+  Import LinCCALBase.
+  Import AtomicLTS.
+
+  Variant ETemplate_op :=
+  | acq_ticket.
+
+  Definition ETemplate_ar (m : ETemplate_op) : Type :=
+    match m with
+    | acq_ticket => nat
+    end.
+  
+  Canonical Structure ETemplate :=
+  {|
+    Sig.op := ETemplate_op;
+    Sig.ar := ETemplate_ar
+  |}.
+
+  Record TemplateState : Type := TKS {
+    ts_hd : nat;
+    ts_q : list tid;
+    ts_tl : nat
+  }.
+
+  Variant StepTemplate : @ThreadEvent ETemplate -> TemplateState -> TemplateState -> Prop :=
+  | step_acq_inv e tks t :
+      e = {| te_tid := t; te_ev := InvEv acq_ticket |} ->
+      StepTemplate e tks tks
+  .
+
+  (* Atomic Error *)
+  Variant ErrorTemplate : @ThreadEvent ETemplate -> TemplateState -> Prop :=
+  | error_jump_queue e t tks:
+      e = {| te_tid := t; te_ev := InvEv acq_ticket |} ->
+      ErrorTemplate e tks.
+  Definition VTemplate : @LTS ETemplate := VAE StepTemplate (AError ErrorTemplate).
+
+  (* Custom Error *)
+  (* Variant ErrorTemplate : @ThreadEvent ETemplate -> @AState ETemplate TemplateState -> Prop :=
+  | error_set_racy t t' v u w :
+      t <> t' ->
+      e = {| te_tid := t; te_ev := InvEv acq_ticket |} ->
+      ErrorReg  (Pending v t' acq_ticket).
+  Definition VTemplate : @LTS ETemplate := VAE StepTemplate ErrorTemplate. *)
+
+  (* No Error *)
+  (* Definition VTemplate : @LTS ETemplate := VAE StepTemplate NoError. *)
+  
+End TemplateSpec. *)
+
