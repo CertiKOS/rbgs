@@ -332,6 +332,60 @@ Module TicketSpec.
   Definition VTicket : @LTS ETicket := VAE StepTicket (AError ErrorTicket).
 End TicketSpec.
 
+Module CoinSpec.
+  Import LTSSpec.
+  Import LinCCALBase.
+  Import AtomicLTS.
+
+  Variant ECoin_op :=
+  | flip
+  | read.
+
+  Definition ECoin_ar (m : ECoin_op) : Type :=
+    match m with
+    | flip => unit
+    | read => bool
+    end.
+  
+  Canonical Structure ECoin :=
+  {|
+    Sig.op := ECoin_op;
+    Sig.ar := ECoin_ar
+  |}.
+
+  Definition CoinState : Type := option bool.
+
+  Variant StepCoin : @ThreadEvent ECoin -> CoinState -> CoinState -> Prop :=
+  | step_flip_inv e s t:
+      e = {| te_tid := t; te_ev := InvEv flip |} ->
+      StepCoin e s s
+  | step_flip_res e s t b:
+      e = {| te_tid := t; te_ev := ResEv flip tt |} ->
+      StepCoin e s (Some b)
+  | step_read_inv e s t:
+      e = {| te_tid := t; te_ev := InvEv read |} ->
+      StepCoin e s s
+  | step_read_res e t b:
+      e = {| te_tid := t; te_ev := ResEv read b |} ->
+      StepCoin e (Some b) (Some b)
+  .
+
+  (* Atomic Error *)
+  Variant ErrorCoin : @ThreadEvent ECoin -> CoinState -> Prop :=
+  | error_new_coin e t:
+      e = {| te_tid := t; te_ev := InvEv read |} ->
+      ErrorCoin e None
+  (* NOTE: this could be removed as a constant coin is also a random coin *)
+  (* but that would make lots of things meaningless *)
+  | error_flipped_coin e t b:
+      e = {| te_tid := t; te_ev := InvEv flip |} ->
+      ErrorCoin e (Some b)
+  .
+  Definition VCoin : @LTS ECoin := VAE StepCoin (AError ErrorCoin).
+
+End CoinSpec.
+
+
 
 
 (* START WITH THE FOLLOWING TEMPLATE *)

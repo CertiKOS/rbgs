@@ -50,5 +50,6 @@ models/simlin/RGILogic.v
 
 models/simlin/TPSimulationSet.v
 models/simlin/RGISimulationSet.v
+models/simlin/RGILogicSet.v
 
 examples/Specs.v
