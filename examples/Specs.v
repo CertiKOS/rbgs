@@ -9,6 +9,20 @@ Require Import models.EffectSignatures.
 Require Import LinCCAL.
 Require Import LTS.
 
+(* IMPORTANT *)
+(*    
+    When a single thread event could have multiple transitions,
+    must defined transitions in the following way:
+    Variant Step : ... :=
+    | rule_name params e:
+        e = {| te_tid := t; te_ev := ev |} ->
+        Step e s1 s2
+    ...
+    The event should not appear in the conclusion,
+    otherwise inversion on the relation will not work.
+    Doing so also make sure it will work with the current automation.
+*)
+
 Module AtomicLTS.
   Import Reg.
   Import LinCCALBase.
@@ -182,24 +196,28 @@ Module TryStackSpec.
   |}.
 
   Variant StepTryStack {A} : @ThreadEvent (ETryStack A) -> list A -> list A -> Prop :=
-  | step_push_inv t stk v : StepTryStack {| te_tid := t; te_ev := InvEv (push v) |} stk stk
+  | step_push_inv t stk v e:
+      e = {| te_tid := t; te_ev := InvEv (push v) |} ->
+      StepTryStack e stk stk
   | step_push_ok t stk v e : 
-      e = ResEv (push v) (OK tt) ->
-      StepTryStack {| te_tid := t; te_ev := e |} stk (v :: stk)
+      e = {| te_tid := t; te_ev := ResEv (push v) (OK tt) |} ->
+      StepTryStack e stk (v :: stk)
   | step_push_fail t stk v e :
-      e = ResEv (push v) FAIL ->
-      StepTryStack {| te_tid := t; te_ev := e |} stk stk
+      e = {| te_tid := t; te_ev := ResEv (push v) FAIL |} ->
+      StepTryStack e stk stk
 
-  | step_pop_inv t stk : StepTryStack {| te_tid := t; te_ev := InvEv pop |} stk stk
+  | step_pop_inv t stk e:
+      e = {| te_tid := t; te_ev := InvEv pop |} ->
+      StepTryStack e stk stk
   | step_pop_emp t e:
-      e = ResEv pop (OK None) ->
-      StepTryStack {| te_tid := t; te_ev := e |} nil nil
+      e = {| te_tid := t; te_ev := ResEv pop (OK None) |} ->
+      StepTryStack e nil nil
   | step_pop_ok t v stk e :
-      e = ResEv pop (OK (Some v)) ->
-      StepTryStack {| te_tid := t; te_ev := e |} (v :: stk) stk
+      e = {| te_tid := t; te_ev := ResEv pop (OK (Some v)) |} ->
+      StepTryStack e (v :: stk) stk
   | step_pop_fail t stk e:
-      e = ResEv pop FAIL ->
-      StepTryStack {| te_tid := t; te_ev := e |} stk stk.
+      e = {| te_tid := t; te_ev := ResEv pop FAIL |} ->
+      StepTryStack e stk stk.
   
   Definition VTryStack {A} : @LTS (ETryStack A) := VAE StepTryStack NoError.
 

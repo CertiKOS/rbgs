@@ -203,24 +203,20 @@ Module TicketDispenserImpl.
       [solve_no_error| | | ].
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|]. split; auto.
-        unfold G; intros; simpl; auto.
+        pupdate_intros_atomic.
+        pupdate_finish.
+        split; auto. unfold G; intros; simpl; auto.
       }
       (* res *)
       {
-        pupdate_intros.
+        pupdate_intros_atomic.
         destruct Hpre as [[? [? [? [tks ?]]]] ?]; simpl in *; subst.
         destruct tks as [hd q tl]; simpl in *.
-        exists (Idle (TKS hd (q ++ t :: nil) (S tl))).
-        exists (Semantics.linstate_atomic_step t acq_ticket tl π1).
-        do 2 try split; unfold Semantics.linstate_atomic_step in *.
-        + eapply rt_trans; constructor.
-          * eapply Semantics.ps_inv; eauto.
-            do 2 econstructor; eauto.
-          * eapply Semantics.ps_ret; eauto;
-            [| rewrite PositiveMap.gss; auto].
-            do 2 econstructor; eauto.
+        pupdate_start.
+        pupdate_forward t (InvEv acq_ticket).
+        pupdate_forward t (ResEv acq_ticket tl).
+        pupdate_finish.
+        split.
         + unfold Semantics.linstate_atomic_step, ALin, I in *.
           split; simpl in *; [|apply PositiveMap.gss; auto].
           do 2 split; auto. split; eauto.
@@ -266,26 +262,24 @@ Module TicketDispenserImpl.
       [solve_no_error| | | ].
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
+        pupdate_intros_atomic.
+        pupdate_finish.
         do 2 split; destruct Hpre; auto.
         unfold I in *; simpl in *; subst; do 3 (split; try tauto).
         inversion 1.
       }
       (* res *)
       {
-        pupdate_intros.
+        pupdate_intros_atomic.
         destruct Hpre as [[? [? [? [tks ?]]]] ?]; simpl in *; subst.
         destruct tks as [hd q tl]; simpl in *.
-        eexists.
-        exists (Semantics.linstate_atomic_step t (cmp_ticket tk) (tk =? hd) π1).
-        do 2 try split; unfold Semantics.linstate_atomic_step in *.
-        + eapply rt_trans; constructor.
-          * eapply Semantics.ps_inv; eauto.
-            constructor. eapply step_cmp_inv; eauto.
-          * eapply Semantics.ps_ret; eauto;
-            [| rewrite PositiveMap.gss; auto].
-            constructor. eapply step_cmp_res; eauto.
+
+        pupdate_start.
+        pupdate_forward t (InvEv (cmp_ticket tk)).
+        pupdate_forward t (ResEv (cmp_ticket tk) (tk =? hd)).
+        pupdate_finish.
+
+        split.
         + unfold Semantics.linstate_atomic_step, ALin, I in *.
           split; simpl in *; [|apply PositiveMap.gss; auto].
           do 2 (split; auto). split; eauto.
@@ -341,18 +335,20 @@ Module TicketDispenserImpl.
       [solve_no_error| | | ].
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
+        pupdate_intros_atomic.
+        pupdate_finish.
+        
         do 2 split; destruct Hpre as [[? ?] ?]; auto.
         unfold I in *; simpl in *; subst; do 4 (split; try tauto).
         inversion 1.
       }
       (* res *)
       {
-        pupdate_intros.
+        pupdate_intros_atomic.
         destruct Hpre as [[[? [? [? [tks ?]]]] ?] ?]; simpl in *; subst.
         destruct tks as [hd q tl]; simpl in *.
-        do 2 eexists. split; [apply rt_refl|].
+        pupdate_finish.
+
         unfold I, TicketOwnedBy, RegVal.
         do 3 split; simpl; eauto.
         unfold I in *; simpl in *; subst; do 3 (split; try tauto; eauto).
@@ -377,8 +373,9 @@ Module TicketDispenserImpl.
       }
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
+        pupdate_intros_atomic.
+        pupdate_finish.
+
         do 2 split; destruct Hpre as [[? ?] ?]; auto.
         unfold I in *; simpl in *; subst; do 4 (split; try tauto).
         inversion 1; subst.
@@ -386,18 +383,17 @@ Module TicketDispenserImpl.
       }
       (* res *)
       {
-        pupdate_intros.
+        pupdate_intros_atomic.
         destruct Hpre as [[[? [? [? [tks ?]]]] ?] [[q' ?] ?]]; simpl in *; subst.
-        destruct tks as [hd q tl]; simpl in *.
-        exists (Idle (TKS (S hd) q' tl)); subst.
-        exists (Semantics.linstate_atomic_step t rel_ticket tt π1).
-        do 2 try split; unfold Semantics.linstate_atomic_step in *.
-        + eapply rt_trans; constructor.
-          * eapply Semantics.ps_inv; eauto.
-            constructor; eapply step_rel_inv; eauto.
-          * eapply Semantics.ps_ret; eauto;
-            [| rewrite PositiveMap.gss; auto].
-            constructor; eapply step_rel_res; eauto.
+        destruct tks as [hd q tl]; subst; simpl in *.
+        inversion Hstep; subst.
+
+        pupdate_start.
+        pupdate_forward t (InvEv rel_ticket).
+        pupdate_forward t (ResEv rel_ticket tt).
+        pupdate_finish.
+
+        split.
         + unfold Semantics.linstate_atomic_step, ALin, I in *.
           split; simpl in *; [|apply PositiveMap.gss; auto].
           do 2 split; auto. split; eauto. inversion 1.
@@ -687,27 +683,25 @@ Module TicketLockImpl.
         }
         (* inv *)
         {
-          intros; intros σ1 ρ1 π1 Hpre σ2 Hstep.
-          inversion Hstep; subst.
-          inversion Hstep0; subst; try inversion H; subst.
-          do 2 eexists. split; [apply rt_refl|]. split; auto.
-          unfold G; intros; simpl; tauto.
+          pupdate_intros_atomic.
+          inversion Hstep0; subst; inversion_thread_event_eq.
+          pupdate_finish.
+          split; auto. unfold G; intros; simpl; tauto.
         }
         (* res *)
         {
-          intros; intros σ1 ρ1 π1 Hpre σ2 Hstep.
-          inversion Hstep; subst.
-          inversion Hstep0; subst; try inversion H; subst.
-          dependent destruction H3.
-
+          pupdate_intros_atomic.
+          inversion Hstep0; subst; inversion_thread_event_eq.
+          dependent destruction H2.
           destruct Hpre as [[[[ls ?] [? [? ?]]] ?] [tk' ?]]; simpl in *; subst.
-          do 2 eexists. split; [apply rt_refl|].
+          pupdate_finish.
+          
           do 3 try split; eauto; try tauto.
           - unfold I. simpl. do 3 (try split; eauto);
             unfold OwnedBy, TicketOwnedBy in *; simpl in *; eauto.
             + intros; subst.
               specialize (H0 _ eq_refl) as [? ?]; subst.
-              exists (x ++ t0 :: nil). auto.
+              exists (x ++ t1 :: nil). auto.
             + rewrite app_length, H1. simpl.
               destruct hd; simpl; lia.
           - unfold InQueue. simpl.
@@ -769,47 +763,42 @@ Module TicketLockImpl.
             }
             (* inv *)
             {
-              intros; intros σ1 ρ1 π1 Hpre σ2 Hstep.
-              inversion Hstep; subst.
-              inversion Hstep0; subst; try inversion H; subst.
+              pupdate_intros_atomic.
+              inversion Hstep0; subst; inversion_thread_event_eq.
               destruct Hpre as [[[? ?] [? ?]] ?].
-              do 2 eexists. split; [apply rt_refl|].
+              pupdate_finish.
               do 4 try split; simpl in *; eauto.
             }
             (* res *)
             {
               intros b.
-              intros; intros σ1 ρ1 π1 Hpre σ2 Hstep.
-              inversion Hstep; subst.
-              inversion Hstep0; subst; try inversion H; subst.
-              dependent destruction H4.
+              pupdate_intros_atomic.
+              inversion Hstep0; subst; inversion_thread_event_eq.
+              dependent destruction H3.
               destruct Hpre as [[[? ?] ?] ?].
-              destruct (tk =? ts_hd s2) eqn:eq.
+              
+              destruct (tk =? ts_hd s0) eqn:eq.
               - (* succeeded *)
                 rewrite Nat.eqb_eq in eq; subst.
                 destruct H as [[ls ?] [? [? ?]]]; simpl in *; subst.
                 destruct H2 as [? | [? | ?]].
                 + (* unlocked *)
                   unfold NotOwned in H. simpl in *; subst.
-                  exists (Idle (Locked t0)).
-                  exists (Semantics.linstate_atomic_step t0 acq tt π1).
-                  do 2 try split; unfold Semantics.linstate_atomic_step in *.
-                  * eapply rt_trans; constructor.
-                    **
-                      eapply Semantics.ps_inv; eauto.
-                      do 2 econstructor; eauto.
-                    **
-                      eapply Semantics.ps_ret; eauto;
-                      [| rewrite PositiveMap.gss; auto].
-                      do 2 econstructor; eauto.
+                
+                  pupdate_start.
+                  pupdate_forward t1 (InvEv acq).
+                  pupdate_forward t1 (ResEv acq tt).
+                  pupdate_finish.
+                  
+                  split.
                   * unfold Semantics.linstate_atomic_step, ALin, I in *.
                     split; simpl in *; [|apply PositiveMap.gss; auto].
                     split; eauto. split; auto.
                     intros; subst. unfold OwnedBy in *. simpl in *.
                     inversion H; subst. unfold TicketOwnedBy. simpl.
                     destruct H1 as [? ?]. simpl in *.
-                    replace (ts_hd s2 - ts_hd s2) with O in H1 by lia.
-                    destruct (ts_q s2); inversion H1; subst. eauto.
+                    replace (ts_hd s0 - ts_hd s0) with O in H1 by lia.
+                    destruct (ts_q s0); inversion H1; subst. eauto.
                   * unfold G. simpl in *. intros.
                     do 2 (rewrite PositiveMap.gso; auto).
                     unfold OwnedBy, InQueue in *; simpl in *.
@@ -820,13 +809,13 @@ Module TicketLockImpl.
                   unfold TicketOwnedBy in H2; simpl in *.
                   unfold InQueue in H1. simpl in *.
                   destruct H2. rewrite H2 in H1.
-                  replace (ts_hd s2 - ts_hd s2) with O in H1 by lia.
+                  replace (ts_hd s0 - ts_hd s0) with O in H1 by lia.
                   simpl in H1; destruct H1. congruence.
                 + destruct H as [? [[? ?] ?]].
                   simpl in *. lia.
               - (* failed *)
                 destruct H1.
-                do 2 eexists. split; [apply rt_refl|].
+                pupdate_finish.
                 do 4 try split; eauto.
             }
             intros.
@@ -890,31 +879,25 @@ Module TicketLockImpl.
         }
         (* inv *)
         {
-          intros; intros σ1 ρ1 π1 Hpre σ2 Hstep.
-          inversion Hstep; subst.
-          inversion Hstep0; subst; try inversion H; subst.
-          do 2 eexists. split; [apply rt_refl|]. split; auto.
-          unfold G; intros; simpl; tauto.
+          pupdate_intros_atomic.
+          pupdate_finish.
+          inversion Hstep0; subst; inversion_thread_event_eq.
+          split; auto. unfold G; intros; simpl; tauto.
         }
         (* res *)
         {
-          intros; intros σ1 ρ1 π1 Hpre σ2 Hstep.
-          inversion Hstep; subst.
-          inversion Hstep0; subst; try inversion H; subst.
-          dependent destruction H3.
+          pupdate_intros_atomic.
+          inversion Hstep0; subst; inversion_thread_event_eq.
+          dependent destruction H2.
           destruct Hpre as [[([? ?] & ? & ? & ?) ?] ?].
           unfold OwnedBy in *. do 2 (simpl in *; subst).
-          exists (Idle Unlocked).
-          exists (Semantics.linstate_atomic_step t0 rel tt π1).
-          do 2 try split; unfold Semantics.linstate_atomic_step in *.
-          * eapply rt_trans; constructor.
-            **
-              eapply Semantics.ps_inv; eauto.
-              do 2 econstructor; eauto.
-            **
-              eapply Semantics.ps_ret; eauto;
-              [| rewrite PositiveMap.gss; auto].
-              do 2 econstructor; eauto.
+
+          pupdate_start.
+          pupdate_forward t1 (InvEv rel).
+          pupdate_forward t1 (ResEv rel tt).
+          pupdate_finish.
+          
+          split.
           * unfold Semantics.linstate_atomic_step, ALin, I in *.
             split; simpl in *; [|apply PositiveMap.gss; auto].
             do 2 (split; eauto; try tauto; try lia).

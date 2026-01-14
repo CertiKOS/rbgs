@@ -181,16 +181,25 @@ Module Assertions (PS : ProofState).
     Open Scope rg_relation_scope.
     Open Scope assertion_scope.
 
-    Ltac pupdate_intros :=
-      intros;
-      intros σ1 ρ1 π1 Hpre σ2 Hstep;
-      try destruct σ1, σ2;
-      destruct Hstep as [Hstep ?]; subst;
-      inversion Hstep; subst;
-      inversion Hstep0; subst;
+    Ltac inversion_step :=
       repeat match goal with
-      | H : existT _ _ _ = existT _ _ _ |- _ =>
-        dependent destruction H
+      (* Case with 5 arguments *)
+      | H : Step ?x1 ?x2 ?x3 ?x4 ?x5 |- _ =>
+          first [
+            match type of x1 with ThreadEvent => inversion H; subst; clear H end |
+            match type of x2 with ThreadEvent => inversion H; subst; clear H end |
+            match type of x3 with ThreadEvent => inversion H; subst; clear H end |
+            match type of x4 with ThreadEvent => inversion H; subst; clear H end |
+            match type of x5 with ThreadEvent => inversion H; subst; clear H end
+          ]
+      (* Case with 4 arguments (common in Assertion.v) *)
+      | H : Step ?x1 ?x2 ?x3 ?x4 |- _ =>
+          first [
+            match type of x1 with ThreadEvent => inversion H; subst; clear H end |
+            match type of x2 with ThreadEvent => inversion H; subst; clear H end |
+            match type of x3 with ThreadEvent => inversion H; subst; clear H end |
+            match type of x4 with ThreadEvent => inversion H; subst; clear H end
+          ]
       end.
     
     Ltac solve_conj_impl :=
@@ -323,6 +332,50 @@ Module AssertionsSingle.
       eauto.
     Qed.
   End AssertionLemmas.
+
+  Ltac pupdate_intros_atomic :=
+    intros;
+    intros σ1 ρ1 π1 Hpre σ2 Hstep;
+    try destruct σ1, σ2;
+    try inversion_step;
+    (* this is the step taken by the encapsulated LTS *)
+    (* do not clear it because information from the pre-condition
+       could help reducing it to extract more conditions *)
+    (* TODO: handle cases where this hypothesis is not named Hstep *)
+    try (inversion Hstep; subst);
+    try inversion_thread_event_eq;
+    repeat match goal with
+    | H : existT _ _ _ = existT _ _ _ |- _ =>
+      dependent destruction H
+    end.
+  
+  Ltac pupdate_start := do 2 eexists; split.
+
+  Ltac try_pupdate_start tac :=
+    first [
+      pupdate_start; [idtac tac|] |
+      idtac tac
+    ].
+
+  Ltac pupdate_finish :=
+    first [
+      pupdate_start; [apply rt_refl|] |
+      apply rt_refl
+    ].
+
+  Ltac pupdate_forward t ev :=
+    (* try_pupdate_start *)
+    eapply rt_trans; [
+      constructor;
+      match ev with
+      | InvEv ?op => eapply (Semantics.ps_inv t op); eauto
+      | ResEv ?op ?ret => eapply (Semantics.ps_ret t op ret); eauto;
+            try (rewrite PositiveMap.gss; auto)
+      | _ => fail "Cannot recognize the event."
+      end;
+      try solve [ do 2 constructor; eauto ];
+      try solve [ do 2 econstructor; eauto ]
+    |].
 
 End AssertionsSingle.
 

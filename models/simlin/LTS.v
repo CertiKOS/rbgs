@@ -65,4 +65,13 @@ Module LTSSpec.
   
 
   (* TODO: instantiate Jeremie's lts as LTS *)
+
+  Ltac inversion_thread_event_eq :=
+  match goal with
+  | H : ?e1 = ?e2 |- _ =>
+      let T := type of e1 in
+      match T with
+      | @ThreadEvent _ => inversion H; subst
+      end
+  end.
 End LTSSpec.

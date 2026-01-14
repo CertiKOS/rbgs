@@ -207,9 +207,8 @@ Module FAIImpl.
         [solve_no_error| | |intros _].
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
-        split.
+        pupdate_intros_atomic.
+        pupdate_finish; split.
         - unfold I, ALin in *.
           destruct Hpre.
           split; simpl in *; auto.
@@ -220,9 +219,8 @@ Module FAIImpl.
       }
       (* res *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
-        split.
+        pupdate_intros_atomic.
+        pupdate_finish; split.
         - unfold I, ALin, OwnedBy in *.
           destruct Hpre.
           split; simpl in *; auto.
@@ -243,9 +241,8 @@ Module FAIImpl.
         [solve_no_error| | |intros c].
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
-        split.
+        pupdate_intros_atomic.
+        pupdate_finish; split.
         - destruct Hpre as [[? ?] ?].
           split; auto.
           split; auto.
@@ -258,9 +255,8 @@ Module FAIImpl.
       }
       (* res *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
-        split.
+        pupdate_intros_atomic.
+        pupdate_finish; split.
         - destruct Hpre as [[? ?] ?].
           split.
           + split; auto.
@@ -291,9 +287,8 @@ Module FAIImpl.
       }
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
-        split.
+        pupdate_intros_atomic.
+        pupdate_finish; split.
         - destruct Hpre as [[? ?] [? ?]].
           do 2 (split; auto).
           + unfold I in *; simpl in *.
@@ -307,20 +302,19 @@ Module FAIImpl.
       }
       (* res *)
       {
-        pupdate_intros.
-        exists (Idle (S c)), (TMap.add t (Semantics.ls_linr fai c) (TMap.add t (Semantics.ls_lini fai) π1)).
+        pupdate_intros_atomic.
         destruct Hpre as [[? ?] [? ?]].
         inversion H2; subst.
         specialize (H _ _ eq_refl).
         simpl in H; subst.
         inversion H0; subst.
-        do 2 try split.
-        - eapply rt_trans; constructor.
-          + eapply Semantics.ps_inv; eauto.
-            do 2 constructor.
-          + eapply Semantics.ps_ret; eauto;
-            [| rewrite PositiveMap.gss; auto].
-            do 2 constructor.
+
+        pupdate_start.
+        pupdate_forward t (InvEv fai).
+        pupdate_forward t (ResEv fai c).
+        pupdate_finish.
+
+        split.
         - unfold I, ALin, RegVal.
           split; auto. split.
           + simpl; inversion 1; subst. auto.
@@ -350,9 +344,8 @@ Module FAIImpl.
       }
       (* inv *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
-        split.
+        pupdate_intros_atomic.
+        pupdate_finish; split.
         - destruct Hpre as [[? ?] ?].
           do 2 (split; auto).
           unfold I in *; simpl in *.
@@ -363,10 +356,9 @@ Module FAIImpl.
       }
       (* res *)
       {
-        pupdate_intros.
-        do 2 eexists. split; [apply rt_refl|].
+        pupdate_intros_atomic.
         destruct Hpre as [[? ?] ?].
-        split.
+        pupdate_finish; split.
         - split; auto.
           unfold I in *; simpl in *.
           inversion 1; intros; subst.

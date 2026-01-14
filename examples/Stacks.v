@@ -171,37 +171,29 @@ Module TreiberStackImpl.
       [solve_no_error| destruct a; solve_conj_stable stableDB | | | ].
       (* inv *)
       {
-        intros; intros σ1 ρ1 π1 Hpre σ2 Hstep;
-        try destruct σ1, σ2; inversion Hstep; subst.
-        inversion Hstep0; subst; try inversion H3.
-        do 2 eexists. split; [apply rt_refl|]. split.
+        pupdate_intros_atomic.
+        inversion Hstep0; subst; try inversion_thread_event_eq.
+        pupdate_finish; split.
         - destruct Hpre. unfold I in *; simpl in *; subst; split; auto.
         - unfold G; intros; simpl; auto.
       }
       (* res *)
       {
-        intros; intros σ1 ρ1 π1 Hpre σ2 Hstep;
-        inversion Hstep; subst; clear Hstep;
-        dependent destruction H2.
-        inversion Hstep0; subst; try inversion H3.
-        - dependent destruction H1.
+        pupdate_intros_atomic.
+        inversion Hstep0; subst; try inversion_thread_event_eq.
+        - dependent destruction H3.
           destruct Hpre. unfold I in H. simpl in *; subst.
-          exists (Idle (v0 :: s1)%list).
-          exists (TMap.add t (Semantics.ls_linr (push v0) tt) (TMap.add t (Semantics.ls_lini (push v0)) π1)).
-          do 2 try split.
-          + eapply rt_trans; constructor.
-            * eapply Semantics.ps_inv; eauto.
-              do 2 constructor.
-            * eapply Semantics.ps_ret; eauto;
-              [| rewrite PositiveMap.gss; auto].
-              do 2 constructor.
+          pupdate_start.
+          pupdate_forward t1 (InvEv (push v0)).
+          pupdate_forward t1 (ResEv (push v0) tt).
+          pupdate_finish.
+          split.
           + split; unfold I, ALin; simpl; auto.
             rewrite PositiveMap.gss; auto.
           + unfold G. simpl. intros.
             do 2 (rewrite PositiveMap.gso; auto).
-        - dependent destruction H1.
-          do 2 eexists; split; [apply rt_refl|].
-          split.
+        - dependent destruction H3.
+          pupdate_finish; split.
           + destruct Hpre; unfold ALin, I in *; simpl in *; split; auto.
           + unfold G. simpl. auto.
       }
@@ -243,52 +235,42 @@ Module TreiberStackImpl.
       [solve_no_error| destruct a; solve_conj_stable stableDB | | | ].
       (* inv *)
       {
-        intros; intros σ1 ρ1 π1 Hpre σ2 Hstep;
-        try destruct σ1, σ2; inversion Hstep; subst.
-        inversion Hstep0; subst; try inversion H3.
-        do 2 eexists. split; [apply rt_refl|]. split.
+        pupdate_intros_atomic.
+        inversion Hstep0; subst; try inversion_thread_event_eq.
+        pupdate_finish; split.
         - destruct Hpre. unfold I in *; simpl in *; subst; split; auto.
         - unfold G; intros; simpl; auto.
       }
       (* res *)
       {
-        intros; intros σ1 ρ1 π1 Hpre σ2 Hstep;
-        inversion Hstep; subst; clear Hstep;
-        dependent destruction H2.
-        inversion Hstep0; subst; try inversion H3.
-        - dependent destruction H0.
+        pupdate_intros_atomic.
+        inversion Hstep0; subst; try inversion_thread_event_eq.
+        - dependent destruction H2.
           destruct Hpre. unfold I in H. simpl in *; subst.
-          exists (Idle nil).
-          exists (TMap.add t (Semantics.ls_linr pop None) (TMap.add t (Semantics.ls_lini pop) π1)).
-          do 2 try split.
-          + eapply rt_trans; constructor.
-            * eapply Semantics.ps_inv; eauto.
-              do 2 constructor.
-            * eapply Semantics.ps_ret; eauto;
-              [| rewrite PositiveMap.gss; auto].
-              do 2 constructor.
-          + split; unfold I, ALin; simpl; auto.
-            rewrite PositiveMap.gss; auto.
-          + unfold G. simpl. intros.
-            do 2 (rewrite PositiveMap.gso; auto).
-        - dependent destruction H0.
-          destruct Hpre. unfold I in H. simpl in *; subst.
-          exists (Idle s2).
-          exists (TMap.add t (Semantics.ls_linr pop (Some v)) (TMap.add t (Semantics.ls_lini pop) π1)).
-          do 2 try split.
-          + eapply rt_trans; constructor.
-            * eapply Semantics.ps_inv; eauto.
-              do 2 constructor.
-            * eapply Semantics.ps_ret; eauto;
-              [| rewrite PositiveMap.gss; auto].
-              do 2 constructor.
-          + split; unfold I, ALin; simpl; auto.
-            rewrite PositiveMap.gss; auto.
-          + unfold G. simpl. intros.
-            do 2 (rewrite PositiveMap.gso; auto).
-        - dependent destruction H0.
-          do 2 eexists; split; [apply rt_refl|].
+          pupdate_start.
+          pupdate_forward t1 (@InvEv (EStack A) (@pop A)).
+          pupdate_forward t1 (@ResEv (EStack A) (@pop A) None).
+          pupdate_finish.
+
           split.
+          + split; unfold I, ALin; simpl; auto.
+            rewrite PositiveMap.gss; auto.
+          + unfold G. simpl. intros.
+            do 2 (rewrite PositiveMap.gso; auto).
+        - dependent destruction H2.
+          destruct Hpre. unfold I in H. simpl in *; subst.
+          pupdate_start.
+          pupdate_forward t1 (@InvEv (EStack A) (@pop A)).
+          pupdate_forward t1 (@ResEv (EStack A) (@pop A) (Some v)).
+          pupdate_finish.
+          
+          split.
+          + split; unfold I, ALin; simpl; auto.
+            rewrite PositiveMap.gss; auto.
+          + unfold G. simpl. intros.
+            do 2 (rewrite PositiveMap.gso; auto).
+        - dependent destruction H2.
+          pupdate_finish; split.
           + destruct Hpre; unfold ALin, I in *; simpl in *; split; auto.
           + unfold G. simpl. auto.
       }
