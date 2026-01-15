@@ -167,7 +167,6 @@ Module RegSpec.
 End RegSpec.
 
 
-
 Module TryStackSpec.
   Import LTSSpec.
   Import LinCCALBase.
@@ -353,38 +352,81 @@ Module CoinSpec.
     Sig.ar := ECoin_ar
   |}.
 
-  Definition CoinState : Type := option bool.
-
-  Variant StepCoin : @ThreadEvent ECoin -> CoinState -> CoinState -> Prop :=
-  | step_flip_inv e s t:
+  Variant StepCoin : @ThreadEvent ECoin -> bool -> bool -> Prop :=
+  | step_flip_inv e b t:
       e = {| te_tid := t; te_ev := InvEv flip |} ->
-      StepCoin e s s
-  | step_flip_res e s t b:
+      StepCoin e b b
+  | step_flip_res e t b b':
       e = {| te_tid := t; te_ev := ResEv flip tt |} ->
-      StepCoin e s (Some b)
-  | step_read_inv e s t:
+      StepCoin e b b'
+  | step_read_inv e b t:
       e = {| te_tid := t; te_ev := InvEv read |} ->
-      StepCoin e s s
+      StepCoin e b b
   | step_read_res e t b:
       e = {| te_tid := t; te_ev := ResEv read b |} ->
-      StepCoin e (Some b) (Some b)
+      StepCoin e b b
   .
 
-  (* Atomic Error *)
-  Variant ErrorCoin : @ThreadEvent ECoin -> CoinState -> Prop :=
-  | error_new_coin e t:
-      e = {| te_tid := t; te_ev := InvEv read |} ->
-      ErrorCoin e None
-  (* NOTE: this could be removed as a constant coin is also a random coin *)
-  (* but that would make lots of things meaningless *)
-  | error_flipped_coin e t b:
+  Variant ErrorCoin : @ThreadEvent ECoin -> AState -> Prop :=
+  | error_flip_racy t t' (b:bool) e:
+      t <> t' ->
       e = {| te_tid := t; te_ev := InvEv flip |} ->
-      ErrorCoin e (Some b)
-  .
-  Definition VCoin : @LTS ECoin := VAE StepCoin (AError ErrorCoin).
+      ErrorCoin e (Pending b t' flip).
+
+  Definition VCoin : @LTS ECoin := VAE StepCoin ErrorCoin.
 
 End CoinSpec.
 
+
+Module CASRegSpec.
+  Import LTSSpec.
+  Import LinCCALBase.
+  Import AtomicLTS.
+
+  Variant ECASReg_op {A} :=
+  | get
+  | set (v : A)
+  | cas (v w : A).
+  Arguments ECASReg_op : clear implicits.
+
+  Definition ECASReg_ar {A} (m : ECASReg_op A) : Type :=
+    match m with
+    | get => A
+    | set _ => unit
+    | cas _ _ => bool
+    end.
+  
+  Canonical Structure ECASReg A :=
+  {|
+    Sig.op := ECASReg_op A;
+    Sig.ar := ECASReg_ar
+  |}.
+
+  Variant StepCASReg {A} : @ThreadEvent (ECASReg A) -> A -> A -> Prop :=
+  | step_get_inv t v : StepCASReg {| te_tid := t; te_ev := InvEv get |} v v
+  | step_get_res t v : StepCASReg {| te_tid := t; te_ev := ResEv get v |} v v
+  | step_set_inv t v w : StepCASReg {| te_tid := t; te_ev := InvEv (set w) |} v v
+  | step_set_res t v w: StepCASReg {| te_tid := t; te_ev := ResEv (set w) tt |} v w
+  | step_cas_inv t u v w:
+      StepCASReg {| te_tid := t; te_ev := InvEv (cas v w) |} u u
+  | step_cas_res_succ e t v w:
+      e = {| te_tid := t; te_ev := ResEv (cas v w) true |} ->
+      StepCASReg e v w
+  | step_cas_res_fail e t u v w:
+      u <> v ->
+      e = {| te_tid := t; te_ev := ResEv (cas v w) false |} ->
+      StepCASReg e u u
+  .
+
+  Variant ErrorCASReg {A} : @ThreadEvent (ECASReg A) -> AState -> Prop :=
+  | error_set_racy t t' (v u w : A) e:
+      t <> t' ->
+      e = {| te_tid := t; te_ev := InvEv (set u) |} ->
+      ErrorCASReg e (Pending v t' (set w)).
+
+  Definition VCASReg {A} : @LTS (ECASReg A) := VAE StepCASReg ErrorCASReg.
+  
+End CASRegSpec.
 
 
 
