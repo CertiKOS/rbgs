@@ -55,8 +55,8 @@ Module RGILogic.
         (HstableP' : Stable R I P')
         (HstableQ' : forall a, Stable R I (Q' a)),
         (* possibility updates *)
-        (G ⊨ P [Build_ThreadEvent t (InvEv m)]⭆ P') ->
-        (forall ret, G ⊨ P' [Build_ThreadEvent t (ResEv m ret)]⭆ Q' ret) ->
+        (G ⊨ P [ Build_ThreadEvent t (InvEv m) ]⭆ P') ->
+        (forall ret, G ⊨ P' [ Build_ThreadEvent t (ResEv m ret) ]⭆ Q' ret) ->
         (* continuation Hoare triple *)
         (forall ret, HTripleProvable (Q' ret) (k ret) Q) ->
         HTripleProvable Punsafe (Vis m k) Q
@@ -97,8 +97,8 @@ Module RGILogic.
         (HstableP' : Stable R I P')
         (HstableQ' : forall a, Stable R I (Q' a))
         (* possibility updates *)
-        (Hpinv : G ⊨ P [Build_ThreadEvent t (InvEv m)]⭆ P')
-        (Hpret : forall ret, G ⊨ P' [Build_ThreadEvent t (ResEv m ret)]⭆ Q' ret)
+        (Hpinv : G ⊨ P [Build_ThreadEvent t (InvEv m) ]⭆ P')
+        (Hpret : forall ret, G ⊨ P' [Build_ThreadEvent t (ResEv m ret) ]⭆ Q' ret)
         (* continuation Hoare triple *)
         (Hnext : forall ret, X (Q' ret) (k ret))
     | provable_inv_tau p'
@@ -164,8 +164,8 @@ Module RGILogic.
         (HstableP' : Stable R I P')
         (HstableQ' : forall a, Stable R I (Q' a))
         (* possibility updates *)
-        (Hpinv : G ⊨ P [Build_ThreadEvent t (InvEv m)]⭆ P')
-        (Hpret : forall ret, G ⊨ P' [Build_ThreadEvent t (ResEv m ret)]⭆ Q' ret),
+        (Hpinv : G ⊨ P [Build_ThreadEvent t (InvEv m) ]⭆ P')
+        (Hpret : forall ret, G ⊨ P' [Build_ThreadEvent t (ResEv m ret) ]⭆ Q' ret),
         (forall ret, [VE, VF, R, G, I, t] ⊢ {{ Q' ret }} (k ret) {{ Q }}) ->
         [VE, VF, R, G, I, t] ⊢ {{ P }} Vis m k {{ Q }}.
     Proof.
@@ -445,7 +445,7 @@ Module RGILogic.
             /\ (⊨ P ==>> I) /\ Stable R I P
         | Some m  =>
             exists k P' Q', p = Vis m k /\ P' (σ, ρ, π)
-              /\ (forall ret, G ⊨ P' [Build_ThreadEvent t (ResEv m ret)]⭆ Q' ret)
+              /\ (forall ret, G ⊨ P' [Build_ThreadEvent t (ResEv m ret) ]⭆ Q' ret)
               /\ (forall ret, [VE, VF, R, G, I, t]⊢ {{Q' ret}} k ret {{Q}})
               /\ (⊨ P' ==>> I) /\ (Stable R I P')
               /\ (forall ret, ⊨ Q' ret ==>> I) /\ (forall ret, Stable R I (Q' ret))

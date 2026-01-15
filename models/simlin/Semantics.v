@@ -2,6 +2,8 @@ Require Import FMapPositive.
 Require Import Relation_Operators Operators_Properties.
 Require Import Coq.PArith.PArith.
 Require Import Coq.Program.Equality.
+Require Import Coq.Classes.RelationClasses.
+Require Import Coq.Program.Program.
 
 Require Import coqrel.LogicalRelations.
 Require Import models.EffectSignatures.
@@ -287,6 +289,177 @@ Module Semantics.
 
   End Semantics.
 
+  Section AbstractConfig.
+    Context {F : Op.t} {VF : @LTS F}.
+
+    
+    Definition DomExact {A} (π1 π2 : tmap A) : Prop :=
+      forall t, TMap.find t π1 = None <-> TMap.find t π2 = None.
+      
+    Program Instance Equivalence_DomExact : Equivalence (@DomExact (@LinState F)).
+    Next Obligation. constructor; auto. Defined.
+    Next Obligation. constructor; apply H. Defined.
+    Next Obligation. constructor; unfold DomExact in *.
+      - rewrite H, H0. auto.
+      - rewrite H, H0. auto.
+    Defined.
+    
+    Definition AbstractConfigProp : Type := State VF -> tmap (@LinState F) -> Prop.
+
+    Record AbstractConfig : Type := mkAC {
+      ac_prop :> State VF -> tmap (@LinState F) -> Prop;
+      ac_nonempty : exists ρ π, ac_prop ρ π;
+      ac_domexact : forall ρ1 π1 ρ2 π2, ac_prop ρ1 π1 -> ac_prop ρ2 π2 ->
+                      DomExact π1 π2
+    }.
+
+    Definition ac_equiv (Δ1 Δ2 : AbstractConfig) : Prop :=
+      forall ρ π, Δ1 ρ π <-> Δ2 ρ π.
+
+    Program Instance Equivalence_ACEquiv : Equivalence ac_equiv.
+    Next Obligation. constructor; auto. Defined.
+    Next Obligation. constructor; apply H. Defined.
+    Next Obligation.
+      constructor.
+      - unfold ac_equiv in *. intros. apply H0, H. auto.
+      - unfold ac_equiv in *. intros. apply H, H0. auto.
+    Defined.
+
+    Definition ac_subset (Δ1 Δ2 : AbstractConfig) : Prop :=
+      forall ρ π, Δ1 ρ π -> Δ2 ρ π.
+
+    Variant ac_singleton_prop ρ π : AbstractConfigProp :=
+    | ACSingle : ac_singleton_prop ρ π ρ π.
+
+    Program Definition ac_singleton ρ π : AbstractConfig :=
+      {| ac_prop := ac_singleton_prop ρ π |}.
+    Next Obligation. exists ρ, π. constructor. Qed.
+    Next Obligation.
+      inversion H; inversion H0; subst.
+      intro. reflexivity.
+    Qed.
+
+    Variant ac_union_prop (Δ1 Δ2 : AbstractConfigProp) : AbstractConfigProp :=
+    | ACUnionLeft ρ π: Δ1 ρ π -> ac_union_prop Δ1 Δ2 ρ π
+    | ACUnionRight ρ π: Δ2 ρ π -> ac_union_prop Δ1 Δ2 ρ π.
+
+    Variant ac_intersect_prop (Δ1 Δ2 : AbstractConfigProp) : AbstractConfigProp :=
+    | ACIntersect ρ π: Δ1 ρ π -> Δ2 ρ π -> ac_intersect_prop Δ1 Δ2 ρ π.
+
+    Variant ac_inv_prop (Δ : AbstractConfigProp) t f : AbstractConfigProp :=
+    | ACInv ρ π (Hposs : Δ ρ π) :
+        ac_inv_prop Δ t f ρ (TMap.add t (ls_inv f) π).
+
+    Program Definition ac_inv (Δ : AbstractConfig) t f : AbstractConfig :=
+      {| ac_prop := ac_inv_prop Δ t f |}.
+    Next Obligation.
+      destruct (ac_nonempty Δ) as [ρ [π H]].
+      exists ρ, (TMap.add t0 (ls_inv f) π). constructor. auto.
+    Qed.
+    Next Obligation.
+      intros ?.
+      inversion H; inversion H0; subst.
+      destruct (Pos.eq_dec t1 t0); subst.
+      - do 2 rewrite PositiveMap.gss. split; discriminate.
+      - do 2 (rewrite PositiveMap.gso; auto).
+        rewrite (ac_domexact Δ _ _ _ _ Hposs Hposs0 t1).
+        reflexivity.
+    Qed.
+
+    Variant ac_res_prop (Δ : AbstractConfigProp) t : AbstractConfigProp :=
+    | ACRes ρ π (Hposs : Δ ρ π):
+        ac_res_prop Δ t ρ (TMap.remove t π).
+    
+    Program Definition ac_res (Δ : AbstractConfig) t : AbstractConfig :=
+      {| ac_prop := ac_res_prop Δ t |}.
+    Next Obligation.
+      destruct (ac_nonempty Δ) as [ρ [π H]].
+      exists ρ, (TMap.remove t0 π). constructor. auto.
+    Qed.
+    Next Obligation.
+      intros ?.
+      inversion H; inversion H0; subst.
+      destruct (Pos.eq_dec t1 t0); subst.
+      - do 2 rewrite PositiveMap.grs. split; auto.
+      - do 2 (rewrite PositiveMap.gro; auto).
+        rewrite (ac_domexact Δ _ _ _ _ Hposs Hposs0 t1).
+        reflexivity.
+    Qed.
+
+    Variant ac_steps_prop (Δ : AbstractConfigProp) : AbstractConfigProp :=
+    | ACSteps ρ π ρ' π' (Hposs : Δ ρ π)
+        (Hpstep : poss_steps (PossOk ρ π) (PossOk ρ' π')):
+        ac_steps_prop Δ ρ' π'.
+
+    Lemma poss_step_domexact : forall ρ π ρ' π',
+      @poss_step _ VF (PossOk ρ π) (PossOk ρ' π') ->
+      DomExact π π'.
+    Proof.
+      inversion 1; subst; intro;
+      (destruct (Pos.eq_dec t1 t0); subst;
+        [rewrite PositiveMap.gss
+        | rewrite PositiveMap.gso]; auto;
+        split; try congruence).
+    Qed.
+
+    Lemma poss_steps_domexact : forall ρ π ρ' π',
+      @poss_steps _ VF (PossOk ρ π) (PossOk ρ' π') ->
+      DomExact π π'.
+    Proof.
+      intros.
+      remember (PossOk ρ π) as p.
+      remember (PossOk ρ' π') as p'.
+      revert ρ' π' Heqp'.
+      apply clos_rt_rtn1 in H.
+      induction H; intros; subst.
+      - inversion Heqp'; subst. reflexivity.
+      - inversion H; subst;
+        specialize (IHclos_refl_trans_n1 _ _ eq_refl);
+        (eapply Equivalence_Transitive; eauto;
+          intro;
+          destruct (Pos.eq_dec t1 t0); subst;
+          [rewrite PositiveMap.gss
+          | rewrite PositiveMap.gso]; auto;
+          split; intros; try congruence).
+    Qed.
+
+    Program Definition ac_steps (Δ : AbstractConfig) : AbstractConfig :=
+      {| ac_prop := ac_steps_prop Δ |}.
+    Next Obligation.
+      destruct (ac_nonempty Δ) as [ρ [π H]].
+      exists ρ, π. econstructor; eauto. apply rt_refl.
+    Qed.
+    Next Obligation.
+      inversion H; inversion H0; subst. clear H H0.
+      apply poss_steps_domexact in Hpstep, Hpstep0.
+      pose proof (ac_domexact _ _ _ _ _ Hposs Hposs0).
+      do 2 (eapply Equivalence_Transitive; eauto).
+      symmetry. auto.
+    Qed.
+
+    Lemma ac_steps_refl : forall Δ, ac_subset Δ (ac_steps Δ).
+    Proof.
+      intros. intros ? ? ?.
+      econstructor; eauto.
+      apply rt_refl.
+    Qed.
+
+  End AbstractConfig.
+
+  Arguments AbstractConfigProp {F} VF.
+  Arguments AbstractConfig {F} VF.
+
+  #[global] Existing Instance Equivalence_DomExact.
+  #[global] Existing Instance Equivalence_ACEquiv.
+
+  Delimit Scope ac_scope with AbstractConfig.
+  Bind Scope ac_scope with AbstractConfig.
+
+  Notation "[( ρ , π )]" := (ac_singleton ρ π) (at level 10) : ac_scope.
+  Notation "Δ1 ⊆ Δ2" := (ac_subset Δ1 Δ2) (at level 70) : ac_scope.
+  Notation "Δ1 ≡ Δ2" := (ac_equiv Δ1 Δ2) (at level 70) : ac_scope.
+  Notation "Δ1 ∪ Δ2" := (ac_union_prop Δ1 Δ2) (at level 50) : ac_scope.
+  Notation "Δ1 ∩ Δ2" := (ac_intersect_prop Δ1 Δ2) (at level 40) : ac_scope.
   
   Delimit Scope poss_scope with Poss.
   Bind Scope poss_scope with Poss.

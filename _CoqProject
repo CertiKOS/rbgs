@@ -41,6 +41,8 @@ interfaces/LiftMonad.v
 
 
 models/simlin/LTS.v
+examples/Specs.v
+
 models/simlin/Lang.v
 models/simlin/Semantics.v
 models/simlin/TPSimulation.v
@@ -51,5 +53,3 @@ models/simlin/RGILogic.v
 models/simlin/TPSimulationSet.v
 models/simlin/RGISimulationSet.v
 models/simlin/RGILogicSet.v
-
-examples/Specs.v
