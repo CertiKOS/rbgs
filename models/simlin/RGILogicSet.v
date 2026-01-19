@@ -428,7 +428,7 @@ Module RGILogic.
     Proof.
       intros.
 
-      destruct HvalidRG as [HRinv HInonemp HIpconsist].
+      destruct HvalidRG as [HRinv].
       destruct Hprovable as [HPinv HPI HPstable HQret HQlin HTriple].
 
       apply HPinv in HI. clear HPinv. rename HI into HP.
@@ -458,7 +458,7 @@ Module RGILogic.
         eexists; eauto.
       }
 
-      clear - HRinv HInonemp HIpconsist HQret HQlin.
+      clear - HRinv HQret HQlin.
 
       intros ? ? ? ? [Hfindπ H].
 
@@ -496,20 +496,16 @@ Module RGILogic.
           destruct (TMap.find t π) eqn:eq; eauto.
           exfalso.
           apply HRinv in H0; eauto.
-          specialize (HIpconsist _ _ _ H1 H2 eq).
-          rewrite <- H0 in HIpconsist.
-          assert (I (σ0, Δ0)).
+          simpl in *.
+          assert (forall (ρ' : State VF) (π' : tmap LinState), Δ' ρ' π' -> TMap.find t π' = None).
           {
-            destruct b.
-            - destruct H as (k & P' & Q' & ? & ? & ? & ? & ? & ?).
-              apply H6. auto.
-            - destruct H as (P & ? & ? & ? & ?).
-              apply H4. auto.
+            intros.
+            eapply ac_domexact; [| | exact eq]; eauto.
           }
-          apply HInonemp in H3 as [? [? ?]].
-          specialize (HIpconsist _ _ H3).
-          specialize (Hfindπ _ _ H3) as [? ?].
-          congruence.
+          rewrite <- H0 in H3.
+          pose proof ac_nonempty Δ0 as [ρ0 [π0 ?]].
+          specialize (Hfindπ _ _ H4) as [ls ?].
+          specialize (H3 ρ0 π0 H4). congruence.
         }
         
         destruct b.
@@ -556,7 +552,7 @@ Module RGILogic.
           apply Hfindπ in Hposs as [? ?].
           eapply poss_steps_nondec; eauto.
         - exists Δ0.
-          split; [apply TPSimulation.ac_steps_refl|].
+          split; [apply ac_steps_refl|].
           split; [right; right; reflexivity|].
           split; eauto.
           do 3 eexists.
@@ -564,7 +560,6 @@ Module RGILogic.
           split; [exact HP'|].
           do 2 (split; eauto).
         - inversion 1.
-        - eapply HInonemp in Hinvariant. eauto.
       }
       destruct H as (Pu & HPu & HTriple & HPuI & HPustable).
       revert Δ0 Hfindπ HPu Hstable Hinvariant.
@@ -595,7 +590,6 @@ Module RGILogic.
           (* exists P. split; eauto.
           split; [constructor|]; auto. *)
         - unfold not; inversion 1.
-        - apply HInonemp in Hinvariant. eauto. 
       }
       (* ustep inv *)
       {
@@ -624,7 +618,6 @@ Module RGILogic.
           split; eauto.
         - inversion 1. dependent destruction H8; subst.
           apply Herror in HP0. auto.
-        - apply HInonemp in Hinvariant. eauto.
       }
       (* tau *)
       {
@@ -639,7 +632,6 @@ Module RGILogic.
           dependent destruction H4.
           split; eauto.
         - inversion 1.
-        - apply HInonemp in Hinvariant. eauto.
       }
     Qed.
   End ProgramLogic.
@@ -655,8 +647,8 @@ Module RGILogic.
     TPSimulation.cal M σ0 ρ0.
   Proof.
     unfold TPSimulation.cal.
-    eapply rgisim_parapllel_composition with (I:=I) (G:=fun t => (G t ∪ (GINV t ∪ GRET t ∪ GId))%RGRelation); eauto;
-    [exists ρ0, (@TMap.empty _); constructor |].
+    eapply rgisim_parapllel_composition with (I:=I) (G:=fun t => (G t ∪ (GINV t ∪ GRET t ∪ GId))%RGRelation); eauto.
+    (* [exists ρ0, (@TMap.empty _); constructor |]. *)
     intros.
     eapply msim_sequential_composition; eauto.
     - destruct (HvalidRG t0). constructor; auto.

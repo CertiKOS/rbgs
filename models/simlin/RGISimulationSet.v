@@ -65,7 +65,7 @@ Module RGISimulation.
           RGISimulation R G I t σ' c Δ')
 
       (rgisim_noerror : forall ev, ~ uerror (Build_ThreadEvent t ev) σ c)
-      (tpsim_nonemp : exists ρ π, Δ ρ π)
+      (* (tpsim_nonemp : exists ρ π, Δ ρ π) *)
     .
 
     Variant RGISimulation_invariant (R G : RGRelation) (I : Assertion) t (X : State VE -> ThreadPoolState -> AbstractConfig VF -> Prop) σ c (Δ : AbstractConfig VF): Prop := 
@@ -103,7 +103,7 @@ Module RGISimulation.
           X σ' c Δ')
 
       (rgisim_noerror : forall ev, ~ uerror (Build_ThreadEvent t ev) σ c)
-      (tpsim_nonemp : exists ρ π, Δ ρ π)
+      (* (tpsim_nonemp : exists ρ π, Δ ρ π) *)
     .
 
     Lemma RGISimulation_invariant_sound R G I t (X : State VE -> ThreadPoolState -> AbstractConfig VF -> Prop):
@@ -167,23 +167,20 @@ Module RGISimulation.
     Lemma rgisim_parapllel_composition :
       forall (R G : tid -> RGRelation) (I : Assertion)
         (HRG : forall t1 t2, t1 <> t2 -> (G t1 ⊆ R t2)%RGRelation),
-      forall (σ : State VE) c Δ
-        (Hnonemp : exists ρ π, Δ ρ π)
+      forall (σ : State VE) c (Δ : AbstractConfig VF)
+        (* (Hnonemp : exists ρ π, Δ ρ π) *)
         (Htlsim : forall t, RGISimulation (R t) (G t) I t σ c Δ),
         TPSimulation M σ c Δ.
     Proof.
       intros ? ? ? ?.
       cofix IH.
       intros.
-      assert ((exists ρ0 π0, Δ0 ρ0 π0 /\ poss_steps (ρ0, π0) PossError) \/ ~(exists ρ0 π0, Δ0 ρ0 π0 /\ poss_steps (ρ0, π0) PossError)) as [[? [? [? ?]]] | ?] by apply classic; [eapply TPSim_Error; eauto |].
+      assert ((exists ρ0 π0, Δ0 ρ0 π0 /\ poss_steps (ρ0, π0) PossError) \/ ~(exists ρ0 π0, Δ0 ρ0 π0 /\ poss_steps (ρ0, π0) PossError))
+      as [[? [? [? ?]]] | ?] by apply classic; [eapply TPSim_Error; eauto |].
       assert (forall ρ0 π0, Δ0 ρ0 π0 -> poss_steps (ρ0, π0) PossError -> False) as Hpnoerror; [intros; eauto|clear H].
       apply TPSim_Continue; intros; eauto.
       - (* inv *)
         eapply IH; intros.
-        {
-          destruct Hnonemp as [? [? ?]].
-          do 2 eexists. econstructor. eauto.
-        }
         pose proof (Htlsim t0) as [? | ?]; [exfalso; eapply Hpnoerror; eauto|].
         pose proof (Htlsim t1) as [? | ?]; [exfalso; eapply Hpnoerror; eauto|].
         destruct (Pos.eq_dec t0 t1); subst;
@@ -199,10 +196,6 @@ Module RGISimulation.
         specialize (rgisim_retstep _ _ _ Hstep) as [? [? ?]].
         split; auto.
         eapply IH; intros.
-        {
-          destruct Hnonemp as [? [? ?]].
-          do 2 eexists. econstructor. eauto.
-        }
         pose proof (Htlsim t1) as [? | ?]; [exfalso; eapply Hpnoerror; eauto|].
         destruct (Pos.eq_dec t0 t1); subst; auto.
         eapply rgisim_local_cont with (c := c); auto.
@@ -217,10 +210,6 @@ Module RGISimulation.
         specialize (rgisim_ustep _ _ _ Hstep) as (Δ' & ? & ? & ?).
         exists Δ'. split; auto.
         eapply IH; intros.
-        {
-          destruct Hnonemp as [? [? ?]].
-          inversion H1; eauto.
-        }
         specialize (Htlsim t0) as [? | ?]; [exfalso; eapply Hpnoerror; eauto|].
         destruct (Pos.eq_dec t t0); subst; auto.
         eapply rgisim_local_cont with (c := c); eauto.
@@ -228,7 +217,7 @@ Module RGISimulation.
         apply rgisim_stable0; [|inversion H1; auto].
         eapply HRG; eauto.
       - exists Δ0. split; auto.
-        apply TPSimulation.ac_steps_refl.
+        apply ac_steps_refl.
       - (* tau *)
         pose proof (Htlsim t0) as [? | ?]; [exfalso; eapply Hpnoerror; eauto|].
         specialize (rgisim_taustep _ Hstep).
@@ -274,7 +263,7 @@ Module RGISimulation.
       
       (msim_noerror :
         forall ev, ~ ts_error f (Build_ThreadEvent t ev) σ (Build_ThreadState f p b))
-      (msim_nonemp : exists ρ π, Δ ρ π)
+      (* (msim_nonemp : exists ρ π, Δ ρ π) *)
     .
 
     Variant MethodSimulation_invariant (R G : RGRelation) (I : Assertion) t (f : Sig.op F) (X : State VE -> Lang.Prog E (Sig.ar f) -> option (Sig.op E) -> AbstractConfig VF -> Prop) σ p b Δ : Prop := 
@@ -309,7 +298,7 @@ Module RGISimulation.
       
       (msim_noerror :
         forall ev, ~ ts_error f (Build_ThreadEvent t ev) σ (Build_ThreadState f p b))
-      (msim_nonemp : exists ρ π, Δ ρ π)
+      (* (msim_nonemp : exists ρ π, Δ ρ π) *)
     .
 
     Lemma MethodSimulation_invariant_sound : forall R G I t f (X : State VE ->
@@ -338,10 +327,10 @@ Module RGISimulation.
         (forall ρ π, Δ s ρ π -> TMap.find t π = None)
         <-> (forall ρ' π', Δ s' ρ' π' -> TMap.find t π' = None);
 
-      HInonemp : forall s, I s -> exists ρ π, Δ s ρ π;
+      (* HInonemp : forall s, I s -> exists ρ π, Δ s ρ π; *)
 
-      HIpconsist: forall s ρ π, I s -> Δ s ρ π -> TMap.find t π = None ->
-                    forall ρ π, Δ s ρ π -> TMap.find t π = None
+      (* HIpconsist: forall s ρ π, I s -> Δ s ρ π -> TMap.find t π = None ->
+                    forall ρ π, Δ s ρ π -> TMap.find t π = None *)
     }.
 
     Lemma msim_sequential_composition :
@@ -369,7 +358,7 @@ Module RGISimulation.
       intros ? ? ?.
 
       apply RGISimulation_invariant_sound with (X:=fun σ c (Δ : AbstractConfig VF) =>
-        (exists ρ π, Δ ρ π) /\
+        (* (exists ρ π, Δ ρ π) /\ *)
         ((
         (forall ρ π, Δ ρ π -> TMap.find t0 π = None) /\
         TMap.find t0 c = None /\
@@ -380,7 +369,7 @@ Module RGISimulation.
       ); try tauto.
       clear - Hrgi Hmsim HGinv HGid.
       intros.
-      destruct H as [Hnonemp [[Hfindπ [Hfindc HI]] | [ts [Hfindc Hmsim']]]].
+      destruct H as [[Hfindπ [Hfindc HI]] | [ts [Hfindc Hmsim']]].
       (* invstep *)
       {
         assert ((exists ρ0 π0, Δ0 ρ0 π0 /\ poss_steps (ρ0, π0) PossError) \/ ~(exists ρ0 π0, Δ0 ρ0 π0 /\ poss_steps (ρ0, π0) PossError)) as [[? [? [? ?]]] | ?] by apply classic; [eapply RGISim_Inv_Error; eauto |].
@@ -389,7 +378,7 @@ Module RGISimulation.
         try (inversion Hstep; subst; simpl in *; congruence).
         - inversion Hstep; subst. clear Hfind.
           do 2 (split; auto).
-          split; [ destruct Hnonemp as [? [? ?]]; do 2 eexists; econstructor; eauto |].
+          (* split; [ destruct Hnonemp as [? [? ?]]; do 2 eexists; econstructor; eauto |]. *)
           right.
           exists {| ts_op := f; ts_prog := M f; ts_pend := None |}.
           rewrite PositiveMap.gss.
@@ -401,10 +390,10 @@ Module RGISimulation.
             unfold Ginv, LiftRelation_Δ. simpl.
             do 2 (split; auto). reflexivity.
           * inversion 1; subst. rewrite PositiveMap.gss. auto.
-        - exists Δ0. split; [apply TPSimulation.ac_steps_refl|].
+        - exists Δ0. split; [apply ac_steps_refl|].
           split; eauto.
         - destruct Hrgi.
-          split; [ eapply HInonemp0 in Hinvariant; eauto |].
+          (* split. [ eapply HInonemp0 in Hinvariant; eauto |]. *)
           left.
           split; try tauto.
           apply HRinv0 in Hrely; auto.
@@ -432,9 +421,9 @@ Module RGISimulation.
           inversion Hmsim; [exfalso; eapply Hpnoerror; eauto|].
           specialize (msim_retstep _ (conj eq_refl eq_refl)) as [? [? ?]].
           do 2 (split; auto).
-          split; [| left; do 2 try split; auto].
-          + destruct msim_nonemp as [? [? ?]].
-            do 2 eexists; econstructor; eauto.
+          left; do 2 try split; auto.
+          (* + destruct msim_nonemp as [? [? ?]].
+            do 2 eexists; econstructor; eauto. *)
           + inversion 1; subst. rewrite PositiveMap.grs. auto.
           + rewrite PositiveMap.grs. auto.
         - (* ustep *)
@@ -448,21 +437,21 @@ Module RGISimulation.
           specialize (msim_ustep _ _ _ _ Hstep0) as [Δ' [? [? ?]]].
           exists Δ'.
           do 2 (split; auto).
-          split; [inversion H1; eauto|].
+          (* split; [inversion H1; eauto|]. *)
           right.
           exists {| ts_op := f'; ts_prog := p'; ts_pend := b' |}.
           simpl.
           split; auto.
           rewrite PositiveMap.gss. auto.
         - (* linstep *)
-          exists Δ0. split; [apply TPSimulation.ac_steps_refl |].
+          exists Δ0. split; [apply ac_steps_refl |].
           split; eauto.
         - (* tau *)          
           inversion Hstep; subst.
           rewrite Hfindc in Hfind. inversion Hfind; subst.
           inversion Hstep0; subst; simpl in *.
           inversion Hmsim; [exfalso; eapply Hpnoerror; eauto|].
-          split; eauto.
+          (* split; eauto. *)
           apply msim_taustep in Hstep0. 
           right.
           exists {| ts_op := f; ts_prog := p; ts_pend := b |}.
@@ -471,14 +460,14 @@ Module RGISimulation.
         - (* invariant *)
           inversion Hmsim; auto.
         - (* rely *)
-          split.
+          (* split.
           + destruct Hrgi.
-            apply HInonemp0 in Hinvariant; auto.
-          + right.
-            exists ts.
-            split; auto.
-            inversion Hmsim; [exfalso; eapply Hpnoerror; eauto|].
-            auto.
+            apply HInonemp0 in Hinvariant; auto. *)
+          right.
+          exists ts.
+          split; auto.
+          inversion Hmsim; [exfalso; eapply Hpnoerror; eauto|].
+          auto.
         - (* noerror *)
           intros ?.
           inversion H; subst. simpl in *.
