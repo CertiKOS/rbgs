@@ -11,6 +11,8 @@ Require Import LTS.
 
 (* IMPORTANT *)
 (*    
+    It turns out Coq is more stupid than this. Doing the following cannot solve all similar problems.
+
     When a single thread event could have multiple transitions,
     must defined transitions in the following way:
     Variant Step : ... :=
@@ -359,12 +361,16 @@ Module CoinSpec.
   | step_flip_res e t b b':
       e = {| te_tid := t; te_ev := ResEv flip tt |} ->
       StepCoin e b b'
-  | step_read_inv e b t:
+  | step_read_inv b t:
+      StepCoin {| te_tid := t; te_ev := InvEv read |} b b
+  | step_read_res t b:
+      StepCoin {| te_tid := t; te_ev := ResEv read b |} b b
+  (* | step_read_inv e b t:
       e = {| te_tid := t; te_ev := InvEv read |} ->
       StepCoin e b b
   | step_read_res e t b:
       e = {| te_tid := t; te_ev := ResEv read b |} ->
-      StepCoin e b b
+      StepCoin e b b *)
   .
 
   Variant ErrorCoin : @ThreadEvent ECoin -> AState -> Prop :=
@@ -409,13 +415,13 @@ Module CASRegSpec.
   | step_set_res t v w: StepCASReg {| te_tid := t; te_ev := ResEv (set w) tt |} v w
   | step_cas_inv t u v w:
       StepCASReg {| te_tid := t; te_ev := InvEv (cas v w) |} u u
-  | step_cas_res_succ e t v w:
-      e = {| te_tid := t; te_ev := ResEv (cas v w) true |} ->
-      StepCASReg e v w
-  | step_cas_res_fail e t u v w:
+  | step_cas_res_succ t v w b:
+      b = true ->
+      StepCASReg {| te_tid := t; te_ev := ResEv (cas v w) b |} v w
+  | step_cas_res_fail t u v w b:
+      b = false ->
       u <> v ->
-      e = {| te_tid := t; te_ev := ResEv (cas v w) false |} ->
-      StepCASReg e u u
+      StepCASReg {| te_tid := t; te_ev := ResEv (cas v w) b |} u u
   .
 
   Variant ErrorCASReg {A} : @ThreadEvent (ECASReg A) -> AState -> Prop :=
@@ -481,4 +487,3 @@ End CASRegSpec.
   (* Definition VTemplate : @LTS ETemplate := VAE StepTemplate NoError. *)
   
 End TemplateSpec. *)
-

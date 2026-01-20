@@ -482,4 +482,57 @@ Module AssertionsSet.
     Qed.
   End AssertionLemmas.
 
+
+  Ltac pupdate_intros_atomic :=
+    intros;
+    intros σ1 Δ1 Hpre σ2 Hstep;
+    try destruct σ1, σ2;
+    try inversion_step;
+    (* this is the step taken by the encapsulated LTS *)
+    (* do not clear it because information from the pre-condition
+      could help reducing it to extract more conditions *)
+    (* TODO: handle cases where this hypothesis is not named Hstep *)
+    try (inversion Hstep; subst);
+    try inversion_thread_event_eq;
+    repeat match goal with
+    | H : existT _ _ _ = existT _ _ _ |- _ =>
+      dependent destruction H
+    end.
+  
+  Ltac pupdate_start := eexists; split.
+
+  Ltac try_pupdate_start tac :=
+    first [
+      pupdate_start; [idtac tac|] |
+      idtac tac
+    ].
+
+  Ltac pupdate_finish :=
+    first [
+      pupdate_start; [apply rt_refl|] |
+      apply rt_refl
+    ].
+
+  Ltac pupdate_forward t ev :=
+    (* try_pupdate_start *)
+    eapply rt_trans; [
+      constructor;
+      match ev with
+      | InvEv ?op => eapply (Semantics.ps_inv t op); eauto
+      | ResEv ?op ?ret => eapply (Semantics.ps_ret t op ret); eauto;
+            try (rewrite PositiveMap.gss; auto)
+      | _ => fail "Cannot recognize the event."
+      end;
+      try solve [ do 2 constructor; eauto ];
+      try solve [ do 2 econstructor; eauto ]
+    |].
+    
+  Ltac pupdate_trylin_from Hposs :=
+    unshelve eapply (ac_trylin_subset_steps _ _ _ _ _ Hposs);
+    match goal with |- ?G => 
+      match type of G with
+      | Prop => idtac
+      | _ => shelve end
+    end.
+
 End AssertionsSet.

@@ -328,6 +328,9 @@ Module Semantics.
     Definition ac_subset (Δ1 Δ2 : AbstractConfig) : Prop :=
       forall ρ π, Δ1 ρ π -> Δ2 ρ π.
 
+    Definition ac_empty_prop : AbstractConfigProp :=
+      fun _ _ => False.
+
     Variant ac_singleton_prop ρ π : AbstractConfigProp :=
     | ACSingle : ac_singleton_prop ρ π ρ π.
 
@@ -349,7 +352,7 @@ Module Semantics.
     Variant ac_inv_prop (Δ : AbstractConfigProp) t f : AbstractConfigProp :=
     | ACInv ρ π (Hposs : Δ ρ π) :
         ac_inv_prop Δ t f ρ (TMap.add t (ls_inv f) π).
-
+      
     Program Definition ac_inv (Δ : AbstractConfig) t f : AbstractConfig :=
       {| ac_prop := ac_inv_prop Δ t f |}.
     Next Obligation.
@@ -442,6 +445,89 @@ Module Semantics.
       intros. intros ? ? ?.
       econstructor; eauto.
       apply rt_refl.
+    Qed.
+
+    Variant ac_branch_prop (Δ : AbstractConfigProp) ρ π ρ' π' : AbstractConfigProp :=
+    | ACBranch
+      (Hposs : Δ ρ π)
+      (Hpstep : poss_steps (PossOk ρ π) (PossOk ρ' π')):
+      ac_branch_prop Δ ρ π ρ' π' ρ' π'.
+    
+      Program Definition ac_branch (Δ : AbstractConfig) ρ π ρ' π' 
+        (Hposs : Δ ρ π)
+        (Hpstep : poss_steps (PossOk ρ π) (PossOk ρ' π')): AbstractConfig :=
+        {| ac_prop := ac_branch_prop Δ ρ π ρ' π' |}.
+      Next Obligation.
+        exists ρ', π'.
+        econstructor; eauto.
+      Qed.
+      Next Obligation.
+        inversion H; inversion H0; subst.
+        reflexivity.
+      Defined.
+
+    Lemma ac_branch_subset_steps : forall (Δ : AbstractConfig) ρ π ρ' π' 
+        Hposs Hpstep,
+      ac_subset (ac_branch Δ ρ π ρ' π' Hposs Hpstep) (ac_steps Δ).
+    Proof.
+      intros. intros ? ? ?.
+      inversion H; subst.
+      econstructor; eauto.
+    Qed.
+
+    Variant ac_trylin_choice (Δ : AbstractConfig) : (option AbstractConfig) -> Prop :=
+    | ACTrylinContinue Δ' :
+      ac_subset Δ' (ac_steps Δ) ->
+      ac_trylin_choice Δ (Some Δ')
+    | ACTrylinFinish :
+      ac_trylin_choice Δ None.
+
+    Program Definition ac_trylin (Δ : AbstractConfig) ρ π ρ' π' 
+        Hposs Hpstep
+        (oΔ' : option AbstractConfig)
+        (Htrylinchoice : ac_trylin_choice Δ oΔ') : AbstractConfig :=
+      {| ac_prop := match oΔ' with
+                    | Some Δ' => ac_union_prop Δ' (ac_branch Δ ρ π ρ' π' Hposs Hpstep)
+                    | None => ac_branch Δ ρ π ρ' π' Hposs Hpstep
+                    end |}.
+    Next Obligation.
+      destruct oΔ'.
+      - exists ρ', π'. right. econstructor; eauto.
+      - exists ρ', π'. econstructor; eauto.
+    Qed.
+    Next Obligation.
+      inversion Htrylinchoice; subst; simpl in *.
+      - inversion H; inversion H0; subst.
+        + eapply (ac_domexact Δ'); eauto.
+        + apply H1 in H2.
+          inversion H2; inversion H5; subst.
+          apply poss_steps_domexact in Hpstep0, Hpstep1.
+          eapply (ac_domexact Δ) in Hposs0; eauto.
+          etransitivity; eauto.
+          symmetry. etransitivity; eauto.
+        + apply H1 in H5.
+          inversion H2; inversion H5; subst.
+          apply poss_steps_domexact in Hpstep0, Hpstep1.
+          eapply (ac_domexact Δ) in Hposs1; [|exact Hposs0].
+          etransitivity; eauto.
+          etransitivity; eauto. symmetry; auto.
+        + eapply (ac_domexact (ac_branch Δ ρ π ρ' π' Hposs Hpstep)); eauto.
+      - eapply (ac_domexact (ac_branch Δ ρ π ρ' π' Hposs Hpstep)); eauto.
+    Defined.
+
+    Lemma ac_trylin_subset_steps (Δ : AbstractConfig) ρ π ρ' π'
+        Hposs Hpstep
+        (oΔ' : option AbstractConfig)
+        Htrylinchoice :
+      ac_subset (ac_trylin Δ ρ π ρ' π' Hposs Hpstep oΔ' Htrylinchoice) (ac_steps Δ).
+    Proof.
+      intros.
+      intros ? ? ?.
+      inversion Htrylinchoice; subst; simpl in *.
+      - inversion H; subst.
+        + apply H0; auto.
+        + apply ac_branch_subset_steps in H1; auto.
+      - apply ac_branch_subset_steps in H; auto.
     Qed.
 
   End AbstractConfig.

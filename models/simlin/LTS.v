@@ -1,5 +1,6 @@
 Require Import models.EffectSignatures.
 Require Import LinCCAL.
+Require Import Coq.Program.Equality.
 
 Module LTSSpec.
   Import Reg.
@@ -12,6 +13,15 @@ Module LTSSpec.
     Variant Event : Type :=
     | InvEv (op : Sig.op E)
     | ResEv (op : Sig.op E) (ret : Sig.ar op).
+
+    Lemma ResEvInversion : forall op r1 r2,
+      ResEv op r1 = ResEv op r2 ->
+      r1 = r2.
+    Proof.
+      intros.
+      dependent destruction H.
+      auto.
+    Qed.
 
     Record ThreadEvent : Type := {
       te_tid : tid;
