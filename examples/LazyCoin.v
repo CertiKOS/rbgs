@@ -664,17 +664,85 @@ Module OneShotLazyCoinImpl.
             inversion Hstep0; subst; try inversion H5; subst.
             (* succ *)
             {
+              clear H0.
               apply ResEvInversion in H5; subst.
+              destruct H as [[_ ?] | [? [? ?]]]; [|congruence].
+              specialize (H rand) as [ρ [π [Hposs ?]]].
+              pose proof Hposs.
+              eapply H1 in H0 as [? ?]; subst; try congruence.
+              simpl in *; subst.
               
+              pupdate_start.
+
+              pupdate_trylin_from Hposs.
+              pupdate_forward t0 (InvEv read).
+              pupdate_forward t0 (ResEv read rand).
+              pupdate_finish.
+
+              apply ACTrylinFinish.
+
+              do 2 split.
+              - split; [|split]; simpl.
+                + right. eexists; split; eauto.
+                  do 2 eexists; split; econstructor; auto.
+                  apply H2 in Hposs.
+                  eapply rt_trans; do 2 constructor; try do 2 constructor; auto.
+                  rewrite PositiveMap.gss; auto.
+                + congruence.
+                + intros.
+                  dependent destruction H0. eauto.
+              - unfold ALin; simpl.
+                intros. dependent destruction H.
+                rewrite PositiveMap.gss; auto.
+              - unfold domexact_G; simpl.
+                intros. dependent destruction H3.
+                do 2 (rewrite PositiveMap.gso; auto).
+                eapply (ac_domexact Δ1); eauto.
+              - unfold ALin; simpl. intros.
+                dependent destruction H3.
+                do 2 (rewrite PositiveMap.gso; eauto).
             }
             {
+              clear H0.
               inversion H4; subst.
               apply ResEvInversion in H4; subst.
+              destruct H as [[? ?] | [? [? [ρ [π [Hposs ?]]]]]]; try congruence; subst.
+              clear H8.
+              pose proof Hposs.
+              eapply H1 in H as [? ?]; subst; try congruence.
+
+              pupdate_start.
+              apply ac_steps_refl.
               
+              do 2 split; auto.
+              - split; [|split]; simpl.
+                + right. eexists; split; eauto.
+                + congruence.
+                + intros. eapply H1; eauto.
+                  congruence.
+              - unfold domexact_G; simpl. intros.
+                eapply (ac_domexact Δ1); eauto.
             }
           }
+
+          (* return *)
+          destruct ret;
+          eapply provable_ret_safe;
+          try solve_conj_impl;
+          try solve_conj_stable stableDB;
+          try apply ImplRefl.
         }
       }
     }
+    {
+      split; [|split]; simpl.
+      - right. eexists; split; eauto.
+        do 2 eexists; split; try constructor.
+      - congruence.
+      - intros. dependent destruction H0. eauto.
+    }
+  Defined.
 
 End OneShotLazyCoinImpl.
+
+Print Assumptions OneShotLazyCoinImpl.Mcoin.
