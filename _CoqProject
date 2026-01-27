@@ -39,6 +39,8 @@ interfaces/Adjunctions.v
 interfaces/Monads.v
 interfaces/LiftMonad.v
 
+models/logics/SeparationAlgebra.v
+models/logics/Logics.v
 
 models/simlin/LTS.v
 examples/Specs.v

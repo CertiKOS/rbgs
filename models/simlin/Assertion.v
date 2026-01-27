@@ -77,6 +77,7 @@ Module Assertions (PS : ProofState).
   Notation "R ⊆ S" := (Subset R S) (at level 70) : rg_relation_scope.
   Notation "R ∪ S" := (Union R S) (at level 50) : rg_relation_scope.
   Notation "R ∩ S" := (Inter R S) (at level 40) : rg_relation_scope.
+  Notation "R ○ S" := (ComposeR S R) (at level 30) : rg_relation_scope.
 
 
   Delimit Scope assertion_scope with Assertion.
@@ -87,7 +88,6 @@ Module Assertions (PS : ProofState).
   Notation "P ==>> Q" := (Imply P Q) (at level 70) : assertion_scope.
   Notation "P <<==>> Q" := (Imply P Q //\\ Imply Q P)%Assertion (at level 80) : assertion_scope.
   Notation "R ⊚ P" := (ComposeA P R) (at level 30) : assertion_scope.
-  Notation "R ○ S" := (ComposeR S R) (at level 30) : assertion_scope.
   Notation "⊨ P" := (forall s, P s) (at level 100) : assertion_scope.
   (* \ulcorner \urcorner *)
   Notation "⌜ P ⌝" := (APure P) (at level 1, format "⌜ P ⌝") : assertion_scope.
