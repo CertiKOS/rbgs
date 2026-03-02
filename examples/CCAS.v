@@ -214,6 +214,7 @@ Module CCASImpl.
   Definition G_trylin : rg_relation :=
     fun s1 s2 =>
       (Δ s1 ⊆ Δ s2)%AbstractConfig /\
+      (forall t f r, ALin t (ls_linr f r) s1 -> ALin t (ls_linr f r) s2) /\
       (exists t o n i, CurrentTask (CTask t o n i) s1) /\
       forall cts1 cts2,
         cts1 = state (fst (σ s1)) ->
@@ -284,13 +285,21 @@ Module CCASImpl.
       Δ s1 ≡ Δ s2 /\
       OwnedBy i t s1. *)
 
-  Definition G t : rg_relation :=
-    G_alloc t ∪ G_place_task t ∪ G_trylin ∪ G_resolve.
+  Definition G_id : rg_relation :=
+    fun s1 s2 =>
+      state (fst (σ s1)) = state (fst (σ s2)) /\
+      state (snd (σ s1)) = state (snd (σ s2)) /\
+      Δ s1 ≡ Δ s2.
 
-  (* only the owner can place the task *)
+  Definition G t : rg_relation :=
+    G_id ∪ G_alloc t ∪ G_place_task t ∪ G_trylin ∪ G_resolve.
+
   Definition R_task t : rg_relation :=
-    fun s1 s2 => forall o n i,
-      ~ CurrentTask (CTask t o n i) s1 -> ~ CurrentTask (CTask t o n i) s2.
+    fun s1 s2 =>
+      (* only the owner can place the task *)
+      (forall o n i, CurrentTask (CTask t o n i) s2 -> CurrentTask (CTask t o n i) s1) /\
+      (* no one removing any task *)
+      (forall t o n i, CurrentTask (CTask t o n i) s1 -> CurrentTask (CTask t o n i) s2).
 
   Definition R_IsExpired : rg_relation :=
     fun s1 s2 => forall i, IsExpired i s1 -> IsExpired i s2.
@@ -310,7 +319,12 @@ Module CCASImpl.
   Lemma RG_compatible : forall t1 t2, t1 <> t2 -> (G t1 ⊆ R t2).
   Proof.
     intros. intros s1 s2 ?.
-    destruct H1 as [[[? | ?] | ?] | ?].
+    destruct H1 as [[[[? | ?] | ?] | ?] | ?].
+    - destruct H1 as [? [? ?]].
+      unfold R, R_IsExpired, IsExpired, R_notplaced, NotPlacedBy, OwnedBy, Neg, CurrentTask, Conj, Forall.
+      split; [split; rewrite H1; eauto|].
+      do 2 left. unfold R_task, R_id, CurrentTask. split; try rewrite H1; try tauto.
+      split; intros [? [? [? ?]]]; apply H3 in H4; do 2 eexists; eauto.
     - destruct H1 as [? ?].
       specialize (H2 _ _ eq_refl eq_refl) as [? [? [? ?]]].
       split;[split|].
@@ -326,7 +340,7 @@ Module CCASImpl.
         subst. congruence.
       + do 2 left. split.
         * unfold R_task, CurrentTask, Forall.
-          rewrite H2. auto.
+          rewrite H2. tauto.
         * unfold R_id, ALinEx.
           split; intros [? [? [HΔ ?]]];
           apply H1 in HΔ; do 2 eexists; eauto.
@@ -341,14 +355,14 @@ Module CCASImpl.
         eapply CurrentTaskCongruence in H2; eauto.
         congruence.
       + do 2 left. split.
-        * unfold R_task.
-          intros ? ? ? _ ?.
+        * split; intros.
           eapply CurrentTaskCongruence in H2; eauto. congruence.
+          eapply TaskValConflict in H1; eauto; inversion H1.
         * unfold R_id, ALinEx.
           split; intros [? [? [HΔ ?]]];
           apply H3 in HΔ; do 2 eexists; eauto.
     - split; [|left; right; auto].
-      destruct H1 as [? [[? [? [? [? ?]]]] ?]].
+      destruct H1 as [? [_ [[? [? [? [? ?]]]] ?]]].
       specialize (H3 _ _ eq_refl eq_refl) as [? [? ?]].
       split.
       + unfold R_IsExpired, IsExpired.
@@ -391,7 +405,7 @@ Module CCASImpl.
         eapply ac_domexact; eauto.
     (* - destruct H0 as (t & o & n & i & [_ [_ [_ ?]]]).
       split; intros; apply H0 in H3; eapply H2; eauto. *)
-    - destruct H0 as [HΔ [[t [o [n [i ?]]]] ?]].
+    - destruct H0 as [HΔ [_ [[t [o [n [i ?]]]] ?]]].
       specialize (H2 _ _ eq_refl eq_refl) as [? [? ?]].
       split; intros.
       + epose proof ac_nonempty (Δ s1) as [ρ1 [π1 ?]].
@@ -537,7 +551,44 @@ Module CCASImpl.
       rewrite Hσ in *. eauto.
   Qed.
 
-
+  Lemma G_id_I : ⊨ G_id ⊚ I ==>> I.
+  Proof.
+    intros s [s' [? ?]].
+    destruct H1 as [? [? ?]].
+    unfold I, I_ρ_atomic, I_flag, I_val, I_cur_task, I_not_cur_task, ticket_not_owned, Conj, Forall, NotDone, CurrentVal, CurrentTask, OwnedBy,
+    ALinIdle, ALinEx, Neg, IsInactive in *.
+    rewrite H1, H2 in *.
+    split; [intros ? ? HΔ; apply H3 in HΔ; extract 0%nat H0; eauto|].
+    split; [intros ? ? HΔ; apply H3 in HΔ; extract 1%nat H0; eauto|].
+    split; [intros ? ? ? ? HΔ; apply H3 in HΔ; extract 2%nat H0; eauto|].
+    split.
+    {
+      intros. intros ?.
+      extract 3 H0.
+      rewrite <- H1 in *.
+      apply H0 in H4 as [? [? ?]].
+      split; eauto.
+      split.
+      - intros ?. apply H5.
+        destruct H7 as [? [? [? ?]]].
+        apply H3 in H7; eauto.
+      - destruct H6 as [? [? [? [? ?]]]].
+        apply H3 in H6. eauto.
+    }
+    split.
+    {
+      intros. intros ?.
+      extract 4 H0.
+      rewrite <- H1 in *.
+      apply H0 in H4 as [? ?].
+      exists x. intros.
+      apply H3 in H5; eauto.
+    }
+    extract 5 H0. eauto.
+  Qed.
+  
+  Lemma G_id_G : forall s1 s2 t, G_id s1 s2 -> G t s1 s2.
+  Proof. do 4 left; auto. Qed.
 
   Lemma Istable {t} : Stable (R t) I I.
   Proof. unfold Stable. apply ConjRightImpl, ImplRefl. Qed.
@@ -564,14 +615,14 @@ Module CCASImpl.
     unfold Stable, R.
     intros. intros [[s0 [? [? ?]]] ?].
     destruct H2 as [[? | ?] | ?].
-    - apply H1, H0.
-    - destruct H2 as [? [? [? [? [? [? ?]]]]]].
+    - intros ?. apply H2, H0 in H4. auto.
+    - destruct H2 as [? [_ [[? [? [? [? ?]]]] ?]]].
+      specialize (H5 _ _ eq_refl eq_refl) as [? [? ?]].
+      unfold CurrentTask, Neg in *.
+      rewrite H5 in *. eauto.
+    - destruct H2 as [[? ?] [? [? [? [? [? [? ?]]]]]]].
       intros ?.
-      pose proof CurrentTaskCongruence _ _ _ H4 H6.
-      inversion H7; subst. congruence.
-    - destruct H2 as (? & ? & ? & ? & [? [[? ?] [? ?]]]).
-      intros ?.
-      eapply TaskValConflict in H4; eauto.
+      eapply TaskValConflict in H2; eauto.
   Qed.
 
   Lemma stable_not_cur_task_oni : forall t,
@@ -607,61 +658,178 @@ Module CCASImpl.
       assert (ALinEx t0 (TMap.find t0 π) s); [do 2 eexists; eauto|].
       apply H4 in H8.
       eapply ALinExCongruence in H8; eauto.
-    - destruct H4 as [? [? [? [? [? [? ?]]]]]].
+    - destruct H4 as [? [_ [[? [? [? [? ?]]]] ?]]].
+      specialize (H7 _ _ eq_refl eq_refl).
       apply H5 in H1 as [? ?].
       pose proof ac_nonempty (Δ s0) as [? [? ?]].
       pose proof H8.
-      apply H7 in H8.
+      apply H4 in H8.
       apply H0 in H9.
       intros ? ? ?.
       apply H1 in H10, H8.
       change (li_sig F) with (ECCAS Val) in H8.
       rewrite H8 in H9; subst.
       rewrite H9 in H10; auto.
-    - destruct H4 as (? & ? & ? & ? & [? [[? ?] [? ?]]]).
-      destruct H8 as [ρ [π [? [? ?]]]].
+    - destruct H4 as [[? ?] [? [? [? [? [? [? ?]]]]]]].
+      destruct H7 as [ρ [π [? [? ?]]]].
       intros ? ? ?.
-      apply H8, H9, H0 in H11; auto.
+      apply H7, H9, H0 in H11; auto.
   Qed.
 
-  Lemma stable_ccas_l1: forall t i,
-    Stable (R t) I
-      (!! IsExpired i //\\ ∀ o n, !! CurrentTask (CTask t o n i)).
+  Lemma stable_notplaced: forall t i,
+    Stable (R t) I (NotPlacedBy i t).
   Proof.
     unfold Stable, R.
     intros. intros ?.
-    assert ((∀ (o0 n0 : Val) (i : nat), !! CurrentTask (CTask t0 o0 n0 i)) s);
-    [eapply StableWeaken; eauto;[apply stable_not_cur_task_oni| |]; solve_conj_impl |].
-    split; auto.
-    destruct H0 as [[s0 [[? ?] [? ?]]] ?].
-    destruct H4 as [[? | ?] | ?].
-    - unfold R_id in H4.
-      intros ? ? ?.
-      assert (TMap.find t0 π = Some (ls_inv (cas o n)) \/ TMap.find t0 π <> Some (ls_inv (cas o n))) as [? | ?] by apply classic; auto.
-      assert (ALinEx t0 (TMap.find t0 π) s); [do 2 eexists; eauto|].
-      apply H4 in H8.
-      eapply ALinExCongruence in H8; eauto.
-    - destruct H4 as [? [? [? [? [? [? ?]]]]]].
-      apply H5 in H1 as [? ?].
-      pose proof ac_nonempty (Δ s0) as [? [? ?]].
-      pose proof H8.
-      apply H7 in H8.
-      apply H0 in H9.
-      intros ? ? ?.
-      apply H1 in H10, H8.
-      change (li_sig F) with (ECCAS Val) in H8.
-      rewrite H8 in H9; subst.
-      rewrite H9 in H10; auto.
-    - destruct H4 as (? & ? & ? & ? & [? [[? ?] [? ?]]]).
-      destruct H8 as [ρ [π [? [? ?]]]].
-      intros ? ? ?.
-      apply H8, H9, H0 in H11; auto.
+    destruct H0 as [[? [? [[_ ?] _]]] ?].
+    eauto.
   Qed.
 
-    Open Scope nat.
 
 
+  Open Scope nat.
+
+  Definition TaskCompleted t o n i : assertion :=
+    IsExpired i //\\ (ALinIdle t \\// ALin t (ls_linr (cas o n) o)).
+
+  Definition TaskPlaced t o n i : assertion :=
+    (CurrentTask (CTask t o n i) //\\ NotDone t o n).
             
+  Lemma stable_alinr : forall t f r,
+    Stable (R t) I (ALin t (ls_linr f r)).
+  Proof.
+    intros.
+    unfold Stable, R.
+    intros. intros ?.
+    destruct H0 as [[s' [? [[? ?] [[[? ?] | ?] | ?]]]] ?].
+    - unfold R_id in H4.
+      intros ? ? ?.
+      assert (ALinEx t0 (TMap.find t0 π) s) by (do 2 eexists; eauto).
+      apply H4 in H7 as [? [? [? ?]]].
+      apply H0 in H7. rewrite <- H8. auto.
+    - apply H3; auto.
+    - destruct H3 as [_ [? [? [? [? [_ [? _]]]]]]].
+      destruct H3 as [? [? [? [? ?]]]].
+      intros ? ? ?.
+      apply H3, H5, H0 in H7. auto.
+  Qed.
+
+  Lemma stable_task_completed : forall t o n i,
+    Stable (R t) I (TaskCompleted t o n i).
+  Proof.
+    intros.
+    unfold Stable, R.
+    intros. intros ?.
+    destruct H0 as [[s' [H [[? ?] ?]]] HI].
+    split; [apply H0, H|].
+    destruct H2 as [[[? ?] | ?] | ?].
+    - destruct H as [_ [? | ?]].
+      * left. apply H3. auto.
+      * right. apply stable_alinr; split; auto; eexists.
+        split; eauto. split; [split; eauto|].
+        do 2 left; split; auto.
+    - destruct H2 as [? [? [? ?]]].
+      destruct H as [_ [? | ?]].
+      + left. destruct H6 as [? [? [? ?]]].
+        apply H2 in H6.
+        do 2 eexists; eauto.
+      + right. apply H3; auto.
+    - destruct H2 as [? [? [? [? [? [? [? _]]]]]]].
+      destruct H4 as [? [? [? [? ?]]]].
+      destruct H as [_ [? | ?]].
+      + destruct H7 as [? [? [? ?]]].
+        left. exists x3, x4; split; try (apply H4; constructor).
+        eapply ac_domexact; eauto.
+        apply H5; constructor.
+      + right. intros ? ? ?.
+        apply H4, H5, H7 in H8. auto.
+  Qed.
+  
+  Lemma stable_task_placed : forall t o n i,
+    Stable (R t) I (TaskCompleted t o n i \\// TaskPlaced t o n i).
+  Proof.
+    intros.
+    unfold Stable.
+    intros. intros ?.
+    destruct H0 as [[s' [? ?]] HI].
+    destruct H0; [left; apply stable_task_completed; split; auto; eexists; eauto|].
+    destruct H1 as [[? ?] [[[? ?] | ?] | ?]].
+    - right.
+      assert (CurrentTask (CTask t0 o n i) s) by apply H3, H0.
+      split; auto.
+      apply HI in H5. apply H5.
+    - destruct H3 as [? [? [? ?]]].
+      specialize (H6 _ _ eq_refl eq_refl) as [? [? ?]].
+      right. 
+      assert (CurrentTask (CTask t0 o n i) s).
+      {
+        unfold CurrentTask, Conj.
+        rewrite <- H6. apply H0.
+      }
+      split; auto.
+      apply HI in H9. apply H9.
+    - left.
+      destruct H3 as [? [? [? [? [? [? [? ?]]]]]]].
+      specialize (H6 _ _ eq_refl eq_refl) as [? [? ?]].
+      split.
+      + unfold IsExpired.
+        rewrite H8.
+        destruct H0.
+        eapply CurrentTaskCongruence in H0; eauto.
+        inversion H0; subst.
+        unfold owner_upd. rewrite Nat.eqb_refl. auto.
+      + right. intros ? ? ?.
+        destruct H5 as [? [? [? [? ?]]]].
+        apply H5 in H9. inversion H9; subst.
+        destruct H0.
+        eapply CurrentTaskCongruence in H0; eauto.
+        inversion H0; subst. auto.
+  Qed.
+
+  Lemma stable_task_placed_other : forall t t' o' n' i',
+    Stable (R t) I (IsExpired i' \\// TaskPlaced t' o' n' i').
+  Proof.
+    intros.
+    unfold Stable.
+    intros. intros ?.
+    destruct H0 as [[s' [? ?]] HI].
+    destruct H0; [left; apply H1; auto|].
+    destruct H1 as [[? ?] [[[? ?] | ?] | ?]].
+    - right.
+      assert (CurrentTask (CTask t' o' n' i') s) by apply H3, H0.
+      split; auto.
+      apply HI in H5. apply H5.
+    - destruct H3 as [? [? [? ?]]].
+      specialize (H6 _ _ eq_refl eq_refl) as [? [? ?]].
+      right.
+      assert (CurrentTask (CTask t0 o n i) s).
+      {
+        unfold CurrentTask, Conj.
+        rewrite <- H6. apply H0.
+      }
+      split; auto.
+      apply HI in H9. apply H9.
+    - left.
+      destruct H3 as [? [? [? [? [? [? [? ?]]]]]]].
+      specialize (H6 _ _ eq_refl eq_refl) as [? [? ?]].
+      split.
+      + unfold IsExpired.
+        rewrite H8.
+        destruct H0.
+        eapply CurrentTaskCongruence in H0; eauto.
+        inversion H0; subst.
+        unfold owner_upd. rewrite Nat.eqb_refl. auto.
+      + right. intros ? ? ?.
+        destruct H5 as [? [? [? [? ?]]]].
+        apply H5 in H9. inversion H9; subst.
+        destruct H0.
+        eapply CurrentTaskCongruence in H0; eauto.
+        inversion H0; subst. auto.
+  Qed.
+
+
+    
+
 
   (* cid_not_idle := (cid = t //\\ ~ ALinIdle t) \\// cid <> t *)
   (* task_placed t o n i :=
@@ -748,7 +916,9 @@ Module CCASImpl.
   
   
   Create HintDb stableDB.
-  Hint Resolve stable_ccas_l0 Istable : stableDB.
+  Hint Resolve stable_ccas_l0 Istable stable_notplaced stable_alinr
+    stable_task_completed stable_task_placed
+  : stableDB.
 
   (* Ltac extract n H :=
     (* let Hneed := fresh "H" in *)
@@ -759,6 +929,20 @@ Module CCASImpl.
           extract n' H
     end;
     try destruct H as [H _]. *)
+
+  Lemma conj_from_imp : forall (P Q : Prop), P -> (P -> Q) -> P /\ Q.
+  Proof. eauto. Qed.
+  
+  Lemma conj_right_imp {P Q R : Prop} :
+    (Q -> R) -> (P /\ Q) -> (P /\ R).
+  Proof. tauto. Qed.
+
+  Ltac post_pupdate_id :=
+    eapply conj_right_imp; [apply G_id_G |];
+            apply and_comm, conj_from_imp; intros.
+
+  Ltac simpl_all :=
+      unfold I, I_ρ_atomic, I_flag, I_val, I_cur_task, I_not_cur_task, ticket_not_owned, NotDone, NotPlacedBy, CurrentVal, CurrentTask, OwnedBy, ALinIdle, ALin, ALinEx, Neg, IsInactive, Conj, Forall, Imply, owner_upd in *; simpl in *.
 
     
   Program Definition MCCAS : layer_implementation E F := {|
@@ -780,21 +964,29 @@ Module CCASImpl.
       destruct H1 as [[? | ?] | ?].
       - unfold GINV, Ginv, LiftRelation_Δ in *.
         destruct H1 as [? [? [? ?]]].
-        split; [unfold R_task, CurrentTask; rewrite H1; auto|].
-        do 2 left.
-        unfold R_id. intros; split; intros [ρ [π [? ?]]].
-        + pose proof ACInv (Δ s1) t1 x _ _ H4.
-          apply H3 in H6.
-          exists ρ, (TMap.add t1 (ls_inv x) π); split; auto.
-          rewrite TMap.gso; auto.
-        + apply H3 in H4.
-          inversion H4; subst.
-          exists ρ, π0; split; auto.
-          rewrite TMap.gso; auto.
+        split.
+        + unfold R_IsExpired, R_notplaced, IsExpired, NotPlacedBy, CurrentTask, OwnedBy, Neg, Forall, Conj.
+          split; intros; simpl;
+          rewrite H1 in *; auto.
+        + do 2 left.
+          unfold R_id, R_task, CurrentTask.
+          split; [rewrite H1; intros; tauto|].
+          split; intros [ρ [π [? ?]]].
+          * pose proof ACInv (Δ s1) t1 x _ _ H4.
+            apply H3 in H6.
+            exists ρ, (TMap.add t1 (ls_inv x) π); split; auto.
+            rewrite TMap.gso; auto.
+          * apply H3 in H4.
+            inversion H4; subst.
+            exists ρ, π0; split; auto.
+            rewrite TMap.gso; auto.
       - unfold GRET, Gret, LiftRelation_Δ in *.
         destruct H1 as [? [? [? [? ?]]]].
-        split; [unfold R_task, CurrentTask; rewrite H1; auto|].
+        split; [unfold R_IsExpired, R_notplaced, IsExpired, NotPlacedBy, CurrentTask, OwnedBy, Neg, Forall, Conj;
+          split; intros; simpl;
+          rewrite H1 in *; auto|].
         do 2 left.
+        split; [unfold R_task, CurrentTask; rewrite H1; tauto|].
         unfold R_id. intros; split; intros [ρ [π [? ?]]].
         + pose proof ACRes (Δ s1) t1 _ _ H4.
           apply H3 in H6.
@@ -805,8 +997,8 @@ Module CCASImpl.
           exists ρ, π0; split; auto.
           rewrite TMap.gro; auto.
       - unfold GId in H1; subst.
-        split; unfold R_task; auto.
-        do 2 left. unfold R_id; intros; tauto.
+        split; [unfold R_IsExpired, R_notplaced, IsExpired, NotPlacedBy, CurrentTask, OwnedBy, Neg, Forall, Conj; split; auto|].
+        do 2 left. unfold R_task, R_id; split; intros; tauto.
     }
     (* method provable *)
     {
@@ -825,7 +1017,7 @@ Module CCASImpl.
         exists (fun r => I //\\ ALin t (ls_linr (cas o n) r)).
         constructor;
         try solve_conj_impl;
-        try solve_conj_stable' stableDB.
+        try solve_stable stableDB.
         (* invocation *)
         {
           intros ? ?.
@@ -859,13 +1051,89 @@ Module CCASImpl.
                 ALin t (ls_inv (cas o n)) //\\
                 (∀ (o0 n0 : Val) (i : nat), !! CurrentTask (CTask t o0 n0 i)))
           (Q' := fun i => I //\\
-                ALin t (ls_inv (cas o n)) //\\
-                !! IsExpired (i) //\\
-                (∀ (o0 n0 : Val), !! CurrentTask (CTask t o0 n0 i)));
+                (ALin t (ls_inv (cas o n)) //\\ (∀ (o0 n0 : Val) (i : nat), !! CurrentTask (CTask t o0 n0 i))) //\\
+                NotPlacedBy i t);
           try solve_no_error;
           try solve_conj_impl;
-          try solve_conj_stable stableDB.
-          [solve_no_error | | |].
+          try solve_stable stableDB.
+          (* inv *)
+          {
+            pupdate_intros_atomic.
+            dependent destruction Hstep.
+
+            pupdate_start.
+            apply ac_steps_refl.
+
+            post_pupdate_id.
+            { unfold G_id; simpl; do 2 (split; auto); reflexivity. }
+            destruct Hpre as [? [? ?]].
+            split; [apply G_id_I; eexists; eauto|].
+            unfold ALin, CurrentTask, Neg, Conj, Forall in *.
+            split; eauto.
+          }
+          (* res *)
+          {
+            pupdate_intros_atomic.
+            dependent destruction Hstep.
+            pupdate_start.
+            apply ac_steps_refl.
+
+            destruct Hpre as [[? [? [? [? [? ?]]]]] [? ?]].
+            split.
+            - split; [|simpl_all; rewrite Nat.eqb_refl; do 2 split; eauto].
+              do 3 (split; auto).
+              split;[|split; auto].
+              + unfold I_cur_task in *.
+                intros t0 o0 n0 i ?.
+                apply H3 in H8 as [? [? ?]].
+                clear - H8 H9 H10 H5.
+                simpl_all.
+                destruct (Nat.eqb_spec ret i); auto; subst.
+                assert (i <= i) by lia. apply H5 in H0. congruence.
+              + clear - H5.
+                simpl_all. intros.
+                destruct (Nat.eqb_spec ret i); auto; subst; try lia.
+                assert (ret <= i) by lia. auto.
+            - do 3 left; right.
+              unfold G_alloc; simpl.
+              split; [reflexivity|].
+              intros; subst; simpl.
+              do 3 (split; auto).
+              apply H5. simpl. lia.
+          }
+
+          intros i.
+          eapply provable_seq with
+            (Q' := fun r =>
+                        I //\\
+                        ((⌜r <> o⌝ //\\ ALin t (ls_linr (cas o n) o)) \\//
+                        (⌜r = o⌝ //\\ TaskPlaced t o n i))).
+          (* loop *)
+          {
+            eapply provable_doloop;
+            try solve_conj_impl;
+            try solve_stable stableDB.
+            remember ((ALin t (ls_inv (cas o n)) //\\
+                  (∀ (o0 n0 : Val) (i0 : nat), !! CurrentTask (CTask t o0 n0 i0))) //\\ NotPlacedBy i t) as ILoop.
+            (* try place task *)
+            eapply provable_vis_safe with
+              (P' := I //\\ ILoop)
+              (Q' := fun r => I //\\
+                      match r with
+                      | inl (CTask t0 n0 o0 i0) => ILoop //\\ TaskPlaced t0 n0 o0 i0
+                      | inr v =>
+                          (⌜v <> o⌝ //\\ ALin t (ls_linr (cas o n) o) \\//
+                          ⌜v = o⌝ //\\ TaskPlaced t o n i)
+                      end);
+            try solve_no_error;
+            try solve_conj_impl;
+            try (subst; solve_stable stableDB).
+            (* post stable *)
+            {
+              destruct a; [destruct c|]; subst.
+              2:{ solve_stable stableDB.
+            }
+          }
       }
     }
 

@@ -174,6 +174,24 @@ Module Assertions (PS : ProofState).
       eexists. split; eauto.
     Qed.
 
+    Lemma DisjStable {R I P Q}:
+      Stable R I P ->
+      Stable R I Q ->
+      Stable R I (P \\// Q).
+    Proof.
+      intros. intros ? [[? [? ?]] ?].
+      destruct H1.
+      - left. apply H; split; auto. eexists; eauto.
+      - right. apply H0; split; auto. eexists; eauto.
+    Qed.
+
+    Lemma APureStable {R I P}:
+      Stable R I (⌜P⌝).
+    Proof.
+      intros. intros ? [[? [? ?]] ?].
+      unfold APure in *. auto.
+    Qed.
+
     Lemma ImplDisjFrame {P1 P3: @Assertion (@ProofState E F VE VF)} : forall P2,
       (⊨ P1 ==>> P2) ->
       ⊨ P1 \\// P3 ==>> P2 \\// P3.
@@ -250,26 +268,24 @@ Module Assertions (PS : ProofState).
         end
       end.
 
-    Ltac solve_conj_stable' hint_db :=
+    Ltac solve_stable hint_db :=
       intros;
       match goal with
       | |- Stable _ _ ?P =>
         solve [ eauto with hint_db ] ||
         match P with
+        | ⌜?P⌝ => apply APureStable
+        | ?P1 \\// ?P2 =>
+            apply DisjStable; solve_stable hint_db
         | ?P1 //\\ ?P2 =>
-            apply ConjStableWeaken;
-            (eapply StableWeaken;
-              [ typeclasses eauto with hint_db
-                | solve_conj_impl
-                | solve_conj_impl ])
-            (* apply ConjStableWeaken;
             first [
-              auto |
-              eapply StableWeaken;
-              (* the backtracking is not properly triggered *)
-              (* it seems eauto determines the lemma before solve_conj_impl *)
-              [solve [eauto with hint_db] | solve_conj_impl | solve_conj_impl]
-            ] *)
+              apply ConjStable; solve_stable hint_db |
+              apply ConjStableWeaken;
+              (eapply StableWeaken;
+                [ typeclasses eauto with hint_db
+                  | solve_conj_impl
+                  | solve_conj_impl ])
+            ]
         | _ => fail
         end
       end.
