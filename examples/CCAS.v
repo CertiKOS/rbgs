@@ -376,8 +376,8 @@ Module CCASImpl.
     (forall (ρ1 : State (li_lts F)) (π1 : tmap LinState), Δ s1 ρ1 π1 -> TMap.find t0 π1 = None) <->
     (forall (ρ2 : State (li_lts F)) (π2 : tmap LinState), Δ s2 ρ2 π2 -> TMap.find t0 π2 = None).
   Proof.
-    destruct 1 as [HR_task [[? | ?] | ?]]; intros.
-    - unfold R_id in H0.
+    destruct 1 as [[HR_expire HR_notplaced] [[? | ?] | ?]]; intros.
+    - destruct H0 as [R_task ?]. unfold R_id in H0.
       split; intros.
       + pose proof ac_nonempty (Δ s1) as [ρ1 [π1 ?]].
         specialize (H2 _ _ H4).
@@ -391,15 +391,16 @@ Module CCASImpl.
         eapply ac_domexact; eauto.
     (* - destruct H0 as (t & o & n & i & [_ [_ [_ ?]]]).
       split; intros; apply H0 in H3; eapply H2; eauto. *)
-    - destruct H0 as (t & o & n & i & _ & _ & ?).
+    - destruct H0 as [HΔ [[t [o [n [i ?]]]] ?]].
+      specialize (H2 _ _ eq_refl eq_refl) as [? [? ?]].
       split; intros.
       + epose proof ac_nonempty (Δ s1) as [ρ1 [π1 ?]].
-        pose proof (H0 _ _ H4).
-        apply H2 in H4.
+        pose proof (HΔ _ _ H7).
+        apply H5 in H7.
         eapply ac_domexact; eauto.
-      + apply H0 in H3.
-        apply H2 in H3; auto.
-    - destruct H0 as (t & o & n & i & _ & _ & [ρ [π [? [? [? ?]]]]]).
+      + apply HΔ in H6.
+        eapply H5; eauto.
+    - destruct H0 as [_ [t [o [n [i [_ [[? [? [? [? ?]]]] _]]]]]]].
       split; intros.
       + epose proof ACSingle.
         apply H2, H4 in H6.
@@ -432,6 +433,109 @@ Module CCASImpl.
     G_trylin  : current' = CTask t _ _ _ /\ forall π ∈ Δ, π ∈ Δ'
     G_resolve : current = CTask t o _ i /\ IsExpired'(i)
   *)
+
+  Lemma Ginv_I : forall t f, ⊨ Ginv t f ⊚ I ==>> I.
+  Proof.
+    intros. intros [s' [HI [Hσ [? HΔ]]]].
+    unfold I in *.
+    split_right.
+    - extract 0%nat HI. unfold I_ρ_atomic in *.
+      intros.
+      apply HΔ in H1. inversion H1; subst.
+      eapply HI; eauto.
+    - extract 1%nat HI. unfold I_flag in *.
+      intros.
+      apply HΔ in H1. inversion H1; subst.
+      rewrite Hσ in *.
+      eapply HI; eauto.
+    - extract 2%nat HI. unfold I_val, CurrentVal in *.
+      intros.
+      apply HΔ in H2. inversion H2; subst.
+      rewrite Hσ in *.
+      eapply HI; eauto.
+    - extract 3 HI. unfold I_cur_task, CurrentTask in *.
+      intros ? ? ? ? ?.
+      rewrite <- Hσ in *. apply HI in H1.
+      split_right; unfold IsExpired, ALinIdle, NotDone in *.
+      + extract 0%nat H1. unfold OwnedBy in *. rewrite <- Hσ in *. auto.
+      + extract 1%nat H1. intros [? [? [? ?]]]. apply H1.
+        apply HΔ in H2. inversion H2; subst.
+        do 2 eexists; split; eauto.
+        rewrite TMap.gso in H3; auto.
+        intros ?; subst.
+        rewrite TMap.gss in H3. congruence.
+      + destruct H1 as [_ [_ [? [? [? [? ?]]]]]].
+        exists x, (TMap.add t0 (ls_inv f) x0); split_right; auto.
+        * apply HΔ. constructor; auto.
+        * rewrite TMap.gso; auto.
+          intros ?; subst.
+          apply H0 in H1; congruence.
+    - extract 4 HI. unfold I_not_cur_task, CurrentTask in *.
+      intros ? ?. unfold Forall, Neg in H1. rewrite <- Hσ in H1.
+      apply HI in H1 as [? ?].
+      destruct (Pos.eq_dec v t0); subst.
+      + exists (Some (ls_inv f)); intros.
+        apply HΔ in H2; inversion H2; subst.
+        rewrite TMap.gss; auto.
+      + exists x; intros.
+        apply HΔ in H2; inversion H2; subst.
+        rewrite TMap.gso; eauto.
+    - extract 5 HI. unfold ticket_not_owned, IsInactive in *.
+      rewrite Hσ in *. apply HI.
+  Qed.
+
+  Lemma Gret_I : forall t f ret,
+    ⊨ Gret t f ret ⊚ (I //\\ ALin t (ls_linr f ret)) ==>> I.
+  Proof.
+    intros. intros [s' [[HI HALin] [Hσ [? HΔ]]]].
+    unfold I in *.
+    split_right.
+    - extract 0%nat HI. unfold I_ρ_atomic in *.
+      intros.
+      apply HΔ in H1. inversion H1; subst.
+      eapply HI; eauto.
+    - extract 1%nat HI. unfold I_flag in *.
+      intros.
+      apply HΔ in H1. inversion H1; subst.
+      rewrite Hσ in *.
+      eapply HI; eauto.
+    - extract 2 HI. unfold I_val, CurrentVal in *.
+      intros.
+      apply HΔ in H2. inversion H2; subst.
+      rewrite Hσ in *.
+      eapply HI; eauto.
+    - extract 3 HI. unfold I_cur_task, CurrentTask in *.
+      intros ? ? ? ? ?.
+      rewrite <- Hσ in *. apply HI in H1.
+      split_right; unfold IsExpired, ALinIdle, NotDone in *.
+      + extract 0%nat H1. unfold OwnedBy in *. rewrite <- Hσ in *. auto.
+      + pose proof H1. extract 1%nat H1. destruct H2 as [_ [_ ?]].
+        intros [? [? [? ?]]]. apply H1.
+        apply HΔ in H3. inversion H3; subst.
+        do 2 eexists; split; eauto.
+        rewrite TMap.gro in H4; auto.
+        intros ?; subst.
+        destruct H2 as [? [? [? [? ?]]]].
+        apply H0 in H2. congruence.
+      + destruct H1 as [_ [_ [? [? [? [? ?]]]]]].
+        exists x, (TMap.remove t0 x0); split_right; auto.
+        * apply HΔ. constructor; auto.
+        * rewrite TMap.gro; auto.
+          intros ?; subst.
+          apply H0 in H1; congruence.
+    - extract 4 HI. unfold I_not_cur_task, CurrentTask in *.
+      intros ? ?. unfold Forall, Neg in H1. rewrite <- Hσ in H1.
+      apply HI in H1 as [? ?].
+      destruct (Pos.eq_dec v t0); subst.
+      + exists None; intros.
+        apply HΔ in H2; inversion H2; subst.
+        rewrite TMap.grs; auto.
+      + exists x; intros.
+        apply HΔ in H2; inversion H2; subst.
+        rewrite TMap.gro; eauto.
+    - extract 5 HI. unfold ticket_not_owned, IsInactive in *.
+      rewrite Hσ in *. eauto.
+  Qed.
 
 
 
@@ -556,116 +660,7 @@ Module CCASImpl.
 
     Open Scope nat.
 
-  Lemma Ginv_I : forall t f, ⊨ Ginv t f ⊚ I ==>> I.
-  Proof.
-    intros. intros [s' [HI [Hσ [? HΔ]]]].
-    unfold I in *.
-    split_right.
-    - extract 0 HI. unfold I_ρ_atomic in *.
-      intros.
-      apply HΔ in H1. inversion H1; subst.
-      eapply HI; eauto.
-    - extract 1 HI. unfold I_flag in *.
-      intros.
-      apply HΔ in H1. inversion H1; subst.
-      rewrite Hσ in *.
-      eapply HI; eauto.
-    - extract 2 HI. unfold I_val, CurrentVal in *.
-      intros.
-      apply HΔ in H2. inversion H2; subst.
-      rewrite Hσ in *.
-      eapply HI; eauto.
-    - extract 3 HI. unfold I_cur_task, CurrentTask in *.
-      intros ? ? ? ? ?.
-      rewrite <- Hσ in *. apply HI in H1.
-      split_right; unfold IsExpired, ALinIdle, NotDone in *.
-      + extract 0 H1. unfold Neg in *. rewrite <- Hσ in *. auto.
-      + extract 1 H1. intros [? [? [? ?]]]. apply H1.
-        apply HΔ in H2. inversion H2; subst.
-        do 2 eexists; split; eauto.
-        rewrite TMap.gso in H3; auto.
-        intros ?; subst.
-        rewrite TMap.gss in H3. congruence.
-      + destruct H1 as [_ [_ [? [? [? [? ?]]]]]].
-        exists x, (TMap.add t0 (ls_inv f) x0); split_right; auto.
-        * apply HΔ. constructor; auto.
-        * rewrite TMap.gso; auto.
-          intros ?; subst.
-          apply H0 in H1; congruence.
-    - extract 4 HI. unfold I_not_cur_task, CurrentTask in *.
-      intros ? ?. unfold Forall, Neg in H1. rewrite <- Hσ in H1.
-      apply HI in H1 as [? ?].
-      destruct (Pos.eq_dec v t0); subst.
-      + exists (Some (ls_inv f)); intros.
-        apply HΔ in H2; inversion H2; subst.
-        rewrite TMap.gss; auto.
-      + exists x; intros.
-        apply HΔ in H2; inversion H2; subst.
-        rewrite TMap.gso; eauto.
-    - extract 5 HI. unfold ticket_not_owned in *.
-      rewrite Hσ in *. apply HI in H1 as [? ?]. eauto.
-    - extract 5 HI. unfold ticket_not_owned in *.
-      rewrite Hσ in *. apply HI in H1 as [? ?].
-      unfold CurrentTask in *. rewrite Hσ in *.
-      eauto.
-  Qed.
 
-  Lemma Gret_I : forall t f ret,
-    ⊨ Gret t f ret ⊚ (I //\\ ALin t (ls_linr f ret)) ==>> I.
-  Proof.
-    intros. intros [s' [[HI HALin] [Hσ [? HΔ]]]].
-    unfold I in *.
-    split_right.
-    - extract 0 HI. unfold I_ρ_atomic in *.
-      intros.
-      apply HΔ in H1. inversion H1; subst.
-      eapply HI; eauto.
-    - extract 1 HI. unfold I_flag in *.
-      intros.
-      apply HΔ in H1. inversion H1; subst.
-      rewrite Hσ in *.
-      eapply HI; eauto.
-    - extract 2 HI. unfold I_val, CurrentVal in *.
-      intros.
-      apply HΔ in H2. inversion H2; subst.
-      rewrite Hσ in *.
-      eapply HI; eauto.
-    - extract 3 HI. unfold I_cur_task, CurrentTask in *.
-      intros ? ? ? ? ?.
-      rewrite <- Hσ in *. apply HI in H1.
-      split_right; unfold IsExpired, ALinIdle, NotDone in *.
-      + extract 0 H1. unfold Neg in *. rewrite <- Hσ in *. auto.
-      + pose proof H1. extract 1 H1. destruct H2 as [_ [_ ?]].
-        intros [? [? [? ?]]]. apply H1.
-        apply HΔ in H3. inversion H3; subst.
-        do 2 eexists; split; eauto.
-        rewrite TMap.gro in H4; auto.
-        intros ?; subst.
-        destruct H2 as [? [? [? [? ?]]]].
-        apply H0 in H2. congruence.
-      + destruct H1 as [_ [_ [? [? [? [? ?]]]]]].
-        exists x, (TMap.remove t0 x0); split_right; auto.
-        * apply HΔ. constructor; auto.
-        * rewrite TMap.gro; auto.
-          intros ?; subst.
-          apply H0 in H1; congruence.
-    - extract 4 HI. unfold I_not_cur_task, CurrentTask in *.
-      intros ? ?. unfold Forall, Neg in H1. rewrite <- Hσ in H1.
-      apply HI in H1 as [? ?].
-      destruct (Pos.eq_dec v t0); subst.
-      + exists None; intros.
-        apply HΔ in H2; inversion H2; subst.
-        rewrite TMap.grs; auto.
-      + exists x; intros.
-        apply HΔ in H2; inversion H2; subst.
-        rewrite TMap.gro; eauto.
-    - extract 5 HI. unfold ticket_not_owned in *.
-      rewrite Hσ in *. apply HI in H1 as [? ?]. eauto.
-    - extract 5 HI. unfold ticket_not_owned in *.
-      rewrite Hσ in *. apply HI in H1 as [? ?].
-      unfold CurrentTask in *. rewrite Hσ in *.
-      eauto.
-  Qed.
             
 
   (* cid_not_idle := (cid = t //\\ ~ ALinIdle t) \\// cid <> t *)
