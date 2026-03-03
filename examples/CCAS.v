@@ -802,7 +802,7 @@ Module CCASImpl.
     - destruct H3 as [? [? [? ?]]].
       specialize (H6 _ _ eq_refl eq_refl) as [? [? ?]].
       right.
-      assert (CurrentTask (CTask t0 o n i) s).
+      assert (CurrentTask (CTask t' o' n' i') s).
       {
         unfold CurrentTask, Conj.
         rewrite <- H6. apply H0.
@@ -812,19 +812,12 @@ Module CCASImpl.
     - left.
       destruct H3 as [? [? [? [? [? [? [? ?]]]]]]].
       specialize (H6 _ _ eq_refl eq_refl) as [? [? ?]].
-      split.
-      + unfold IsExpired.
-        rewrite H8.
-        destruct H0.
-        eapply CurrentTaskCongruence in H0; eauto.
-        inversion H0; subst.
-        unfold owner_upd. rewrite Nat.eqb_refl. auto.
-      + right. intros ? ? ?.
-        destruct H5 as [? [? [? [? ?]]]].
-        apply H5 in H9. inversion H9; subst.
-        destruct H0.
-        eapply CurrentTaskCongruence in H0; eauto.
-        inversion H0; subst. auto.
+      unfold IsExpired.
+      rewrite H8.
+      destruct H0.
+      eapply CurrentTaskCongruence in H0; eauto.
+      inversion H0; subst.
+      unfold owner_upd. rewrite Nat.eqb_refl. auto.
   Qed.
 
 
@@ -917,7 +910,7 @@ Module CCASImpl.
   
   Create HintDb stableDB.
   Hint Resolve stable_ccas_l0 Istable stable_notplaced stable_alinr
-    stable_task_completed stable_task_placed
+    stable_task_completed stable_task_placed stable_task_placed_other
   : stableDB.
 
   (* Ltac extract n H :=
@@ -1107,7 +1100,7 @@ Module CCASImpl.
             (Q' := fun r =>
                         I //\\
                         ((⌜r <> o⌝ //\\ ALin t (ls_linr (cas o n) o)) \\//
-                        (⌜r = o⌝ //\\ TaskPlaced t o n i))).
+                        (⌜r = o⌝ //\\ (TaskCompleted t o n i \\// TaskPlaced t o n i)))).
           (* loop *)
           {
             eapply provable_doloop;
@@ -1120,18 +1113,50 @@ Module CCASImpl.
               (P' := I //\\ ILoop)
               (Q' := fun r => I //\\
                       match r with
-                      | inl (CTask t0 n0 o0 i0) => ILoop //\\ TaskPlaced t0 n0 o0 i0
+                      | inl (CTask t0 n0 o0 i0) => ILoop //\\
+                          (IsExpired i0 \\// TaskPlaced t0 n0 o0 i0)
                       | inr v =>
                           (⌜v <> o⌝ //\\ ALin t (ls_linr (cas o n) o) \\//
-                          ⌜v = o⌝ //\\ TaskPlaced t o n i)
+                          ⌜v = o⌝ //\\ (TaskCompleted t o n i \\// TaskPlaced t o n i))
                       end);
             try solve_no_error;
             try solve_conj_impl;
             try (subst; solve_stable stableDB).
             (* post stable *)
             {
-              destruct a; [destruct c|]; subst.
-              2:{ solve_stable stableDB.
+              destruct a; [destruct c|]; subst; solve_stable stableDB.
+            }
+            (* inv *)
+            {
+              pupdate_intros_atomic.
+              dependent destruction Hstep.
+
+              pupdate_start.
+              apply ac_steps_refl.
+
+              post_pupdate_id.
+              { unfold G_id; simpl; do 2 (split; auto); reflexivity. }
+              destruct Hpre as [? [? ?]].
+              split; [apply G_id_I; eexists; eauto|].
+              unfold ALin, CurrentTask, Neg, Conj, Forall in *.
+              split; eauto.
+            }
+            (* res *)
+            {
+              destruct ret; [destruct c|].
+              (* failed to place task *)
+              {
+                pupdate_intros_atomic.
+                dependent destruction Hstep.
+
+                pupdate_start.
+                apply ac_steps_refl.
+
+              }
+              (* successfully placed task *)
+              {
+
+              }
             }
           }
       }

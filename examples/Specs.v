@@ -612,19 +612,22 @@ Module CASTaskSpec.
     | step_tryPlaceTask_inv cid o n i s:
       StepCASTask {| te_tid := cid; te_ev := InvEv (tryPlaceTask o n i) |} s s
     (* succeed if no task placed *)
-    | step_tryPlaceTask_succ cid o n i tk  owner:
-      StepCASTask {| te_tid := cid; te_ev := ResEv (tryPlaceTask o n i) (inr o) |}
+    | step_tryPlaceTask_succ cid o n i tk owner e:
+      e = {| te_tid := cid; te_ev := ResEv (tryPlaceTask o n i) (inr o) |} ->
+      StepCASTask e
                   (* replace with the task *)
                   (cts (inr o) tk owner ) (cts (inl (CTask cid o n i)) tk owner )
     (* blocked if have task placed *)
-    | step_tryPlaceTask_block cid o n i tk tsk  owner:
-      StepCASTask {| te_tid := cid; te_ev := ResEv (tryPlaceTask o n i) (inl tsk) |}
+    | step_tryPlaceTask_block cid o n i tk tsk owner e:
+      e = {| te_tid := cid; te_ev := ResEv (tryPlaceTask o n i) (inl tsk) |} ->
+      StepCASTask e
                   (* do nothing *)
                   (cts (inl tsk) tk owner ) (cts (inl tsk) tk owner )
     (* fail if o[ld] value does not match *)
-    | step_tryPlaceTask_fail cid v o n i tk  owner:
+    | step_tryPlaceTask_fail cid v o n i tk owner e:
+      e = {| te_tid := cid; te_ev := ResEv (tryPlaceTask o n i) (inr v) |} ->
       v <> o ->
-      StepCASTask {| te_tid := cid; te_ev := ResEv (tryPlaceTask o n i) (inr v) |}
+      StepCASTask e
                   (* replace with the task *)
                   (cts (inr v) tk owner ) (cts (inr v) tk owner )
     (* try resolve *)
