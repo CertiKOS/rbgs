@@ -544,6 +544,27 @@ Module Semantics.
       apply rt_refl.
     Qed.
 
+    Variant ac_steps_π_prop (Δ : AbstractConfigProp) t ls
+      (Hpstep : forall ρ π, Δ ρ π -> poss_steps (PossOk ρ π) (PossOk ρ (TMap.add t ls π))) : AbstractConfigProp :=
+    | ACSteps_π ρ π (Hposs : Δ ρ π):
+        ac_steps_π_prop Δ t ls Hpstep ρ (TMap.add t ls π).
+    
+    Program Definition ac_steps_π (Δ : AbstractConfig) t ls Hpstep : AbstractConfig :=
+      {| ac_prop := ac_steps_π_prop Δ t ls Hpstep |}.
+    Next Obligation.
+      pose proof ac_nonempty Δ as [? [? ?]].
+      do 2 eexists; constructor; eauto.
+    Qed.
+    Next Obligation.
+      inversion H; inversion H0; subst.
+      pose proof (Hpstep _ _ Hposs).
+      pose proof (Hpstep _ _ Hposs0).
+      eapply poss_steps_domexact in H1, H2.
+      pose proof ac_domexact _ _ _ _ _ Hposs Hposs0.
+      do 2 (eapply Equivalence_Transitive; eauto).
+      symmetry. auto.
+    Defined.
+
     Variant ac_branch_prop (Δ : AbstractConfigProp) ρ π ρ' π' : AbstractConfigProp :=
     | ACBranch
       (Hposs : Δ ρ π)

@@ -541,9 +541,10 @@ Module CCASSpec.
       StepCCAS {| te_tid := t; te_ev := InvEv (cas o n) |} s s
   | step_cas_res_succ t o n b:
       StepCCAS {| te_tid := t; te_ev := ResEv (cas o n) o |} (o, b) (if b then n else o, b)
-  | step_cas_res_fail t v o n b:
+  | step_cas_res_fail t v o n b e:
+      e = {| te_tid := t; te_ev := ResEv (cas o n) v |} ->
       v <> o ->
-      StepCCAS {| te_tid := t; te_ev := ResEv (cas o n) v |} (v, b) (v, b)
+      StepCCAS e (v, b) (v, b)
   .
   
   Variant ErrorCCAS {T} : @ThreadEvent (ECCAS T) -> (@AState (ECCAS T) (CCASState T)) -> Prop :=

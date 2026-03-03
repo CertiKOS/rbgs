@@ -262,6 +262,16 @@ Module RGILogic.
         eapply provable_tau; auto.
     Qed.
 
+    (* Lemma provable_double_ret {A B} : forall (a:A) (b:B) P Q,
+      [VE, VF, R, G, I, t] ⊢ {{ P }} Ret b {{ Q }} ->
+      [VE, VF, R, G, I, t] ⊢ {{ P }} Ret a ;; Ret b {{ Q }}.
+    Proof.
+      intros.
+      inversion H; subst.
+      eapply provable_seq with (Q' := fun _ => P).
+      - eapply provable_ret with (P := P); eauto. *)
+
+
     Lemma provable_dowhile_unroll {A} : forall (pbody piter : Prog E A) (b : A -> bool) P Q,
       [VE, VF, R, G, I, t] ⊢ {{ P }} bindProg piter
         (fun r => if b r then Tau (whileAux b pbody pbody) else Ret r) {{ Q }} ->
