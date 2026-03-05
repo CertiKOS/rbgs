@@ -634,14 +634,16 @@ Module CASTaskSpec.
     (* try resolve *)
     | step_tryResolveTask_inv cid tsk v s:
       StepCASTask {| te_tid := cid; te_ev := InvEv (tryResolveTask tsk v) |} s s
-    | step_tryResolveTask_succ cid v t o n i tk owner:
-      StepCASTask {| te_tid := cid; te_ev := ResEv (tryResolveTask (CTask t o n i) v) tt |}
+    | step_tryResolveTask_succ cid v t o n i tk owner e:
+      e = {| te_tid := cid; te_ev := ResEv (tryResolveTask (CTask t o n i) v) tt |} ->
+      StepCASTask e
                   (* resolve to the given value *)
                   (* ticket ires *)
                   (cts (inl (CTask t o n i)) tk owner) (cts (inr v) tk (owner_upd owner i Expired))
-    | step_tryResolveTask_fail cid c tsk v tk owner:
+    | step_tryResolveTask_fail cid c tsk v tk owner e:
+      e = {| te_tid := cid; te_ev := ResEv (tryResolveTask tsk v) tt |} ->
       c <> (inl tsk) ->
-      StepCASTask {| te_tid := cid; te_ev := ResEv (tryResolveTask tsk v) tt |}
+      StepCASTask e
                   (* do nothing *)
                   (cts c tk owner) (cts c tk owner)
     .

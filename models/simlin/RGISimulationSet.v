@@ -167,7 +167,7 @@ Module RGISimulation.
     
     Lemma rgisim_parapllel_composition :
       forall (R G : tid -> RGRelation) (I : Assertion)
-        (HRG : forall t1 t2, t1 <> t2 -> (G t1 ⊆ R t2)%RGRelation),
+        (HRG : forall t1 t2, t1 <> t2 -> (I ⊓ G t1 ⊆ R t2)%RGRelation),
       forall (σ : State VE) c (Δ : AbstractConfig VF)
         (* (Hnonemp : exists ρ π, Δ ρ π) *)
         (Htlsim : forall t, RGISimulation (R t) (G t) I t σ c Δ),
@@ -189,8 +189,9 @@ Module RGISimulation.
         eapply rgisim_local_cont with (c := c); auto.
         eapply invstep_local_cont; eauto.
         apply rgisim_stable0; [|inversion H1; auto].
-        apply (HRG _ _ n), H.
-        unfold Ginv, LiftRelation_Δ.
+        apply (HRG _ _ n).
+        split; auto.
+        apply H. unfold Ginv, LiftRelation_Δ; simpl.
         do 2 (split; eauto). reflexivity.
       - (* ret *)
         pose proof (Htlsim t0) as [? | ?]; [exfalso; eapply Hpnoerror; eauto|].
@@ -202,7 +203,9 @@ Module RGISimulation.
         eapply rgisim_local_cont with (c := c); auto.
         eapply retstep_local_cont; eauto.
         apply rgisim_stable0; [|inversion H1; auto].
-        apply (HRG _ _ n), H.
+        apply (HRG _ _ n).
+        split; auto.
+        apply H.
         unfold Gret, LiftRelation_Δ.
         do 2 (split; eauto). reflexivity.
       - (* ustep *)
@@ -216,7 +219,7 @@ Module RGISimulation.
         eapply rgisim_local_cont with (c := c); eauto.
         eapply ustep_local_cont; eauto.
         apply rgisim_stable0; [|inversion H1; auto].
-        eapply HRG; eauto.
+        eapply HRG; eauto; split; eauto.
       - exists Δ0. split; auto.
         apply ac_steps_refl.
       - (* tau *)

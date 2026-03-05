@@ -50,9 +50,12 @@ Module Assertions (PS : ProofState).
 
     Definition ComposeA (P : Assertion) (R : RGRelation) : Assertion :=
       fun s => exists s', P s' /\ R s' s.
-
+    
     Definition ComposeR (R S : RGRelation) : RGRelation :=
       fun s s' => exists s'', R s s'' /\ S s'' s'.
+
+    Definition ComposeR' (P : Assertion) (R : RGRelation) : RGRelation :=
+      fun s s' => R s s' /\ P s.
 
     Definition GId : RGRelation := fun x y => x = y.
 
@@ -69,6 +72,7 @@ Module Assertions (PS : ProofState).
   Notation "R ∩ S" := (Inter R S) (at level 40) : rg_relation_scope.
   Notation "R ○ S" := (ComposeR S R) (at level 30) : rg_relation_scope.
   Notation "R ⊚ P" := (ComposeA P R) (at level 30) : rg_relation_scope.
+  Notation "P ⊓ R" := (ComposeR' P R) (at level 30) : rg_relation_scope.
 
   Section AssertionLemmas.
     Context {E : Op.t}.
@@ -130,6 +134,15 @@ Module Assertions (PS : ProofState).
       eexists. eauto.
     Qed.
 
+    Lemma StableExists {A} : forall R I P,
+      (forall x : A, Stable R I (P x)) ->
+      Stable R I (∃ x, P x).
+    Proof.
+      intros. intros ? [[s' [[? ?] ?]] ?].
+      exists x. apply H; split; eauto.
+      eexists; eauto.
+    Qed.
+
     Lemma StableWeaken : forall R I P1 P2 P3,
       Stable R I P3 ->
       ⊨ P1 ==>> P3 ->
@@ -143,7 +156,7 @@ Module Assertions (PS : ProofState).
       split; auto.
       eexists; split; eauto.
     Qed.
-
+    
     Lemma ConjStable {R I P Q}:
       Stable R I P -> Stable R I Q -> Stable R I (P //\\ Q).
     Proof.
@@ -160,6 +173,17 @@ Module Assertions (PS : ProofState).
     Proof.
       intros. intros ? ?.
       split; try apply H; try apply H0; auto.
+    Qed.
+
+    Lemma StableExtractPure {R I} {P:Prop} {Q}:
+      (P -> Stable R I Q) ->
+      Stable R I (⌜P⌝ //\\ Q).
+    Proof.
+      intros.
+      intros ? [[s' [[? ?] ?]] ?].
+      split; auto.
+      apply H; auto.
+      do 2 (eexists; eauto).
     Qed.
 
     Lemma EquivStable {R I}: forall P Q,
@@ -278,14 +302,20 @@ Module Assertions (PS : ProofState).
         | ?P1 \\// ?P2 =>
             apply DisjStable; solve_stable hint_db
         | ?P1 //\\ ?P2 =>
-            first [
-              apply ConjStable; solve_stable hint_db |
-              apply ConjStableWeaken;
-              (eapply StableWeaken;
-                [ typeclasses eauto with hint_db
-                  | solve_conj_impl
-                  | solve_conj_impl ])
-            ]
+            match P1 with
+            | ⌜?P1⌝ =>
+              apply StableExtractPure; intros; subst;
+              solve_stable hint_db
+            | _ =>
+              first [
+                apply ConjStable; solve_stable hint_db |
+                apply ConjStableWeaken;
+                (eapply StableWeaken;
+                  [ typeclasses eauto with hint_db
+                    | solve_conj_impl
+                    | solve_conj_impl ])
+              ]
+            end
         | _ => fail
         end
       end.

@@ -650,7 +650,7 @@ Module RGILogic.
   Lemma soundness
     {E F} (VE : @LTS E) (VF : @LTS F) (M : ModuleImpl E F) (R G : tid -> RGRelation) I
     (HvalidRG : forall t, ValidRGI (R t) (G t) I t)
-    (HRG : forall t1 t2 : tid, t1 <> t2 -> (G t1 ∪ (GINV t1 ∪ GRET t1 ∪ GId) ⊆ R t2)%RGRelation)
+    (HRG : forall t1 t2 : tid, t1 <> t2 -> (I ⊓ (G t1 ∪ (GINV t1 ∪ GRET t1 ∪ GId)) ⊆ R t2)%RGRelation)
     (Hprovable : forall t f, exists P Q, MethodProvable VE VF M (R t) (G t) I t f P Q)
     σ0 ρ0
     (Hinit : I (σ0, ρ0, (@TMap.empty _)))

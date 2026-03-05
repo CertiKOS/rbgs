@@ -633,6 +633,12 @@ Module Semantics.
       - eapply (ac_domexact (ac_branch Δ ρ π ρ' π' Hposs Hpstep)); eauto.
     Defined.
 
+    Lemma ac_trylin_single : forall Δ ρ π ρ' π' Hposs Hstep Hnext,
+      ac_equiv (ac_trylin Δ ρ π ρ' π' Hposs Hstep None Hnext) (ac_singleton ρ' π').
+    Proof.
+      intros. split; inversion 1; subst; try constructor; eauto.
+    Qed.
+
     Lemma ac_trylin_subset_steps (Δ : AbstractConfig) ρ π ρ' π'
         Hposs Hpstep
         (oΔ' : option AbstractConfig)
