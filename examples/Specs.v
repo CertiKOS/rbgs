@@ -535,8 +535,9 @@ Module CCASSpec.
   Variant StepCCAS {A} : @ThreadEvent (ECCAS A) -> CCASState A -> CCASState A -> Prop :=
   | step_setFlag_inv t b s:
     StepCCAS {| te_tid := t; te_ev := InvEv (setFlag b) |} s s
-  | step_setFlag_res t b b' (v : A):
-    StepCCAS {| te_tid := t; te_ev := ResEv (setFlag b) tt |} (v, b') (v, b)
+  | step_setFlag_res t b b' (v : A) e:
+    e = {| te_tid := t; te_ev := ResEv (setFlag b) tt |} ->
+    StepCCAS e (v, b') (v, b)
   | step_cas_inv t o n s:
       StepCCAS {| te_tid := t; te_ev := InvEv (cas o n) |} s s
   | step_cas_res_succ t o n b:

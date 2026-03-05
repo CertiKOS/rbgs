@@ -544,16 +544,16 @@ Module Semantics.
       apply rt_refl.
     Qed.
 
-    Variant ac_steps_π_prop (Δ : AbstractConfigProp) t ls
-      (Hpstep : forall ρ π, Δ ρ π -> poss_steps (PossOk ρ π) (PossOk ρ (TMap.add t ls π))) : AbstractConfigProp :=
+    Variant ac_steps_π_prop (Δ : AbstractConfigProp) t ls1 ls2 ρf
+      (Hpstep : forall ρ π, Δ ρ π -> poss_steps (PossOk ρ π) (PossOk (ρf ρ) (TMap.add t ls2 (TMap.add t ls1 π)))) : AbstractConfigProp :=
     | ACSteps_π ρ π (Hposs : Δ ρ π):
-        ac_steps_π_prop Δ t ls Hpstep ρ (TMap.add t ls π).
+        ac_steps_π_prop Δ t ls1 ls2 ρf Hpstep (ρf ρ) (TMap.add t ls2 (TMap.add t ls1 π)).
     
-    Program Definition ac_steps_π (Δ : AbstractConfig) t ls Hpstep : AbstractConfig :=
-      {| ac_prop := ac_steps_π_prop Δ t ls Hpstep |}.
+    Program Definition ac_steps_π (Δ : AbstractConfig) t ls1 ls2 ρf Hpstep : AbstractConfig :=
+      {| ac_prop := ac_steps_π_prop Δ t ls1 ls2 ρf Hpstep |}.
     Next Obligation.
       pose proof ac_nonempty Δ as [? [? ?]].
-      do 2 eexists; constructor; eauto.
+      do 2 eexists. econstructor; eauto.
     Qed.
     Next Obligation.
       inversion H; inversion H0; subst.

@@ -401,7 +401,7 @@ Module AssertionsSingle.
     
     Definition ALin (t : tid) (ls : LinState) : @Assertion (@ProofState _ _ VE VF) :=
       fun s => TMap.find t (π s) = Some ls.
-  
+
   End AssertionDef.
 
   Notation "G ⊨ P [ ev ]⭆ Q" := (PUpdate G ev P Q) (at level 100) : assertion_scope.
@@ -598,6 +598,14 @@ Module AssertionsSet.
 
     Definition Aρ ρ : @Assertion (@ProofState _ _ VE VF) :=
       fun s => ac_equiv (Δ s) (ac_singleton ρ (LinCCAL.TMap.Leaf _)).
+
+    Lemma ALin_equiv : forall s1 s2 t ls,
+      ac_equiv (Δ s1) (Δ s2) ->
+      ALin t ls s1 -> ALin t ls s2.
+    Proof.
+      intros. intros ? ? ?.
+      apply H in H1; eauto.
+    Qed.
 
   End AssertionDef.
 
