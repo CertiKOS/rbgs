@@ -495,13 +495,15 @@ Module CAS'Spec.
   | step_get_res t v : StepCAS' {| te_tid := t; te_ev := ResEv get v |} v v
   | step_cas_inv t u v w:
       StepCAS' {| te_tid := t; te_ev := InvEv (cas v w) |} u u
-  | step_cas_res_succ t v w b:
+  | step_cas_res_succ t v w b e:
       b = true ->
-      StepCAS' {| te_tid := t; te_ev := ResEv (cas v w) v |} v w
-  | step_cas_res_fail t u v w b:
+      e = {| te_tid := t; te_ev := ResEv (cas v w) v |} ->
+      StepCAS' e v w
+  | step_cas_res_fail t u v w b e:
+      e = {| te_tid := t; te_ev := ResEv (cas v w) u |} -> 
       b = false ->
       u <> v ->
-      StepCAS' {| te_tid := t; te_ev := ResEv (cas v w) u |} u u
+      StepCAS' e u u
   .
 
   Definition VCAS' {A} : @LTS (ECAS' A) := VAE StepCAS' NoError.
@@ -606,8 +608,9 @@ Module CASTaskSpec.
     (* alloc *)
     | step_allocTask_inv cid o n s:
       StepCASTask {| te_tid := cid; te_ev := InvEv (allocTask o n) |} s s
-    | step_allocTask_res cid o n c tk  owner:
-      StepCASTask {| te_tid := cid; te_ev := ResEv (allocTask o n) tk |}
+    | step_allocTask_res cid o n c tk  owner e:
+      e = {| te_tid := cid; te_ev := ResEv (allocTask o n) tk |} ->
+      StepCASTask e
                   (* increase ticket *)
                   (cts c tk owner ) (cts c (S tk) (owner_upd owner tk (Owned cid)) )
     (* try place *)
