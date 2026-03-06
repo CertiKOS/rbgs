@@ -103,6 +103,9 @@ Module CASTaskImpl.
   
   Definition ALinEx t ls : assertion := fun s => exists ρ π, Δ s ρ π /\ TMap.find t π = ls.
 
+  Definition SafeTicket i : assertion :=
+    fun s => forall ρ π, Δ s ρ π -> owner (state ρ) i <> Inactive.
+
   Definition I_cas : assertion := fun s =>
     forall ρ π, Δ s ρ π ->
       state (fst (σ s)) = current (state ρ).
@@ -120,7 +123,8 @@ Module CASTaskImpl.
   
   Definition R t : rg_relation :=
     fun s1 s2 =>
-      forall ls, ALinEx t ls s1 <-> ALinEx t ls s2.
+      (forall ls, ALinEx t ls s1 <-> ALinEx t ls s2)
+      /\ (forall i, SafeTicket i s1 -> SafeTicket i s2).
   
   Definition G_id : rg_relation :=
     fun s1 s2 =>
@@ -134,16 +138,18 @@ Module CASTaskImpl.
   Definition G t := G_id ∪ G_other t.
 
   Ltac simpl_all :=
-    unfold R, G, G_id, G_other, I, I_atomic, I_ticket, I_cas,
+    unfold R, G, G_id, G_other, I, I_atomic, I_ticket, I_cas, SafeTicket, owner_upd,
           Conj, Disj, Imply in *; simpl in *.
 
   Lemma RG_compatible : forall t1 t2, t1 <> t2 -> (I ⊓ G t1 ⊆ R t2).
   Proof.
     intros. intros ? ? [? ?].
     destruct H0.
-    - unfold G_id, R, ALinEx in *.
-      split; intros [? [? [HΔ ?]]];
-      apply H0 in HΔ; do 2 eexists; eauto.
+    - unfold G_id, R, ALinEx, SafeTicket in *.
+      split.
+      + split; intros [? [? [HΔ ?]]];
+        apply H0 in HΔ; do 2 eexists; eauto.
+      + intros. apply H0 in H3. eauto.
     - apply H0; eauto.
   Qed.
 
@@ -197,6 +203,12 @@ Module CASTaskImpl.
   Lemma stable_I : forall t, Stable (R t) I I.
   Proof. intros. intros ? [[? [? ?]] ?]; auto. Qed.
 
+  Lemma stable_SafeTicket : forall t i, Stable (R t) I (SafeTicket i).
+  Proof.
+    intros. intros ? [[? [? ?]] ?].
+    apply H0. auto.
+  Qed.
+
   Lemma G_id_I : ⊨ G_id ⊚ I ==>> I.
   Proof.
     intros ? [? [? [? [? ?]]]].
@@ -210,7 +222,7 @@ Module CASTaskImpl.
   Qed.
 
   Create HintDb stableDB.
-  Hint Resolve stable_I stable_ALin
+  Hint Resolve stable_I stable_ALin stable_SafeTicket
   : stableDB.
 
   Lemma G_id_G : forall s1 s2 t, G_id s1 s2 -> G t s1 s2.
@@ -241,22 +253,28 @@ Module CASTaskImpl.
       destruct H0 as [[? | ?] | ?].
       - unfold GINV, Ginv, LiftRelation_Δ in *.
         destruct H0 as [? [? [? ?]]].
-        split; intros [? [? [? ?]]].
-        + exists x0, (TMap.add t1 (ls_inv x) x1).
-          split; [|rewrite TMap.gso;auto].
-          apply H2. constructor; auto.
-        + apply H2 in H3. inversion H3; subst.
-          do 2 eexists; split; eauto.
-          rewrite TMap.gso; auto.
+        split.
+        * split; intros [? [? [? ?]]].
+          + exists x0, (TMap.add t1 (ls_inv x) x1).
+            split; [|rewrite TMap.gso;auto].
+            apply H2. constructor; auto.
+          + apply H2 in H3. inversion H3; subst.
+            do 2 eexists; split; eauto.
+            rewrite TMap.gso; auto.
+        * unfold SafeTicket. intros.
+          apply H2 in H4. inversion H4; subst. eauto.
       - unfold GRET, Gret, LiftRelation_Δ in *.
         destruct H0 as [? [? [? [? ?]]]].
-        split; intros [? [? [? ?]]].
-        + exists x1, (TMap.remove t1 x2).
-          split; [|rewrite TMap.gro;auto].
-          apply H2. constructor; auto.
-        + apply H2 in H3. inversion H3; subst.
-          do 2 eexists; split; eauto.
-          rewrite TMap.gro; auto.
+        split.
+        * split; intros [? [? [? ?]]].
+          + exists x1, (TMap.remove t1 x2).
+            split; [|rewrite TMap.gro;auto].
+            apply H2. constructor; auto.
+          + apply H2 in H3. inversion H3; subst.
+            do 2 eexists; split; eauto.
+            rewrite TMap.gro; auto.
+        * unfold SafeTicket. intros.
+          apply H2 in H4. inversion H4; subst. eauto.
       - unfold GId in *; subst. unfold R. tauto.
     }
     (* method provable *)
@@ -369,16 +387,21 @@ Module CASTaskImpl.
               rewrite TMap.gss; eauto.
               apply H4 in Hposs as [? ?]; simpl in *. subst. eauto.
             - right. intros. simpl_all.
-              split; intros [? [? [? ?]]]; [|inversion H5;subst].
-              + exists (Idle {| current := current0; ticket := S ticket0; owner := owner_upd owner0 ticket0 (Owned t) |}),
-                (TMap.add t (ls_linr (allocTask o n) ticket0) (TMap.add t (ls_lini (allocTask o n)) x0)).
-                apply H in H5 as HΔ'; inversion HΔ'; simpl in *; subst.
-                simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
-                pupdate_forward t (InvEv (allocTask o n)).
-                pupdate_forward t (ResEv (allocTask o n) ticket0).
-                pupdate_finish.
-              + exists (Idle {| current := current0; ticket := ticket0; owner := owner0 |}), x0. split; eauto.
-                do 2 (rewrite TMap.gso; eauto).
+              split.
+              * split; intros [? [? [? ?]]]; [|inversion H5;subst].
+                + exists (Idle {| current := current0; ticket := S ticket0; owner := owner_upd owner0 ticket0 (Owned t) |}),
+                  (TMap.add t (ls_linr (allocTask o n) ticket0) (TMap.add t (ls_lini (allocTask o n)) x0)).
+                  apply H in H5 as HΔ'; inversion HΔ'; simpl in *; subst.
+                  simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
+                  pupdate_forward t (InvEv (allocTask o n)).
+                  pupdate_forward t (ResEv (allocTask o n) ticket0).
+                  pupdate_finish.
+                + exists (Idle {| current := current0; ticket := ticket0; owner := owner0 |}), x0. split; eauto.
+                  do 2 (rewrite TMap.gso; eauto).
+              * intros. inversion H6; subst. simpl in *.
+                apply H5 in Hposs. simpl in *.
+                destruct (Nat.eqb_spec ticket0 i); subst; eauto.
+                congruence.
           }
           intros.
           eapply provable_ret;
@@ -455,19 +478,23 @@ Module CASTaskImpl.
               - inversion 1; subst. simpl_all.
                 rewrite TMap.gss; eauto.
               - right. intros. simpl_all.
-                split; intros [? [? [? ?]]]; [|inversion H6;subst].
-                + exists (Idle {| current := inl (CTask t0 o n i); ticket := ticket0; owner := owner0 |}),
-                    (TMap.add t0 (ls_linr (tryPlaceTask o n i) (inr o)) (TMap.add t0 (ls_lini (tryPlaceTask o n i)) x0)).
-                  apply H in H6 as HΔ'; inversion HΔ'; simpl in *; subst.
-                  simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
-                  eapply rt_trans.
-                  eapply rt_step, ps_inv; eauto.
-                  do 2 constructor.
-                  eapply rt_step, ps_ret; eauto.
-                  constructor. eapply step_tryPlaceTask_succ; eauto.
-                  rewrite TMap.gss; auto.
-                + do 2 eexists; split; eauto.
-                  do 2 (rewrite TMap.gso; eauto).
+                split.
+                * split; intros [? [? [? ?]]]; [|inversion H6;subst].
+                  + exists (Idle {| current := inl (CTask t0 o n i); ticket := ticket0; owner := owner0 |}),
+                      (TMap.add t0 (ls_linr (tryPlaceTask o n i) (inr o)) (TMap.add t0 (ls_lini (tryPlaceTask o n i)) x0)).
+                    apply H in H6 as HΔ'; inversion HΔ'; simpl in *; subst.
+                    simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
+                    eapply rt_trans.
+                    eapply rt_step, ps_inv; eauto.
+                    do 2 constructor.
+                    eapply rt_step, ps_ret; eauto.
+                    constructor. eapply step_tryPlaceTask_succ; eauto.
+                    rewrite TMap.gss; auto.
+                  + do 2 eexists; split; eauto.
+                    do 2 (rewrite TMap.gso; eauto).
+              * intros. inversion H7; subst. simpl in *.
+                apply H6 in Hposs. simpl in *.
+                destruct (Nat.eqb_spec ticket0 i); subst; eauto.
             }
             (* fail *)
             {
@@ -515,19 +542,23 @@ Module CASTaskImpl.
                 - inversion 1; subst. simpl_all.
                   rewrite TMap.gss; eauto.
                 - right. intros. simpl_all.
-                  split; intros [? [? [? ?]]]; [|inversion H6;subst].
-                  + exists (Idle {| current := inl c; ticket := ticket0; owner := owner0 |}),
-    (TMap.add t0 (ls_linr (tryPlaceTask o n i) (inl c)) (TMap.add t0 (ls_lini (tryPlaceTask o n i)) x0)).
-                    apply H in H6 as HΔ'; inversion HΔ'; simpl in *; subst.
-                    simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
-                    eapply rt_trans.
-                    eapply rt_step, ps_inv; eauto.
-                    do 2 constructor.
-                    eapply rt_step, ps_ret; eauto.
-                    constructor. eapply step_tryPlaceTask_block; eauto.
-                    rewrite TMap.gss; auto.
-                  + do 2 eexists; split; eauto.
-                    do 2 (rewrite TMap.gso; eauto).
+                  split.
+                  * split; intros [? [? [? ?]]]; [|inversion H6;subst].
+                    + exists (Idle {| current := inl c; ticket := ticket0; owner := owner0 |}),
+      (TMap.add t0 (ls_linr (tryPlaceTask o n i) (inl c)) (TMap.add t0 (ls_lini (tryPlaceTask o n i)) x0)).
+                      apply H in H6 as HΔ'; inversion HΔ'; simpl in *; subst.
+                      simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
+                      eapply rt_trans.
+                      eapply rt_step, ps_inv; eauto.
+                      do 2 constructor.
+                      eapply rt_step, ps_ret; eauto.
+                      constructor. eapply step_tryPlaceTask_block; eauto.
+                      rewrite TMap.gss; auto.
+                    + do 2 eexists; split; eauto.
+                      do 2 (rewrite TMap.gso; eauto).
+                  * intros. inversion H7; subst. simpl in *.
+                    apply H6 in Hposs. simpl in *.
+                    destruct (Nat.eqb_spec ticket0 i); subst; eauto.
               }
               (* fail *)
               {
@@ -565,19 +596,23 @@ Module CASTaskImpl.
                 - inversion 1; subst. simpl_all.
                   rewrite TMap.gss; eauto.
                 - right. intros. simpl_all.
-                  split; intros [? [? [? ?]]]; [|inversion H6;subst].
-                  + exists (Idle {| current := inr v; ticket := ticket0; owner := owner0 |}),
-    (TMap.add t0 (ls_linr (tryPlaceTask o n i) (inr v)) (TMap.add t0 (ls_lini (tryPlaceTask o n i)) x0)).
-                    apply H in H6 as HΔ'; inversion HΔ'; simpl in *; subst.
-                    simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
-                    eapply rt_trans.
-                    eapply rt_step, ps_inv; eauto.
-                    do 2 constructor.
-                    eapply rt_step, ps_ret; eauto.
-                    constructor. eapply step_tryPlaceTask_fail; eauto.
-                    rewrite TMap.gss; auto.
-                  + do 2 eexists; split; eauto.
-                    do 2 (rewrite TMap.gso; eauto).
+                  split.
+                  * split; intros [? [? [? ?]]]; [|inversion H6;subst].
+                    + exists (Idle {| current := inr v; ticket := ticket0; owner := owner0 |}),
+      (TMap.add t0 (ls_linr (tryPlaceTask o n i) (inr v)) (TMap.add t0 (ls_lini (tryPlaceTask o n i)) x0)).
+                      apply H in H6 as HΔ'; inversion HΔ'; simpl in *; subst.
+                      simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
+                      eapply rt_trans.
+                      eapply rt_step, ps_inv; eauto.
+                      do 2 constructor.
+                      eapply rt_step, ps_ret; eauto.
+                      constructor. eapply step_tryPlaceTask_fail; eauto.
+                      rewrite TMap.gss; auto.
+                    + do 2 eexists; split; eauto.
+                      do 2 (rewrite TMap.gso; eauto).
+                  * intros. inversion H7; subst. simpl in *.
+                    apply H6 in Hposs. simpl in *.
+                    destruct (Nat.eqb_spec ticket0 i); subst; eauto.
               }
             }
           }
@@ -590,9 +625,35 @@ Module CASTaskImpl.
         (* resolve *)
         {
           simpl.
+          destruct tsk.
+          eapply provable_perror with
+            (P' := I //\\ ALin t (ls_inv (tryResolveTask (CTask t0 o n i) v))
+                    //\\ SafeTicket i).
+          {
+            intros ? [? ?].
+            assert (SafeTicket i s \/ ~ SafeTicket i s) by apply classic.
+            destruct H1; [left; do 2 (split; auto)|right].
+            assert ((exists ρ π, Δ s ρ π /\ owner (state ρ) i = Inactive) \/ ~ (exists ρ π, Δ s ρ π /\ owner (state ρ) i = Inactive)) by apply classic.
+            destruct H2.
+            2:{
+              exfalso. apply H1.
+              intros ? ? ? ?.
+              apply H2. eauto.
+            }
+            clear H1. destruct H2 as [? [? [? ?]]].
+            econstructor; [exact H1|].
+            apply rt_step.
+            apply H0 in H1 as ?.
+            econstructor; eauto.
+            destruct H as [[? [? [? [? ?]]]] _].
+            apply H in H1. inversion H1; subst.
+            constructor. destruct x3.
+            econstructor; eauto.
+          }
+
           eapply provable_vis_safe with
-            (P' := I //\\ ALin t (ls_inv (tryResolveTask tsk v)))
-            (Q' := fun _ => I //\\ ALin t (ls_linr (tryResolveTask tsk v) tt));
+            (P' := I //\\ ALin t (ls_inv (tryResolveTask (CTask t0 o n i) v)) //\\ SafeTicket i)
+            (Q' := fun _ => I //\\ ALin t (ls_linr (tryResolveTask (CTask t0 o n i) v) tt));
           try solve_no_error;
           try solve_conj_impl;
           try solve_stable stableDB.
@@ -604,27 +665,29 @@ Module CASTaskImpl.
             
             post_pupdate_id.
             { unfold G_id; simpl; do 2 (split; auto); reflexivity. }
-            destruct Hpre as [? ?].
+            destruct Hpre as [? [? ?]].
             split; [apply G_id_I; eexists; eauto|].
-            intros ? ? ?.
-            apply H1 in H2. auto.
+            split.
+            + intros ? ? ?.
+              apply H1 in H3. auto.
+            + intros ? ? ?. apply H in H3.
+              apply H2 in H3. eauto.
           }
           (* res *)
           {
             pupdate_intros_atomic;
             dependent destruction Hstep.
-            (* succeed *)
+            (* has task placed *)
             {
-              destruct Hpre as [? ?].
+              destruct Hpre as [? [? Hticket]].
               pose proof ac_nonempty (Δ1) as [? [? ?]].
               apply H0 in H1 as ?.
               destruct H as [[? [? [? [? ?]]]] ?].
               apply H in H1 as HΔ; inversion HΔ; subst. clear HΔ. simpl in *.
               destruct x3.
-              destruct tsk.
-              assert (current0 = inl (CTask t1 o n i) \/ current0 <> inl (CTask t1 o n i)) by apply classic.
+              assert (current0 = inl (CTask t0 o n i) \/ current0 <> inl (CTask t0 o n i)) by apply classic.
               destruct H3 as [? | Hneq]; subst.
-
+              (* succeed *)
               {
                 pupdate_start.
                 pupdate_trylin_from H1.
@@ -635,10 +698,19 @@ Module CASTaskImpl.
                 constructor. eapply step_tryResolveTask_succ; eauto.
                 eapply ACTrylinFinish.
 
+                  (* * intros. inversion H7; subst. simpl in *.
+                    apply H6 in Hposs. simpl in *.
+                    destruct (Nat.eqb_spec ticket0 i); subst; eauto. *)
+
                 repeat split; simpl_all.
-                - exists (Idle {| current := inr v; ticket := ticket0; owner := owner_upd owner0 i Expired |}),
-    (TMap.add t0 (ls_linr (tryResolveTask (CTask t1 o n i) v) tt)
-       (TMap.add t0 (ls_lini (tryResolveTask (CTask t1 o n i) v)) x0)).
+                - exists(Idle
+                    {|
+                      current := inr v;
+                      ticket := ticket0;
+                      owner := fun i' : nat => if i =? i' then Expired else owner0 i'
+                    |}),
+                  (TMap.add t1 (ls_linr (tryResolveTask (CTask t0 o n i) v) tt)
+                    (TMap.add t1 (ls_lini (tryResolveTask (CTask t0 o n i) v)) x0)).
                   eexists; split; [|split;eauto].
                   constructor; inversion 1; subst; try constructor; eauto.
                   eapply rt_trans.
@@ -654,29 +726,161 @@ Module CASTaskImpl.
                 - inversion H3; subst. simpl.
                   apply H4 in H1 as [? ?]. simpl in *.
                   intros. unfold owner_upd.
-                  (* FIXME: what if the user resolves a task with id larger than ticket *)
-                  destruct (Nat.eqb_spec ticket0 i); subst; eauto; try lia.
+                  destruct (Nat.eqb_spec i i0); subst; eauto; try lia.
+                  simpl_all.
+                  apply Hticket in Hposs as ?. simpl in *.
+                  apply H5 in H6. congruence.
                 - inversion 1; subst. simpl_all.
                   rewrite TMap.gss; eauto.
                 - right. intros. simpl_all.
-                  split; intros [? [? [? ?]]]; [|inversion H6;subst].
-                  + exists (Idle {| current := inr v; ticket := ticket0; owner := owner0 |}),
-    (TMap.add t0 (ls_linr (tryPlaceTask o n i) (inr v)) (TMap.add t0 (ls_lini (tryPlaceTask o n i)) x0)).
-                    apply H in H6 as HΔ'; inversion HΔ'; simpl in *; subst.
+                  split.
+                  * split; intros [? [? [? ?]]]; [|inversion H6;subst].
+                    + exists (Idle
+                    {|
+                      current := inr v;
+                      ticket := ticket0;
+                      owner := fun i' : nat => if i =? i' then Expired else owner0 i'
+                    |}),
+                  (TMap.add t1 (ls_linr (tryResolveTask (CTask t0 o n i) v) tt)
+                    (TMap.add t1 (ls_lini (tryResolveTask (CTask t0 o n i) v)) x0)). simpl.
+                      apply H in H5 as HΔ'; inversion HΔ'; simpl in *; subst.
+                      simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
+                      eapply rt_trans.
+                      eapply rt_step, ps_inv; eauto.
+                      do 2 constructor.
+                      eapply rt_step, ps_ret; eauto.
+                      constructor. eapply step_tryResolveTask_succ; eauto.
+                      rewrite TMap.gss; auto.
+                    + simpl_all. inversion H5; subst.
+                      do 2 eexists; split; eauto.
+                      do 2 (rewrite TMap.gso; eauto).
+                  * intros. inversion H6; subst. simpl in *.
+                    apply H5 in Hposs as ?. simpl in *. 
+                    destruct (Nat.eqb_spec i i0); subst; eauto. congruence.
+              }
+              (* fail *)
+              {
+                pupdate_start.
+                pupdate_trylin_from H1.
+                eapply rt_trans.
+                eapply rt_step, ps_inv; eauto.
+                do 2 constructor.
+                eapply rt_step, ps_ret; eauto; [|rewrite TMap.gss; auto].
+                constructor. eapply step_tryResolveTask_fail; eauto.
+                eapply ACTrylinFinish.
+
+                  (* * intros. inversion H7; subst. simpl in *.
+                    apply H6 in Hposs. simpl in *.
+                    destruct (Nat.eqb_spec ticket0 i); subst; eauto. *)
+
+                repeat split; simpl_all.
+                - exists (Idle {| current := current0; ticket := ticket0; owner := owner0 |}),
+                (TMap.add t1 (ls_linr (tryResolveTask (CTask t0 o n i) v) tt)
+                  (TMap.add t1 (ls_lini (tryResolveTask (CTask t0 o n i) v)) x0)).
+                  eexists; split; [|split;eauto].
+                  constructor; inversion 1; subst; try constructor; eauto.
+                  eapply rt_trans.
+                  eapply rt_step, ps_inv; eauto.
+                  do 2 constructor.
+                  eapply rt_step, ps_ret; eauto; [|rewrite TMap.gss; auto].
+                  constructor. eapply step_tryResolveTask_fail; eauto.
+                - destruct H4. apply H3 in H1. simpl in *. congruence.
+                - inversion H3; subst. simpl.
+                  apply H4 in H1 as [? ?]. eauto.
+                - inversion H3; subst. simpl.
+                  apply H4 in H1 as [? ?]. simpl in *.
+                  intros. unfold owner_upd.
+                  destruct (Nat.eqb_spec i i0); subst; eauto; try lia.
+                - inversion 1; subst. simpl_all.
+                  rewrite TMap.gss; eauto.
+                - right. intros. simpl_all.
+                  split.
+                  * split; intros [? [? [? ?]]]; [|inversion H6;subst].
+                    + exists (Idle {| current := current0; ticket := ticket0; owner := owner0 |}),
+                      (TMap.add t1 (ls_linr (tryResolveTask (CTask t0 o n i) v) tt)
+                        (TMap.add t1 (ls_lini (tryResolveTask (CTask t0 o n i) v)) x0)). simpl.
+                      apply H in H5 as HΔ'; inversion HΔ'; simpl in *; subst.
+                      simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
+                      eapply rt_trans.
+                      eapply rt_step, ps_inv; eauto.
+                      do 2 constructor.
+                      eapply rt_step, ps_ret; eauto.
+                      constructor. eapply step_tryResolveTask_fail; eauto.
+                      rewrite TMap.gss; auto.
+                    + simpl_all. inversion H5; subst.
+                      do 2 eexists; split; eauto.
+                      do 2 (rewrite TMap.gso; eauto).
+                  * intros. inversion H6; subst. simpl in *.
+                    apply H5 in Hposs as ?. simpl in *. 
+                    destruct (Nat.eqb_spec i i0); subst; eauto.
+              }
+            }
+            (* fail *)
+            {
+              clear H0. rename H1 into Hneq.
+              destruct Hpre as [? [? Hticket]].
+              pose proof ac_nonempty (Δ1) as [? [? ?]].
+              apply H0 in H1 as ?.
+              destruct H as [[? [? [? [? ?]]]] ?].
+              apply H in H1 as HΔ; inversion HΔ; subst. clear HΔ. simpl in *.
+              destruct x3.
+              pose proof H4 as [Hcas _].
+              apply Hcas in H1 as ?. simpl in *; subst ret. clear Hcas.
+
+              pupdate_start.
+              pupdate_trylin_from H1.
+              eapply rt_trans.
+              eapply rt_step, ps_inv; eauto.
+              do 2 constructor.
+              eapply rt_step, ps_ret; eauto; [|rewrite TMap.gss; auto].
+              constructor. eapply step_tryResolveTask_fail; eauto.
+              eapply ACTrylinFinish.
+
+                (* * intros. inversion H7; subst. simpl in *.
+                  apply H6 in Hposs. simpl in *.
+                  destruct (Nat.eqb_spec ticket0 i); subst; eauto. *)
+
+              repeat split; simpl_all.
+              - exists (Idle {| current := current0; ticket := ticket0; owner := owner0 |}),
+              (TMap.add t1 (ls_linr (tryResolveTask (CTask t0 o n i) v) tt)
+                (TMap.add t1 (ls_lini (tryResolveTask (CTask t0 o n i) v)) x0)).
+                eexists; split; [|split;eauto].
+                constructor; inversion 1; subst; try constructor; eauto.
+                eapply rt_trans.
+                eapply rt_step, ps_inv; eauto.
+                do 2 constructor.
+                eapply rt_step, ps_ret; eauto; [|rewrite TMap.gss; auto].
+                constructor. eapply step_tryResolveTask_fail; eauto.
+              - inversion 1; subst. auto.
+              - inversion H3; subst. simpl.
+                apply H4 in H1 as [? ?]. eauto.
+              - inversion H3; subst. simpl.
+                apply H4 in H1 as [? ?]. simpl in *.
+                intros. unfold owner_upd.
+                destruct (Nat.eqb_spec i i0); subst; eauto; try lia.
+              - inversion 1; subst. simpl_all.
+                rewrite TMap.gss; eauto.
+              - right. intros. simpl_all.
+                split.
+                * split; intros [? [? [? ?]]]; [|inversion H6;subst].
+                  + exists (Idle {| current := current0; ticket := ticket0; owner := owner0 |}),
+                    (TMap.add t1 (ls_linr (tryResolveTask (CTask t0 o n i) v) tt)
+                      (TMap.add t1 (ls_lini (tryResolveTask (CTask t0 o n i) v)) x0)). simpl.
+                    apply H in H5 as HΔ'; inversion HΔ'; simpl in *; subst.
                     simpl. split; [constructor|do 2 (rewrite TMap.gso; eauto) ]; eauto.
                     eapply rt_trans.
                     eapply rt_step, ps_inv; eauto.
                     do 2 constructor.
                     eapply rt_step, ps_ret; eauto.
-                    constructor. eapply step_tryPlaceTask_fail; eauto.
+                    constructor. eapply step_tryResolveTask_fail; eauto.
                     rewrite TMap.gss; auto.
-                  + do 2 eexists; split; eauto.
+                  + simpl_all. inversion H5; subst.
+                    do 2 eexists; split; eauto.
                     do 2 (rewrite TMap.gso; eauto).
-              }
-
-              
+                * intros. inversion H6; subst. simpl in *.
+                  apply H5 in Hposs as ?. simpl in *. 
+                  destruct (Nat.eqb_spec i i0); subst; eauto.
             }
-            
           }
           intros.
           eapply provable_ret;
@@ -686,8 +890,16 @@ Module CASTaskImpl.
         }
       }
     }
-
-
+    {
+      simpl_all.
+      repeat split.
+      - exists (Idle {| current := inr vInit; ticket := 0; owner := fun _ : nat => Inactive |}), (TMap.empty LinState); eexists; split; eauto.
+        reflexivity.
+      - inversion 1; subst. simpl. auto.
+      - inversion H; subst; auto.
+      - inversion H; subst; auto.
+    }
+  Qed.
 End CASTaskImpl.
 
 
@@ -1949,8 +2161,18 @@ Module CCASImpl.
             F //\\ I //\\ (⌜cid = t0⌝ //\\ TaskCompleted t0 o0 n0 i0 \\// ⌜cid <> t0⌝));
     try solve_conj_impl;
     try solve_stable stableDB;
-    try (intros; apply ConjLeftImpl; auto);
-    try solve_no_error.
+    try solve [intros; apply ConjLeftImpl; auto].
+    (* error *)
+    {
+      intros ? ? ?.
+      destruct s, σ0. simpl in *.
+      inversion H1; subst.
+      dependent destruction Herror.
+      destruct H0 as [? [? [[?|?]|?]]]; simpl_all.
+      - destruct H4 as [? [? ?]]. congruence.
+      - destruct H4. congruence.
+      - destruct H4. apply H2 in H4 as [? _]. congruence.
+    }
     (* stable *)
     {
       apply ConjStable; auto.
@@ -2372,7 +2594,7 @@ Module CCASImpl.
           (Q' := fun i => I //\\
                 (ALin t (ls_inv (cas o n)) //\\ (∀ (o0 n0 : Val) (i : nat), !! CurrentTask (CTask t o0 n0 i))) //\\
                 NotPlacedBy i t);
-          try solve_no_error;
+          try (solve_no_error; congruence);
           try solve_conj_impl;
           try solve_stable stableDB.
         (* inv *)
@@ -2403,7 +2625,7 @@ Module CCASImpl.
             do 3 (split; auto).
             split;[|split; auto].
             + unfold I_cur_task in *.
-              intros t0 o0 n0 i ?.
+              intros t0 ? ? i ?.
               apply H3 in H8 as [? [? ?]].
               clear - H8 H9 H10 H5.
               simpl_all.
@@ -2446,7 +2668,7 @@ Module CCASImpl.
                         ((⌜v <> o⌝ //\\ ALin t (ls_linr (cas o n) v) \\//
                         ⌜v = o⌝ //\\ (TaskCompleted t o n i \\// TaskPlaced t o n i)))
                     end);
-          try solve_no_error;
+          try (solve_no_error; congruence);
           try solve_conj_impl;
           try (subst; solve_stable stableDB).
           (* post stable *)

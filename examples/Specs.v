@@ -652,7 +652,13 @@ Module CASTaskSpec.
                   (cts c tk owner) (cts c tk owner)
     .
 
-    Definition VCASTask : @LTS ECASTask := @VAE _ CASTaskState StepCASTask NoError.
+    Variant ErrorCASTask : @ThreadEvent ECASTask -> CASTaskState  -> Prop :=
+    | error_inactive_task e cid t o n i v s tk owner:
+        e = {| te_tid := cid; te_ev := InvEv (tryResolveTask (CTask t o n i) v) |} ->
+        owner i = Inactive ->
+        ErrorCASTask e (cts s tk owner).
+
+    Definition VCASTask : @LTS ECASTask := @VAE _ CASTaskState StepCASTask (AError ErrorCASTask).
     
   End CASTaskSpec.
 
