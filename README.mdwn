@@ -10,7 +10,7 @@ git clone --recurse-submodules git@github.com:CertiKOS/rbgs.git
 2. Create a local switch and install all dependencies using `opam`,
 ```bash
 cd rbgs
-opam switch create ./
+opam switch create . --repositories=default,rocq-released=https://rocq-prover.org/opam/released
 ```
 
 3. Load local switch into environment variables,
