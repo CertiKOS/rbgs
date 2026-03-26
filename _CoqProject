@@ -26,6 +26,7 @@ models/EffectSignatures.v
 models/IntSpec.v
 models/Coherence.v
 models/DCPO.v
+models/DCPOSL.v
 models/IntStrat.v
 models/LinCCAL.v
 examples/CAL.v
@@ -35,3 +36,5 @@ interfaces/MonoidalCategory.v
 interfaces/ConcreteCategory.v
 interfaces/FunctorCategory.v
 interfaces/Limits.v
+interfaces/Adjunctions.v
+interfaces/Monads.v

@@ -55,6 +55,138 @@ Module FunctorTheory (C D : Category) (F : FunctorDefinition C D).
     rewrite <- F.fmap_compose, C.fw_bw, F.fmap_id. auto.
   Qed.
 
+  (** *** Universal morphisms *)
+
+  (** Universal properties can be formalized using the notion of
+    universal morphism into and out of a particular functor.
+    Morover, a functor is a right adjoint when there is a universal
+    morphisms into it from every object of [D], and conversely
+    it is a left adjoint when there is a "couniversal" morphism
+    from the functor to every object of [D].
+
+    The terminology of "universal" vs "couniversal" is not standard,
+    but we adopt it because we need two different names.
+    Given the fundamental connection between universal morphisms and
+    adjoint functors, we follow the convention used in that context,
+    so that the unit of an adjunction is a "universal" morphism into
+    the right adjoint, while the counit is a "couniversal" moprhism
+    into the left adjoint.
+
+    A universal morphism from [X] to a functor [G] is given by
+    an object [U∈C] and a morphism [u : X → GU ∈ D]
+    which satisfy the property below. If [G] has a left adjoint [F]
+    then the object [U := FX] and the unit component [ηX : X → GFX]
+    constitute a universal morphism from [X] to [G]. *)
+
+  Class Universal (X : D.t) {U : C.t} (u : D.m X (omap U)) :=
+    {
+      transpose {A} (f : D.m X (omap A)) : C.m U A;
+      transpose_prop {A} f : D.compose (fmap (@transpose A f)) u = f;
+      transpose_uniq {A f} g : D.compose (fmap g) u = f -> @transpose A f = g;
+    }.
+
+  Arguments transpose {X U} u {_ A} f.
+
+  (** Universal morphisms are unique up to isomorphism. *)
+
+  Lemma transpose_self `{Hu : Universal} :
+    transpose u u = C.id U.
+  Proof.
+    apply transpose_uniq.
+    rewrite fmap_id, D.compose_id_left.
+    reflexivity.
+  Qed.
+
+  Section UNIVERSAL_ISO.
+    Context {X : D.t}.
+    Context {U} (u : D.m X (omap U)) `{Hu : !Universal X u}.
+    Context {V} (v : D.m X (omap V)) `{Hv : !Universal X v}.
+
+    Program Definition universal_iso : C.iso U V :=
+      {|
+        C.fw := transpose u v;
+        C.bw := transpose v u;
+      |}.
+    Next Obligation.
+      rewrite <- transpose_self. symmetry.
+      apply transpose_uniq.
+      rewrite fmap_compose, D.compose_assoc.
+      rewrite !transpose_prop.
+      reflexivity.
+    Qed.
+    Next Obligation.
+      rewrite <- transpose_self. symmetry.
+      apply transpose_uniq.
+      rewrite fmap_compose, D.compose_assoc.
+      rewrite !transpose_prop.
+      reflexivity.
+    Qed.
+
+    Theorem universal_up_to_iso :
+      D.compose (fmap (C.fw universal_iso)) u = v.
+    Proof.
+      cbn.
+      apply transpose_prop.
+    Qed.
+  End UNIVERSAL_ISO.
+
+  (** Conversely, what we call a "couniversal" morphism from
+    a functor [F : C → D] to an object [X∈D] is an object [U∈C] and
+    a morphism [u : FU → X ∈ D] which satisfy the dual property
+    below. If [F] has a right adjoint [G] then the object [U := GX]
+    and the counit component [εX : FGX → X] constitute a couniversal
+    morphism from [F] to [X]. *)
+
+  Class Couniversal (X : D.t) {U : C.t} (u : D.m (omap U) X) :=
+    {
+      cotranspose {A} (f : D.m (omap A) X) : C.m A U;
+      cotranspose_prop {A} f: D.compose u (fmap (@cotranspose A f)) = f;
+      cotranspose_uniq {A f} g: D.compose u (fmap g) = f -> @cotranspose A f = g;
+    }.
+
+  Arguments cotranspose {X U} u {_ A} f.
+
+  Lemma cotranspose_self `{Hu : Couniversal} :
+    cotranspose u u = C.id U.
+  Proof.
+    apply cotranspose_uniq.
+    rewrite fmap_id, D.compose_id_right.
+    reflexivity.
+  Qed.
+
+  Section COUNIVERSAL_ISO.
+    Context {X : D.t}.
+    Context {U} (u : D.m (omap U) X) `{Hu : !Couniversal X u}.
+    Context {V} (v : D.m (omap V) X) `{Hv : !Couniversal X v}.
+
+    Program Definition couniversal_iso : C.iso U V :=
+      {|
+        C.fw := cotranspose v u;
+        C.bw := cotranspose u v;
+      |}.
+    Next Obligation.
+      rewrite <- cotranspose_self. symmetry.
+      apply cotranspose_uniq.
+      rewrite fmap_compose, <- D.compose_assoc.
+      rewrite !cotranspose_prop.
+      reflexivity.
+    Qed.
+    Next Obligation.
+      rewrite <- cotranspose_self. symmetry.
+      apply cotranspose_uniq.
+      rewrite fmap_compose, <- D.compose_assoc.
+      rewrite !cotranspose_prop.
+      reflexivity.
+    Qed.
+
+    Theorem couniversal_up_to_iso :
+      D.compose v (fmap (C.fw couniversal_iso)) = u.
+    Proof.
+      cbn.
+      apply cotranspose_prop.
+    Qed.
+  End COUNIVERSAL_ISO.
+
 End FunctorTheory.
 
 Module Type Functor (C D : Category) :=

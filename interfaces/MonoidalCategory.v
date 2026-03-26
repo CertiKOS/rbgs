@@ -583,6 +583,82 @@ Module CartesianStructureTheory (C : Category) (P : CartesianStructureDefinition
       auto.
   Qed.
 
+  (** *** Compatibility of monoidal and cartesian structure *)
+
+  (** Naturality of projections *)
+
+  Proposition p1_nat {A1 A2 B1 B2} (f : C.m A1 B1) (g : C.m A2 B2) :
+    p1 @ (f & g) = f @ p1.
+  Proof.
+    unfold fmap. apply p1_pair.
+  Qed.
+
+  Proposition i2_nat {A1 A2 B1 B2} (f : C.m A1 B1) (g : C.m A2 B2) :
+    p2 @ (f & g) = g @ p2.
+  Proof.
+    unfold fmap. apply p2_pair.
+  Qed.
+
+  (** Compatibility of associator with projections *)
+
+  Proposition p1_p1_assoc (A B C : t) :
+    p1 @ p1 @ assoc A B C = p1.
+  Proof.
+    unfold assoc. cbn [fw]. rewrite p1_pair. apply p1_pair.
+  Qed.
+
+  Proposition p2_assoc (A B C : t) :
+    p2 @ assoc A B C = p2 @ p2.
+  Proof.
+    unfold assoc. cbn [C.fw]. apply p2_pair.
+  Qed.
+
+  Proposition p2_p1_assoc (A B C : t) :
+    p2 @ p1 @ assoc A B C = p1 @ p2.
+  Proof.
+    unfold assoc. cbn [C.fw]. rewrite p1_pair. apply p2_pair.
+  Qed.
+
+  (** Compatibility of unitals with projections *)
+
+  Proposition p1_lunit_bw (A : t) :
+    p1 @ bw (lunit A) = ter A.
+  Proof.
+    unfold lunit; cbn. apply p1_pair.
+  Qed.
+
+  Proposition p2_lunit_bw (A : t) :
+    p2 @ bw (lunit A) = id A.
+  Proof.
+    unfold lunit; cbn. apply p2_pair.
+  Qed.
+
+  Proposition p1_runit_bw (A : t) :
+    p1 @ bw (runit A) = id A.
+  Proof.
+    unfold runit; cbn. apply p1_pair.
+  Qed.
+
+  Proposition p2_runit_bw (A : t) :
+    p2 @ bw (runit A) = ter A.
+  Proof.
+    unfold runit; cbn. apply p2_pair.
+  Qed.
+
+  (** Compatibility of braiding with projections *)
+
+  Proposition p1_swap (A B : t) :
+    p1 @ swap A B = p2.
+  Proof.
+    unfold swap. apply p1_pair.
+  Qed.
+
+  Proposition p2_swap (A B : t) :
+    p2 @ swap A B = p1.
+  Proof.
+    unfold swap. apply p2_pair.
+  Qed.
+
 End CartesianStructureTheory.
 
 (** Once we add in the definitions provided by [BifunctorTheory], we
@@ -860,6 +936,87 @@ Module CocartesianStructureTheory (C : Category) (P : CocartesianStructureDefini
       (apply pair_uni ||
        rewrite ?compose_assoc, ?compose_id_left, ?compose_id_right ||
        autorewrite with copair); auto.
+  Qed.
+
+  (** *** Compatibility of monoidal and cocartesian structure *)
+
+  (** Naturality of injections *)
+
+  Proposition i1_nat {A1 A2 B1 B2} (f : C.m A1 B1) (g : C.m A2 B2) :
+    (f + g) @ i1 = i1 @ f.
+  Proof.
+    unfold fmap. apply copair_i1.
+  Qed.
+
+  Proposition i2_nat {A1 A2 B1 B2} (f : C.m A1 B1) (g : C.m A2 B2) :
+    (f + g) @ i2 = i2 @ g.
+  Proof.
+    unfold fmap. apply copair_i2.
+  Qed.
+
+  (** Compatibility of associator with injections *)
+
+  Proposition assoc_i1 (A B C : t) :
+    assoc A B C @ i1 = i1 @ i1.
+  Proof.
+    unfold assoc. cbn [fw].
+    apply copair_i1.
+  Qed.
+
+  Proposition assoc_i2_i1 (A B C : t) :
+    assoc A B C @ i2 @ i1 = i1 @ i2.
+  Proof.
+    unfold assoc. cbn [C.fw].
+    rewrite copair_i2_rewrite.
+    apply copair_i1.
+  Qed.
+
+  Proposition assoc_i2_i2 (A B C : t) :
+    assoc A B C @ i2 @ i2 = i2.
+  Proof.
+    unfold assoc. cbn [C.fw].
+    rewrite copair_i2_rewrite.
+    apply copair_i2.
+  Qed.
+
+  (** Compatibility of unitals with injections *)
+
+  Proposition lunit_i1 (A : t) :
+    lunit A @ i1 = ini A.
+  Proof.
+    unfold lunit; cbn. apply copair_i1.
+  Qed.
+
+  Proposition lunit_i2 (A : t) :
+    lunit A @ i2 = id A.
+  Proof.
+    unfold lunit; cbn. apply copair_i2.
+  Qed.
+
+  Proposition runit_i1 (A : t) :
+    runit A @ i1 = id A.
+  Proof.
+    unfold runit; cbn. apply copair_i1.
+  Qed.
+
+  Proposition runit_i2 (A : t) :
+    runit A @ i2 = ini A.
+  Proof.
+    unfold runit; cbn. apply copair_i2.
+  Qed.
+
+  (** Compatibility of braiding with injections *)
+  
+  Proposition swap_i1 (A B : t) :
+    swap A B @ i1 = i2.
+  Proof.
+    unfold swap. apply copair_i1.
+  Qed.
+
+  Proposition swap_i2 (A B : t) :
+    swap A B @ i2 = i1.
+  Proof.
+    unfold swap. apply copair_i2.
   Qed.
 
 End CocartesianStructureTheory.

@@ -5,11 +5,15 @@ Require Import Relations.
 Require Import RelationClasses.
 Require Import List.
 
+Require Import interfaces.Category.
+
 Unset Program Cases.
 Local Obligation Tactic := cbn.
 
 
 (** * Coherence spaces *)
+
+Module Coh <: Category.
 
 (** ** Definition *)
 
@@ -24,23 +28,25 @@ Record space :=
 Arguments coh {_}.
 Existing Instance coh_refl.
 Existing Instance coh_symm.
-Bind Scope coh_scope with space.
-Delimit Scope coh_scope with coh.
+
+Definition t := space.
+Bind Scope obj_scope with t.
+Bind Scope obj_scope with space.
 
 (** ** Cliques *)
 
 (** A point in a coherence space is a set of pairwise coherent tokens. *)
 
-Record clique (A : space) :=
+Record clique (A : t) :=
   {
     has : token A -> Prop;
     has_coh a b : has a -> has b -> coh a b;
   }.
-    
+
 Arguments has {A}.
-Bind Scope clique_scope with clique.
-Delimit Scope clique_scope with clique.
-Open Scope clique_scope.
+
+Bind Scope hom_scope with clique.
+Open Scope hom_scope.
 
 (** ** Ordering *)
 
@@ -120,7 +126,7 @@ Qed.
 
 (** Linear maps are defined as cliques in the space [A --o B]. *)
 
-Program Definition lmap (A B : space) : space :=
+Program Definition lmap (A B : t) : t :=
   {|
     token := token A * token B;
     coh '(a1, b1) '(a2, b2) :=
@@ -135,8 +141,10 @@ Next Obligation.
   split; symmetry; apply H; symmetry; auto.
 Qed.
 
-Infix "--o" := lmap (at level 55, right associativity) : coh_scope.
-Notation "A --o B" := (clique (A --o B)) : type_scope.
+Infix "--o" := lmap (at level 55, right associativity) : obj_scope.
+
+Definition m A B := clique (A --o B).
+Infix "--o" := m : type_scope.
 
 (** *** Properties *)
 
@@ -177,38 +185,38 @@ Local Obligation Tactic :=
 
 (** ** Identity and composition *)
 
-Program Definition lmap_id {A : space} : A --o A :=
+Program Definition id {A : t} : A --o A :=
   {|
     has '(x, y) := x = y;
   |}.
 
-Program Definition lmap_compose {A B C} (g : B --o C) (f : A --o B) : A --o C :=
+Program Definition compose {A B C} (g : B --o C) (f : A --o B) : A --o C :=
   {|
     has '(x, z) := exists y, has f (x, y) /\ has g (y, z);
   |}.
 
-Infix "@" := lmap_compose (at level 30, right associativity) : clique_scope.
-
-Lemma lmap_compose_id_left {A B} (f : A --o B) :
-  f @ lmap_id = f.
+Lemma compose_id_left {A B} (f : A --o B) :
+  compose id f = f.
 Proof.
   apply lmap_ext; cbn.
   firstorder congruence.
 Qed.
 
-Lemma lmap_compose_id_right {A B} (f : A --o B) :
-   lmap_id @ f = f.
+Lemma compose_id_right {A B} (f : A --o B) :
+  compose f id = f.
 Proof.
   apply lmap_ext; cbn.
   firstorder congruence.
 Qed.
 
-Lemma lmap_compose_assoc {A B C D} (h : C --o D) (g : B --o C) (f : A --o B) :
-  (h @ g) @ f = h @ (g @ f).
+Lemma compose_assoc {A B C D} (f : A --o B) (g : B --o C) (h : C --o D) :
+  compose (compose h g) f = compose h (compose g f).
 Proof.
   apply lmap_ext; cbn.
   firstorder.
 Qed.
+
+Include CategoryTheory.
 
 (** ** Action on cliques *)
 
@@ -221,7 +229,7 @@ Program Definition lmap_apply {A B} (f : A --o B) (x : clique A) : clique B :=
   |}.
 
 Lemma lmap_apply_id {A} (x : clique A) :
-  lmap_apply lmap_id x = x.
+  lmap_apply id x = x.
 Proof.
   apply antisymmetry; firstorder congruence.
 Qed.
@@ -300,7 +308,7 @@ Program Definition omap {X Y} (f : X -> Y) : output X --o output Y :=
   |}.
 
 Lemma omap_id X :
-  omap (fun x:X => x) = lmap_id.
+  omap (fun x:X => x) = id.
 Proof.
   apply lmap_ext; cbn.
   tauto.
@@ -363,7 +371,7 @@ Program Definition imap {X Y} (f : X -> Y) : input Y --o input X :=
   |}.
 
 Lemma imap_id X :
-  imap (fun x:X => x) = lmap_id.
+  imap (fun x:X => x) = id.
 Proof.
   apply lmap_ext. cbn. firstorder.
 Qed.
@@ -400,7 +408,7 @@ Next Obligation.
   destruct 1; constructor; symmetry; auto.
 Qed.
 
-Infix "&&" := csprod : coh_scope.
+Infix "&&" := csprod : obj_scope.
 
 Program Definition csp1 {A B : space} : A && B --o A :=
   {|
@@ -435,7 +443,7 @@ Next Obligation.
   - destruct b1, b2; cbn; inversion 1; eauto using lmap_det.
 Qed.
 
-Notation "{ x , y }" := (cspair x y) (x at level 99) : clique_scope.
+Notation "{ x , y }" := (cspair x y) (x at level 99) : hom_scope.
 
 (** *** Universal property *)
 
@@ -484,7 +492,7 @@ Next Obligation.
   destruct 1; constructor; symmetry; auto.
 Qed.
 
-Infix "+" := cssum : coh_scope.
+Infix "+" := cssum : obj_scope.
 
 Program Definition csi1 {A B : space} : A --o A + B :=
   {|
@@ -519,7 +527,7 @@ Next Obligation.
   destruct H; eauto using lmap_coh, lmap_det, f_equal.
 Qed.
 
-Notation "[ x , y ]" := (copair x y) (x at level 99) : clique_scope.
+Notation "[ x , y ]" := (copair x y) (x at level 99) : hom_scope.
 
 (** *** Universal property *)
 
@@ -589,7 +597,7 @@ Next Obligation.
   intros A B [a1 b1] [a2 b2] [Ha Hb]. split; symmetry; auto.
 Qed.
 
-Infix "*" := cstens : coh_scope.
+Infix "*" := cstens : obj_scope.
 
 (** ** Functoriality *)
 
@@ -604,10 +612,10 @@ Next Obligation.
   inversion H. f_equal; eauto using lmap_det.
 Qed.
 
-Infix "*" := cstens_lmap : clique_scope.
+Infix "*" := cstens_lmap : hom_scope.
 
 Lemma cstens_id {A B} :
-  (@lmap_id A) * (@lmap_id B) = lmap_id.
+  (@id A) * (@id B) = id.
 Proof.
   apply lmap_ext.
   intros [a1 b1] [a2 b2]. cbn.
@@ -714,7 +722,7 @@ Next Obligation.
   split; symmetry; auto.
 Qed.
 
-Infix ";;" := seq (at level 40, left associativity) : coh_scope.
+Infix ";;" := seq (at level 40, left associativity) : obj_scope.
 
 Program Definition seq_lmap {A B C D} (f g : _ --o _) : (A ;; C) --o (B ;; D) :=
   {|
@@ -759,7 +767,7 @@ Next Obligation.
 Qed.
 
 Notation "! A" := (dag A)
-  (at level 8, right associativity, format "'!' A") : coh_scope.
+  (at level 8, right associativity, format "'!' A") : obj_scope.
 
 (** *** Comonad structure *)
 
@@ -835,10 +843,10 @@ Next Obligation.
 Qed.
 
 Notation "! f" := (dag_lmap f)
-  (at level 8, right associativity, format "'!' f") : clique_scope.
+  (at level 8, right associativity, format "'!' f") : hom_scope.
 
 Lemma dag_id {A} :
-  !(@lmap_id A) = @lmap_id !A.
+  !(@id A) = @id !A.
 Proof.
   apply lmap_ext. split.
   - induction 1. constructor.
@@ -988,7 +996,7 @@ Qed.
 (** Properties *)
 
 Lemma dag_comult_counit {A} :
-  !(dag_counit A) @ (dag_comult A) = @lmap_id !A.
+  !(dag_counit A) @ (dag_comult A) = @id !A.
 Proof.
   apply lmap_ext. split.
   - cbn. intros (a & Ha1 & Ha2).
@@ -1008,7 +1016,7 @@ Proof.
 Qed.
 
 Lemma dag_counit_comult {A} :
-  (dag_counit !A) @ (dag_comult A) = @lmap_id !A.
+  (dag_counit !A) @ (dag_comult A) = @id !A.
 Proof.
   apply lmap_ext. split.
   - cbn. intros (a & Ha1 & Ha2).
@@ -1091,7 +1099,7 @@ Definition dag_ext {A B} (f : !A --o B) : !A --o !B :=
   dag_lmap f @ dag_comult A.
 
 Lemma dag_ext_counit A :
-  dag_ext (dag_counit A) = @lmap_id !A.
+  dag_ext (dag_counit A) = @id !A.
 Proof.
   unfold dag_ext.
   apply dag_comult_counit.
@@ -1101,11 +1109,11 @@ Lemma dag_counit_ext {A B} (f : !A --o B) :
   dag_counit B @ dag_ext f = f.
 Proof.
   unfold dag_ext.
-  rewrite <- lmap_compose_assoc.
+  rewrite <- compose_assoc.
   rewrite <- dag_counit_natural.
-  rewrite lmap_compose_assoc.
+  rewrite compose_assoc.
   rewrite dag_counit_comult.
-  rewrite lmap_compose_id_left.
+  rewrite compose_id_right.
   reflexivity.
 Qed.
 
@@ -1113,10 +1121,12 @@ Lemma dag_ext_compose {A B C} (f : !A --o B) (g : !B --o C) :
   dag_ext (g @ dag_ext f) = dag_ext g @ dag_ext f.
 Proof.
   unfold dag_ext.
-  rewrite !lmap_compose_assoc.
-  rewrite <- (lmap_compose_assoc (dag_comult B)).
+  rewrite !compose_assoc.
+  rewrite <- (compose_assoc _ _ (dag_comult B)).
   rewrite <- dag_comult_natural.
-  rewrite !dag_compose, !lmap_compose_assoc.
+  rewrite !dag_compose, !compose_assoc.
   rewrite dag_comult_comult.
   reflexivity.
 Qed.
+
+End Coh.
