@@ -26,6 +26,7 @@ models/EffectSignatures.v
 models/IntSpec.v
 models/Coherence.v
 models/DCPO.v
+models/DCPOSL.v
 models/IntStrat.v
 models/LinCCAL.v
 examples/CAL.v
