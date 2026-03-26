@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>interfaces.Adjunctions</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library interfaces.Adjunctions</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="interfaces.Category.html#"><span class="id" title="library">interfaces.Category</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="interfaces.Functor.html#"><span class="id" title="library">interfaces.Functor</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab404"></a><h1 class="section">Adjoint functors</h1>
+
+<div class="paragraph"> </div>
+
+<a id="lab405"></a><h2 class="section">Definition</h2>
+
+<div class="paragraph"> </div>
+
+ There are many ways to define adjunctions. Here we will assume
+  that the two functors are known ahead of time and provide two
+  options for establishing an adjunction. Note that we follow the
+  naming convention used in nlab where adjunctions of the form
+  <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span> <span class="inlinecode">⊣</span> <span class="inlinecode"><span class="id" title="var">G</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">D</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">C</span></span> are described, as opposed to the Wikipedia page
+  on adjoint functors, which reverses <span class="inlinecode"><span class="id" title="var">C</span></span> and <span class="inlinecode"><span class="id" title="var">D</span></span>. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a id="AdjointFunctorsDefinition" class="idref" href="#AdjointFunctorsDefinition"><span class="id" title="module">AdjointFunctorsDefinition</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">C</span> <span class="id" title="var">D</span> : <a class="idref" href="interfaces.Category.html#Category"><span class="id" title="module">Category</span></a>) (<span class="id" title="var">F</span> : <a class="idref" href="interfaces.Functor.html#Functor"><span class="id" title="module">Functor</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a>) (<span class="id" title="var">G</span> : <a class="idref" href="interfaces.Functor.html#Functor"><span class="id" title="module">Functor</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a id="AdjointFunctorsDefinition.unit" class="idref" href="#AdjointFunctorsDefinition.unit"><span class="id" title="axiom">unit</span></a> : <span class="id" title="keyword">∀</span> <a id="A:1" class="idref" href="#A:1"><span class="id" title="binder">A</span></a>, <a class="idref" href="interfaces.Adjunctions.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:1"><span class="id" title="variable">A</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.omap"><span class="id" title="axiom">G.omap</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.omap"><span class="id" title="axiom">F.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:1"><span class="id" title="variable">A</span></a>)).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Parameter</span> <a id="AdjointFunctorsDefinition.counit" class="idref" href="#AdjointFunctorsDefinition.counit"><span class="id" title="axiom">counit</span></a> : <span class="id" title="keyword">∀</span> <a id="X:3" class="idref" href="#X:3"><span class="id" title="binder">X</span></a>, <a class="idref" href="interfaces.Adjunctions.html#D.m"><span class="id" title="axiom">D.m</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.omap"><span class="id" title="axiom">F.omap</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.omap"><span class="id" title="axiom">G.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:3"><span class="id" title="variable">X</span></a>)) <a class="idref" href="interfaces.Adjunctions.html#X:3"><span class="id" title="variable">X</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="AdjointFunctorsDefinition.unit_natural" class="idref" href="#AdjointFunctorsDefinition.unit_natural"><span class="id" title="axiom">unit_natural</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<a id="A:5" class="idref" href="#A:5"><span class="id" title="binder">A</span></a> <a id="V:6" class="idref" href="#V:6"><span class="id" title="binder">V</span></a>} (<a id="f:7" class="idref" href="#f:7"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.Adjunctions.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:5"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.Adjunctions.html#V:6"><span class="id" title="variable">V</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#C.compose"><span class="id" title="axiom">C.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.unit"><span class="id" title="axiom">unit</span></a> <a class="idref" href="interfaces.Adjunctions.html#V:6"><span class="id" title="variable">V</span></a>) <a class="idref" href="interfaces.Adjunctions.html#f:7"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#C.compose"><span class="id" title="axiom">C.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.fmap"><span class="id" title="axiom">G.fmap</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.fmap"><span class="id" title="axiom">F.fmap</span></a> <a class="idref" href="interfaces.Adjunctions.html#f:7"><span class="id" title="variable">f</span></a>)) (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.unit"><span class="id" title="axiom">unit</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:5"><span class="id" title="variable">A</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="AdjointFunctorsDefinition.counit_natural" class="idref" href="#AdjointFunctorsDefinition.counit_natural"><span class="id" title="axiom">counit_natural</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<a id="X:9" class="idref" href="#X:9"><span class="id" title="binder">X</span></a> <a id="Y:10" class="idref" href="#Y:10"><span class="id" title="binder">Y</span></a>} (<a id="9bf21897ae15e1f16742aa7e8c70f205" class="idref" href="#9bf21897ae15e1f16742aa7e8c70f205"><span class="id" title="binder">ϕ</span></a> : <a class="idref" href="interfaces.Adjunctions.html#D.m"><span class="id" title="axiom">D.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:9"><span class="id" title="variable">X</span></a> <a class="idref" href="interfaces.Adjunctions.html#Y:10"><span class="id" title="variable">Y</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#D.compose"><span class="id" title="axiom">D.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.counit"><span class="id" title="axiom">counit</span></a> <a class="idref" href="interfaces.Adjunctions.html#Y:10"><span class="id" title="variable">Y</span></a>) (<a class="idref" href="interfaces.Adjunctions.html#F.fmap"><span class="id" title="axiom">F.fmap</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.fmap"><span class="id" title="axiom">G.fmap</span></a> <a class="idref" href="interfaces.Adjunctions.html#9bf21897ae15e1f16742aa7e8c70f205"><span class="id" title="variable">ϕ</span></a>)) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#D.compose"><span class="id" title="axiom">D.compose</span></a> <a class="idref" href="interfaces.Adjunctions.html#9bf21897ae15e1f16742aa7e8c70f205"><span class="id" title="variable">ϕ</span></a> (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.counit"><span class="id" title="axiom">counit</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:9"><span class="id" title="variable">X</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="AdjointFunctorsDefinition.unit_counit" class="idref" href="#AdjointFunctorsDefinition.unit_counit"><span class="id" title="axiom">unit_counit</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="X:13" class="idref" href="#X:13"><span class="id" title="binder">X</span></a>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#C.compose"><span class="id" title="axiom">C.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.fmap"><span class="id" title="axiom">G.fmap</span></a> (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.counit"><span class="id" title="axiom">counit</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:13"><span class="id" title="variable">X</span></a>)) (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.unit"><span class="id" title="axiom">unit</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.omap"><span class="id" title="axiom">G.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:13"><span class="id" title="variable">X</span></a>)) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#C.id"><span class="id" title="axiom">C.id</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.omap"><span class="id" title="axiom">G.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:13"><span class="id" title="variable">X</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Axiom</span> <a id="AdjointFunctorsDefinition.counit_unit" class="idref" href="#AdjointFunctorsDefinition.counit_unit"><span class="id" title="axiom">counit_unit</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="A:15" class="idref" href="#A:15"><span class="id" title="binder">A</span></a>,<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#D.compose"><span class="id" title="axiom">D.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.counit"><span class="id" title="axiom">counit</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.omap"><span class="id" title="axiom">F.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:15"><span class="id" title="variable">A</span></a>)) (<a class="idref" href="interfaces.Adjunctions.html#F.fmap"><span class="id" title="axiom">F.fmap</span></a> (<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition.unit"><span class="id" title="axiom">unit</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:15"><span class="id" title="variable">A</span></a>)) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#D.id"><span class="id" title="axiom">D.id</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.omap"><span class="id" title="axiom">F.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:15"><span class="id" title="variable">A</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition"><span class="id" title="module">AdjointFunctorsDefinition</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab406"></a><h2 class="section">Properties</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a id="AdjointFunctorsTheory" class="idref" href="#AdjointFunctorsTheory"><span class="id" title="module">AdjointFunctorsTheory</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">C</span> <span class="id" title="var">D</span> : <a class="idref" href="interfaces.Category.html#Category"><span class="id" title="module">Category</span></a>) (<span class="id" title="var">F</span> : <a class="idref" href="interfaces.Functor.html#Functor"><span class="id" title="module">Functor</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a>) (<span class="id" title="var">G</span> : <a class="idref" href="interfaces.Functor.html#Functor"><span class="id" title="module">Functor</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">FG</span> : <a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition"><span class="id" title="module">AdjointFunctorsDefinition</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a> <a class="idref" href="interfaces.Adjunctions.html#F"><span class="id" title="module">F</span></a> <a class="idref" href="interfaces.Adjunctions.html#G"><span class="id" title="module">G</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Import</span> <a class="idref" href="interfaces.Adjunctions.html#FG"><span class="id" title="module">FG</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Obligation</span> <span class="id" title="keyword">Tactic</span> := <span class="id" title="var">cbn</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab407"></a><h3 class="section">Universal morphisms</h3>
+
+<div class="paragraph"> </div>
+
+ The unit and counit can be characterized as universal morphisms. 
+</div>
+<div class="code">
+
+<br/>
+
+<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab408"></a><h3 class="section">Natural bijection</h3>
+
+<div class="paragraph"> </div>
+
+ The (co-)transpose operations are inverse of each other 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proposition</span> <a id="AdjointFunctorsTheory.transpose_cotranspose" class="idref" href="#AdjointFunctorsTheory.transpose_cotranspose"><span class="id" title="lemma">transpose_cotranspose</span></a> {<a id="A:23" class="idref" href="#A:23"><span class="id" title="binder">A</span></a> <a id="X:24" class="idref" href="#X:24"><span class="id" title="binder">X</span></a>} (<a id="92da329c53444173d75a3135f368605c" class="idref" href="#92da329c53444173d75a3135f368605c"><span class="id" title="binder">ϕ</span></a> : <a class="idref" href="interfaces.Adjunctions.html#D.m"><span class="id" title="axiom">D.m</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.omap"><span class="id" title="axiom">F.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:23"><span class="id" title="variable">A</span></a>) <a class="idref" href="interfaces.Adjunctions.html#X:24"><span class="id" title="variable">X</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#G.transpose"><span class="id" title="method">G.transpose</span></a> <span class="id" title="var">_</span> (<a class="idref" href="interfaces.Adjunctions.html#F.cotranspose"><span class="id" title="method">F.cotranspose</span></a> <span class="id" title="var">_</span> <a class="idref" href="interfaces.Adjunctions.html#92da329c53444173d75a3135f368605c"><span class="id" title="variable">ϕ</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#92da329c53444173d75a3135f368605c"><span class="id" title="variable">ϕ</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proposition</span> <a id="AdjointFunctorsTheory.cotranspose_transpose" class="idref" href="#AdjointFunctorsTheory.cotranspose_transpose"><span class="id" title="lemma">cotranspose_transpose</span></a> {<a id="A:26" class="idref" href="#A:26"><span class="id" title="binder">A</span></a> <a id="X:27" class="idref" href="#X:27"><span class="id" title="binder">X</span></a>} (<a id="f:28" class="idref" href="#f:28"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.Adjunctions.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:26"><span class="id" title="variable">A</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.omap"><span class="id" title="axiom">G.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:27"><span class="id" title="variable">X</span></a>)) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#F.cotranspose"><span class="id" title="method">F.cotranspose</span></a> <span class="id" title="var">_</span> (<a class="idref" href="interfaces.Adjunctions.html#G.transpose"><span class="id" title="method">G.transpose</span></a> <span class="id" title="var">_</span> <a class="idref" href="interfaces.Adjunctions.html#f:28"><span class="id" title="variable">f</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#f:28"><span class="id" title="variable">f</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Naturality 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proposition</span> <a id="AdjointFunctorsTheory.transpose_natural_l" class="idref" href="#AdjointFunctorsTheory.transpose_natural_l"><span class="id" title="lemma">transpose_natural_l</span></a> {<a id="A:29" class="idref" href="#A:29"><span class="id" title="binder">A</span></a> <a id="B:30" class="idref" href="#B:30"><span class="id" title="binder">B</span></a> <a id="X:31" class="idref" href="#X:31"><span class="id" title="binder">X</span></a>} (<a id="a:32" class="idref" href="#a:32"><span class="id" title="binder">a</span></a> : <a class="idref" href="interfaces.Adjunctions.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#B:30"><span class="id" title="variable">B</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:29"><span class="id" title="variable">A</span></a>) (<a id="f:33" class="idref" href="#f:33"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.Adjunctions.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:29"><span class="id" title="variable">A</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.omap"><span class="id" title="axiom">G.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:31"><span class="id" title="variable">X</span></a>)) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#G.transpose"><span class="id" title="method">G.transpose</span></a> <span class="id" title="var">_</span> (<a class="idref" href="interfaces.Adjunctions.html#C.compose"><span class="id" title="axiom">C.compose</span></a> <a class="idref" href="interfaces.Adjunctions.html#f:33"><span class="id" title="variable">f</span></a> <a class="idref" href="interfaces.Adjunctions.html#a:32"><span class="id" title="variable">a</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#D.compose"><span class="id" title="axiom">D.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.transpose"><span class="id" title="method">G.transpose</span></a> <span class="id" title="var">_</span> <a class="idref" href="interfaces.Adjunctions.html#f:33"><span class="id" title="variable">f</span></a>) (<a class="idref" href="interfaces.Adjunctions.html#F.fmap"><span class="id" title="axiom">F.fmap</span></a> <a class="idref" href="interfaces.Adjunctions.html#a:32"><span class="id" title="variable">a</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proposition</span> <a id="AdjointFunctorsTheory.transpose_natural_r" class="idref" href="#AdjointFunctorsTheory.transpose_natural_r"><span class="id" title="lemma">transpose_natural_r</span></a> {<a id="A:34" class="idref" href="#A:34"><span class="id" title="binder">A</span></a> <a id="X:35" class="idref" href="#X:35"><span class="id" title="binder">X</span></a> <a id="Y:36" class="idref" href="#Y:36"><span class="id" title="binder">Y</span></a>} (<a id="f:37" class="idref" href="#f:37"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.Adjunctions.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:34"><span class="id" title="variable">A</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.omap"><span class="id" title="axiom">G.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:35"><span class="id" title="variable">X</span></a>)) (<a id="x:38" class="idref" href="#x:38"><span class="id" title="binder">x</span></a> : <a class="idref" href="interfaces.Adjunctions.html#D.m"><span class="id" title="axiom">D.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:35"><span class="id" title="variable">X</span></a> <a class="idref" href="interfaces.Adjunctions.html#Y:36"><span class="id" title="variable">Y</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#G.transpose"><span class="id" title="method">G.transpose</span></a> <span class="id" title="var">_</span> (<a class="idref" href="interfaces.Adjunctions.html#C.compose"><span class="id" title="axiom">C.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.fmap"><span class="id" title="axiom">G.fmap</span></a> <a class="idref" href="interfaces.Adjunctions.html#x:38"><span class="id" title="variable">x</span></a>) <a class="idref" href="interfaces.Adjunctions.html#f:37"><span class="id" title="variable">f</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#D.compose"><span class="id" title="axiom">D.compose</span></a> <a class="idref" href="interfaces.Adjunctions.html#x:38"><span class="id" title="variable">x</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.transpose"><span class="id" title="method">G.transpose</span></a> <span class="id" title="var">_</span> <a class="idref" href="interfaces.Adjunctions.html#f:37"><span class="id" title="variable">f</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proposition</span> <a id="AdjointFunctorsTheory.cotranspose_natural_l" class="idref" href="#AdjointFunctorsTheory.cotranspose_natural_l"><span class="id" title="lemma">cotranspose_natural_l</span></a> {<a id="A:39" class="idref" href="#A:39"><span class="id" title="binder">A</span></a> <a id="B:40" class="idref" href="#B:40"><span class="id" title="binder">B</span></a> <a id="X:41" class="idref" href="#X:41"><span class="id" title="binder">X</span></a>} (<a id="a:42" class="idref" href="#a:42"><span class="id" title="binder">a</span></a>: <a class="idref" href="interfaces.Adjunctions.html#C.m"><span class="id" title="axiom">C.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#B:40"><span class="id" title="variable">B</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:39"><span class="id" title="variable">A</span></a>) (<a id="2d1b0f44e6946d9472a1fd7398956843" class="idref" href="#2d1b0f44e6946d9472a1fd7398956843"><span class="id" title="binder">ϕ</span></a>: <a class="idref" href="interfaces.Adjunctions.html#D.m"><span class="id" title="axiom">D.m</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.omap"><span class="id" title="axiom">F.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:39"><span class="id" title="variable">A</span></a>) <a class="idref" href="interfaces.Adjunctions.html#X:41"><span class="id" title="variable">X</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#F.cotranspose"><span class="id" title="method">F.cotranspose</span></a> <span class="id" title="var">_</span> (<a class="idref" href="interfaces.Adjunctions.html#D.compose"><span class="id" title="axiom">D.compose</span></a> <a class="idref" href="interfaces.Adjunctions.html#2d1b0f44e6946d9472a1fd7398956843"><span class="id" title="variable">ϕ</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.fmap"><span class="id" title="axiom">F.fmap</span></a> <a class="idref" href="interfaces.Adjunctions.html#a:42"><span class="id" title="variable">a</span></a>)) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#C.compose"><span class="id" title="axiom">C.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.cotranspose"><span class="id" title="method">F.cotranspose</span></a> <span class="id" title="var">_</span> <a class="idref" href="interfaces.Adjunctions.html#2d1b0f44e6946d9472a1fd7398956843"><span class="id" title="variable">ϕ</span></a>) <a class="idref" href="interfaces.Adjunctions.html#a:42"><span class="id" title="variable">a</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proposition</span> <a id="AdjointFunctorsTheory.cotranspose_natural_r" class="idref" href="#AdjointFunctorsTheory.cotranspose_natural_r"><span class="id" title="lemma">cotranspose_natural_r</span></a> {<a id="A:44" class="idref" href="#A:44"><span class="id" title="binder">A</span></a> <a id="X:45" class="idref" href="#X:45"><span class="id" title="binder">X</span></a> <a id="Y:46" class="idref" href="#Y:46"><span class="id" title="binder">Y</span></a>} (<a id="3a7443c6b224304750bd3a5db41d5637" class="idref" href="#3a7443c6b224304750bd3a5db41d5637"><span class="id" title="binder">ϕ</span></a> : <a class="idref" href="interfaces.Adjunctions.html#D.m"><span class="id" title="axiom">D.m</span></a> (<a class="idref" href="interfaces.Adjunctions.html#F.omap"><span class="id" title="axiom">F.omap</span></a> <a class="idref" href="interfaces.Adjunctions.html#A:44"><span class="id" title="variable">A</span></a>) <a class="idref" href="interfaces.Adjunctions.html#X:45"><span class="id" title="variable">X</span></a>) (<a id="x:48" class="idref" href="#x:48"><span class="id" title="binder">x</span></a> : <a class="idref" href="interfaces.Adjunctions.html#D.m"><span class="id" title="axiom">D.m</span></a> <a class="idref" href="interfaces.Adjunctions.html#X:45"><span class="id" title="variable">X</span></a> <a class="idref" href="interfaces.Adjunctions.html#Y:46"><span class="id" title="variable">Y</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#F.cotranspose"><span class="id" title="method">F.cotranspose</span></a> <span class="id" title="var">_</span> (<a class="idref" href="interfaces.Adjunctions.html#D.compose"><span class="id" title="axiom">D.compose</span></a> <a class="idref" href="interfaces.Adjunctions.html#x:48"><span class="id" title="variable">x</span></a> <a class="idref" href="interfaces.Adjunctions.html#3a7443c6b224304750bd3a5db41d5637"><span class="id" title="variable">ϕ</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="interfaces.Adjunctions.html#C.compose"><span class="id" title="axiom">C.compose</span></a> (<a class="idref" href="interfaces.Adjunctions.html#G.fmap"><span class="id" title="axiom">G.fmap</span></a> <a class="idref" href="interfaces.Adjunctions.html#x:48"><span class="id" title="variable">x</span></a>) (<a class="idref" href="interfaces.Adjunctions.html#F.cotranspose"><span class="id" title="method">F.cotranspose</span></a> <span class="id" title="var">_</span> <a class="idref" href="interfaces.Adjunctions.html#3a7443c6b224304750bd3a5db41d5637"><span class="id" title="variable">ϕ</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsTheory"><span class="id" title="module">AdjointFunctorsTheory</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Module</span> <span class="id" title="keyword">Type</span> <a id="AdjointFunctors" class="idref" href="#AdjointFunctors"><span class="id" title="module">AdjointFunctors</span></a> (<span class="id" title="var">C</span> <span class="id" title="var">D</span> : <a class="idref" href="interfaces.Category.html#Category"><span class="id" title="module">Category</span></a>) (<span class="id" title="var">F</span> : <a class="idref" href="interfaces.Functor.html#Functor"><span class="id" title="module">Functor</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a>) (<span class="id" title="var">G</span> : <a class="idref" href="interfaces.Functor.html#Functor"><span class="id" title="module">Functor</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a>) :=<br/>
+&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsDefinition"><span class="id" title="module">AdjointFunctorsDefinition</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a> <a class="idref" href="interfaces.Adjunctions.html#F"><span class="id" title="module">F</span></a> <a class="idref" href="interfaces.Adjunctions.html#G"><span class="id" title="module">G</span></a> &lt;+<br/>
+&nbsp;&nbsp;<a class="idref" href="interfaces.Adjunctions.html#AdjointFunctorsTheory"><span class="id" title="module">AdjointFunctorsTheory</span></a> <a class="idref" href="interfaces.Adjunctions.html#C"><span class="id" title="module">C</span></a> <a class="idref" href="interfaces.Adjunctions.html#D"><span class="id" title="module">D</span></a> <a class="idref" href="interfaces.Adjunctions.html#F"><span class="id" title="module">F</span></a> <a class="idref" href="interfaces.Adjunctions.html#G"><span class="id" title="module">G</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
