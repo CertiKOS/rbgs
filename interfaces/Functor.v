@@ -275,10 +275,10 @@ Module BifunctorTheory (C1 C2 D : Category) (F : BifunctorDefinition C1 C2 D).
   Module PF <: Functor PC D.
 
     Definition omap (X : PC.t) : D.t :=
-      F.omap (fst X) (snd X).
+      F.omap (PC.tfst X) (PC.tsnd X).
 
     Definition fmap {A B} (f : PC.m A B) : D.m (omap A) (omap B) :=
-      F.fmap (fst f) (snd f).
+      F.fmap (PC.mfst f) (PC.msnd f).
 
     Proposition fmap_id {A} :
       fmap (PC.id A) = D.id (omap A).
