@@ -8,28 +8,24 @@
 -R examples examples
 -R interfaces interfaces
 
-structures/Poset.v
-structures/Lattice.v
-structures/Completion.v
-structures/Category.v
-structures/Monad.v
+#structures/Completion.v
+#structures/Category.v
+#structures/Monad.v
 structures/Effects.v
-lattices/Downset.v
-lattices/Upset.v
-lattices/FCD.v
-lattices/LatticeProduct.v
-lattices/AdjoinBot.v
+#lattices/Downset.v
+#lattices/Upset.v
+#lattices/FCD.v
+#lattices/LatticeProduct.v
+#lattices/AdjoinBot.v
 models/Sets.v
 models/FreeCategories.v
 models/Signature.v
 models/EffectSignatures.v
-models/IntSpec.v
+#models/IntSpec.v
 models/Coherence.v
-models/DCPO.v
-models/DCPOSL.v
-models/IntStrat.v
+#models/IntStrat.v
 models/LinCCAL.v
-examples/CAL.v
+#examples/CAL.v
 interfaces/Category.v
 interfaces/Functor.v
 interfaces/MonoidalCategory.v
@@ -38,3 +34,9 @@ interfaces/FunctorCategory.v
 interfaces/Limits.v
 interfaces/Adjunctions.v
 interfaces/Monads.v
+
+# Concrete categories
+structures/Posets.v
+structures/Lattices.v
+structures/DCPOs.v
+structures/DCPOSLs.v

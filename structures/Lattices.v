@@ -1,43 +1,29 @@
-Require Export structures.Poset.
+Require Export structures.Posets.
 
 
 (** * Completely distributive lattices *)
 
 (** ** Definition *)
 
-Record cdlattice :=
+Class CDLattice (L : Type) :=
   {
-    cdl_poset :> poset;
+    cdl_poset :> Poset L;
 
-    lsup : forall {I}, (I -> cdl_poset) -> cdl_poset;
-    linf : forall {I}, (I -> cdl_poset) -> cdl_poset;
+    lsup : forall {I}, (I -> L) -> L;
+    linf : forall {I}, (I -> L) -> L;
 
-    sup_ub {I} (i : I) (x : I -> cdl_poset) :
-      ref (x i) (lsup x);
-    sup_lub {I} (x : I -> cdl_poset) (y : cdl_poset) :
-      (forall i, ref (x i) y) ->
-      ref (lsup x) y;
+    lsup_sup {I} (u : I -> L) :> IsSup u (lsup u);
+    linf_inf {I} (u : I -> L) :> IsInf u (linf u);
 
-    inf_lb {I} (i : I) (x : I -> cdl_poset) :
-      ref (linf x) (x i);
-    inf_glb {I} (x : cdl_poset) (y : I -> cdl_poset) :
-      (forall i, ref x (y i)) ->
-      ref x (linf y);
-
-    sup_inf {I J} (x : forall i:I, J i -> cdl_poset) :
+    sup_inf {I J} (x : forall i:I, J i -> L) :
       lsup (fun i => linf (fun j => x i j)) =
       linf (fun f : (forall i, J i) => lsup (fun i => x i (f i)));
   }.
 
-Arguments lsup {_ _}.
-Arguments linf {_ _}.
-Arguments sup_ub {_ _}.
-Arguments sup_lub {_ _}.
-Arguments inf_lb {_ _}.
-Arguments inf_glb {_ _}.
-
+(*
 Delimit Scope cdlat_scope with cdlat.
 Bind Scope cdlat_scope with cdlattice.
+*)
 
 (** The notations below work well in the context of completely
   distributive monads. *)
@@ -51,22 +37,22 @@ Notation "'inf' i .. j , M" := (linf (fun i => .. (linf (fun j => M)) .. ))
 (** ** Properties of [sup] and [inf] *)
 
 Section PROPERTIES.
-  Context {L : cdlattice}.
+  Context {L} `{HL : !CDLattice L}.
 
   Lemma sup_at {I} (i : I) (x : L) (y : I -> L) :
-    x [= y i -> x [= sup i, y i.
+    x <= y i -> x <= sup i, y i.
   Proof.
-    intros; etransitivity; eauto using sup_ub.
+    intros; etransitivity; eauto; apply sup_ub.
   Qed.
 
   Lemma inf_at {I} (i : I) (x : I -> L) (y : L) :
-    x i [= y -> inf i, x i [= y.
+    x i <= y -> inf i, x i <= y.
   Proof.
-    intros; etransitivity; eauto using inf_lb.
+    intros; etransitivity; eauto. apply inf_lb.
   Qed.
 
   Lemma sup_iff {I} (x : I -> L) (y : L) :
-    lsup x [= y <-> forall i, x i [= y.
+    lsup x <= y <-> forall i, x i <= y.
   Proof.
     split.
     - intros H i. etransitivity; eauto using sup_ub.
@@ -74,7 +60,7 @@ Section PROPERTIES.
   Qed.
 
   Lemma inf_iff {I} (x : L) (y : I -> L) :
-    x [= linf y <-> forall i, x [= y i.
+    x <= linf y <-> forall i, x <= y i.
   Proof.
     split.
     - intros H i. etransitivity; eauto using inf_lb.
@@ -84,6 +70,13 @@ Section PROPERTIES.
   Lemma inf_sup {I J} (x : forall i:I, J i -> L) :
     inf i, sup j, x i j = sup f, inf i, x i (f i).
   Proof.
+    apply antisymmetry.
+    - admit.
+    - apply sup_lub. intros f.
+      apply inf_glb. intros i.
+      apply (inf_at i).
+      apply (sup_at (f i)).
+      reflexivity.
   Admitted.
 
 End PROPERTIES.
@@ -94,63 +87,61 @@ End PROPERTIES.
 (** It is often convenient to take the [sup] or [inf] by ranging over
   the elements of an index type which satisfy a given predicate. *)
 
-Definition fsup {L : cdlattice} {I} (P : I -> Prop) (f : I -> L) :=
+Definition fsup `{CDLattice} {I} (P : I -> Prop) (f : I -> L) :=
   lsup (I := sig P) (fun x => f (proj1_sig x)).
 
 Notation "'sup' { x | P } , M" :=
   (fsup (fun x => P) (fun x => M))
-  (at level 65, x ident, right associativity).
+  (at level 65, x name, right associativity).
 Notation "'sup' { x : A | P } , M" :=
   (fsup (fun x : A => P) (fun x : A => M))
-  (at level 65, A at next level, x ident, right associativity).
+  (at level 65, A at next level, x name, right associativity).
 
-Definition finf {L : cdlattice} {I} (P : I -> Prop) (f : I -> L) :=
+Definition finf `{CDLattice} {I} (P : I -> Prop) (f : I -> L) :=
   linf (I := sig P) (fun x => f (proj1_sig x)).
 
 Notation "'inf' { x | P } , M" :=
   (finf (fun x => P) (fun x => M))
-  (at level 65, x ident, right associativity).
+  (at level 65, x name, right associativity).
 Notation "'inf' { x : A | P } , M" :=
   (finf (fun x : A => P) (fun x : A => M))
-  (at level 65, x ident, right associativity).
+  (at level 65, x name, right associativity).
 
 Section PREDICATES.
-  Context {L : cdlattice}.
+  Context `{Lcdl : CDLattice}.
 
   Lemma fsup_ub {I} (i : I) (P : I -> Prop) (x : I -> L) :
-    P i -> x i [= fsup P x.
+    P i -> x i <= fsup P x.
   Proof.
-    intros Hi.
-    apply (sup_ub (exist P i Hi) (fun i => x (proj1_sig i))).
+    intros Hi. apply (sup_at (exist P i Hi)). reflexivity.
   Qed.
 
   Lemma fsup_at {I} (i : I) (P : I -> Prop) (x : L) (y : I -> L) :
-    P i -> x [= y i -> x [= fsup P y.
+    P i -> x <= y i -> x <= fsup P y.
   Proof.
     intros Hi Hx. etransitivity; eauto using fsup_ub.
   Qed.
 
   Lemma fsup_lub {I} (P : I -> Prop) (x : I -> L) (y : L) :
-    (forall i, P i -> x i [= y) -> fsup P x [= y.
+    (forall i, P i -> x i <= y) -> fsup P x <= y.
   Proof.
     intros Hy. apply sup_lub. intros [i Hi]. auto.
   Qed.
 
   Lemma finf_lb {I} (i : I) (P : I -> Prop) (x : I -> L) :
-    P i -> finf P x [= x i.
+    P i -> finf P x <= x i.
   Proof.
-    intros Hi.
-    apply (inf_lb (exist P i Hi) (fun i => x (proj1_sig i))).
+    intros Hi. apply (inf_at (exist P i Hi)). reflexivity.
   Qed.
 
   Lemma finf_at {I} (i : I) (P : I -> Prop) (x : I -> L) (y : L) :
-    P i -> x i [= y -> finf P x [= y.
+    P i -> x i <= y -> finf P x <= y.
   Proof.
     intros Hi Hy. etransitivity; eauto using finf_lb.
   Qed.
 
   Lemma finf_glb {I} (P : I -> Prop) (x : L) (y : I -> L) :
-    (forall i, P i -> x [= y i) -> x [= finf P y.
+    (forall i, P i -> x <= y i) -> x <= finf P y.
   Proof.
     intros Hy. apply inf_glb. intros [i Hi]. auto.
   Qed.
@@ -160,16 +151,18 @@ End PREDICATES.
 (** * Derived operations *)
 
 Section OPS.
-  Context {L : cdlattice}.
+  Context `{Lcdl : CDLattice}.
 
   (** Least element *)
 
-  Definition bot : L :=
+  Definition undef : L :=
     sup i : Empty_set, match i with end.
 
-  Lemma bot_lb x :
-    ref bot x.
-  Admitted.
+  Lemma undef_lb x :
+    ref undef x.
+  Proof.
+    apply sup_lub. intros [ ].
+  Qed.
 
   (** ** Binary joins *)
 
@@ -207,7 +200,7 @@ Section OPS.
   Qed.
 
   Lemma ref_join x y :
-    x [= y <-> join x y = y.
+    x <= y <-> join x y = y.
   Proof.
     split; intro.
     - apply antisymmetry, join_ub_r.
@@ -260,7 +253,7 @@ Section OPS.
   Qed.
 
   Lemma ref_meet x y :
-    x [= y <-> meet x y = x.
+    x <= y <-> meet x y = x.
   Proof.
     split; intro.
     - apply antisymmetry. apply meet_lb_l.
@@ -270,8 +263,8 @@ Section OPS.
 
   (** ** Properties *)
 
-  Lemma join_bot_l x :
-    join bot x = x.
+  Lemma join_undef_l x :
+    join undef x = x.
   Admitted.
 
   Lemma join_top_l x :
@@ -304,7 +297,7 @@ Section OPS.
     derived operations, so that relying on their concrete definition
     should not be necessary. *)
 
-  Global Opaque bot top join meet.
+  Global Opaque undef top join meet.
 
 End OPS.
 

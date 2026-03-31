@@ -1,10 +1,9 @@
 Require Import LogicalRelations.
-Require Import OptionRel.
-Require Import Category.
-Require Import ConcreteCategory.
-Require Import Functor.
-Require Import DCPO.
-Require Import EffectSignatures.
+Require Import interfaces.Category.
+Require Import interfaces.ConcreteCategory.
+Require Import structures.Posets.
+Require Import structures.DCPOs.
+Require Import structures.Lattices.
 
 Require Import PropExtensionality.
 Require Import FunctionalExtensionality.
@@ -156,10 +155,7 @@ Module FDSL.
       destruct σ; firstorder.
     Qed.
 
-    Global Program Instance le_po : PartialOrder (omap A) :=
-      {
-        le := le;
-      }.
+    Global Program Instance le_po : PartialOrder le := {}.
 
     (** Under that ordering, fully terminating computations are
       the maximal elements. Two computations will have an upper bound
@@ -168,51 +164,50 @@ Module FDSL.
       compatible in this way can be defined as follows. *)
 
     Section DSUP.
-      Context (D : omap A -> Prop) `{HD : !Directed D}.
+      Context {I} (x : I -> omap A) `{Dx : !Directed x}.
 
       Definition dsup : omap A :=
         fun σ =>
           match σ with
-            | val a => exists x, D x /\ x (val a)
-            | div => forall x, D x -> x div
+            | val a => exists i, x i (val a)
+            | div => forall i, x i div
           end.
 
-      Lemma directed_val x y a :
-        D x -> D y -> x (val a) -> y div \/ y (val a).
+      Lemma directed_val i j a :
+        x i (val a) -> x j div \/ x j (val a).
       Proof.
-        intros Hx Hy Hxa.
-        destruct (directed x y) as (z & Hz & Hxz & Hyz); auto; cbn in *.
-        clear HD Hx Hy.
+        intros Hxa.
+        destruct (directed i j) as (k & Hik & Hjk); auto; cbn in *.
+        clear - Hxa Hik Hjk.
         firstorder.
       Qed.
 
       Lemma dsup_has_all σ :
-        dsup σ -> forall x, D x -> x div \/ x σ.
+        dsup σ -> forall i, x i div \/ x i σ.
       Proof.
         destruct σ; firstorder.
       Qed.
 
       Global Instance lsup_spec :
-        IsSup D dsup.
+        IsSup x dsup.
       Proof.
         split; cbn.
-        - intros x Hx. split.
+        - intros i. split.
           + firstorder.
           + intros [a | ]; firstorder.
         - intros y Hy. split.
           + firstorder.
           + intros [a | ] Hσ; [ | firstorder].
-            destruct (classic (forall x, D x -> x div)); auto. right.
-            apply not_all_ex_not in H as [x Hx].
-            apply not_all_ex_not in Hx as [Hx Hxdiv].
+            destruct (classic (forall i, x i div)); auto. right.
+            apply not_all_ex_not in H as [i Hi].
             firstorder.
       Qed.
     End DSUP.
 
-    Global Instance le_dc : DirectedComplete (omap A) :=
+    Global Instance le_dc : DCPO (omap A) :=
       {
-        dc_po := {| models.DCPO.le := le |};
-        dsup D _ := dsup D;
+        lce := le;
+        dsup I x Hx := dsup x;
       }.
   End DCPO.
 
