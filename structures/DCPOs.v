@@ -27,6 +27,8 @@ Require Import structures.Posets.
 Class Directed `{PartialOrder} {I} (x : I -> P) :=
   directed : forall i j, exists k, R (x i) (x k) /\ R (x j) (x k).
 
+(** *** Basic instances *)
+
 Global Instance Empty_set_directed `{PartialOrder} (x : Empty_set -> P) :
   Directed x.
 Proof.
@@ -50,6 +52,20 @@ Qed.
 
 Global Hint Extern 1 (Directed _) =>
   apply pair_directed; assumption : typeclass_instances.
+
+(** *** Image through a monotonic function *)
+
+Global Instance directed_apply {P Q R S} (f : P -> Q) {I} (x : I -> P) :
+  forall HR : @PartialOrder P R,
+  forall HQ : @PartialOrder Q S,
+  Monotonic f (R ++> S) ->
+  Directed x ->
+  Directed (fun i => f (x i)).
+Proof.
+  intros HR HQ Hf Hx i j. red in Hf.
+  destruct (directed i j) as (k & Hik & Hjk).
+  exists k. split; rauto.
+Qed.
 
 (** ** DCPOs *)
 
@@ -156,6 +172,52 @@ Qed.
 
 (** *** Binary products *)
 
+Section PROD_DCPO.
+  Context {P Q} `{Pdcpo : DCPO P} `{Qdcpo : DCPO Q}.
+
+  Local Instance prod_dcpo_po :
+    @PartialOrder (P * Q) (lce * lce).
+  Proof.
+    split.
+    - typeclasses eauto.
+    - intros [x1 x2] [y1 y2] [Hxy1 Hxy2] [Hyx1 Hyx2]. cbn in *.
+      f_equal; apply antisymmetry; auto.
+  Qed.
+
+  Global Instance prod_directed_fst {I} (x : I -> P * Q) :
+    Directed x ->
+    Directed (fun i => fst (x i)).
+  Proof.
+    intros Hx.
+    eapply directed_apply; auto.
+    rauto.
+  Qed.
+
+  Global Instance prod_directed_snd {I} (x : I -> P * Q) :
+    Directed x ->
+    Directed (fun i => snd (x i)).
+  Proof.
+    intros Hx.
+    eapply directed_apply; auto.
+    rauto.
+  Qed.
+
+  Global Instance prod_issup {I} (x : I -> P * Q) (y : P * Q) :
+    IsSup (fun i => fst (x i)) (fst y) ->
+    IsSup (fun i => snd (x i)) (snd y) ->
+    IsSup x y.
+  Proof.
+    firstorder.
+  Qed.
+
+  Global Program Instance prod_dcpo : DCPO (P * Q) :=
+    {
+      lce := lce * lce;
+      dsup I x Hx := (dsup (fun i => fst (x i)), dsup (fun i => snd (x i)));
+    }.
+
+End PROD_DCPO.
+
 (** *** Dependent products *)
 
 Section FORALL_DCPO.
@@ -163,7 +225,7 @@ Section FORALL_DCPO.
   Obligation Tactic := cbn.
 
   Local Instance forall_dcpo_po :
-    PartialOrder (P := forall i, P i) (forallr - @ i, lce).
+    @PartialOrder (forall i, P i) (forallr - @ i, lce).
   Proof.
     repeat split.
     - intros x i.
@@ -199,6 +261,7 @@ Section FORALL_DCPO.
       lce := forallr - @ i, lce;
       dsup J x Hx i := dsup (fun j => x j i);
     }.
+
 End FORALL_DCPO.
 
 (** ** Scott-continuous functions *)
