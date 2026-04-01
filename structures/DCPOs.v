@@ -287,16 +287,6 @@ Module DCPO <: ConcreteCategory.
       forall {I} (x : I -> A) `{Hx : !Directed x},
         IsSup (fun i => f (x i)) (f (dsup x)).
 
-  (** Nevertheless, if we know the target set to be directed,
-    we can write the equation in the expected way. *)
-
-  Lemma dsup_mor `{Morphism} {I} (x : I -> A)
-    `{Dx: !Directed x} `{Dy: !Directed (fun i => f (x i))} :
-      f (dsup x) = dsup (fun i => f (x i)).
-  Proof.
-    apply (sup_unique (fun i => f (x i))); typeclasses eauto.
-  Qed.
-
   (** *** Monotonicity *)
 
   (** Scott-continuity implies monotonicity. This is because [x <= y]
@@ -311,7 +301,7 @@ Module DCPO <: ConcreteCategory.
   Qed.
 
   (** In turn, this means that the image of a directed set is
-    itself directed, making it easier to use [dsup_mor]. *)
+    itself directed. *)
 
   Lemma directed_mor `{Morphism} {I} (x : I -> A) :
     Directed x ->
@@ -324,6 +314,14 @@ Module DCPO <: ConcreteCategory.
 
   Global Hint Extern 1 (Directed (fun i => _)) =>
     apply directed_mor : typeclass_instances.
+
+  (** This makes it possible to write the equation in the expected way. *)
+
+  Lemma dsup_mor `{Morphism} {I} (x : I -> A) `{Dx: !Directed x} :
+    f (dsup x) = dsup (fun i => f (x i)).
+  Proof.
+    apply (sup_unique (fun i => f (x i))); typeclasses eauto.
+  Qed.
 
   (** *** Composition *)
 
@@ -350,3 +348,70 @@ Module DCPO <: ConcreteCategory.
 End DCPO.
 
 Notation dcpo := DCPO.structured_set.
+
+(** ** Fixed points *)
+
+Section LFP.
+  Context `{Pdcpo : DCPO} (f : P -> P) `{Hf : !DCPO.Morphism f}.
+
+  Fixpoint lfp_approx (n : nat) :=
+    match n with
+      | 0 => bot
+      | S p => f (lfp_approx p)
+    end.
+
+  Lemma lfp_approx_incr n :
+    lce (lfp_approx n) (lfp_approx (S n)).
+  Proof.
+    induction n; cbn.
+    - apply bot_lb.
+    - rauto.
+  Qed.
+
+  Local Instance lfp_approx_rel :
+    Monotonic lfp_approx (Peano.le ++> lce).
+  Proof.
+    intros m n Hmn.
+    induction Hmn.
+    - reflexivity.
+    - etransitivity; eauto using lfp_approx_incr.
+  Qed.
+
+  Local Instance lfp_approx_directed :
+    Directed lfp_approx.
+  Proof.
+    intros m n. exists (Nat.max m n).
+    split; monotonicity.
+    - apply PeanoNat.Nat.le_max_l.
+    - apply PeanoNat.Nat.le_max_r.
+  Qed.
+
+  Definition lfp :=
+    dsup lfp_approx.
+
+  Lemma lfp_fixed :
+    f lfp = lfp.
+  Proof.
+    unfold lfp.
+    rewrite DCPO.dsup_mor at 1.
+    apply antisymmetry.
+    - apply sup_lub. intros n.
+      apply sup_at with (S n).
+      reflexivity.
+    - apply sup_lub. intros [|n]; cbn.
+      + apply bot_lb.
+      + apply sup_at with n.
+        reflexivity.
+  Qed.
+
+  Lemma lfp_least (x : P) :
+    f x = x -> lce lfp x.
+  Proof.
+    intros Hx.
+    apply sup_lub. intros n.
+    induction n; cbn.
+    - apply bot_lb.
+    - rewrite <- Hx.
+      rauto.
+  Qed.
+End LFP.
