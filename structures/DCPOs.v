@@ -152,6 +152,55 @@ Proof.
   - apply (dsup_ub (bset x y) false).
 Qed.
 
+(** ** Derived DCPOs *)
+
+(** *** Binary products *)
+
+(** *** Dependent products *)
+
+Section FORALL_DCPO.
+  Context {I} {P : I -> Type} `{Pdcpo : forall i:I, DCPO (P i)}.
+  Obligation Tactic := cbn.
+
+  Local Instance forall_dcpo_po :
+    PartialOrder (P := forall i, P i) (forallr - @ i, lce).
+  Proof.
+    repeat split.
+    - intros x i.
+      reflexivity.
+    - intros x y z Hxy Hyz i.
+      etransitivity; eauto.
+    - intros x y Hxy Hyx.
+      apply functional_extensionality_dep. intros i.
+      apply antisymmetry; auto.
+  Qed.
+
+  Global Instance forall_directed {J} (x : J -> forall i:I, P i) (i : I) :
+    Directed x ->
+    Directed (fun j => x j i).
+  Proof.
+    firstorder.
+  Qed.
+
+  Global Instance forall_issup {J} (x: J -> forall i, P i) (y: forall i, P i) :
+    (forall i, IsSup (fun j => x j i) (y i)) ->
+    IsSup x y.
+  Proof.
+    intros Hy.
+    split.
+    - firstorder.
+    - intros z Hxz i.
+      apply sup_lub.
+      firstorder.
+  Qed.
+
+  Global Program Instance forall_dcpo : DCPO (forall i, P i) :=
+    {
+      lce := forallr - @ i, lce;
+      dsup J x Hx i := dsup (fun j => x j i);
+    }.
+End FORALL_DCPO.
+
 (** ** Scott-continuous functions *)
 
 Module DCPO <: ConcreteCategory.
