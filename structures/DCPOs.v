@@ -195,7 +195,7 @@ Module DCPO <: ConcreteCategory.
   Proof.
     intros A B Adcpo Bdcpo f Hf x y Hxy.
     rewrite <- (lce_dsup_r x y) by auto.
-    apply (sup_ub (u := fun i => f (bset x y i)) false).
+    apply sup_at with false. reflexivity.
   Qed.
 
   (** In turn, this means that the image of a directed set is

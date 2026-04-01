@@ -23,41 +23,77 @@ Class PartialOrder {P} (R : relation P) :=
 
 (** *** Suprema *)
 
-Class IsSup `{PartialOrder} {I} (u : I -> P) (x : P) :=
+Class IsSup `{PartialOrder} {I} (x : I -> P) (u : P) :=
   {
-    sup_ub i : R (u i) x;
-    sup_lub y : (forall i, R (u i) y) -> R x y;
+    sup_ub i : R (x i) u;
+    sup_lub y : (forall i, R (x i) y) -> R u y;
   }.
 
-Lemma sup_unique `{PartialOrder} {I} (x : I -> P) (u v : P) :
-  IsSup x u ->
-  IsSup x v ->
-  u = v.
-Proof.
-  intros Hu Hv.
-  apply antisymmetry.
-  - apply sup_lub. intro. apply sup_ub.
-  - apply sup_lub. intro. apply sup_ub.
-Qed.
+Section SUP_PROPERTIES.
+  Context `{Ppo : PartialOrder}.
+
+  Lemma sup_unique {I} (x : I -> P) (u v : P) :
+    IsSup x u ->
+    IsSup x v ->
+    u = v.
+  Proof.
+    intros Hu Hv.
+    apply antisymmetry.
+    - apply sup_lub. intro. apply sup_ub.
+    - apply sup_lub. intro. apply sup_ub.
+  Qed.
+
+  Lemma sup_at {I y u} `{Hu : !IsSup y u} (i : I) (x : P) :
+    R x (y i) -> R x u.
+  Proof.
+    intros; etransitivity; eauto; apply sup_ub.
+  Qed.
+
+  Lemma sup_iff {I} (x : I -> P) {u : P} `{Hz : !IsSup x u} (y : P) :
+    R u y <-> forall i, R (x i) y.
+  Proof.
+    split.
+    - intros H i. etransitivity; eauto using sup_ub.
+    - apply sup_lub.
+  Qed.
+End SUP_PROPERTIES.
 
 (** *** Infrema *)
 
-Class IsInf `{PartialOrder} {I} (u : I -> P) (y : P) :=
+Class IsInf `{PartialOrder} {I} (y : I -> P) (u : P) :=
   {
-    inf_lb i : R y (u i);
-    inf_glb x : (forall i, R x (u i)) -> R x y;
+    inf_lb i : R u (y i);
+    inf_glb x : (forall i, R x (y i)) -> R x u;
   }.
 
-Lemma inf_unique `{PartialOrder} {I} (x : I -> P) (u v : P) :
-  IsInf x u ->
-  IsInf x v ->
-  u = v.
-Proof.
-  intros Hu Hv.
-  apply antisymmetry.
-  - apply inf_glb. intro. apply inf_lb.
-  - apply inf_glb. intro. apply inf_lb.
-Qed.
+Section INF_PROPERTIES.
+  Context `{Rpo : PartialOrder}.
+
+  Lemma inf_unique {I} (x : I -> P) (u v : P) :
+    IsInf x u ->
+    IsInf x v ->
+    u = v.
+  Proof.
+    intros Hu Hv.
+    apply antisymmetry.
+    - apply inf_glb. intro. apply inf_lb.
+    - apply inf_glb. intro. apply inf_lb.
+  Qed.
+
+  Lemma inf_at {I x u} `{Hu : !IsInf x u} (i : I) (y : P) :
+    R (x i) y -> R u y.
+  Proof.
+    intros; etransitivity; eauto. apply inf_lb.
+  Qed.
+
+  Lemma inf_iff {I} (y : I -> P) {u : P} `{Hu : !IsInf y u} (x : P) :
+    R x u <-> forall i, R x (y i).
+  Proof.
+    split.
+    - intros H i. etransitivity; eauto using inf_lb.
+    - apply inf_glb.
+  Qed.
+End INF_PROPERTIES.
 
 (** ** As extra structure for sets *)
 
