@@ -324,4 +324,46 @@ Module FDSL.
   Qed.
 
 End FDSL.
- 
+
+
+(** * ITree interoperability *)
+
+Require Import ExtLib.Structures.Monad.
+Require Import ITree.Basics.Basics.
+Require Import ITree.Interp.Interp.
+
+Section FORALL_ISSUP.
+  Context {J : Type} {P : J -> Type} `{Pdcpo: forall j, DCPO (P j)}.
+
+  Global Instance forall_issup {I} (x : I -> forall j, P j) (y : forall j, P j) :
+    (forall j, IsSup (fun i => x i j) (y j)) -> IsSup x y.
+  Proof.
+    intros Hy.
+    split.
+    - intros i j. apply (sup_ub (x := (fun i => x i j)) i).
+    - intros z Hz j. apply sup_lub. intro i. apply (Hz i j).
+  Qed.
+End FORALL_ISSUP.
+
+Global Instance fdsl_monad : Monad FDSL.omap :=
+  {
+    ret A a := FDSL.ret a;
+    bind A B x f := FDSL.bind f x;
+  }.
+
+Section ITER.
+  Context {I R} (f : I -> FDSL.omap (I + R)).
+
+  Definition iter_next (F : I -> FDSL.omap R) : I -> FDSL.omap R :=
+    fun i => bind (f i) (sum_rect _ F (ret (m := FDSL.omap))).
+
+  Global Instance iter_next_mor :
+    DCPO.Morphism iter_next.
+  Proof.
+    intros J x Hx. unfold iter_next. cbn.
+  Admitted.
+End ITER.
+
+Global Instance dcpo_monaditer : MonadIter FDSL.omap :=
+  fun R I (f : I -> FDSL.omap (I + R)%type) =>
+    lfp (iter_next f).
