@@ -492,7 +492,7 @@ End Monoids.
   of endofunctors over a base category [C], then monoids in [C.End]
   are the monads over [C]. *)
 
-Module Monads (C : CategoryWithEndofunctors).
+Module Monads (C : CategoryWithEndofunctors) <: Category.
   Import C.EndNotations.
   Include Monoids C.End.
 End Monads.
