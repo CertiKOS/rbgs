@@ -357,10 +357,14 @@ Section ITER.
   Definition iter_next (F : I -> FDSL.omap R) : I -> FDSL.omap R :=
     fun i => bind (f i) (sum_rect _ F (ret (m := FDSL.omap))).
 
+  (* XXX while [iter_next] is monotonic it is actually not
+    Scott-continuous in [F]. This means we will need the
+    Cousot-Cousot style fixed point construction based on
+    transfinite iteration and Kleene fixed points are not
+    enough. *)
+
   Global Instance iter_next_mor :
     DCPO.Morphism iter_next.
-  Proof.
-    intros J x Hx. unfold iter_next. cbn.
   Admitted.
 End ITER.
 

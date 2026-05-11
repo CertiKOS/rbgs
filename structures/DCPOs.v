@@ -51,11 +51,11 @@ Proof.
 Qed.
 
 Global Hint Extern 1 (Directed _) =>
-  apply pair_directed; assumption : typeclass_instances.
+  eapply @pair_directed; assumption : typeclass_instances.
 
 (** *** Image through a monotonic function *)
 
-Global Instance directed_apply {P Q R S} (f : P -> Q) {I} (x : I -> P) :
+Lemma directed_apply {P Q R S} (f : P -> Q) {I} (x : I -> P) :
   forall HR : @PartialOrder P R,
   forall HQ : @PartialOrder Q S,
   Monotonic f (R ++> S) ->
@@ -66,6 +66,9 @@ Proof.
   destruct (directed i j) as (k & Hik & Hjk).
   exists k. split; rauto.
 Qed.
+
+Global Hint Extern 5 (Directed (fun i => ?f (?x i))) =>
+  eapply @directed_apply : typeclass_instances.
 
 (** ** DCPOs *)
 
@@ -136,7 +139,7 @@ Proof.
 Qed.
 
 Global Hint Extern 1 (Directed _) =>
-  apply bset_directed_r; assumption : typeclass_instances.
+  apply @bset_directed_r; assumption : typeclass_instances.
 
 Lemma bset_directed_l `{DCPO} (x y : P) :
   lce y x -> Directed (bset x y).
@@ -146,7 +149,7 @@ Proof.
 Qed.
 
 Global Hint Extern 1 (Directed _) =>
-  apply bset_directed_l; assumption : typeclass_instances.
+  apply @bset_directed_l; assumption : typeclass_instances.
 
 (** Moreover, the supremum is the largest of the two elements. *)
 
@@ -184,7 +187,7 @@ Section PROD_DCPO.
       f_equal; apply antisymmetry; auto.
   Qed.
 
-  Global Instance prod_directed_fst {I} (x : I -> P * Q) :
+  Local Instance prod_directed_fst {I} (x : I -> P * Q) :
     Directed x ->
     Directed (fun i => fst (x i)).
   Proof.
@@ -193,7 +196,7 @@ Section PROD_DCPO.
     rauto.
   Qed.
 
-  Global Instance prod_directed_snd {I} (x : I -> P * Q) :
+  Local Instance prod_directed_snd {I} (x : I -> P * Q) :
     Directed x ->
     Directed (fun i => snd (x i)).
   Proof.
@@ -210,13 +213,22 @@ Section PROD_DCPO.
     firstorder.
   Qed.
 
-  Global Program Instance prod_dcpo : DCPO (P * Q) :=
+  Local Program Instance prod_dcpo : DCPO (P * Q) :=
     {
       lce := lce * lce;
       dsup I x Hx := (dsup (fun i => fst (x i)), dsup (fun i => snd (x i)));
     }.
 
 End PROD_DCPO.
+
+Global Hint Extern 2 (DCPO (?P * ?Q)) =>
+  eapply @prod_dcpo : typeclass_instances.
+
+Global Hint Extern 1 (Directed (fun i => fst _)) =>
+  eapply @prod_directed_fst : typeclass_instances.
+
+Global Hint Extern 1 (Directed (fun i => snd _)) =>
+  eapply @prod_directed_snd : typeclass_instances.
 
 (** *** Dependent products *)
 
@@ -256,7 +268,7 @@ Section FORALL_DCPO.
       firstorder.
   Qed.
 
-  Global Program Instance forall_dcpo : DCPO (forall i, P i) :=
+  Local Instance forall_dcpo : DCPO (forall i, P i) :=
     {
       lce := forallr - @ i, lce;
       dsup J x Hx i := dsup (fun j => x j i);
@@ -264,7 +276,149 @@ Section FORALL_DCPO.
 
 End FORALL_DCPO.
 
+Global Hint Extern 1 (DCPO (forall i, _)) =>
+  eapply @forall_dcpo : typeclass_instances.
+
 (** ** Scott-continuous functions *)
+
+(** *** Definition *)
+
+(** A Scott-continuous function preserves directed suprema.
+  The formulation below uses monotonicity as a starting point.
+  This takes care of preserving the "upper bound" aspect of
+  suprema, and we add the "least" as a separate condition. *)
+
+(** We use a flag [strict] to control whether the morphism
+  is expected to preserve [bot]. This is done by apply the
+  following condition to the index set used with [dsup].
+
+  NB: this could be incorporated into the [Directed] class, and
+  the same approach could be used to jointly define bounded and
+  not-necessarily-bounded DCPOs. *)
+
+Class ArityCondition (strict : bool) J :=
+  arity_condition : if strict then True else inhabited J.
+
+Global Instance ac_strict_trivial J :
+  ArityCondition true J.
+Proof.
+  firstorder.
+Qed.
+
+Global Instance ac_nonstrict_unit :
+  ArityCondition false unit.
+Proof.
+  repeat constructor.
+Qed.
+
+Global Instance ac_nonstrict_bool :
+  ArityCondition false bool.
+Proof.
+  repeat constructor.
+Qed.
+
+Global Instance ac_nonstrict_nat :
+  ArityCondition false nat.
+Proof.
+  repeat constructor.
+Qed.
+
+(** Our definition states that the image of [dsup x] is the supremum
+  of the image of [x]. This way we don't need to involve the target
+  [dsup] operation, which is only defined when [f x] is directed.
+  The preservation of the "upper bound" condition is equivalent to
+  monotonicity; the "least" condition is just stated as-is. *)
+
+Class ScottContinuous strict {A B} `{Adcpo: DCPO A} `{Bdcpo: DCPO B} (f: A -> B) :=
+  {
+    sc_lce :>
+      Monotonic f (lce ++> lce);
+    sc_lub `{HJ : ArityCondition strict} (x: J -> A) `{Dx: !Directed x} y:
+      (forall j, lce (f (x j)) y) -> lce (f (dsup x)) y;
+  }.
+
+(** Any strict Scott-continuous functions is also non-strict Scott-continuous. *)
+
+Lemma sc_weaken `(ScottContinuous true) :
+  ScottContinuous false f.
+Proof.
+  firstorder.
+Qed.
+
+Global Hint Extern 1 (ScottContinuous false _) =>
+  eapply @sc_weaken : typeclass_instances.
+
+(** *** Equational statement *)
+
+Section SC_SUP.
+  Context `{ScottContinuous}.
+
+  (** The definition above is equivalent to this statement. *)
+
+  Local Instance sc_sup {J} (x : J -> A) (y : A) :
+    IsSup x y ->
+    ArityCondition strict J ->
+    Directed x ->
+    IsSup (fun j => f (x j)) (f y).
+  Proof.
+    split.
+    - intro j. monotonicity. apply sup_ub.
+    - rewrite (sup_unique y (dsup x)).
+      apply sc_lub.
+  Qed.
+
+  (** Because suprema are unique, this means [dsup] is preserved. *)
+
+  Context `{HJ : ArityCondition strict} (x : J -> A) `{Dx: !Directed x}.
+
+  Lemma sc_dsup `{Dy: !Directed (fun i => f (x i))} :
+    f (dsup x) = dsup (fun i => f (x i)).
+  Proof.
+    apply (sup_unique _ _).
+  Qed.
+
+  (** For maximum generality, the lemma above is stated in terms of
+    a pre-existing proof that the image set is directed, but when
+    rewriting we will often need the following instance. *)
+
+  Lemma sc_directed :
+    Directed (fun i => f (x i)).
+  Proof.
+    intros i j.
+    destruct (directed i j) as (k & Hi & Hj).
+    exists k. split; rauto.
+  Qed.
+
+End SC_SUP.
+
+Global Hint Extern 2 (IsSup _ (?f ?a)) =>
+  eapply @sc_sup : typeclass_instances.
+
+Global Hint Extern 2 (Directed (fun i => _)) =>
+  eapply @sc_directed : typeclass_instances.
+
+(** *** Composition *)
+
+Global Instance sc_id `{Adcpo : DCPO} strict :
+  ScottContinuous strict (fun a => a).
+Proof.
+  split.
+  - rauto.
+  - intros. apply sup_lub. auto.
+Qed.
+
+Global Instance sc_compose {A B C} `{DCPO A} `{DCPO B} `{DCPO C} {strict} :
+  forall (g : B -> C) (f : A -> B),
+    ScottContinuous strict g ->
+    ScottContinuous strict f ->
+    ScottContinuous strict (fun a => g (f a)).
+Proof.
+  intros g f Hg Hf. split.
+  - rauto.
+  - intros. apply sup_lub. auto.
+Qed.
+
+(** ** Category of DCPOs and strict Scott-continuous functions *)
 
 Module DCPO <: ConcreteCategory.
 
@@ -274,61 +428,15 @@ Module DCPO <: ConcreteCategory.
   Global Hint Immediate structure_dcpo : typeclass_instances.
   Global Hint Extern 1 (Structure _) => red : typeclass_instances.
 
-  (** *** Definition *)
-
-  (** A Scott-continuous function preserves all directed suprema.
-    Note that the image oof the directed set is itself directed
-    only by virtue of the monotonicity implied by Scott-continuity.
-    So we cannot formulate Scott-continuity directly in terms of
-    the target's [dsup] operation. *)
-
   Class Morphism {A B} `{Adcpo: DCPO A} `{Bdcpo: DCPO B} (f : A -> B) :=
-    scott_continuous :>
-      forall {I} (x : I -> A) `{Hx : !Directed x},
-        IsSup (fun i => f (x i)) (f (dsup x)).
+    morphism_sc : ScottContinuous true f.
 
-  (** *** Monotonicity *)
-
-  (** Scott-continuity implies monotonicity. This is because [x <= y]
-    if and only if [y] is the supremum of the pair [{x, y}]. *)
-
-  Global Instance morphism_lce :
-    forall `(Morphism), Monotonic f (lce ++> lce).
-  Proof.
-    intros A B Adcpo Bdcpo f Hf x y Hxy.
-    rewrite <- (lce_dsup_r x y) by auto.
-    apply sup_at with false. reflexivity.
-  Qed.
-
-  (** In turn, this means that the image of a directed set is
-    itself directed. *)
-
-  Lemma directed_mor `{Morphism} {I} (x : I -> A) :
-    Directed x ->
-    Directed (fun i => f (x i)).
-  Proof.
-    intros Dx i j.
-    destruct (directed i j) as (k & Hi & Hj).
-    exists k. split; rauto.
-  Qed.
-
-  Global Hint Extern 1 (Directed (fun i => _)) =>
-    apply directed_mor : typeclass_instances.
-
-  (** This makes it possible to write the equation in the expected way. *)
-
-  Lemma dsup_mor `{Morphism} {I} (x : I -> A) `{Dx: !Directed x} :
-    f (dsup x) = dsup (fun i => f (x i)).
-  Proof.
-    apply (sup_unique (fun i => f (x i))); typeclasses eauto.
-  Qed.
-
-  (** *** Composition *)
+  Global Hint Immediate morphism_sc : typeclass_instances.
+  Global Hint Extern 1 (Morphism _) => red : typeclass_instances.
 
   Global Instance id_mor `{DCPO} :
     Morphism (fun x => x).
   Proof.
-    intros I x Hx.
     typeclasses eauto.
   Qed.
 
@@ -338,9 +446,7 @@ Module DCPO <: ConcreteCategory.
       Morphism f ->
       Morphism (fun x => g (f x)).
   Proof.
-    intros A B C HA HB HC g f Hg Hf I x Hx.
-    rewrite (dsup_mor x).
-    apply scott_continuous.
+    typeclasses eauto.
   Qed.
 
   Include ConcreteCategoryTheory.
@@ -349,10 +455,12 @@ End DCPO.
 
 Notation dcpo := DCPO.structured_set.
 
-(** ** Fixed points *)
+(** ** Kleene fixed point *)
+
+(** *** Definition *)
 
 Section LFP.
-  Context `{Pdcpo : DCPO} (f : P -> P) `{Hf : !DCPO.Morphism f}.
+  Context `{Pdcpo : DCPO} (f : P -> P) `{Hf : !ScottContinuous false f}.
 
   Fixpoint lfp_approx (n : nat) :=
     match n with
@@ -368,7 +476,7 @@ Section LFP.
     - rauto.
   Qed.
 
-  Local Instance lfp_approx_rel :
+  Local Instance lfp_approx_lce :
     Monotonic lfp_approx (Peano.le ++> lce).
   Proof.
     intros m n Hmn.
@@ -377,7 +485,7 @@ Section LFP.
     - etransitivity; eauto using lfp_approx_incr.
   Qed.
 
-  Local Instance lfp_approx_directed :
+  Global Instance lfp_approx_directed :
     Directed lfp_approx.
   Proof.
     intros m n. exists (Nat.max m n).
@@ -393,15 +501,14 @@ Section LFP.
     f lfp = lfp.
   Proof.
     unfold lfp.
-    rewrite DCPO.dsup_mor at 1.
     apply antisymmetry.
     - apply sup_lub. intros n.
       apply sup_at with (S n).
       reflexivity.
     - apply sup_lub. intros [|n]; cbn.
       + apply bot_lb.
-      + apply sup_at with n.
-        reflexivity.
+      + monotonicity.
+        apply sup_ub.
   Qed.
 
   Lemma lfp_least (x : P) :

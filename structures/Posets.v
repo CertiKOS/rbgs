@@ -32,12 +32,9 @@ Class IsSup `{PartialOrder} {I} (x : I -> P) (u : P) :=
 Section SUP_PROPERTIES.
   Context `{Ppo : PartialOrder}.
 
-  Lemma sup_unique {I} (x : I -> P) (u v : P) :
-    IsSup x u ->
-    IsSup x v ->
+  Lemma sup_unique {I} {x : I -> P} (u v : P) `{!IsSup x u} `{!IsSup x v} :
     u = v.
   Proof.
-    intros Hu Hv.
     apply antisymmetry.
     - apply sup_lub. intro. apply sup_ub.
     - apply sup_lub. intro. apply sup_ub.
