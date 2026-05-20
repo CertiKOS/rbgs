@@ -36,11 +36,11 @@ In this library we define module interfaces
 </div>
 
 <div class="doc">
-<a id="lab331"></a><h1 class="section">Functors</h1>
+<a id="lab151"></a><h1 class="section">Functors</h1>
 
 <div class="paragraph"> </div>
 
-<a id="lab332"></a><h2 class="section">Quiver homorphisms</h2>
+<a id="lab152"></a><h2 class="section">Quiver homorphisms</h2>
 
 <div class="paragraph"> </div>
 
@@ -60,7 +60,7 @@ In this library we define module interfaces
 </div>
 
 <div class="doc">
-<a id="lab333"></a><h2 class="section">Functors</h2>
+<a id="lab153"></a><h2 class="section">Functors</h2>
 
 <div class="paragraph"> </div>
 
@@ -89,7 +89,7 @@ In this library we define module interfaces
 </div>
 
 <div class="doc">
-<a id="lab334"></a><h2 class="section">Theory</h2>
+<a id="lab154"></a><h2 class="section">Theory</h2>
 
 <div class="paragraph"> </div>
 
@@ -112,7 +112,7 @@ In this library we define module interfaces
 </div>
 
 <div class="doc">
-<a id="lab335"></a><h3 class="section">Universal morphisms</h3>
+<a id="lab155"></a><h3 class="section">Universal morphisms</h3>
 
 <div class="paragraph"> </div>
 
@@ -136,9 +136,9 @@ In this library we define module interfaces
 <div class="paragraph"> </div>
 
     A universal morphism from <span class="inlinecode"><span class="id" title="var">X</span></span> to a functor <span class="inlinecode"><span class="id" title="var">G</span></span> is given by
-    an object <span class="inlinecode"><span class="id" title="var">U</span>∈<span class="id" title="var">C</span></span> and a morphism <span class="inlinecode"><span class="id" title="var">u</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">GU</span></span> <span class="inlinecode">∈</span> <span class="inlinecode"><span class="id" title="var">D</span></span>
-    which satisfy the property below. If <span class="inlinecode"><span class="id" title="var">G</span></span> has a left adjoint <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span>
-    then the object <span class="inlinecode"><span class="id" title="var">U</span></span> <span class="inlinecode">:=</span> <span class="inlinecode"><span class="id" title="var">FX</span></span> and the unit component <span class="inlinecode"><span class="id" title="var">ηX</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">GFX</span></span>
+    an object <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.U"><span class="id" title="definition">U</span></a>∈<span class="id" title="var">C</span></span> and a morphism <span class="inlinecode"><span class="id" title="var">u</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">GU</span></span> <span class="inlinecode">∈</span> <span class="inlinecode"><span class="id" title="var">D</span></span>
+    which satisfy the property below. If <span class="inlinecode"><span class="id" title="var">G</span></span> has a left adjoint <span class="inlinecode"><span class="id" title="var">F</span></span>
+    then the object <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.U"><span class="id" title="definition">U</span></a></span> <span class="inlinecode">:=</span> <span class="inlinecode"><span class="id" title="var">FX</span></span> and the unit component <span class="inlinecode"><span class="id" title="var">ηX</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">GFX</span></span>
     constitute a universal morphism from <span class="inlinecode"><span class="id" title="var">X</span></span> to <span class="inlinecode"><span class="id" title="var">G</span></span>. 
 </div>
 <div class="code">
@@ -189,11 +189,11 @@ Universal morphisms are unique up to isomorphism.
 
 <div class="doc">
 Conversely, what we call a "couniversal" morphism from
-    a functor <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">C</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">D</span></span> to an object <span class="inlinecode"><span class="id" title="var">X</span>∈<span class="id" title="var">D</span></span> is an object <span class="inlinecode"><span class="id" title="var">U</span>∈<span class="id" title="var">C</span></span> and
+    a functor <span class="inlinecode"><span class="id" title="var">F</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">C</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">D</span></span> to an object <span class="inlinecode"><span class="id" title="var">X</span>∈<span class="id" title="var">D</span></span> is an object <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.U"><span class="id" title="definition">U</span></a>∈<span class="id" title="var">C</span></span> and
     a morphism <span class="inlinecode"><span class="id" title="var">u</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">FU</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">∈</span> <span class="inlinecode"><span class="id" title="var">D</span></span> which satisfy the dual property
-    below. If <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span> has a right adjoint <span class="inlinecode"><span class="id" title="var">G</span></span> then the object <span class="inlinecode"><span class="id" title="var">U</span></span> <span class="inlinecode">:=</span> <span class="inlinecode"><span class="id" title="var">GX</span></span>
+    below. If <span class="inlinecode"><span class="id" title="var">F</span></span> has a right adjoint <span class="inlinecode"><span class="id" title="var">G</span></span> then the object <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.U"><span class="id" title="definition">U</span></a></span> <span class="inlinecode">:=</span> <span class="inlinecode"><span class="id" title="var">GX</span></span>
     and the counit component <span class="inlinecode"><span class="id" title="var">εX</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">FGX</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">X</span></span> constitute a couniversal
-    morphism from <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span> to <span class="inlinecode"><span class="id" title="var">X</span></span>. 
+    morphism from <span class="inlinecode"><span class="id" title="var">F</span></span> to <span class="inlinecode"><span class="id" title="var">X</span></span>. 
 </div>
 <div class="code">
 
@@ -242,7 +242,7 @@ Conversely, what we call a "couniversal" morphism from
 </div>
 
 <div class="doc">
-<a id="lab336"></a><h2 class="section">Additional properties</h2>
+<a id="lab156"></a><h2 class="section">Additional properties</h2>
 
 </div>
 <div class="code">
@@ -284,7 +284,7 @@ Conversely, what we call a "couniversal" morphism from
 </div>
 
 <div class="doc">
-<a id="lab337"></a><h1 class="section">Bifunctors</h1>
+<a id="lab157"></a><h1 class="section">Bifunctors</h1>
 
 <div class="paragraph"> </div>
 
@@ -296,7 +296,7 @@ Conversely, what we call a "couniversal" morphism from
   in terms of binary functions. 
 <div class="paragraph"> </div>
 
-<a id="lab338"></a><h2 class="section">Definition</h2>
+<a id="lab158"></a><h2 class="section">Definition</h2>
 
 </div>
 <div class="code">
@@ -330,7 +330,7 @@ Conversely, what we call a "couniversal" morphism from
 </div>
 
 <div class="doc">
-<a id="lab339"></a><h2 class="section">Properties</h2>
+<a id="lab159"></a><h2 class="section">Properties</h2>
 
 </div>
 <div class="code">
@@ -369,11 +369,11 @@ A bifunctor can be seen as a functor from the product category.
 
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="BifunctorTheory.PF.omap" class="idref" href="#BifunctorTheory.PF.omap"><span class="id" title="definition">omap</span></a> (<a id="X:102" class="idref" href="#X:102"><span class="id" title="binder">X</span></a> : <a class="idref" href="interfaces.Functor.html#BifunctorTheory.PC.t"><span class="id" title="definition">PC.t</span></a>) : <a class="idref" href="interfaces.Functor.html#D.t"><span class="id" title="axiom">D.t</span></a> :=<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Functor.html#F.omap"><span class="id" title="axiom">F.omap</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#fst"><span class="id" title="definition">fst</span></a> <a class="idref" href="interfaces.Functor.html#X:102"><span class="id" title="variable">X</span></a>) (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#snd"><span class="id" title="definition">snd</span></a> <a class="idref" href="interfaces.Functor.html#X:102"><span class="id" title="variable">X</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Functor.html#F.omap"><span class="id" title="axiom">F.omap</span></a> (<a class="idref" href="interfaces.Functor.html#BifunctorTheory.PC.tfst"><span class="id" title="projection">PC.tfst</span></a> <a class="idref" href="interfaces.Functor.html#X:102"><span class="id" title="variable">X</span></a>) (<a class="idref" href="interfaces.Functor.html#BifunctorTheory.PC.tsnd"><span class="id" title="projection">PC.tsnd</span></a> <a class="idref" href="interfaces.Functor.html#X:102"><span class="id" title="variable">X</span></a>).<br/>
 
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="BifunctorTheory.PF.fmap" class="idref" href="#BifunctorTheory.PF.fmap"><span class="id" title="definition">fmap</span></a> {<a id="A:103" class="idref" href="#A:103"><span class="id" title="binder">A</span></a> <a id="B:104" class="idref" href="#B:104"><span class="id" title="binder">B</span></a>} (<a id="f:105" class="idref" href="#f:105"><span class="id" title="binder">f</span></a> : <a class="idref" href="interfaces.Functor.html#BifunctorTheory.PC.m"><span class="id" title="definition">PC.m</span></a> <a class="idref" href="interfaces.Functor.html#A:103"><span class="id" title="variable">A</span></a> <a class="idref" href="interfaces.Functor.html#B:104"><span class="id" title="variable">B</span></a>) : <a class="idref" href="interfaces.Functor.html#D.m"><span class="id" title="axiom">D.m</span></a> (<a class="idref" href="interfaces.Functor.html#BifunctorTheory.PF.omap"><span class="id" title="definition">omap</span></a> <a class="idref" href="interfaces.Functor.html#A:103"><span class="id" title="variable">A</span></a>) (<a class="idref" href="interfaces.Functor.html#BifunctorTheory.PF.omap"><span class="id" title="definition">omap</span></a> <a class="idref" href="interfaces.Functor.html#B:104"><span class="id" title="variable">B</span></a>) :=<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Functor.html#F.fmap"><span class="id" title="axiom">F.fmap</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#fst"><span class="id" title="definition">fst</span></a> <a class="idref" href="interfaces.Functor.html#f:105"><span class="id" title="variable">f</span></a>) (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#snd"><span class="id" title="definition">snd</span></a> <a class="idref" href="interfaces.Functor.html#f:105"><span class="id" title="variable">f</span></a>).<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="interfaces.Functor.html#F.fmap"><span class="id" title="axiom">F.fmap</span></a> (<a class="idref" href="interfaces.Functor.html#BifunctorTheory.PC.mfst"><span class="id" title="projection">PC.mfst</span></a> <a class="idref" href="interfaces.Functor.html#f:105"><span class="id" title="variable">f</span></a>) (<a class="idref" href="interfaces.Functor.html#BifunctorTheory.PC.msnd"><span class="id" title="projection">PC.msnd</span></a> <a class="idref" href="interfaces.Functor.html#f:105"><span class="id" title="variable">f</span></a>).<br/>
 
 <br/>
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Proposition</span> <a id="BifunctorTheory.PF.fmap_id" class="idref" href="#BifunctorTheory.PF.fmap_id"><span class="id" title="lemma">fmap_id</span></a> {<a id="A:106" class="idref" href="#A:106"><span class="id" title="binder">A</span></a>} :<br/>
@@ -394,7 +394,7 @@ A bifunctor can be seen as a functor from the product category.
 </div>
 
 <div class="doc">
-<a id="lab340"></a><h2 class="section">Bundled interface</h2>
+<a id="lab160"></a><h2 class="section">Bundled interface</h2>
 
 </div>
 <div class="code">

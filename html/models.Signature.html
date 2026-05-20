@@ -34,11 +34,11 @@ Effect signatures and their homomorphisms.
 </div>
 
 <div class="doc">
-<a id="lab47"></a><h1 class="section">Signatures</h1>
+<a id="lab16"></a><h1 class="section">Signatures</h1>
 
 <div class="paragraph"> </div>
 
-<a id="lab48"></a><h2 class="section">Definition</h2>
+<a id="lab17"></a><h2 class="section">Definition</h2>
 
 <div class="paragraph"> </div>
 
@@ -60,17 +60,17 @@ Effect signatures and their homomorphisms.
 </div>
 
 <div class="doc">
-<a id="lab49"></a><h2 class="section">Dependent type presentation</h2>
+<a id="lab18"></a><h2 class="section">Dependent type presentation</h2>
 
 <div class="paragraph"> </div>
 
  Signatures can also be represented as dependent types.
   This is the approach taken in the interaction trees library.
-  In that case <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> is the set of operations of arity <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span>.
+  In that case <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">N</span></span> is the set of operations of arity <span class="inlinecode"><span class="id" title="var">N</span></span>.
 
 <div class="paragraph"> </div>
 
-  We prefer to avoid using <span class="inlinecode"><a class="idref" href="models.IntStrat.html#esig"><span class="id" title="record">esig</span></a></span> as our working version
+  We prefer to avoid using <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.esig"><span class="id" title="definition">esig</span></a></span> as our working version
   and dealing with the associated issues of dependent elimination.
   However this form is very convenient for declaring signatures
   as dependent types, as illustrated by the examples below. 
@@ -119,7 +119,7 @@ Hence we define the following conversion.
 </div>
 
 <div class="doc">
-<a id="lab50"></a><h1 class="section">Endofunctors</h1>
+<a id="lab19"></a><h1 class="section">Endofunctors</h1>
 
 <div class="paragraph"> </div>
 
@@ -127,7 +127,7 @@ Hence we define the following conversion.
   Below I define the endofunctor associated with a given signature. 
 <div class="paragraph"> </div>
 
-<a id="lab51"></a><h2 class="section">Simple terms</h2>
+<a id="lab20"></a><h2 class="section">Simple terms</h2>
 
 <div class="paragraph"> </div>
 
@@ -166,7 +166,7 @@ We will sometimes use the following notation for simple terms,
 </div>
 
 <div class="doc">
-<span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> is in fact the endofunctor on <span class="inlinecode"><span class="id" title="keyword">Set</span></span> associated with <span class="inlinecode"><span class="id" title="var">E</span></span>.
+<span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> is in fact the endofunctor on <span class="inlinecode"><span class="id" title="keyword">Set</span></span> associated with <span class="inlinecode"><span class="id" title="var">E</span></span>.
   The action on functions is defined as follows. 
 </div>
 <div class="code">
@@ -187,7 +187,7 @@ We will sometimes use the following notation for simple terms,
 </div>
 
 <div class="doc">
-<a id="lab52"></a><h2 class="section">Examples</h2>
+<a id="lab21"></a><h2 class="section">Examples</h2>
 
 </div>
 <div class="code">
@@ -200,16 +200,16 @@ We will sometimes use the following notation for simple terms,
 </div>
 
 <div class="doc">
-<a id="lab53"></a><h1 class="section">Homomorphisms</h1>
+<a id="lab22"></a><h1 class="section">Homomorphisms</h1>
 
 <div class="paragraph"> </div>
 
-<a id="lab54"></a><h2 class="section">Definition</h2>
+<a id="lab23"></a><h2 class="section">Definition</h2>
 
 <div class="paragraph"> </div>
 
- A signature homomorphism from <span class="inlinecode"><span class="id" title="var">E</span></span> to <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span> is a simple strategy which
-  uses exactly one operation of <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span> to interpret each operation of <span class="inlinecode"><span class="id" title="var">E</span></span>. 
+ A signature homomorphism from <span class="inlinecode"><span class="id" title="var">E</span></span> to <span class="inlinecode"><span class="id" title="var">F</span></span> is a simple strategy which
+  uses exactly one operation of <span class="inlinecode"><span class="id" title="var">F</span></span> to interpret each operation of <span class="inlinecode"><span class="id" title="var">E</span></span>. 
 </div>
 <div class="code">
 
@@ -222,7 +222,7 @@ We will sometimes use the following notation for simple terms,
 
 <div class="doc">
 It can be used to transform the simple terms of the signature <span class="inlinecode"><span class="id" title="var">E</span></span>
-  into simple terms of the signature <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span>. 
+  into simple terms of the signature <span class="inlinecode"><span class="id" title="var">F</span></span>. 
 </div>
 <div class="code">
 
@@ -234,7 +234,7 @@ It can be used to transform the simple terms of the signature <span class="inlin
 </div>
 
 <div class="doc">
-In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span>, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.amap"><span class="id" title="definition">amap</span></a></span> and <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.hmap"><span class="id" title="definition">hmap</span></a></span> together define a
+In fact, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span>, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.amap"><span class="id" title="definition">amap</span></a></span> and <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.hmap"><span class="id" title="definition">hmap</span></a></span> together define a
   functor from the category of signatures and signature homomorphisms
   to the category of endofunctors on Set and natural transformations. 
 </div>
@@ -271,7 +271,7 @@ Every natural transformation between endofunctors associated to
 </div>
 
 <div class="doc">
-<a id="lab55"></a><h2 class="section">Identity</h2>
+<a id="lab24"></a><h2 class="section">Identity</h2>
 
 </div>
 <div class="code">
@@ -288,7 +288,7 @@ Every natural transformation between endofunctors associated to
 </div>
 
 <div class="doc">
-<a id="lab56"></a><h2 class="section">Composition</h2>
+<a id="lab25"></a><h2 class="section">Composition</h2>
 
 </div>
 <div class="code">
@@ -317,7 +317,7 @@ Every natural transformation between endofunctors associated to
 </div>
 
 <div class="doc">
-<a id="lab57"></a><h2 class="section">Example</h2>
+<a id="lab26"></a><h2 class="section">Example</h2>
 
 </div>
 <div class="code">
@@ -342,11 +342,11 @@ Every natural transformation between endofunctors associated to
 </div>
 
 <div class="doc">
-<a id="lab58"></a><h1 class="section">Operations on signatures</h1>
+<a id="lab27"></a><h1 class="section">Operations on signatures</h1>
 
 <div class="paragraph"> </div>
 
-<a id="lab59"></a><h2 class="section">Sum</h2>
+<a id="lab28"></a><h2 class="section">Sum</h2>
 
 <div class="paragraph"> </div>
 
@@ -399,7 +399,7 @@ Every natural transformation between endofunctors associated to
 </div>
 
 <div class="doc">
-<a id="lab60"></a><h2 class="section">Tensor</h2>
+<a id="lab29"></a><h2 class="section">Tensor</h2>
 
 </div>
 <div class="code">
@@ -418,7 +418,7 @@ Every natural transformation between endofunctors associated to
 </div>
 
 <div class="doc">
-<a id="lab61"></a><h2 class="section">Composition</h2>
+<a id="lab30"></a><h2 class="section">Composition</h2>
 
 </div>
 <div class="code">
@@ -441,11 +441,11 @@ Every natural transformation between endofunctors associated to
 </div>
 
 <div class="doc">
-<a id="lab62"></a><h1 class="section">Embeddings of Set</h1>
+<a id="lab31"></a><h1 class="section">Embeddings of Set</h1>
 
 <div class="paragraph"> </div>
 
-<a id="lab63"></a><h2 class="section">Covariant embedding</h2>
+<a id="lab32"></a><h2 class="section">Covariant embedding</h2>
 
 </div>
 <div class="code">

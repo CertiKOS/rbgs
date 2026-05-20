@@ -35,7 +35,7 @@
 </div>
 
 <div class="doc">
-<a id="lab269"></a><h1 class="section">Linearization-based Concurrent Certified Abstraction Layers</h1>
+<a id="lab103"></a><h1 class="section">Linearization-based Concurrent Certified Abstraction Layers</h1>
 
 </div>
 <div class="code">
@@ -52,7 +52,7 @@
 </div>
 
 <div class="doc">
-<a id="lab270"></a><h2 class="section">Concurrent object specifications</h2>
+<a id="lab104"></a><h2 class="section">Concurrent object specifications</h2>
 
 </div>
 <div class="code">
@@ -64,7 +64,7 @@
 </div>
 
 <div class="doc">
-<a id="lab271"></a><h3 class="section">Definition</h3>
+<a id="lab105"></a><h3 class="section">Definition</h3>
 
 <div class="paragraph"> </div>
 
@@ -72,7 +72,7 @@
       specify correctness directly in terms of that model. In their
       linearized form, the specifications are deterministic, however
       we allow both undefined and unimplementable behaviors.
-      Undefined behaviors (<span class="inlinecode"><a class="idref" href="models.LinCCAL.html#LinCCALBase.Spec.undef"><span class="id" title="constructor">undef</span></a></span>) release the implementation of any
+      Undefined behaviors (<span class="inlinecode"><a class="idref" href="structures.Lattices.html#undef"><span class="id" title="definition">undef</span></a></span>) release the implementation of any
       obligation, and are usually a consequence of illegal actions
       by the client (for example, a thread acquiring a lock twice).
       The behavior <span class="inlinecode"><a class="idref" href="models.LinCCAL.html#LinCCALBase.Spec.blocked"><span class="id" title="constructor">blocked</span></a></span> denotes that a primitive is waiting for
@@ -117,7 +117,7 @@ Our specifications give an outcome of this kind
 </div>
 
 <div class="doc">
-<a id="lab272"></a><h3 class="section">State-based representations</h3>
+<a id="lab106"></a><h3 class="section">State-based representations</h3>
 
 <div class="paragraph"> </div>
 
@@ -151,7 +151,7 @@ In fact, <span class="inlinecode"><a class="idref" href="models.LinCCAL.html#Lin
 </div>
 
 <div class="doc">
-<a id="lab273"></a><h3 class="section">Tensor product</h3>
+<a id="lab107"></a><h3 class="section">Tensor product</h3>
 
 </div>
 <div class="code">
@@ -196,7 +196,7 @@ In fact, <span class="inlinecode"><a class="idref" href="models.LinCCAL.html#Lin
 </div>
 
 <div class="doc">
-<a id="lab274"></a><h2 class="section">Implementation states</h2>
+<a id="lab108"></a><h2 class="section">Implementation states</h2>
 
 <div class="paragraph"> </div>
 
@@ -274,7 +274,7 @@ Then the global state consists of a thread state for every
 </div>
 
 <div class="doc">
-<a id="lab275"></a><h3 class="section">Environment steps</h3>
+<a id="lab109"></a><h3 class="section">Environment steps</h3>
 
 <div class="paragraph"> </div>
 
@@ -305,7 +305,7 @@ Then the global state consists of a thread state for every
 </div>
 
 <div class="doc">
-<a id="lab276"></a><h3 class="section">Commit steps</h3>
+<a id="lab110"></a><h3 class="section">Commit steps</h3>
 
 <div class="paragraph"> </div>
 
@@ -346,7 +346,7 @@ In addition, if it is possible for a commit to trigger an
 </div>
 
 <div class="doc">
-<a id="lab277"></a><h2 class="section">Correctness</h2>
+<a id="lab111"></a><h2 class="section">Correctness</h2>
 
 <div class="paragraph"> </div>
 
@@ -375,7 +375,7 @@ Note that if <span class="inlinecode"><span class="id" title="var">spec_blocked<
     be no way to commit a result at that point in time. 
 <div class="paragraph"> </div>
 
-<a id="lab278"></a><h3 class="section">Rechability predicate</h3>
+<a id="lab112"></a><h3 class="section">Rechability predicate</h3>
 
 <div class="paragraph"> </div>
 
@@ -425,7 +425,7 @@ Note that if <span class="inlinecode"><span class="id" title="var">spec_blocked<
 </div>
 
 <div class="doc">
-<a id="lab279"></a><h3 class="section">Liveness</h3>
+<a id="lab113"></a><h3 class="section">Liveness</h3>
 
 <div class="paragraph"> </div>
 
@@ -504,7 +504,7 @@ Note that these are global property, and that the thread making
     by another thread. 
 <div class="paragraph"> </div>
 
-<a id="lab280"></a><h3 class="section">Coinductive property</h3>
+<a id="lab114"></a><h3 class="section">Coinductive property</h3>
 
 <div class="paragraph"> </div>
 
@@ -540,7 +540,7 @@ Note that these are global property, and that the thread making
 </div>
 
 <div class="doc">
-<a id="lab281"></a><h3 class="section">Proof method</h3>
+<a id="lab115"></a><h3 class="section">Proof method</h3>
 
 <div class="paragraph"> </div>
 
@@ -582,7 +582,7 @@ Note that these are global property, and that the thread making
 </div>
 
 <div class="doc">
-<a id="lab282"></a><h2 class="section">Identity</h2>
+<a id="lab116"></a><h2 class="section">Identity</h2>
 
 </div>
 <div class="code">
@@ -612,7 +612,7 @@ Note that these are global property, and that the thread making
 </div>
 
 <div class="doc">
-<a id="lab283"></a><h2 class="section">Vertical composition</h2>
+<a id="lab117"></a><h2 class="section">Vertical composition</h2>
 
 </div>
 <div class="code">
@@ -629,24 +629,24 @@ Note that these are global property, and that the thread making
 </div>
 
 <div class="doc">
-<a id="lab284"></a><h3 class="section">Per-thread invariant</h3>
+<a id="lab118"></a><h3 class="section">Per-thread invariant</h3>
 
 <div class="paragraph"> </div>
 
- When <span class="inlinecode"><span class="id" title="var">M</span></span> invokes a method <span class="inlinecode"><a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a></span> of <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> with continuation <span class="inlinecode"><span class="id" title="var">k</span></span>,
+ When <span class="inlinecode"><span class="id" title="var">M</span></span> invokes a method <span class="inlinecode"><a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a></span> of <span class="inlinecode"><span class="id" title="var">N</span></span> with continuation <span class="inlinecode"><span class="id" title="var">k</span></span>,
       we distinguish between two phases:
 <ul class="doclist">
-<li> before <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> commits a result, the action is still pending in <span class="inlinecode"><span class="id" title="var">M</span></span>
+<li> before <span class="inlinecode"><span class="id" title="var">N</span></span> commits a result, the action is still pending in <span class="inlinecode"><span class="id" title="var">M</span></span>
 
 </li>
 <li> afterwards, <span class="inlinecode"><span class="id" title="var">M</span></span> progresses and is now waiting on the next action
-           (or return), which will be carried out after <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> actually returns.
+           (or return), which will be carried out after <span class="inlinecode"><span class="id" title="var">N</span></span> actually returns.
 
 </li>
 </ul>
       In order to express this, we introduce the following auxiliary
       computation, which computes the current program of <span class="inlinecode"><span class="id" title="var">M</span></span> based on
-      the commit state <span class="inlinecode"><a class="idref" href="models.IntStrat.html#VCOMP_NOT_ASSOC.S"><span class="id" title="definition">S</span></a></span> of the <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> component. 
+      the commit state <span class="inlinecode"><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#S"><span class="id" title="constructor">S</span></a></span> of the <span class="inlinecode"><span class="id" title="var">N</span></span> component. 
 </div>
 <div class="code">
 
@@ -664,8 +664,8 @@ Note that these are global property, and that the thread making
 The predicate we use to formulate the composition invariant
       will also cover intermediate states where internal execution
       is ongoing. This is the case when a thread has a <span class="inlinecode"><span class="id" title="var">Sig.cons</span></span>
-      program in <span class="inlinecode"><span class="id" title="var">M</span></span> while <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> is waiting for the next query,
-      or when <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> has a <span class="inlinecode"><span class="id" title="var">Sig.var</span></span> program. We will use the following
+      program in <span class="inlinecode"><span class="id" title="var">M</span></span> while <span class="inlinecode"><span class="id" title="var">N</span></span> is waiting for the next query,
+      or when <span class="inlinecode"><span class="id" title="var">N</span></span> has a <span class="inlinecode"><span class="id" title="var">Sig.var</span></span> program. We will use the following
       constructions to manage this. 
 </div>
 <div class="code">
@@ -773,7 +773,7 @@ Liveness properties.
 </div>
 
 <div class="doc">
-<a id="lab285"></a><h3 class="section">Global state invariant</h3>
+<a id="lab119"></a><h3 class="section">Global state invariant</h3>
 
 </div>
 <div class="code">
@@ -930,7 +930,7 @@ Liveness.
 </div>
 
 <div class="doc">
-<a id="lab286"></a><h3 class="section">Overall invariant</h3>
+<a id="lab120"></a><h3 class="section">Overall invariant</h3>
 
 <div class="paragraph"> </div>
 
@@ -990,7 +990,7 @@ Liveness.
 </div>
 
 <div class="doc">
-<a id="lab287"></a><h2 class="section">Certified abstraction layers form a category</h2>
+<a id="lab121"></a><h2 class="section">Certified abstraction layers form a category</h2>
 
 </div>
 <div class="code">
@@ -1048,7 +1048,7 @@ Liveness.
 </div>
 
 <div class="doc">
-<a id="lab288"></a><h2 class="section">Horizontal composition</h2>
+<a id="lab122"></a><h2 class="section">Horizontal composition</h2>
 
 </div>
 <div class="code">
@@ -1071,7 +1071,7 @@ Liveness.
 </div>
 
 <div class="doc">
-<a id="lab289"></a><h3 class="section">Tensor product of layer interfaces</h3>
+<a id="lab123"></a><h3 class="section">Tensor product of layer interfaces</h3>
 
 <div class="paragraph"> </div>
 
@@ -1096,7 +1096,7 @@ Liveness.
 </div>
 
 <div class="doc">
-<a id="lab290"></a><h3 class="section">Tensor product of layer implementations</h3>
+<a id="lab124"></a><h3 class="section">Tensor product of layer implementations</h3>
 
 <div class="paragraph"> </div>
 
@@ -1246,7 +1246,7 @@ Global state invariant
 </div>
 
 <div class="doc">
-<a id="lab291"></a><h3 class="section">Functoriality</h3>
+<a id="lab125"></a><h3 class="section">Functoriality</h3>
 
 </div>
 <div class="code">
@@ -1264,7 +1264,7 @@ Global state invariant
 </div>
 
 <div class="doc">
-<a id="lab292"></a><h3 class="section">Empty layer interface</h3>
+<a id="lab126"></a><h3 class="section">Empty layer interface</h3>
 
 <div class="paragraph"> </div>
 
@@ -1283,7 +1283,7 @@ Global state invariant
 </div>
 
 <div class="doc">
-<a id="lab293"></a><h3 class="section">Structural isomorphisms</h3>
+<a id="lab127"></a><h3 class="section">Structural isomorphisms</h3>
 
 <div class="paragraph"> </div>
 
@@ -1400,7 +1400,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab294"></a><h3 class="section">Naturality properties</h3>
+<a id="lab128"></a><h3 class="section">Naturality properties</h3>
 
 </div>
 <div class="code">
@@ -1425,7 +1425,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab295"></a><h3 class="section">Coherence diagrams</h3>
+<a id="lab129"></a><h3 class="section">Coherence diagrams</h3>
 
 </div>
 <div class="code">
@@ -1468,7 +1468,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab296"></a><h2 class="section">Putting everything together</h2>
+<a id="lab130"></a><h2 class="section">Putting everything together</h2>
 
 </div>
 <div class="code">
@@ -1482,7 +1482,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab297"></a><h1 class="section">Example</h1>
+<a id="lab131"></a><h1 class="section">Example</h1>
 
 <div class="paragraph"> </div>
 
@@ -1500,7 +1500,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab298"></a><h2 class="section">Counter specification</h2>
+<a id="lab132"></a><h2 class="section">Counter specification</h2>
 
 </div>
 <div class="code">
@@ -1528,7 +1528,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab299"></a><h2 class="section">Lock specification</h2>
+<a id="lab133"></a><h2 class="section">Lock specification</h2>
 
 </div>
 <div class="code">
@@ -1567,7 +1567,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab300"></a><h2 class="section">Register specification</h2>
+<a id="lab134"></a><h2 class="section">Register specification</h2>
 
 </div>
 <div class="code">
@@ -1610,7 +1610,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab301"></a><h2 class="section">Implementation</h2>
+<a id="lab135"></a><h2 class="section">Implementation</h2>
 
 </div>
 <div class="code">
@@ -1682,7 +1682,7 @@ Unfortunately the overall invariant still must be defined on a
 </div>
 
 <div class="doc">
-<a id="lab302"></a><h2 class="section">Why the liveness property is needed</h2>
+<a id="lab136"></a><h2 class="section">Why the liveness property is needed</h2>
 
 <div class="paragraph"> </div>
 

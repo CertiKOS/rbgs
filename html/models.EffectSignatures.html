@@ -32,7 +32,7 @@
 </div>
 
 <div class="doc">
-<a id="lab64"></a><h1 class="section">Effect signatures</h1>
+<a id="lab33"></a><h1 class="section">Effect signatures</h1>
 
 <div class="paragraph"> </div>
 
@@ -51,11 +51,11 @@
 </div>
 
 <div class="doc">
-<a id="lab65"></a><h2 class="section">Definition</h2>
+<a id="lab34"></a><h2 class="section">Definition</h2>
 
 <div class="paragraph"> </div>
 
-<a id="lab66"></a><h3 class="section">Basic definition</h3>
+<a id="lab35"></a><h3 class="section">Basic definition</h3>
 
 <div class="paragraph"> </div>
 
@@ -78,13 +78,13 @@
 </div>
 
 <div class="doc">
-<a id="lab67"></a><h3 class="section">Dependent type presentation</h3>
+<a id="lab36"></a><h3 class="section">Dependent type presentation</h3>
 
 <div class="paragraph"> </div>
 
  Signatures can also be represented as dependent types.
     This is the approach taken in the interaction trees library.
-    In that case <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span> is the set of operations of arity <span class="inlinecode"><a class="idref" href="examples.CAL.html#N"><span class="id" title="axiom">N</span></a></span>. 
+    In that case <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">N</span></span> is the set of operations of arity <span class="inlinecode"><span class="id" title="var">N</span></span>. 
 </div>
 <div class="code">
 
@@ -95,11 +95,11 @@
 </div>
 
 <div class="doc">
-<a id="lab68"></a><h3 class="section">Converting between the two forms</h3>
+<a id="lab37"></a><h3 class="section">Converting between the two forms</h3>
 
 <div class="paragraph"> </div>
 
- We prefer to avoid using <span class="inlinecode"><a class="idref" href="models.IntStrat.html#esig"><span class="id" title="record">esig</span></a></span> as our working version
+ We prefer to avoid using <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.esig"><span class="id" title="definition">esig</span></a></span> as our working version
     and dealing with the associated issues of dependent elimination.
     However this form is very convenient for declaring signatures,
     and is used in the interaction trees library, so we provide ways
@@ -145,14 +145,14 @@ In any case, in the remainder of this file we will
 </div>
 
 <div class="doc">
-<a id="lab69"></a><h2 class="section">Applications</h2>
+<a id="lab38"></a><h2 class="section">Applications</h2>
 
 <div class="paragraph"> </div>
 
  The following type encodes simple terms of the form
-    <span class="inlinecode"><a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>(<span class="id" title="var">x_n</span>)<span class="id" title="var">_</span>{<span class="id" title="var">n</span>∈<a class="idref" href="models.IntStrat.html#ar"><span class="id" title="projection">ar</span></a>(<a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>)}</span> consisting of an operation <span class="inlinecode"><a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a></span> of <span class="inlinecode"><span class="id" title="var">E</span></span>
+    <span class="inlinecode"><a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>(<span class="id" title="var">x_n</span>)<span class="id" title="var">_</span>{<span class="id" title="var">n</span>∈<a class="idref" href="structures.DCPOs.html#Ord.ar"><span class="id" title="projection">ar</span></a>(<a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>)}</span> consisting of an operation <span class="inlinecode"><a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a></span> of <span class="inlinecode"><span class="id" title="var">E</span></span>
     with arguments <span class="inlinecode"><span class="id" title="var">x_n</span></span> taken in the set <span class="inlinecode"><span class="id" title="var">X</span></span>. In other words,
-    this is the type <span class="inlinecode">∑<a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>∈<span class="id" title="var">E</span></span> <span class="inlinecode">·</span> <span class="inlinecode">∏<span class="id" title="var">n</span>∈<a class="idref" href="models.IntStrat.html#ar"><span class="id" title="projection">ar</span></a>(<a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>)</span> <span class="inlinecode">·</span> <span class="inlinecode"><span class="id" title="var">X</span></span> 
+    this is the type <span class="inlinecode">∑<a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>∈<span class="id" title="var">E</span></span> <span class="inlinecode">·</span> <span class="inlinecode">∏<span class="id" title="var">n</span>∈<a class="idref" href="structures.DCPOs.html#Ord.ar"><span class="id" title="projection">ar</span></a>(<a class="idref" href="interfaces.Monads.html#MonadTheory.Kl.m"><span class="id" title="definition">m</span></a>)</span> <span class="inlinecode">·</span> <span class="inlinecode"><span class="id" title="var">X</span></span> 
 </div>
 <div class="code">
 
@@ -173,7 +173,7 @@ In any case, in the remainder of this file we will
 <div class="doc">
 We will sometimes use the following notation for simple terms,
     which evokes the game/effects interpretation of signatures.
-    NB: The notation <span class="inlinecode">≥</span> is traditionally used for the <span class="inlinecode"><a class="idref" href="models.DCPOSL.html#FDSL.bind"><span class="id" title="inductive">bind</span></a></span>
+    NB: The notation <span class="inlinecode">≥</span> is traditionally used for the <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.bind"><span class="id" title="inductive">bind</span></a></span>
     operator of monads which feeds its left-hand side to the Kleisli
     extension of the function on the right-hand side. The notation
     below is very much related to this, since it basically feeds the
@@ -213,7 +213,7 @@ We can transform an application by using a given function
 
 <div class="doc">
 This forms the morphism part of a <span class="inlinecode"><span class="id" title="keyword">Set</span></span> endofunctor
-    associated with <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>, as shown below. 
+    associated with <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>, as shown below. 
 </div>
 <div class="code">
 
@@ -229,14 +229,14 @@ This forms the morphism part of a <span class="inlinecode"><span class="id" titl
 </div>
 
 <div class="doc">
-<a id="lab70"></a><h2 class="section">Homomorphisms</h2>
+<a id="lab39"></a><h2 class="section">Homomorphisms</h2>
 
 <div class="paragraph"> </div>
 
  A homomorphism between signatures maps operations forward 
     and outcomes (argument positions) backward. We can use the
     definitions above to formalize this in the following way:
-    for each operation of <span class="inlinecode"><span class="id" title="var">E</span></span>, we give a simple term in <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span>,
+    for each operation of <span class="inlinecode"><span class="id" title="var">E</span></span>, we give a simple term in <span class="inlinecode"><span class="id" title="var">F</span></span>,
     and the arguments used in this term refer back to the valid
     argument positions for the operation of <span class="inlinecode"><span class="id" title="var">E</span></span>. 
 </div>
@@ -251,7 +251,7 @@ This forms the morphism part of a <span class="inlinecode"><span class="id" titl
 
 <div class="doc">
 Signature homomorphisms can be used to transform simple terms
-    of the signature <span class="inlinecode"><span class="id" title="var">E</span></span> into simple terms of the signature <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span>. 
+    of the signature <span class="inlinecode"><span class="id" title="var">E</span></span> into simple terms of the signature <span class="inlinecode"><span class="id" title="var">F</span></span>. 
 </div>
 <div class="code">
 
@@ -263,8 +263,8 @@ Signature homomorphisms can be used to transform simple terms
 </div>
 
 <div class="doc">
-So whereas <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.amap"><span class="id" title="definition">amap</span></a></span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">Y</span></span> acts
-    on the arguments, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.hmap"><span class="id" title="definition">hmap</span></a></span> <span class="inlinecode">φ</span> <span class="inlinecode">:</span> <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><a class="idref" href="lattices.AdjoinBot.html#LBot.F"><span class="id" title="definition">F</span></a></span> <span class="inlinecode"><span class="id" title="var">X</span></span>
+So whereas <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.amap"><span class="id" title="definition">amap</span></a></span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">Y</span></span> acts
+    on the arguments, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.hmap"><span class="id" title="definition">hmap</span></a></span> <span class="inlinecode">φ</span> <span class="inlinecode">:</span> <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span> <span class="inlinecode"><span class="id" title="var">X</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">F</span></span> <span class="inlinecode"><span class="id" title="var">X</span></span>
     acts on structure of the term (operator and argument positions).
     The structure and arguments can be transformed independently:
     the result will be the same no matter which one we tranform first. 
@@ -279,12 +279,12 @@ So whereas <span class="inlinecode"><a class="idref" href="models.EffectSignatur
 </div>
 
 <div class="doc">
-In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span>, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.amap"><span class="id" title="definition">amap</span></a></span> and <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.hmap"><span class="id" title="definition">hmap</span></a></span> together define a
+In fact, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span>, <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.amap"><span class="id" title="definition">amap</span></a></span> and <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.hmap"><span class="id" title="definition">hmap</span></a></span> together define a
     functor from the category of signatures and signature homomorphisms
     to the category of endofunctors on Set and natural transformations. 
 <div class="paragraph"> </div>
 
-<a id="lab71"></a><h2 class="section">Compositional structure</h2>
+<a id="lab40"></a><h2 class="section">Compositional structure</h2>
 
 </div>
 <div class="code">
@@ -325,7 +325,7 @@ In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#ap
 </div>
 
 <div class="doc">
-<a id="lab72"></a><h2 class="section">Products</h2>
+<a id="lab41"></a><h2 class="section">Products</h2>
 
 <div class="paragraph"> </div>
 
@@ -335,7 +335,7 @@ In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#ap
     but Π only chooses to reply in one of them. 
 <div class="paragraph"> </div>
 
-<a id="lab73"></a><h3 class="section">Products of arbitrary arity</h3>
+<a id="lab42"></a><h3 class="section">Products of arbitrary arity</h3>
 
 </div>
 <div class="code">
@@ -378,7 +378,7 @@ In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#ap
 </div>
 
 <div class="doc">
-<a id="lab74"></a><h3 class="section">Binary products</h3>
+<a id="lab43"></a><h3 class="section">Binary products</h3>
 
 <div class="paragraph"> </div>
 
@@ -395,7 +395,7 @@ In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#ap
 </div>
 
 <div class="doc">
-<a id="lab75"></a><h2 class="section">Coproducts</h2>
+<a id="lab44"></a><h2 class="section">Coproducts</h2>
 
 <div class="paragraph"> </div>
 
@@ -403,7 +403,7 @@ In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#ap
     signatures, which retains its arity. 
 <div class="paragraph"> </div>
 
-<a id="lab76"></a><h3 class="section">Coproducts of any arities</h3>
+<a id="lab45"></a><h3 class="section">Coproducts of any arities</h3>
 
 </div>
 <div class="code">
@@ -441,11 +441,11 @@ In fact, <span class="inlinecode"><a class="idref" href="models.IntStrat.html#ap
 Binary coproducts are added in module <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigPlus"><span class="id" title="module">SigPlus</span></a></span>. 
 <div class="paragraph"> </div>
 
-<a id="lab77"></a><h2 class="section">Terms over a signature</h2>
+<a id="lab46"></a><h2 class="section">Terms over a signature</h2>
 
 <div class="paragraph"> </div>
 
-<a id="lab78"></a><h3 class="section">Definition</h3>
+<a id="lab47"></a><h3 class="section">Definition</h3>
 
 <div class="paragraph"> </div>
 
@@ -487,7 +487,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab79"></a><h3 class="section">Substitutions</h3>
+<a id="lab48"></a><h3 class="section">Substitutions</h3>
 
 <div class="paragraph"> </div>
 
@@ -524,13 +524,13 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab80"></a><h3 class="section">Variable renaming</h3>
+<a id="lab49"></a><h3 class="section">Variable renaming</h3>
 
 <div class="paragraph"> </div>
 
- As with <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>, the type constructor <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.term"><span class="id" title="inductive">term</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>
+ As with <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>, the type constructor <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.term"><span class="id" title="inductive">term</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>
     constitutes the object part of a <span class="inlinecode"><a class="idref" href="interfaces.Category.html#SET"><span class="id" title="module">SET</span></a></span> functor -- in fact,
-    the free monad associated with <span class="inlinecode"><a class="idref" href="models.IntStrat.html#application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>. The morphism
+    the free monad associated with <span class="inlinecode"><a class="idref" href="models.EffectSignatures.html#SigBase.application"><span class="id" title="record">application</span></a></span> <span class="inlinecode"><span class="id" title="var">E</span></span>. The morphism
     part can be obtained as a special case of <span class="inlinecode"><span class="id" title="tactic">subst</span></span>. 
 </div>
 <div class="code">
@@ -563,7 +563,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab81"></a><h3 class="section">Monadic multiplication</h3>
+<a id="lab50"></a><h3 class="section">Monadic multiplication</h3>
 
 <div class="paragraph"> </div>
 
@@ -601,7 +601,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab82"></a><h3 class="section">Applying homomorphisms to terms</h3>
+<a id="lab51"></a><h3 class="section">Applying homomorphisms to terms</h3>
 
 </div>
 <div class="code">
@@ -628,7 +628,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab83"></a><h2 class="section">Binary coproducts</h2>
+<a id="lab52"></a><h2 class="section">Binary coproducts</h2>
 
 </div>
 <div class="code">
@@ -647,7 +647,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab84"></a><h3 class="section">Initial object</h3>
+<a id="lab53"></a><h3 class="section">Initial object</h3>
 
 </div>
 <div class="code">
@@ -671,7 +671,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab85"></a><h3 class="section">Binary products</h3>
+<a id="lab54"></a><h3 class="section">Binary products</h3>
 
 </div>
 <div class="code">
@@ -720,7 +720,7 @@ We can use a notation for <span class="inlinecode"><a class="idref" href="models
 </div>
 
 <div class="doc">
-<a id="lab86"></a><h2 class="section">Tensor product</h2>
+<a id="lab55"></a><h2 class="section">Tensor product</h2>
 
 </div>
 <div class="code">
@@ -928,7 +928,7 @@ Some notable properties we should formalize:
 </div>
 
 <div class="doc">
-<a id="lab87"></a><h2 class="section">Composition product</h2>
+<a id="lab56"></a><h2 class="section">Composition product</h2>
 
 <div class="paragraph"> </div>
 
@@ -1123,7 +1123,7 @@ Triangle identity
 </div>
 
 <div class="doc">
-<a id="lab88"></a><h2 class="section">Putting everything together</h2>
+<a id="lab57"></a><h2 class="section">Putting everything together</h2>
 
 </div>
 <div class="code">
@@ -1159,7 +1159,7 @@ TODO:
  
 <div class="paragraph"> </div>
 
-<a id="lab89"></a><h1 class="section">Interpretation in <span class="inlinecode"><a class="idref" href="interfaces.Category.html#SET"><span class="id" title="module">SET</span></a></span> endofunctors</h1>
+<a id="lab58"></a><h1 class="section">Interpretation in <span class="inlinecode"><a class="idref" href="interfaces.Category.html#SET"><span class="id" title="module">SET</span></a></span> endofunctors</h1>
 
 </div>
 <div class="code">
@@ -1245,7 +1245,7 @@ TODO:
 </div>
 
 <div class="doc">
-<a id="lab90"></a><h1 class="section">Regular maps</h1>
+<a id="lab59"></a><h1 class="section">Regular maps</h1>
 
 <div class="paragraph"> </div>
 
@@ -1256,7 +1256,7 @@ TODO:
   signature. 
 <div class="paragraph"> </div>
 
-<a id="lab91"></a><h2 class="section">Definition</h2>
+<a id="lab60"></a><h2 class="section">Definition</h2>
 
 </div>
 <div class="code">
@@ -1314,7 +1314,7 @@ TODO:
 </div>
 
 <div class="doc">
-<a id="lab92"></a><h2 class="section">Coproducts</h2>
+<a id="lab61"></a><h2 class="section">Coproducts</h2>
 
 </div>
 <div class="code">
@@ -1336,7 +1336,7 @@ TODO:
 </div>
 
 <div class="doc">
-<a id="lab93"></a><h3 class="section">Initial object</h3>
+<a id="lab62"></a><h3 class="section">Initial object</h3>
 
 </div>
 <div class="code">
@@ -1353,7 +1353,7 @@ TODO:
 </div>
 
 <div class="doc">
-<a id="lab94"></a><h3 class="section">Binary products</h3>
+<a id="lab63"></a><h3 class="section">Binary products</h3>
 
 </div>
 <div class="code">
@@ -1398,7 +1398,7 @@ TODO:
 </div>
 
 <div class="doc">
-<a id="lab95"></a><h2 class="section">Putting everything together</h2>
+<a id="lab64"></a><h2 class="section">Putting everything together</h2>
 
 </div>
 <div class="code">
@@ -1417,7 +1417,7 @@ TODO:
 </div>
 
 <div class="doc">
-<a id="lab96"></a><h2 class="section">Regular maps generalize signature homomorphisms</h2>
+<a id="lab65"></a><h2 class="section">Regular maps generalize signature homomorphisms</h2>
 
 </div>
 <div class="code">
@@ -1454,7 +1454,7 @@ TODO:
 </div>
 
 <div class="doc">
-<a id="lab97"></a><h1 class="section">Interpretation in <span class="inlinecode"><a class="idref" href="interfaces.Category.html#SET"><span class="id" title="module">SET</span></a></span> monads</h1>
+<a id="lab66"></a><h1 class="section">Interpretation in <span class="inlinecode"><a class="idref" href="interfaces.Category.html#SET"><span class="id" title="module">SET</span></a></span> monads</h1>
 
 </div>
 <div class="code">

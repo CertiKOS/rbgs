@@ -1,0 +1,1271 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>structures.DCPOs</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library structures.DCPOs</h1>
+
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Logic.Classical.html#"><span class="id" title="library">Coq.Logic.Classical</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Logic.FunctionalExtensionality.html#"><span class="id" title="library">FunctionalExtensionality</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Logic.PropExtensionality.html#"><span class="id" title="library">PropExtensionality</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Logic.ProofIrrelevance.html#"><span class="id" title="library">ProofIrrelevance</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Program.Program.html#"><span class="id" title="library">Program</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">coqrel.LogicalRelations</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="interfaces.Category.html#"><span class="id" title="library">interfaces.Category</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="interfaces.ConcreteCategory.html#"><span class="id" title="library">interfaces.ConcreteCategory</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="structures.Posets.html#"><span class="id" title="library">structures.Posets</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab253"></a><h1 class="section">Directed-complete partial orders</h1>
+
+<div class="paragraph"> </div>
+
+ The semantics of loops, iteration or recursion are often computed
+  as limits of sequences of increasingly terminating computations.
+  ...
+
+<div class="paragraph"> </div>
+
+ 
+<div class="paragraph"> </div>
+
+<a id="lab254"></a><h2 class="section">Directed sets</h2>
+
+<div class="paragraph"> </div>
+
+<a id="lab255"></a><h3 class="section">Definition</h3>
+
+<div class="paragraph"> </div>
+
+ Since we are primarily interested in bounded dcpos,
+  we use a non-standard definition of directed set which permits
+  empty sets. This allows us to treat the lower bound uniformly
+  as a directed supremum. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a id="Directed" class="idref" href="#Directed"><span class="id" title="record">Directed</span></a> `{<a id="H:3" class="idref" href="#H:3"><span class="id" title="binder">PartialOrder</span></a>} {<a id="I:4" class="idref" href="#I:4"><span class="id" title="binder">I</span></a>} (<a id="x:5" class="idref" href="#x:5"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#I:4"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:1"><span class="id" title="variable">P</span></a>) :=<br/>
+&nbsp;&nbsp;<a id="directed" class="idref" href="#directed"><span class="id" title="projection">directed</span></a> : <span class="id" title="keyword">∀</span> <a id="i:7" class="idref" href="#i:7"><span class="id" title="binder">i</span></a> <a id="j:8" class="idref" href="#j:8"><span class="id" title="binder">j</span></a>, <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <a id="k:9" class="idref" href="#k:9"><span class="id" title="binder">k</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="structures.DCPOs.html#R:2"><span class="id" title="variable">R</span></a> (<a class="idref" href="structures.DCPOs.html#x:5"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:7"><span class="id" title="variable">i</span></a>) (<a class="idref" href="structures.DCPOs.html#x:5"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#k:9"><span class="id" title="variable">k</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#ba2b0e492d2b4675a0acf3ea92aabadd"><span class="id" title="notation">∧</span></a> <a class="idref" href="structures.DCPOs.html#R:2"><span class="id" title="variable">R</span></a> (<a class="idref" href="structures.DCPOs.html#x:5"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#j:8"><span class="id" title="variable">j</span></a>) (<a class="idref" href="structures.DCPOs.html#x:5"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#k:9"><span class="id" title="variable">k</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab256"></a><h3 class="section">Basic instances</h3>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="Empty_set_directed" class="idref" href="#Empty_set_directed"><span class="id" title="instance">Empty_set_directed</span></a> `{<a id="H:13" class="idref" href="#H:13"><span class="id" title="binder">PartialOrder</span></a>} (<a id="x:14" class="idref" href="#x:14"><span class="id" title="binder">x</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#Empty_set"><span class="id" title="inductive">Empty_set</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:11"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:14"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="unit_set_directed" class="idref" href="#unit_set_directed"><span class="id" title="instance">unit_set_directed</span></a> `{<a id="H:17" class="idref" href="#H:17"><span class="id" title="binder">PartialOrder</span></a>} (<a id="x:18" class="idref" href="#x:18"><span class="id" title="binder">x</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#unit"><span class="id" title="inductive">unit</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:15"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:18"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="pair_directed" class="idref" href="#pair_directed"><span class="id" title="lemma">pair_directed</span></a> `{<a id="H:21" class="idref" href="#H:21"><span class="id" title="binder">PartialOrder</span></a>} (<a id="x:22" class="idref" href="#x:22"><span class="id" title="binder">x</span></a> <a id="y:23" class="idref" href="#y:23"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#P:19"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#R:20"><span class="id" title="variable">R</span></a> <a class="idref" href="structures.DCPOs.html#x:22"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:23"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#bool_rect"><span class="id" title="definition">bool_rect</span></a> <span class="id" title="var">_</span> <a class="idref" href="structures.DCPOs.html#y:23"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#x:22"><span class="id" title="variable">x</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <span class="id" title="var">_</span>) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#pair_directed"><span class="id" title="lemma">pair_directed</span></a>; <span class="id" title="tactic">assumption</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab257"></a><h3 class="section">Image through a monotonic function</h3>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="directed_apply" class="idref" href="#directed_apply"><span class="id" title="lemma">directed_apply</span></a> {<a id="P:24" class="idref" href="#P:24"><span class="id" title="binder">P</span></a> <a id="Q:25" class="idref" href="#Q:25"><span class="id" title="binder">Q</span></a> <a id="R:26" class="idref" href="#R:26"><span class="id" title="binder">R</span></a> <a id="S:27" class="idref" href="#S:27"><span class="id" title="binder">S</span></a>} (<a id="f:28" class="idref" href="#f:28"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#P:24"><span class="id" title="variable">P</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#Q:25"><span class="id" title="variable">Q</span></a>) {<a id="I:29" class="idref" href="#I:29"><span class="id" title="binder">I</span></a>} (<a id="x:30" class="idref" href="#x:30"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#I:29"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:24"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="HR:31" class="idref" href="#HR:31"><span class="id" title="binder">HR</span></a> : @<a class="idref" href="structures.Posets.html#PartialOrder"><span class="id" title="class">PartialOrder</span></a> <a class="idref" href="structures.DCPOs.html#P:24"><span class="id" title="variable">P</span></a> <a class="idref" href="structures.DCPOs.html#R:26"><span class="id" title="variable">R</span></a>,<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="HQ:32" class="idref" href="#HQ:32"><span class="id" title="binder">HQ</span></a> : @<a class="idref" href="structures.Posets.html#PartialOrder"><span class="id" title="class">PartialOrder</span></a> <a class="idref" href="structures.DCPOs.html#Q:25"><span class="id" title="variable">Q</span></a> <a class="idref" href="structures.DCPOs.html#S:27"><span class="id" title="variable">S</span></a>,<br/>
+&nbsp;&nbsp;<span class="id" title="abbreviation">Monotonic</span> <a class="idref" href="structures.DCPOs.html#f:28"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#R:26"><span class="id" title="variable">R</span></a> <span class="id" title="notation">++&gt;</span> <a class="idref" href="structures.DCPOs.html#S:27"><span class="id" title="variable">S</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:30"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="i:33" class="idref" href="#i:33"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#f:28"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#x:30"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:33"><span class="id" title="variable">i</span></a>)).<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 5 (<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="i:34" class="idref" href="#i:34"><span class="id" title="binder">i</span></a> ⇒ ?<span class="id" title="var">f</span> (?<span class="id" title="var">x</span> <a class="idref" href="structures.DCPOs.html#i:34"><span class="id" title="variable">i</span></a>))) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#directed_apply"><span class="id" title="lemma">directed_apply</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab258"></a><h2 class="section">DCPOs</h2>
+
+<div class="paragraph"> </div>
+
+ A directed-complete partial order is a poset where every directed
+  subset has a supremum. Since we define directed sets as possibly
+  empty, the resulting structure is a bounded dcpo. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a id="DCPO" class="idref" href="#DCPO"><span class="id" title="record">DCPO</span></a> (<a id="P:35" class="idref" href="#P:35"><span class="id" title="binder">P</span></a> : <span class="id" title="keyword">Type</span>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="lce" class="idref" href="#lce"><span class="id" title="projection">lce</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Relations.Relation_Definitions.html#relation"><span class="id" title="definition">relation</span></a> <a class="idref" href="structures.DCPOs.html#P:35"><span class="id" title="variable">P</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="lce_po" class="idref" href="#lce_po"><span class="id" title="projection">lce_po</span></a> :&gt; <a class="idref" href="structures.Posets.html#PartialOrder"><span class="id" title="class">PartialOrder</span></a> <a class="idref" href="structures.DCPOs.html#lce:37"><span class="id" title="method">lce</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="dsup" class="idref" href="#dsup"><span class="id" title="projection">dsup</span></a> : <span class="id" title="keyword">∀</span> {<a id="I:39" class="idref" href="#I:39"><span class="id" title="binder">I</span></a>} (<a id="x:40" class="idref" href="#x:40"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#I:39"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:35"><span class="id" title="variable">P</span></a>) `{<a id="Hx:41" class="idref" href="#Hx:41"><span class="id" title="binder">Hx</span></a>: !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:40"><span class="id" title="variable">x</span></a>}, <a class="idref" href="structures.DCPOs.html#P:35"><span class="id" title="variable">P</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="dsup_is_sup" class="idref" href="#dsup_is_sup"><span class="id" title="projection">dsup_is_sup</span></a> {<a id="I:43" class="idref" href="#I:43"><span class="id" title="binder">I</span></a>} (<a id="x:44" class="idref" href="#x:44"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#I:43"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:35"><span class="id" title="variable">P</span></a>) `{<a id="Directed0:45" class="idref" href="#Directed0:45"><span class="id" title="binder">!</span></a><a id="Directed0:45" class="idref" href="#Directed0:45"><span class="id" title="binder">Directed</span></a> <a id="Directed0:45" class="idref" href="#Directed0:45"><span class="id" title="binder">x</span></a>} :&gt; <a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> <a class="idref" href="structures.DCPOs.html#x:44"><span class="id" title="variable">x</span></a> (<a class="idref" href="structures.DCPOs.html#dsup:42"><span class="id" title="method">dsup</span></a> <a class="idref" href="structures.DCPOs.html#x:44"><span class="id" title="variable">x</span></a>);<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="lct" class="idref" href="#lct"><span class="id" title="definition">lct</span></a> `{<a id="H:48" class="idref" href="#H:48"><span class="id" title="binder">DCPO</span></a>} <a id="x:49" class="idref" href="#x:49"><span class="id" title="binder">x</span></a> <a id="y:50" class="idref" href="#y:50"><span class="id" title="binder">y</span></a> :=<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#x:49"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:50"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#ba2b0e492d2b4675a0acf3ea92aabadd"><span class="id" title="notation">∧</span></a> <a class="idref" href="structures.DCPOs.html#x:49"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'&lt;&gt;'_x"><span class="id" title="notation">≠</span></a> <a class="idref" href="structures.DCPOs.html#y:50"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="lct_not_lce" class="idref" href="#lct_not_lce"><span class="id" title="lemma">lct_not_lce</span></a> `{<a id="H:52" class="idref" href="#H:52"><span class="id" title="binder">DCPO</span></a>} <a id="x:53" class="idref" href="#x:53"><span class="id" title="binder">x</span></a> <a id="y:54" class="idref" href="#y:54"><span class="id" title="binder">y</span></a> :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lct"><span class="id" title="definition">lct</span></a> <a class="idref" href="structures.DCPOs.html#x:53"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:54"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#63a68285c81db8f9bc456233bb9ed181"><span class="id" title="notation">¬</span></a> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#y:54"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#x:53"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab259"></a><h3 class="section">Properties of <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span></h3>
+
+<div class="paragraph"> </div>
+
+ For convenience, we provide specialized versions of
+  the supremum properties. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="dsup_ub" class="idref" href="#dsup_ub"><span class="id" title="lemma">dsup_ub</span></a> `{<a id="H:56" class="idref" href="#H:56"><span class="id" title="binder">DCPO</span></a>} {<a id="I:57" class="idref" href="#I:57"><span class="id" title="binder">I</span></a>} (<a id="x:58" class="idref" href="#x:58"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#I:57"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:55"><span class="id" title="variable">P</span></a>) `{<a id="Dx:59" class="idref" href="#Dx:59"><span class="id" title="binder">Dx</span></a> : !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:58"><span class="id" title="variable">x</span></a>} (<a id="i:60" class="idref" href="#i:60"><span class="id" title="binder">i</span></a> : <a class="idref" href="structures.DCPOs.html#I:57"><span class="id" title="variable">I</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#x:58"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:60"><span class="id" title="variable">i</span></a>) (<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> <a class="idref" href="structures.DCPOs.html#x:58"><span class="id" title="variable">x</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="dsup_lub" class="idref" href="#dsup_lub"><span class="id" title="lemma">dsup_lub</span></a> `{<a id="H:62" class="idref" href="#H:62"><span class="id" title="binder">DCPO</span></a>} {<a id="I:63" class="idref" href="#I:63"><span class="id" title="binder">I</span></a>} (<a id="x:64" class="idref" href="#x:64"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#I:63"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:61"><span class="id" title="variable">P</span></a>) `{<a id="Dx:65" class="idref" href="#Dx:65"><span class="id" title="binder">Dx</span></a> : !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:64"><span class="id" title="variable">x</span></a>} (<a id="y:66" class="idref" href="#y:66"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#P:61"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <a id="i:67" class="idref" href="#i:67"><span class="id" title="binder">i</span></a>, <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#x:64"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:67"><span class="id" title="variable">i</span></a>) <a class="idref" href="structures.DCPOs.html#y:66"><span class="id" title="variable">y</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> <a class="idref" href="structures.DCPOs.html#x:64"><span class="id" title="variable">x</span></a>) <a class="idref" href="structures.DCPOs.html#y:66"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab260"></a><h3 class="section">Least element</h3>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="bot" class="idref" href="#bot"><span class="id" title="definition">bot</span></a> `{<a id="H:69" class="idref" href="#H:69"><span class="id" title="binder">DCPO</span></a>} :=<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#Empty_set_rect"><span class="id" title="definition">Empty_set_rect</span></a> <span class="id" title="var">_</span>).<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="bot_lb" class="idref" href="#bot_lb"><span class="id" title="lemma">bot_lb</span></a> `{<a id="H:71" class="idref" href="#H:71"><span class="id" title="binder">DCPO</span></a>} <a id="x:72" class="idref" href="#x:72"><span class="id" title="binder">x</span></a> :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#bot"><span class="id" title="definition">bot</span></a> <a class="idref" href="structures.DCPOs.html#x:72"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab261"></a><h3 class="section">Binary case for <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span></h3>
+
+<div class="paragraph"> </div>
+
+ In some proofs below we will need to express ordering
+  in terms of directed suprema of pairs. Below we provide
+  the relevant properties. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Definition</span> <a id="bset" class="idref" href="#bset"><span class="id" title="definition">bset</span></a> {<a id="A:73" class="idref" href="#A:73"><span class="id" title="binder">A</span></a>} (<a id="x:74" class="idref" href="#x:74"><span class="id" title="binder">x</span></a> <a id="y:75" class="idref" href="#y:75"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#A:73"><span class="id" title="variable">A</span></a>) : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#bool"><span class="id" title="inductive">bool</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#A:73"><span class="id" title="variable">A</span></a> :=<br/>
+&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#bool_rect"><span class="id" title="definition">bool_rect</span></a> <span class="id" title="var">_</span> <a class="idref" href="structures.DCPOs.html#y:75"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#x:74"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="bset_natural" class="idref" href="#bset_natural"><span class="id" title="lemma">bset_natural</span></a> {<a id="A:76" class="idref" href="#A:76"><span class="id" title="binder">A</span></a> <a id="B:77" class="idref" href="#B:77"><span class="id" title="binder">B</span></a>} (<a id="f:78" class="idref" href="#f:78"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#A:76"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#B:77"><span class="id" title="variable">B</span></a>) (<a id="x:79" class="idref" href="#x:79"><span class="id" title="binder">x</span></a> <a id="y:80" class="idref" href="#y:80"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#A:76"><span class="id" title="variable">A</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> (<a class="idref" href="structures.DCPOs.html#f:78"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#x:79"><span class="id" title="variable">x</span></a>) (<a class="idref" href="structures.DCPOs.html#f:78"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#y:80"><span class="id" title="variable">y</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <span class="id" title="keyword">fun</span> <a id="i:81" class="idref" href="#i:81"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#f:78"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> <a class="idref" href="structures.DCPOs.html#x:79"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:80"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#i:81"><span class="id" title="variable">i</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Pairs like the ones defined above are directed when
+  the two elements are related. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="bset_directed_r" class="idref" href="#bset_directed_r"><span class="id" title="lemma">bset_directed_r</span></a> `{<a id="H:83" class="idref" href="#H:83"><span class="id" title="binder">DCPO</span></a>} (<a id="x:84" class="idref" href="#x:84"><span class="id" title="binder">x</span></a> <a id="y:85" class="idref" href="#y:85"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#P:82"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#x:84"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:85"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> <a class="idref" href="structures.DCPOs.html#x:84"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:85"><span class="id" title="variable">y</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <span class="id" title="var">_</span>) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">apply</span> @<a class="idref" href="structures.DCPOs.html#bset_directed_r"><span class="id" title="lemma">bset_directed_r</span></a>; <span class="id" title="tactic">assumption</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="bset_directed_l" class="idref" href="#bset_directed_l"><span class="id" title="lemma">bset_directed_l</span></a> `{<a id="H:87" class="idref" href="#H:87"><span class="id" title="binder">DCPO</span></a>} (<a id="x:88" class="idref" href="#x:88"><span class="id" title="binder">x</span></a> <a id="y:89" class="idref" href="#y:89"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#P:86"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#y:89"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#x:88"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> <a class="idref" href="structures.DCPOs.html#x:88"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:89"><span class="id" title="variable">y</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <span class="id" title="var">_</span>) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">apply</span> @<a class="idref" href="structures.DCPOs.html#bset_directed_l"><span class="id" title="lemma">bset_directed_l</span></a>; <span class="id" title="tactic">assumption</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Moreover, the supremum is the largest of the two elements. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="lce_dsup_r" class="idref" href="#lce_dsup_r"><span class="id" title="lemma">lce_dsup_r</span></a> `{<a id="H:91" class="idref" href="#H:91"><span class="id" title="binder">DCPO</span></a>} (<a id="x:92" class="idref" href="#x:92"><span class="id" title="binder">x</span></a> <a id="y:93" class="idref" href="#y:93"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#P:90"><span class="id" title="variable">P</span></a>) `{<a id="Dxy:94" class="idref" href="#Dxy:94"><span class="id" title="binder">Dxy</span></a>: !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> <a class="idref" href="structures.DCPOs.html#x:92"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:93"><span class="id" title="variable">y</span></a>)} :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#x:92"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:93"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> (<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> <a class="idref" href="structures.DCPOs.html#x:92"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:93"><span class="id" title="variable">y</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#y:93"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="lce_dsup_l" class="idref" href="#lce_dsup_l"><span class="id" title="lemma">lce_dsup_l</span></a> `{<a id="H:96" class="idref" href="#H:96"><span class="id" title="binder">DCPO</span></a>} (<a id="x:97" class="idref" href="#x:97"><span class="id" title="binder">x</span></a> <a id="y:98" class="idref" href="#y:98"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#P:95"><span class="id" title="variable">P</span></a>) `{<a id="Dxy:99" class="idref" href="#Dxy:99"><span class="id" title="binder">Dxy</span></a>: !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> <a class="idref" href="structures.DCPOs.html#x:97"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:98"><span class="id" title="variable">y</span></a>)} :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#y:98"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#x:97"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> (<a class="idref" href="structures.DCPOs.html#bset"><span class="id" title="definition">bset</span></a> <a class="idref" href="structures.DCPOs.html#x:97"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:98"><span class="id" title="variable">y</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#x:97"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab262"></a><h2 class="section">Derived DCPOs</h2>
+
+<div class="paragraph"> </div>
+
+<a id="lab263"></a><h3 class="section">Binary products</h3>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="PROD_DCPO" class="idref" href="#PROD_DCPO"><span class="id" title="section">PROD_DCPO</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<a id="P:100" class="idref" href="#P:100"><span class="id" title="binder">P</span></a> <a id="Q:101" class="idref" href="#Q:101"><span class="id" title="binder">Q</span></a>} `{<a id="Pdcpo:102" class="idref" href="#Pdcpo:102"><span class="id" title="binder">Pdcpo</span></a> : <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> <a class="idref" href="structures.DCPOs.html#P:100"><span class="id" title="variable">P</span></a>} `{<a id="Qdcpo:103" class="idref" href="#Qdcpo:103"><span class="id" title="binder">Qdcpo</span></a> : <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> <a class="idref" href="structures.DCPOs.html#Q:101"><span class="id" title="variable">Q</span></a>}.<br/>
+
+<br/>
+
+<br/>
+
+<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="prod_issup" class="idref" href="#prod_issup"><span class="id" title="instance">prod_issup</span></a> {<a id="I:110" class="idref" href="#I:110"><span class="id" title="binder">I</span></a>} (<a id="x:111" class="idref" href="#x:111"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#I:110"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#PROD_DCPO.P"><span class="id" title="variable">P</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#11c698c8685bb8ab1cf725545c085ac4"><span class="id" title="notation">×</span></a> <a class="idref" href="structures.DCPOs.html#PROD_DCPO.Q"><span class="id" title="variable">Q</span></a>) (<a id="y:112" class="idref" href="#y:112"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#PROD_DCPO.P"><span class="id" title="variable">P</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#11c698c8685bb8ab1cf725545c085ac4"><span class="id" title="notation">×</span></a> <a class="idref" href="structures.DCPOs.html#PROD_DCPO.Q"><span class="id" title="variable">Q</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> (<span class="id" title="keyword">fun</span> <a id="i:113" class="idref" href="#i:113"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#fst"><span class="id" title="definition">fst</span></a> (<a class="idref" href="structures.DCPOs.html#x:111"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:113"><span class="id" title="variable">i</span></a>)) (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#fst"><span class="id" title="definition">fst</span></a> <a class="idref" href="structures.DCPOs.html#y:112"><span class="id" title="variable">y</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> (<span class="id" title="keyword">fun</span> <a id="i:114" class="idref" href="#i:114"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#snd"><span class="id" title="definition">snd</span></a> (<a class="idref" href="structures.DCPOs.html#x:111"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:114"><span class="id" title="variable">i</span></a>)) (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#snd"><span class="id" title="definition">snd</span></a> <a class="idref" href="structures.DCPOs.html#y:112"><span class="id" title="variable">y</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> <a class="idref" href="structures.DCPOs.html#x:111"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:112"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#PROD_DCPO"><span class="id" title="section">PROD_DCPO</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 2 (<a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> (?<span class="id" title="var">P</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#11c698c8685bb8ab1cf725545c085ac4"><span class="id" title="notation">×</span></a> ?<span class="id" title="var">Q</span>)) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#prod_dcpo"><span class="id" title="instance">prod_dcpo</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="i:120" class="idref" href="#i:120"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#fst"><span class="id" title="definition">fst</span></a> <span class="id" title="var">_</span>)) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#prod_directed_fst"><span class="id" title="instance">prod_directed_fst</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="i:121" class="idref" href="#i:121"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#snd"><span class="id" title="definition">snd</span></a> <span class="id" title="var">_</span>)) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#prod_directed_snd"><span class="id" title="instance">prod_directed_snd</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab264"></a><h3 class="section">Dependent products</h3>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="FORALL_DCPO" class="idref" href="#FORALL_DCPO"><span class="id" title="section">FORALL_DCPO</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<a id="I:122" class="idref" href="#I:122"><span class="id" title="binder">I</span></a>} {<a id="P:123" class="idref" href="#P:123"><span class="id" title="binder">P</span></a> : <a class="idref" href="structures.DCPOs.html#I:122"><span class="id" title="variable">I</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Type</span>} `{<a id="Pdcpo:125" class="idref" href="#Pdcpo:125"><span class="id" title="binder">Pdcpo</span></a> : <span class="id" title="keyword">∀</span> <a id="i:124" class="idref" href="#i:124"><span class="id" title="binder">i</span></a>:<a class="idref" href="structures.DCPOs.html#I:122"><span class="id" title="variable">I</span></a>, <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> (<a class="idref" href="structures.DCPOs.html#P:123"><span class="id" title="variable">P</span></a> <a class="idref" href="structures.DCPOs.html#i:124"><span class="id" title="variable">i</span></a>)}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Obligation</span> <span class="id" title="keyword">Tactic</span> := <span class="id" title="var">cbn</span>.<br/>
+
+<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="forall_directed" class="idref" href="#forall_directed"><span class="id" title="instance">forall_directed</span></a> {<a id="J:128" class="idref" href="#J:128"><span class="id" title="binder">J</span></a>} (<a id="x:130" class="idref" href="#x:130"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#J:128"><span class="id" title="variable">J</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">∀</span> <a id="i:129" class="idref" href="#i:129"><span class="id" title="binder">i</span></a>:<a class="idref" href="structures.DCPOs.html#FORALL_DCPO.I"><span class="id" title="variable">I</span></a>, <a class="idref" href="structures.DCPOs.html#FORALL_DCPO.P"><span class="id" title="variable">P</span></a> <a class="idref" href="structures.DCPOs.html#i:129"><span class="id" title="variable">i</span></a>) (<a id="i:131" class="idref" href="#i:131"><span class="id" title="binder">i</span></a> : <a class="idref" href="structures.DCPOs.html#FORALL_DCPO.I"><span class="id" title="variable">I</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:130"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="j:132" class="idref" href="#j:132"><span class="id" title="binder">j</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#x:130"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#j:132"><span class="id" title="variable">j</span></a> <a class="idref" href="structures.DCPOs.html#i:131"><span class="id" title="variable">i</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="forall_issup" class="idref" href="#forall_issup"><span class="id" title="instance">forall_issup</span></a> {<a id="J:133" class="idref" href="#J:133"><span class="id" title="binder">J</span></a>} (<a id="x:135" class="idref" href="#x:135"><span class="id" title="binder">x</span></a>: <a class="idref" href="structures.DCPOs.html#J:133"><span class="id" title="variable">J</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">∀</span> <a id="i:134" class="idref" href="#i:134"><span class="id" title="binder">i</span></a>, <a class="idref" href="structures.DCPOs.html#FORALL_DCPO.P"><span class="id" title="variable">P</span></a> <a class="idref" href="structures.DCPOs.html#i:134"><span class="id" title="variable">i</span></a>) (<a id="y:137" class="idref" href="#y:137"><span class="id" title="binder">y</span></a>: <span class="id" title="keyword">∀</span> <a id="i:136" class="idref" href="#i:136"><span class="id" title="binder">i</span></a>, <a class="idref" href="structures.DCPOs.html#FORALL_DCPO.P"><span class="id" title="variable">P</span></a> <a class="idref" href="structures.DCPOs.html#i:136"><span class="id" title="variable">i</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <a id="i:138" class="idref" href="#i:138"><span class="id" title="binder">i</span></a>, <a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> (<span class="id" title="keyword">fun</span> <a id="j:139" class="idref" href="#j:139"><span class="id" title="binder">j</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#x:135"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#j:139"><span class="id" title="variable">j</span></a> <a class="idref" href="structures.DCPOs.html#i:138"><span class="id" title="variable">i</span></a>) (<a class="idref" href="structures.DCPOs.html#y:137"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#i:138"><span class="id" title="variable">i</span></a>)<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> <a class="idref" href="structures.DCPOs.html#x:135"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:137"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#FORALL_DCPO"><span class="id" title="section">FORALL_DCPO</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> (<span class="id" title="keyword">∀</span> <a id="i:147" class="idref" href="#i:147"><span class="id" title="binder">i</span></a>, <span class="id" title="var">_</span>)) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#forall_dcpo"><span class="id" title="instance">forall_dcpo</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab265"></a><h2 class="section">Scott-continuous functions</h2>
+
+<div class="paragraph"> </div>
+
+<a id="lab266"></a><h3 class="section">Definition</h3>
+
+<div class="paragraph"> </div>
+
+ A Scott-continuous function preserves directed suprema.
+  The formulation below uses monotonicity as a starting point.
+  This takes care of preserving the "upper bound" aspect of
+  suprema, and we add the "least" as a separate condition. 
+<div class="paragraph"> </div>
+
+ We use a flag <span class="inlinecode"><span class="id" title="var">strict</span></span> to control whether the morphism
+  is expected to preserve <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#bot"><span class="id" title="definition">bot</span></a></span>. This is done by apply the
+  following condition to the index set used with <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span>.
+
+<div class="paragraph"> </div>
+
+  NB: this could be incorporated into the <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="record">Directed</span></a></span> class, and
+  the same approach could be used to jointly define bounded and
+  not-necessarily-bounded DCPOs. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a id="ArityCondition" class="idref" href="#ArityCondition"><span class="id" title="record">ArityCondition</span></a> (<a id="strict:148" class="idref" href="#strict:148"><span class="id" title="binder">strict</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#bool"><span class="id" title="inductive">bool</span></a>) <a id="J:149" class="idref" href="#J:149"><span class="id" title="binder">J</span></a> :=<br/>
+&nbsp;&nbsp;<a id="arity_condition" class="idref" href="#arity_condition"><span class="id" title="projection">arity_condition</span></a> : <span class="id" title="keyword">if</span> <a class="idref" href="structures.DCPOs.html#strict:148"><span class="id" title="variable">strict</span></a> <span class="id" title="keyword">then</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#True"><span class="id" title="inductive">True</span></a> <span class="id" title="keyword">else</span> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#inhabited"><span class="id" title="inductive">inhabited</span></a> <a class="idref" href="structures.DCPOs.html#J:149"><span class="id" title="variable">J</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="ac_strict_trivial" class="idref" href="#ac_strict_trivial"><span class="id" title="instance">ac_strict_trivial</span></a> <a id="J:152" class="idref" href="#J:152"><span class="id" title="binder">J</span></a> :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ArityCondition"><span class="id" title="class">ArityCondition</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#true"><span class="id" title="constructor">true</span></a> <a class="idref" href="structures.DCPOs.html#J:152"><span class="id" title="variable">J</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="ac_nonstrict_unit" class="idref" href="#ac_nonstrict_unit"><span class="id" title="instance">ac_nonstrict_unit</span></a> :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ArityCondition"><span class="id" title="class">ArityCondition</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#unit"><span class="id" title="inductive">unit</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="ac_nonstrict_bool" class="idref" href="#ac_nonstrict_bool"><span class="id" title="instance">ac_nonstrict_bool</span></a> :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ArityCondition"><span class="id" title="class">ArityCondition</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#bool"><span class="id" title="inductive">bool</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="ac_nonstrict_nat" class="idref" href="#ac_nonstrict_nat"><span class="id" title="instance">ac_nonstrict_nat</span></a> :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ArityCondition"><span class="id" title="class">ArityCondition</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#nat"><span class="id" title="inductive">nat</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Our definition states that the image of <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span> <span class="inlinecode"><span class="id" title="var">x</span></span> is the supremum
+  of the image of <span class="inlinecode"><span class="id" title="var">x</span></span>. This way we don't need to involve the target
+  <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span> operation, which is only defined when <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode"><span class="id" title="var">x</span></span> is directed.
+  The preservation of the "upper bound" condition is equivalent to
+  monotonicity; the "least" condition is just stated as-is. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Class</span> <a id="ScottContinuous" class="idref" href="#ScottContinuous"><span class="id" title="record">ScottContinuous</span></a> <a id="strict:153" class="idref" href="#strict:153"><span class="id" title="binder">strict</span></a> {<a id="A:154" class="idref" href="#A:154"><span class="id" title="binder">A</span></a> <a id="B:155" class="idref" href="#B:155"><span class="id" title="binder">B</span></a>} `{<a id="Adcpo:156" class="idref" href="#Adcpo:156"><span class="id" title="binder">Adcpo</span></a>: <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> <a class="idref" href="structures.DCPOs.html#A:154"><span class="id" title="variable">A</span></a>} `{<a id="Bdcpo:157" class="idref" href="#Bdcpo:157"><span class="id" title="binder">Bdcpo</span></a>: <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> <a class="idref" href="structures.DCPOs.html#B:155"><span class="id" title="variable">B</span></a>} (<a id="f:158" class="idref" href="#f:158"><span class="id" title="binder">f</span></a>: <a class="idref" href="structures.DCPOs.html#A:154"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#B:155"><span class="id" title="variable">B</span></a>) :=<br/>
+&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="sc_lce" class="idref" href="#sc_lce"><span class="id" title="projection">sc_lce</span></a> :&gt;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="abbreviation">Monotonic</span> <a class="idref" href="structures.DCPOs.html#f:158"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <span class="id" title="notation">++&gt;</span> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a>);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="sc_lub" class="idref" href="#sc_lub"><span class="id" title="projection">sc_lub</span></a> `{<a id="HJ:162" class="idref" href="#HJ:162"><span class="id" title="binder">HJ</span></a> : <a class="idref" href="structures.DCPOs.html#ArityCondition"><span class="id" title="class">ArityCondition</span></a> <a class="idref" href="structures.DCPOs.html#strict:153"><span class="id" title="variable">strict</span></a>} (<a id="x:163" class="idref" href="#x:163"><span class="id" title="binder">x</span></a>: <a class="idref" href="structures.DCPOs.html#J:161"><span class="id" title="variable">J</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#A:154"><span class="id" title="variable">A</span></a>) `{<a id="Dx:164" class="idref" href="#Dx:164"><span class="id" title="binder">Dx</span></a>: !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:163"><span class="id" title="variable">x</span></a>} <a id="y:165" class="idref" href="#y:165"><span class="id" title="binder">y</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <a id="j:166" class="idref" href="#j:166"><span class="id" title="binder">j</span></a>, <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#f:158"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#x:163"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#j:166"><span class="id" title="variable">j</span></a>)) <a class="idref" href="structures.DCPOs.html#y:165"><span class="id" title="variable">y</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#f:158"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> <a class="idref" href="structures.DCPOs.html#x:163"><span class="id" title="variable">x</span></a>)) <a class="idref" href="structures.DCPOs.html#y:165"><span class="id" title="variable">y</span></a>;<br/>
+&nbsp;&nbsp;}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Any strict Scott-continuous functions is also non-strict Scott-continuous. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="sc_weaken" class="idref" href="#sc_weaken"><span class="id" title="lemma">sc_weaken</span></a> `(<a id="H:173" class="idref" href="#H:173"><span class="id" title="binder">ScottContinuous</span></a> <a id="H:173" class="idref" href="#H:173"><span class="id" title="binder">true</span></a>) :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a> <a class="idref" href="structures.DCPOs.html#f:172"><span class="id" title="variable">f</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a> <span class="id" title="var">_</span>) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#sc_weaken"><span class="id" title="lemma">sc_weaken</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab267"></a><h3 class="section">Equational statement</h3>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="SC_SUP" class="idref" href="#SC_SUP"><span class="id" title="section">SC_SUP</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="H:180" class="idref" href="#H:180"><span class="id" title="binder">ScottContinuous</span></a>}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The definition above is equivalent to this statement. 
+</div>
+<div class="code">
+
+<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Because suprema are unique, this means <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span> is preserved. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="HJ:186" class="idref" href="#HJ:186"><span class="id" title="binder">HJ</span></a> : <a class="idref" href="structures.DCPOs.html#ArityCondition"><span class="id" title="class">ArityCondition</span></a> <a class="idref" href="structures.DCPOs.html#SC_SUP.strict"><span class="id" title="variable">strict</span></a>} (<a id="x:187" class="idref" href="#x:187"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#J:185"><span class="id" title="variable">J</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#SC_SUP.A"><span class="id" title="variable">A</span></a>) `{<a id="Dx:188" class="idref" href="#Dx:188"><span class="id" title="binder">Dx</span></a>: !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#x:187"><span class="id" title="variable">x</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="sc_dsup" class="idref" href="#sc_dsup"><span class="id" title="lemma">sc_dsup</span></a> `{<a id="Dy:190" class="idref" href="#Dy:190"><span class="id" title="binder">Dy</span></a>: !<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="i:189" class="idref" href="#i:189"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#SC_SUP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#SC_SUP.x"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:189"><span class="id" title="variable">i</span></a>))} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#SC_SUP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> <a class="idref" href="structures.DCPOs.html#SC_SUP.x"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> (<span class="id" title="keyword">fun</span> <a id="i:191" class="idref" href="#i:191"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#SC_SUP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#SC_SUP.x"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:191"><span class="id" title="variable">i</span></a>)).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+For maximum generality, the lemma above is stated in terms of
+    a pre-existing proof that the image set is directed, but when
+    rewriting we will often need the following instance. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="sc_directed" class="idref" href="#sc_directed"><span class="id" title="lemma">sc_directed</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="i:192" class="idref" href="#i:192"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#SC_SUP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#SC_SUP.x"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:192"><span class="id" title="variable">i</span></a>)).<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#SC_SUP"><span class="id" title="section">SC_SUP</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 2 (<a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> <span class="id" title="var">_</span> (?<span class="id" title="var">f</span> ?<span class="id" title="var">a</span>)) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#sc_sup"><span class="id" title="instance">sc_sup</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">Global Hint Extern</span> 2 (<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> (<span class="id" title="keyword">fun</span> <a id="i:193" class="idref" href="#i:193"><span class="id" title="binder">i</span></a> ⇒ <span class="id" title="var">_</span>)) ⇒<br/>
+&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> @<a class="idref" href="structures.DCPOs.html#sc_directed"><span class="id" title="lemma">sc_directed</span></a> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab268"></a><h3 class="section">Composition</h3>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="sc_id" class="idref" href="#sc_id"><span class="id" title="instance">sc_id</span></a> `{<a id="Adcpo:195" class="idref" href="#Adcpo:195"><span class="id" title="binder">Adcpo</span></a> : <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a>} <a id="strict:196" class="idref" href="#strict:196"><span class="id" title="binder">strict</span></a> :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="structures.DCPOs.html#strict:196"><span class="id" title="variable">strict</span></a> (<span class="id" title="keyword">fun</span> <a id="a:197" class="idref" href="#a:197"><span class="id" title="binder">a</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#a:197"><span class="id" title="variable">a</span></a>).<br/>
+
+<br/>
+<span class="id" title="keyword">Global Instance</span> <a id="sc_compose" class="idref" href="#sc_compose"><span class="id" title="instance">sc_compose</span></a> {<a id="A:198" class="idref" href="#A:198"><span class="id" title="binder">A</span></a> <a id="B:199" class="idref" href="#B:199"><span class="id" title="binder">B</span></a> <a id="C:200" class="idref" href="#C:200"><span class="id" title="binder">C</span></a>} `{<a id="H:201" class="idref" href="#H:201"><span class="id" title="binder">DCPO</span></a> <a id="H:201" class="idref" href="#H:201"><span class="id" title="binder">A</span></a>} `{<a id="H0:202" class="idref" href="#H0:202"><span class="id" title="binder">DCPO</span></a> <a id="H0:202" class="idref" href="#H0:202"><span class="id" title="binder">B</span></a>} `{<a id="H1:203" class="idref" href="#H1:203"><span class="id" title="binder">DCPO</span></a> <a id="H1:203" class="idref" href="#H1:203"><span class="id" title="binder">C</span></a>} {<a id="strict:204" class="idref" href="#strict:204"><span class="id" title="binder">strict</span></a>} :<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<a id="g:205" class="idref" href="#g:205"><span class="id" title="binder">g</span></a> : <a class="idref" href="structures.DCPOs.html#B:199"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#C:200"><span class="id" title="variable">C</span></a>) (<a id="f:206" class="idref" href="#f:206"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#A:198"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#B:199"><span class="id" title="variable">B</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="structures.DCPOs.html#strict:204"><span class="id" title="variable">strict</span></a> <a class="idref" href="structures.DCPOs.html#g:205"><span class="id" title="variable">g</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="structures.DCPOs.html#strict:204"><span class="id" title="variable">strict</span></a> <a class="idref" href="structures.DCPOs.html#f:206"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="structures.DCPOs.html#strict:204"><span class="id" title="variable">strict</span></a> (<span class="id" title="keyword">fun</span> <a id="a:207" class="idref" href="#a:207"><span class="id" title="binder">a</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#g:205"><span class="id" title="variable">g</span></a> (<a class="idref" href="structures.DCPOs.html#f:206"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#a:207"><span class="id" title="variable">a</span></a>)).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab269"></a><h2 class="section">Category of DCPOs and strict Scott-continuous functions</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a id="DCPO" class="idref" href="#DCPO"><span class="id" title="module">DCPO</span></a> &lt;: <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategory"><span class="id" title="module">ConcreteCategory</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Class</span> <a id="DCPO.Structure" class="idref" href="#DCPO.Structure"><span class="id" title="record">Structure</span></a> (<a id="P:208" class="idref" href="#P:208"><span class="id" title="binder">P</span></a> : <span class="id" title="keyword">Type</span>) : <span class="id" title="keyword">Type</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="DCPO.structure_dcpo" class="idref" href="#DCPO.structure_dcpo"><span class="id" title="projection">structure_dcpo</span></a> : <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> <a class="idref" href="structures.DCPOs.html#P:208"><span class="id" title="variable">P</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Hint Immediate</span> <span class="id" title="var">structure_dcpo</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#DCPO.Structure"><span class="id" title="class">Structure</span></a> <span class="id" title="var">_</span>) ⇒ <span class="id" title="tactic">red</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Class</span> <a id="DCPO.Morphism" class="idref" href="#DCPO.Morphism"><span class="id" title="record">Morphism</span></a> {<a id="A:211" class="idref" href="#A:211"><span class="id" title="binder">A</span></a> <a id="B:212" class="idref" href="#B:212"><span class="id" title="binder">B</span></a>} `{<a id="Adcpo:213" class="idref" href="#Adcpo:213"><span class="id" title="binder">Adcpo</span></a>: <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> <a class="idref" href="structures.DCPOs.html#A:211"><span class="id" title="variable">A</span></a>} `{<a id="Bdcpo:214" class="idref" href="#Bdcpo:214"><span class="id" title="binder">Bdcpo</span></a>: <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a> <a class="idref" href="structures.DCPOs.html#B:212"><span class="id" title="variable">B</span></a>} (<a id="f:215" class="idref" href="#f:215"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#A:211"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#B:212"><span class="id" title="variable">B</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="DCPO.morphism_sc" class="idref" href="#DCPO.morphism_sc"><span class="id" title="projection">morphism_sc</span></a> : <a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#true"><span class="id" title="constructor">true</span></a> <a class="idref" href="structures.DCPOs.html#f:215"><span class="id" title="variable">f</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Hint Immediate</span> <span class="id" title="var">morphism_sc</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Hint Extern</span> 1 (<a class="idref" href="structures.DCPOs.html#DCPO.Morphism"><span class="id" title="class">Morphism</span></a> <span class="id" title="var">_</span>) ⇒ <span class="id" title="tactic">red</span> : <span class="id" title="var">typeclass_instances</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="DCPO.id_mor" class="idref" href="#DCPO.id_mor"><span class="id" title="instance">id_mor</span></a> `{<a id="H:219" class="idref" href="#H:219"><span class="id" title="binder">DCPO</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#DCPO.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="x:220" class="idref" href="#x:220"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#x:220"><span class="id" title="variable">x</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="DCPO.compose_mor" class="idref" href="#DCPO.compose_mor"><span class="id" title="instance">compose_mor</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> {<a id="A:221" class="idref" href="#A:221"><span class="id" title="binder">A</span></a> <a id="B:222" class="idref" href="#B:222"><span class="id" title="binder">B</span></a> <a id="C:223" class="idref" href="#C:223"><span class="id" title="binder">C</span></a>} `{<a id="H:224" class="idref" href="#H:224"><span class="id" title="binder">DCPO</span></a> <a id="H:224" class="idref" href="#H:224"><span class="id" title="binder">A</span></a>} `{<a id="H0:225" class="idref" href="#H0:225"><span class="id" title="binder">DCPO</span></a> <a id="H0:225" class="idref" href="#H0:225"><span class="id" title="binder">B</span></a>} `{<a id="H1:226" class="idref" href="#H1:226"><span class="id" title="binder">DCPO</span></a> <a id="H1:226" class="idref" href="#H1:226"><span class="id" title="binder">C</span></a>} (<a id="g:227" class="idref" href="#g:227"><span class="id" title="binder">g</span></a>: <a class="idref" href="structures.DCPOs.html#B:222"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#C:223"><span class="id" title="variable">C</span></a>) (<a id="f:228" class="idref" href="#f:228"><span class="id" title="binder">f</span></a>: <a class="idref" href="structures.DCPOs.html#A:221"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#B:222"><span class="id" title="variable">B</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#DCPO.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="structures.DCPOs.html#g:227"><span class="id" title="variable">g</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#DCPO.Morphism"><span class="id" title="class">Morphism</span></a> <a class="idref" href="structures.DCPOs.html#f:228"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#DCPO.Morphism"><span class="id" title="class">Morphism</span></a> (<span class="id" title="keyword">fun</span> <a id="x:229" class="idref" href="#x:229"><span class="id" title="binder">x</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#g:227"><span class="id" title="variable">g</span></a> (<a class="idref" href="structures.DCPOs.html#f:228"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#x:229"><span class="id" title="variable">x</span></a>)).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Include</span> <a class="idref" href="interfaces.ConcreteCategory.html#ConcreteCategoryTheory"><span class="id" title="module">ConcreteCategoryTheory</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="module">DCPO</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a id="dcpo" class="idref" href="#dcpo"><span class="id" title="abbreviation">dcpo</span></a> := <a class="idref" href="structures.DCPOs.html#structured_set"><span class="id" title="record">DCPO.structured_set</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab270"></a><h1 class="section">Free DCPO</h1>
+
+<div class="paragraph"> </div>
+
+ The free DCPO generated by a set <span class="inlinecode"><span class="id" title="var">X</span></span> is the flat semilattice which
+  extends <span class="inlinecode"><span class="id" title="var">X</span></span> with a bottom element. This is in essence <span class="inlinecode"><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#option"><span class="id" title="inductive">option</span></a></span> <span class="inlinecode"><span class="id" title="var">X</span></span>,
+  however that computable version does not allow us to define the
+  possibly infinite directed suprema we need. The version below allows
+  these suprema to be defined at the expense of computability. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a id="FDC" class="idref" href="#FDC"><span class="id" title="module">FDC</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab271"></a><h2 class="section">Definition</h2>
+
+<div class="paragraph"> </div>
+
+ Our construction uses sets with at most one element.
+    They are ordered under set inclusion.  
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Record</span> <a id="FDC.carrier" class="idref" href="#FDC.carrier"><span class="id" title="record">carrier</span></a> {<a id="A:230" class="idref" href="#A:230"><span class="id" title="binder">A</span></a> : <span class="id" title="keyword">Type</span>} :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="FDC.is" class="idref" href="#FDC.is"><span class="id" title="projection">is</span></a> : <a class="idref" href="structures.DCPOs.html#A:230"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <span class="id" title="keyword">Prop</span>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="FDC.is_unique" class="idref" href="#FDC.is_unique"><span class="id" title="projection">is_unique</span></a> <a id="a:233" class="idref" href="#a:233"><span class="id" title="binder">a</span></a> <a id="b:234" class="idref" href="#b:234"><span class="id" title="binder">b</span></a> : <a class="idref" href="structures.DCPOs.html#is:232"><span class="id" title="method">is</span></a> <a class="idref" href="structures.DCPOs.html#a:233"><span class="id" title="variable">a</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#is:232"><span class="id" title="method">is</span></a> <a class="idref" href="structures.DCPOs.html#b:234"><span class="id" title="variable">b</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#a:233"><span class="id" title="variable">a</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#b:234"><span class="id" title="variable">b</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Arguments</span> <a class="idref" href="structures.DCPOs.html#FDC.carrier"><span class="id" title="record">carrier</span></a> : <span class="id" title="tactic">clear</span> <span class="id" title="var">implicits</span>.<br/>
+
+<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab272"></a><h2 class="section">Monad stuff / map from Set</h2>
+
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Program Definition</span> <a id="FDC.emb" class="idref" href="#FDC.emb"><span class="id" title="definition">emb</span></a> {<a id="A:245" class="idref" href="#A:245"><span class="id" title="binder">A</span></a>} (<a id="a:246" class="idref" href="#a:246"><span class="id" title="binder">a</span></a> : <a class="idref" href="structures.DCPOs.html#A:245"><span class="id" title="variable">A</span></a>) : <a class="idref" href="structures.DCPOs.html#FDC.carrier"><span class="id" title="record">carrier</span></a> <a class="idref" href="structures.DCPOs.html#A:245"><span class="id" title="variable">A</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;{| <a class="idref" href="structures.DCPOs.html#FDC.is"><span class="id" title="projection">is</span></a> := <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#eq"><span class="id" title="inductive">eq</span></a> <a class="idref" href="structures.DCPOs.html#a:246"><span class="id" title="variable">a</span></a> |}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Program Definition</span> <a id="FDC.ext" class="idref" href="#FDC.ext"><span class="id" title="definition">ext</span></a> {<a id="A:247" class="idref" href="#A:247"><span class="id" title="binder">A</span></a>} `{<a id="Pdc:249" class="idref" href="#Pdc:249"><span class="id" title="binder">Pdc</span></a>: <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a>} (<a id="f:250" class="idref" href="#f:250"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#A:247"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:248"><span class="id" title="variable">P</span></a>) (<a id="x:251" class="idref" href="#x:251"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#FDC.carrier"><span class="id" title="record">carrier</span></a> <a class="idref" href="structures.DCPOs.html#A:247"><span class="id" title="variable">A</span></a>) : <a class="idref" href="structures.DCPOs.html#P:248"><span class="id" title="variable">P</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> (<span class="id" title="var">I</span> := <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Specif.html#bc4528e836ab0e91ea7e942fb09e898f"><span class="id" title="notation">{</span></a><a id="a:253" class="idref" href="#a:253"><span class="id" title="binder">a</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Specif.html#bc4528e836ab0e91ea7e942fb09e898f"><span class="id" title="notation">|</span></a> <a class="idref" href="structures.DCPOs.html#FDC.is"><span class="id" title="projection">is</span></a> <a class="idref" href="structures.DCPOs.html#x:251"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#a:253"><span class="id" title="variable">a</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Specif.html#bc4528e836ab0e91ea7e942fb09e898f"><span class="id" title="notation">}</span></a>) (<span class="id" title="keyword">fun</span> <a id="a:252" class="idref" href="#a:252"><span class="id" title="binder">a</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#f:250"><span class="id" title="variable">f</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Program.Utils.html#42de49636febd86555c23aec80a50aa7"><span class="id" title="notation">`</span></a><a class="idref" href="structures.DCPOs.html#a:252"><span class="id" title="variable">a</span></a>)) (<span class="id" title="var">Hx</span> := <span class="id" title="var">_</span>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="FDC.ext_emb_r" class="idref" href="#FDC.ext_emb_r"><span class="id" title="lemma">ext_emb_r</span></a> {<a id="A:254" class="idref" href="#A:254"><span class="id" title="binder">A</span></a>} `{<a id="H:256" class="idref" href="#H:256"><span class="id" title="binder">DCPO</span></a>} (<a id="f:257" class="idref" href="#f:257"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#A:254"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:255"><span class="id" title="variable">P</span></a>) (<a id="a:258" class="idref" href="#a:258"><span class="id" title="binder">a</span></a> : <a class="idref" href="structures.DCPOs.html#A:254"><span class="id" title="variable">A</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#FDC.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="structures.DCPOs.html#f:257"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#FDC.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="structures.DCPOs.html#a:258"><span class="id" title="variable">a</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#f:257"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#a:258"><span class="id" title="variable">a</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="FDC.ext_emb_l" class="idref" href="#FDC.ext_emb_l"><span class="id" title="lemma">ext_emb_l</span></a> {<a id="A:259" class="idref" href="#A:259"><span class="id" title="binder">A</span></a>} (<a id="x:260" class="idref" href="#x:260"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#FDC.carrier"><span class="id" title="record">carrier</span></a> <a class="idref" href="structures.DCPOs.html#A:259"><span class="id" title="variable">A</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#FDC.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="structures.DCPOs.html#FDC.emb"><span class="id" title="definition">emb</span></a> <a class="idref" href="structures.DCPOs.html#x:260"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#x:260"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="FDC.ext_ext" class="idref" href="#FDC.ext_ext"><span class="id" title="lemma">ext_ext</span></a> {<a id="A:261" class="idref" href="#A:261"><span class="id" title="binder">A</span></a> <a id="B:262" class="idref" href="#B:262"><span class="id" title="binder">B</span></a> <a id="C:263" class="idref" href="#C:263"><span class="id" title="binder">C</span></a>} (<a id="g:264" class="idref" href="#g:264"><span class="id" title="binder">g</span></a> : <a class="idref" href="structures.DCPOs.html#B:262"><span class="id" title="variable">B</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#FDC.carrier"><span class="id" title="record">carrier</span></a> <a class="idref" href="structures.DCPOs.html#C:263"><span class="id" title="variable">C</span></a>) (<a id="f:265" class="idref" href="#f:265"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#A:261"><span class="id" title="variable">A</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#FDC.carrier"><span class="id" title="record">carrier</span></a> <a class="idref" href="structures.DCPOs.html#B:262"><span class="id" title="variable">B</span></a>) (<a id="x:266" class="idref" href="#x:266"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#FDC.carrier"><span class="id" title="record">carrier</span></a> <a class="idref" href="structures.DCPOs.html#A:261"><span class="id" title="variable">A</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#FDC.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="structures.DCPOs.html#g:264"><span class="id" title="variable">g</span></a> (<a class="idref" href="structures.DCPOs.html#FDC.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="structures.DCPOs.html#f:265"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#x:266"><span class="id" title="variable">x</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#FDC.ext"><span class="id" title="definition">ext</span></a> (<span class="id" title="keyword">fun</span> <a id="b:267" class="idref" href="#b:267"><span class="id" title="binder">b</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#FDC.ext"><span class="id" title="definition">ext</span></a> <a class="idref" href="structures.DCPOs.html#g:264"><span class="id" title="variable">g</span></a> (<a class="idref" href="structures.DCPOs.html#f:265"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#b:267"><span class="id" title="variable">b</span></a>)) <a class="idref" href="structures.DCPOs.html#x:266"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#FDC"><span class="id" title="module">FDC</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a id="fdc" class="idref" href="#fdc"><span class="id" title="abbreviation">fdc</span></a> := <a class="idref" href="structures.DCPOs.html#carrier"><span class="id" title="record">FDC.carrier</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab273"></a><h1 class="section">Fixed point constructions</h1>
+
+<div class="paragraph"> </div>
+
+<a id="lab274"></a><h2 class="section">Overview</h2>
+
+<div class="paragraph"> </div>
+
+ Every monotone function <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">D</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">D</span></span> in a DCPO <span class="inlinecode"><span class="id" title="var">D</span></span> admits
+  a least fixed point <span class="inlinecode"><span class="id" title="var">μf</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">D</span></span>. This can be used to obtain semantics
+  for loops and recursion that abstract away the numbers of unfolding
+  steps involved in reaching a result, retaining only a distinction
+  between computations based on whether they terminate, and the result
+  they produce when they do.
+
+<div class="paragraph"> </div>
+
+  For example, consider the traditional example of a recursive function:
+
+<div class="paragraph"> </div>
+
+      fact n := if n=0 then 1 else n * fact (n-1).
+
+<div class="paragraph"> </div>
+
+  We would like to interpret this definition as <span class="inlinecode">⟦<span class="id" title="var">fact</span>⟧</span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">Z</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#fdc"><span class="id" title="abbreviation">fdc</span></a></span> <span class="inlinecode"><span class="id" title="var">Z</span></span>
+  in the domain of partial functions from integers to integers, so that
+  <span class="inlinecode">⟦<span class="id" title="var">fact</span>⟧(<span class="id" title="var">n</span>)</span> gives the result of calling <span class="inlinecode"><span class="id" title="var">fact</span></span> with argument value <span class="inlinecode"><span class="id" title="var">n</span></span>,
+  or is undefined when this would result in a non-terminating computation.
+  We can compute this partial function as a fixed point of the functional
+  <span class="inlinecode"><span class="id" title="var">Φ</span></span> <span class="inlinecode">:</span> <span class="inlinecode">(<span class="id" title="var">Z</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#fdc"><span class="id" title="abbreviation">fdc</span></a></span> <span class="inlinecode"><span class="id" title="var">Z</span>)</span> <span class="inlinecode">→</span> <span class="inlinecode">(<span class="id" title="var">Z</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#fdc"><span class="id" title="abbreviation">fdc</span></a></span> <span class="inlinecode"><span class="id" title="var">Z</span>)</span> defined as:
+
+<div class="paragraph"> </div>
+
+      Φ F n := if n=0 then 1 else n * F (n-1).
+
+<div class="paragraph"> </div>
+
+  Note that <span class="inlinecode"><span class="id" title="var">Φ</span></span> avoids self-referentiality by "delegating" the
+  computation of recursive calls to its function argument <span class="inlinecode"><span class="id" title="var">F</span></span>.
+  It is monotone in the sense that plugging in an <span class="inlinecode"><span class="id" title="var">F'</span></span> defined
+  for more <span class="inlinecode"><span class="id" title="var">n</span></span>'s but otherwise idendical to <span class="inlinecode"><span class="id" title="var">F</span></span> will yield a similarly
+  "more defined" <span class="inlinecode"><span class="id" title="var">Φ</span></span> <span class="inlinecode"><span class="id" title="var">F</span></span> <span class="inlinecode">⊑</span> <span class="inlinecode"><span class="id" title="var">Φ</span></span> <span class="inlinecode"><span class="id" title="var">F'</span></span>. Hence, by our fixed point construction
+  we can obtain a function <span class="inlinecode"><span class="id" title="var">μΦ</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">Z</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#fdc"><span class="id" title="abbreviation">fdc</span></a></span> <span class="inlinecode"><span class="id" title="var">Z</span></span> such that <span class="inlinecode"><span class="id" title="var">Φ</span></span> <span class="inlinecode"><span class="id" title="var">μΦ</span></span> <span class="inlinecode">=</span> <span class="inlinecode"><span class="id" title="var">μ</span>φ</span>.
+  In other words, <span class="inlinecode"><span class="id" title="var">μΦ</span></span> is a version of <span class="inlinecode"><span class="id" title="var">Φ</span></span> which can handle
+  its own recursive calls:
+
+<div class="paragraph"> </div>
+
+      μΦ n  =  Φ μΦ n  =  if n=0 then 1 else n * μΦ (n-1).
+
+<div class="paragraph"> </div>
+
+  Below we provide two constructions of the least fixed point in a DCPO.
+  The Kleene-style fixed point requires <span class="inlinecode"><span class="id" title="var">Φ</span></span> to be Scott-continuous,
+  but is simpler to define and illustrates the basic ideas behind the
+  construction. The Tarsky-style construction applies to all monotonic
+  functions regardless of continuity, but requires generalizing the
+  Kleene iteration to ordinal numbers. 
+<div class="paragraph"> </div>
+
+<a id="lab275"></a><h2 class="section">Kleene fixed point</h2>
+
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Section</span> <a id="LFP" class="idref" href="#LFP"><span class="id" title="section">LFP</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="Pdcpo:269" class="idref" href="#Pdcpo:269"><span class="id" title="binder">Pdcpo</span></a> : <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a>} (<a id="f:270" class="idref" href="#f:270"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#P:268"><span class="id" title="variable">P</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:268"><span class="id" title="variable">P</span></a>) `{<a id="Hf:271" class="idref" href="#Hf:271"><span class="id" title="binder">Hf</span></a> : !<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a> <a class="idref" href="structures.DCPOs.html#f:270"><span class="id" title="variable">f</span></a>}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab276"></a><h3 class="section">Approximation sequence</h3>
+
+<div class="paragraph"> </div>
+
+ Consider a Scott-continuous function <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">:</span> <span class="inlinecode"><span class="id" title="var">D</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><span class="id" title="var">D</span></span> on a DCPO <span class="inlinecode"><span class="id" title="var">D</span></span>.
+    Since <span class="inlinecode">⊥</span> <span class="inlinecode">≲</span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">⊥</span> and <span class="inlinecode"><span class="id" title="var">f</span></span> is monotonic, we have <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">⊥</span> <span class="inlinecode">≲</span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span></span> <span class="inlinecode">⊥)</span>,
+    and in turn <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span></span> <span class="inlinecode">⊥)</span> <span class="inlinecode">≲</span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span></span> <span class="inlinecode">⊥))</span> etc, so that by induction on <span class="inlinecode"><span class="id" title="var">n</span></span>
+    the iterates <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode">⊥</span> <span class="inlinecode">≲</span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode">⊥)</span> are aleady postfixed points of <span class="inlinecode"><span class="id" title="var">f</span></span>
+    and constitute an increasing sequence. By virtue of being a
+    postfixed point, each iterate is either a fixed point with
+    <span class="inlinecode"><span class="id" title="var">f</span>^{<span class="id" title="var">n</span>+1}</span> <span class="inlinecode">=</span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span>^<span class="id" title="var">n</span>)</span> <span class="inlinecode">=</span> <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span>, or is succeeded by an approximation
+    <span class="inlinecode"><span class="id" title="var">f</span>^{<span class="id" title="var">n</span>+1}</span> <span class="inlinecode">≠</span> <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> that is strictly greater than all preceding ones.
+    Moreover, since <span class="inlinecode">⊥</span> <span class="inlinecode">≲</span> <span class="inlinecode"><span class="id" title="var">x</span></span> and <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode"><span class="id" title="var">x</span></span> <span class="inlinecode">≲</span> <span class="inlinecode"><span class="id" title="var">x</span></span> for any prefixed point <span class="inlinecode"><span class="id" title="var">x</span></span>,
+    it must be the case that <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode">⊥</span> <span class="inlinecode">≲</span> <span class="inlinecode"><span class="id" title="var">x</span></span> for any fixed (and therefore
+    prefixed) point <span class="inlinecode"><span class="id" title="var">x</span></span>. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Fixpoint</span> <a id="lfp_approx" class="idref" href="#lfp_approx"><span class="id" title="definition">lfp_approx</span></a> (<a id="n:272" class="idref" href="#n:272"><span class="id" title="binder">n</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#nat"><span class="id" title="inductive">nat</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">match</span> <a class="idref" href="structures.DCPOs.html#n:272"><span class="id" title="variable">n</span></a> <span class="id" title="keyword">with</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| 0 ⇒ <a class="idref" href="structures.DCPOs.html#bot"><span class="id" title="definition">bot</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#S"><span class="id" title="constructor">S</span></a> <span class="id" title="var">p</span> ⇒ <a class="idref" href="structures.DCPOs.html#LFP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#lfp_approx:273"><span class="id" title="definition">lfp_approx</span></a> <span class="id" title="var">p</span>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">end</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="lfp_approx_incr" class="idref" href="#lfp_approx_incr"><span class="id" title="lemma">lfp_approx_incr</span></a> <a id="n:275" class="idref" href="#n:275"><span class="id" title="binder">n</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#lfp_approx"><span class="id" title="definition">lfp_approx</span></a> <a class="idref" href="structures.DCPOs.html#n:275"><span class="id" title="variable">n</span></a>) (<a class="idref" href="structures.DCPOs.html#lfp_approx"><span class="id" title="definition">lfp_approx</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#S"><span class="id" title="constructor">S</span></a> <a class="idref" href="structures.DCPOs.html#n:275"><span class="id" title="variable">n</span></a>)).<br/>
+
+<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab277"></a><h3 class="section">Limit</h3>
+
+<div class="paragraph"> </div>
+
+ Although the sequence <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode">⊥</span> may never itself reach the actual
+    least fixed point <span class="inlinecode"><span class="id" title="var">μf</span></span>, its limit <span class="inlinecode"><span class="id" title="var">f</span>^*</span> <span class="inlinecode">⊥</span> <span class="inlinecode">:=</span> <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span> <span class="inlinecode"><span class="id" title="var">n</span>,</span> <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode">⊥</span> shares
+    the property of being a postfixed point and below any prefixed point. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="lfp_approx_directed" class="idref" href="#lfp_approx_directed"><span class="id" title="instance">lfp_approx_directed</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Directed"><span class="id" title="class">Directed</span></a> <a class="idref" href="structures.DCPOs.html#lfp_approx"><span class="id" title="definition">lfp_approx</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="lfp" class="idref" href="#lfp"><span class="id" title="definition">lfp</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> <a class="idref" href="structures.DCPOs.html#lfp_approx"><span class="id" title="definition">lfp_approx</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab278"></a><h3 class="section">Properties</h3>
+
+<div class="paragraph"> </div>
+
+ Moreover, if <span class="inlinecode"><span class="id" title="var">f</span></span> is Scott-continuous, then
+    <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span>^*</span> <span class="inlinecode">⊥)</span> <span class="inlinecode">=</span> <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span> <span class="inlinecode"><span class="id" title="var">n</span>,</span> <span class="inlinecode"><span class="id" title="var">f</span></span> <span class="inlinecode">(<span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode">⊥)</span> <span class="inlinecode">=</span> <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.dsup"><span class="id" title="definition">dsup</span></a></span> <span class="inlinecode"><span class="id" title="var">n</span>,</span> <span class="inlinecode"><span class="id" title="var">f</span>^(<span class="id" title="var">n</span>+1)</span> <span class="inlinecode">⊥</span> <span class="inlinecode">=</span> <span class="inlinecode"><span class="id" title="var">f</span>^*</span> <span class="inlinecode">⊥</span>
+    so that <span class="inlinecode"><span class="id" title="var">f</span>^*</span> <span class="inlinecode">⊥</span> is indeed the least fixed point. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="lfp_fixed" class="idref" href="#lfp_fixed"><span class="id" title="lemma">lfp_fixed</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#LFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#lfp"><span class="id" title="definition">lfp</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#lfp"><span class="id" title="definition">lfp</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="lfp_least" class="idref" href="#lfp_least"><span class="id" title="lemma">lfp_least</span></a> (<a id="x:276" class="idref" href="#x:276"><span class="id" title="binder">x</span></a> : <a class="idref" href="structures.DCPOs.html#LFP.P"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#LFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#x:276"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#x:276"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#lfp"><span class="id" title="definition">lfp</span></a> <a class="idref" href="structures.DCPOs.html#x:276"><span class="id" title="variable">x</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="lfp_least_prefixed" class="idref" href="#lfp_least_prefixed"><span class="id" title="lemma">lfp_least_prefixed</span></a> (<a id="y:277" class="idref" href="#y:277"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#LFP.P"><span class="id" title="variable">P</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#LFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#y:277"><span class="id" title="variable">y</span></a>) <a class="idref" href="structures.DCPOs.html#y:277"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#lfp"><span class="id" title="definition">lfp</span></a> <a class="idref" href="structures.DCPOs.html#y:277"><span class="id" title="variable">y</span></a>.<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#LFP"><span class="id" title="section">LFP</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Unfortunately, in some applications the recursive processes
+  we wish to study fail Scott-continuity. This is especially true
+  in the context of concurrency and fair scheduling, which involve
+  infinite nondeterminism. In that case, even <span class="inlinecode"><span class="id" title="var">f</span>^*</span> <span class="inlinecode">⊥</span> may not be
+  a fixed point yet, and further applications of <span class="inlinecode"><span class="id" title="var">f</span></span> and taking
+  limits may be necessary. To account for this process we must
+  generalize the finite iterates <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span></span> <span class="inlinecode">⊥</span> from natural numbers <span class="inlinecode"><span class="id" title="var">n</span></span>
+  to ordinal numbers <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span> and a corresponding notion of
+  transfinite iterates <span class="inlinecode"><span class="id" title="var">f</span>^<a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span>. 
+<div class="paragraph"> </div>
+
+<a id="lab279"></a><h2 class="section">Ordinal numbers</h2>
+
+<div class="paragraph"> </div>
+
+ To index our new approximation sequence, we need
+  a representation of ordinal numbers. Ordinal numbers
+  generalize natural numbers by allowing the construction
+  of a least upper bound for any set of predecessor
+  ("limit ordinals") as well as zero and successors. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a id="Ord" class="idref" href="#Ord"><span class="id" title="module">Ord</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab280"></a><h3 class="section">Definition</h3>
+
+<div class="paragraph"> </div>
+
+ We represent ordinals using an inductive type with
+    a single constructor <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a></span> <span class="inlinecode">{<span class="id" title="var">I</span>}</span> <span class="inlinecode">:</span> <span class="inlinecode">(<span class="id" title="var">I</span></span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a>)</span> <span class="inlinecode">→</span> <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a></span>,
+    where <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a></span> <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span> represents the limit ordinal ⋃ᵢ (αᵢ + 1).
+    Zero can be represented as <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a></span> <span class="inlinecode">(<span class="id" title="var">I</span></span> <span class="inlinecode">:=</span> <span class="inlinecode"><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#Empty_set"><span class="id" title="inductive">Empty_set</span></a>)</span> <span class="inlinecode"><span class="id" title="var">_</span></span>
+    and the successor of <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span> as <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a></span> <span class="inlinecode">(<span class="id" title="var">I</span></span> <span class="inlinecode">:=</span> <span class="inlinecode"><a class="idref" href="interfaces.Monads.html#MonadTheory.KlA.unit"><span class="id" title="definition">unit</span></a>)</span> <span class="inlinecode">(<span class="id" title="keyword">fun</span></span> <span class="inlinecode"><span class="id" title="var">_</span></span> <span class="inlinecode">⇒</span> <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a>)</span>.
+    In other words, as with <span class="inlinecode"><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#nat"><span class="id" title="inductive">nat</span></a></span>, the number being represented
+    corresponds to the depth of the tree, but unlike <span class="inlinecode"><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#nat"><span class="id" title="inductive">nat</span></a></span> the
+    branching allows us to construct trees with infinite depths.
+
+<div class="paragraph"> </div>
+
+    This approach is used in the mechanization of ordinals
+    published by the SNU Software Foundations Laboratory at
+    https://github.com/snu-sf/Ordinal.
+    Note that the representation is not canonical since
+    multiple sets may have the same sup, but this does not
+    matter for our purposes. 
+<div class="paragraph"> </div>
+
+ For clarity, we name the universe <span class="inlinecode"><span class="id" title="var">Ord.U</span></span> from which
+    we draw the possible arities of <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a></span>. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="Ord.U" class="idref" href="#Ord.U"><span class="id" title="definition">U</span></a> : <span class="id" title="keyword">Type</span> := <span class="id" title="keyword">Type</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Inductive</span> <a id="Ord.t" class="idref" href="#Ord.t"><span class="id" title="record">t</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="Ord.sup_succ" class="idref" href="#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a> {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="Ord.ar" class="idref" href="#Ord.ar"><span class="id" title="projection">ar</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.U"><span class="id" title="definition">U</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="Ord.pred" class="idref" href="#Ord.pred"><span class="id" title="projection">pred</span></a> : <a class="idref" href="structures.DCPOs.html#ar:279"><span class="id" title="method">ar</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#t:278"><span class="id" title="inductive">t</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Arguments</span> <a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a> {<span class="id" title="var">ar</span>}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab281"></a><h3 class="section">Ordering</h3>
+
+<div class="paragraph"> </div>
+
+ Since every ordinal is a constructed as a <span class="inlinecode"><span class="id" title="var">sup</span></span>,
+    they can be ordered as follows. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Fixpoint</span> <a id="Ord.le" class="idref" href="#Ord.le"><span class="id" title="definition">le</span></a> (<a id="f36638170606532ef3de5712007c9e98" class="idref" href="#f36638170606532ef3de5712007c9e98"><span class="id" title="binder">α</span></a> <a id="e7821c36c2b78cc2b11a4b2cfa08dba9" class="idref" href="#e7821c36c2b78cc2b11a4b2cfa08dba9"><span class="id" title="binder">β</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.t"><span class="id" title="record">t</span></a>) : <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="i:284" class="idref" href="#i:284"><span class="id" title="binder">i</span></a>, <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <a id="j:285" class="idref" href="#j:285"><span class="id" title="binder">j</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="structures.DCPOs.html#le:283"><span class="id" title="definition">le</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">pred</span></a> <a class="idref" href="structures.DCPOs.html#f36638170606532ef3de5712007c9e98"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:284"><span class="id" title="variable">i</span></a>) (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">pred</span></a> <a class="idref" href="structures.DCPOs.html#e7821c36c2b78cc2b11a4b2cfa08dba9"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#j:285"><span class="id" title="variable">j</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Note that <span class="inlinecode"><a class="idref" href="structures.DCPOSLs.html#FDSL.le"><span class="id" title="record">le</span></a></span> is not antisymmetric but defines a preorder.
+    There is an equivalence class in this preorder for each ordinal. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="Ord.le_preo" class="idref" href="#Ord.le_preo"><span class="id" title="instance">le_preo</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Classes.RelationClasses.html#PreOrder"><span class="id" title="class">PreOrder</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+As expected, every ordinal is strictly greated than
+    its predecessors. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.le_pred" class="idref" href="#Ord.le_pred"><span class="id" title="lemma">le_pred</span></a> <a id="d29794f3cfdde9a7db32aa5c95b5d31d" class="idref" href="#d29794f3cfdde9a7db32aa5c95b5d31d"><span class="id" title="binder">α</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="i:287" class="idref" href="#i:287"><span class="id" title="binder">i</span></a>, <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">pred</span></a> <a class="idref" href="structures.DCPOs.html#d29794f3cfdde9a7db32aa5c95b5d31d"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:287"><span class="id" title="variable">i</span></a>) <a class="idref" href="structures.DCPOs.html#d29794f3cfdde9a7db32aa5c95b5d31d"><span class="id" title="variable">α</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.max_succ_new" class="idref" href="#Ord.max_succ_new"><span class="id" title="lemma">max_succ_new</span></a> <a id="3aa2d2927a4eccae3bd6efd8112b5b62" class="idref" href="#3aa2d2927a4eccae3bd6efd8112b5b62"><span class="id" title="binder">α</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="i:289" class="idref" href="#i:289"><span class="id" title="binder">i</span></a>, <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#63a68285c81db8f9bc456233bb9ed181"><span class="id" title="notation">¬</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> <a class="idref" href="structures.DCPOs.html#3aa2d2927a4eccae3bd6efd8112b5b62"><span class="id" title="variable">α</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">pred</span></a> <a class="idref" href="structures.DCPOs.html#3aa2d2927a4eccae3bd6efd8112b5b62"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:289"><span class="id" title="variable">i</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Ordinals are totally ordered. This property is important
+    because it means every increasing <span class="inlinecode"><a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a></span>-indexed sequence in
+    a dcpo is directed and therefore has a <span class="inlinecode"><span class="id" title="var">sup</span></span>. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.le_total" class="idref" href="#Ord.le_total"><span class="id" title="lemma">le_total</span></a> <a id="29f55d1ae3176baad3c77933dfd4ce70" class="idref" href="#29f55d1ae3176baad3c77933dfd4ce70"><span class="id" title="binder">α</span></a> <a id="e0ce317bc4f64efa55e2bfc5d52f9b94" class="idref" href="#e0ce317bc4f64efa55e2bfc5d52f9b94"><span class="id" title="binder">β</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> <a class="idref" href="structures.DCPOs.html#29f55d1ae3176baad3c77933dfd4ce70"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#e0ce317bc4f64efa55e2bfc5d52f9b94"><span class="id" title="variable">β</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#f031fe1957c4a4a8e217aa46af2b4e25"><span class="id" title="notation">∨</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> <a class="idref" href="structures.DCPOs.html#e0ce317bc4f64efa55e2bfc5d52f9b94"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#29f55d1ae3176baad3c77933dfd4ce70"><span class="id" title="variable">α</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+We can also define the associated strict order. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="Ord.lt" class="idref" href="#Ord.lt"><span class="id" title="definition">lt</span></a> (<a id="114d3864a4b5488d45b0a7cc497a6b92" class="idref" href="#114d3864a4b5488d45b0a7cc497a6b92"><span class="id" title="binder">α</span></a> <a id="896b5367b6118ae2703136f111c4c4bf" class="idref" href="#896b5367b6118ae2703136f111c4c4bf"><span class="id" title="binder">β</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.t"><span class="id" title="record">t</span></a>) : <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <a id="j:294" class="idref" href="#j:294"><span class="id" title="binder">j</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> <a class="idref" href="structures.DCPOs.html#114d3864a4b5488d45b0a7cc497a6b92"><span class="id" title="variable">α</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">pred</span></a> <a class="idref" href="structures.DCPOs.html#896b5367b6118ae2703136f111c4c4bf"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#j:294"><span class="id" title="variable">j</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Global Instance</span> <a id="Ord.lt_le" class="idref" href="#Ord.lt_le"><span class="id" title="instance">lt_le</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Classes.RelationClasses.html#subrelation"><span class="id" title="class">subrelation</span></a> <a class="idref" href="structures.DCPOs.html#Ord.lt"><span class="id" title="definition">lt</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.lt_not_le" class="idref" href="#Ord.lt_not_le"><span class="id" title="lemma">lt_not_le</span></a> <a id="8bdb2c50ef477fd4298866d4738d54e9" class="idref" href="#8bdb2c50ef477fd4298866d4738d54e9"><span class="id" title="binder">α</span></a> <a id="f4b12b6794011c9f1630bc12a883b1e5" class="idref" href="#f4b12b6794011c9f1630bc12a883b1e5"><span class="id" title="binder">β</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.lt"><span class="id" title="definition">lt</span></a> <a class="idref" href="structures.DCPOs.html#8bdb2c50ef477fd4298866d4738d54e9"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#f4b12b6794011c9f1630bc12a883b1e5"><span class="id" title="variable">β</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'&lt;-&gt;'_x"><span class="id" title="notation">↔</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#63a68285c81db8f9bc456233bb9ed181"><span class="id" title="notation">¬</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> <a class="idref" href="structures.DCPOs.html#f4b12b6794011c9f1630bc12a883b1e5"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#8bdb2c50ef477fd4298866d4738d54e9"><span class="id" title="variable">α</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.pred_lt" class="idref" href="#Ord.pred_lt"><span class="id" title="lemma">pred_lt</span></a> <a id="d83fdc76174aeb491885797d7f235f20" class="idref" href="#d83fdc76174aeb491885797d7f235f20"><span class="id" title="binder">α</span></a> <a id="i:298" class="idref" href="#i:298"><span class="id" title="binder">i</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.lt"><span class="id" title="definition">lt</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">pred</span></a> <a class="idref" href="structures.DCPOs.html#d83fdc76174aeb491885797d7f235f20"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:298"><span class="id" title="variable">i</span></a>) <a class="idref" href="structures.DCPOs.html#d83fdc76174aeb491885797d7f235f20"><span class="id" title="variable">α</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.lt_le_r" class="idref" href="#Ord.lt_le_r"><span class="id" title="lemma">lt_le_r</span></a> <a id="f98ce56e5308382c5e453071ee2aff18" class="idref" href="#f98ce56e5308382c5e453071ee2aff18"><span class="id" title="binder">α</span></a> <a id="6eae85846573284dd3ccf9beade681b8" class="idref" href="#6eae85846573284dd3ccf9beade681b8"><span class="id" title="binder">β</span></a> <a id="69ce7a755fcd8deb095ae7c7fee1842c" class="idref" href="#69ce7a755fcd8deb095ae7c7fee1842c"><span class="id" title="binder">γ</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.lt"><span class="id" title="definition">lt</span></a> <a class="idref" href="structures.DCPOs.html#f98ce56e5308382c5e453071ee2aff18"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#6eae85846573284dd3ccf9beade681b8"><span class="id" title="variable">β</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> <a class="idref" href="structures.DCPOs.html#6eae85846573284dd3ccf9beade681b8"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#69ce7a755fcd8deb095ae7c7fee1842c"><span class="id" title="variable">γ</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#Ord.lt"><span class="id" title="definition">lt</span></a> <a class="idref" href="structures.DCPOs.html#f98ce56e5308382c5e453071ee2aff18"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#69ce7a755fcd8deb095ae7c7fee1842c"><span class="id" title="variable">γ</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.lt_wf" class="idref" href="#Ord.lt_wf"><span class="id" title="lemma">lt_wf</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Wf.html#well_founded"><span class="id" title="definition">well_founded</span></a> <a class="idref" href="structures.DCPOs.html#Ord.lt"><span class="id" title="definition">lt</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab282"></a><h3 class="section">Ascending chains</h3>
+
+<div class="paragraph"> </div>
+
+ The key property we will use to show that the transfinite
+    iterates of <span class="inlinecode"><span class="id" title="var">f</span></span> eventually reach a fixed point is that
+    for every element of a well-founded set, we can construct
+    an ordinal number <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span> such that no strictly increasing
+    <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span>-chain reaches it.  
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Section</span> <a id="Ord.MAX_CHAINS" class="idref" href="#Ord.MAX_CHAINS"><span class="id" title="section">MAX_CHAINS</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Context</span> {<a id="A:302" class="idref" href="#A:302"><span class="id" title="binder">A</span></a>} (<a id="R:303" class="idref" href="#R:303"><span class="id" title="binder">R</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Relations.Relation_Definitions.html#relation"><span class="id" title="definition">relation</span></a> <a class="idref" href="structures.DCPOs.html#A:302"><span class="id" title="variable">A</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+The following predicate states that there exists
+      an <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span>-chain ending in <span class="inlinecode"><span class="id" title="var">y</span></span>. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Fixpoint</span> <a id="Ord.chain_to" class="idref" href="#Ord.chain_to"><span class="id" title="definition">chain_to</span></a> (<a id="aa01e2fcd350859db29c2a479aba0b33" class="idref" href="#aa01e2fcd350859db29c2a479aba0b33"><span class="id" title="binder">α</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.t"><span class="id" title="record">t</span></a>) (<a id="y:305" class="idref" href="#y:305"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.A"><span class="id" title="variable">A</span></a>) : <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> <a id="i:307" class="idref" href="#i:307"><span class="id" title="binder">i</span></a>, <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <a id="x:308" class="idref" href="#x:308"><span class="id" title="binder">x</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="structures.DCPOs.html#chain_to:306"><span class="id" title="definition">chain_to</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">Ord.pred</span></a> <a class="idref" href="structures.DCPOs.html#aa01e2fcd350859db29c2a479aba0b33"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:307"><span class="id" title="variable">i</span></a>) <a class="idref" href="structures.DCPOs.html#x:308"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#ba2b0e492d2b4675a0acf3ea92aabadd"><span class="id" title="notation">∧</span></a> <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.R"><span class="id" title="variable">R</span></a> <a class="idref" href="structures.DCPOs.html#x:308"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:305"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+We can then describe the largest ordinal <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span> such
+      that there is an <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span>-chain ending in <span class="inlinecode"><span class="id" title="var">y</span></span> as follows. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Program Fixpoint</span> <a id="Ord.rank" class="idref" href="#Ord.rank"><span class="id" title="definition">rank</span></a> (<a id="y:309" class="idref" href="#y:309"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.A"><span class="id" title="variable">A</span></a>) (<a id="Hy:310" class="idref" href="#Hy:310"><span class="id" title="binder">Hy</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Wf.html#Acc"><span class="id" title="inductive">Acc</span></a> <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.R"><span class="id" title="variable">R</span></a> <a class="idref" href="structures.DCPOs.html#y:309"><span class="id" title="variable">y</span></a>) : <a class="idref" href="structures.DCPOs.html#Ord.t"><span class="id" title="record">t</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a> (<span class="id" title="keyword">fun</span> <a id="x:313" class="idref" href="#x:313"><span class="id" title="binder">x</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Specif.html#bc4528e836ab0e91ea7e942fb09e898f"><span class="id" title="notation">{</span></a><a id="x:312" class="idref" href="#x:312"><span class="id" title="binder">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Specif.html#bc4528e836ab0e91ea7e942fb09e898f"><span class="id" title="notation">|</span></a> <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.R"><span class="id" title="variable">R</span></a> <a class="idref" href="structures.DCPOs.html#x:312"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:309"><span class="id" title="variable">y</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Specif.html#bc4528e836ab0e91ea7e942fb09e898f"><span class="id" title="notation">}</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#rank:311"><span class="id" title="definition">rank</span></a> (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Program.Utils.html#42de49636febd86555c23aec80a50aa7"><span class="id" title="notation">`</span></a> <a class="idref" href="structures.DCPOs.html#x:313"><span class="id" title="variable">x</span></a>) <span class="id" title="var">_</span>).<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.rank_incr" class="idref" href="#Ord.rank_incr"><span class="id" title="lemma">rank_incr</span></a> <a id="x:314" class="idref" href="#x:314"><span class="id" title="binder">x</span></a> <a id="y:315" class="idref" href="#y:315"><span class="id" title="binder">y</span></a> (<a id="Hxy:316" class="idref" href="#Hxy:316"><span class="id" title="binder">Hxy</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.R"><span class="id" title="variable">R</span></a> <a class="idref" href="structures.DCPOs.html#x:314"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:315"><span class="id" title="variable">y</span></a>) (<a id="Hx:317" class="idref" href="#Hx:317"><span class="id" title="binder">Hx</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Wf.html#Acc"><span class="id" title="inductive">Acc</span></a> <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.R"><span class="id" title="variable">R</span></a> <a class="idref" href="structures.DCPOs.html#x:314"><span class="id" title="variable">x</span></a>) (<a id="Hy:318" class="idref" href="#Hy:318"><span class="id" title="binder">Hy</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Wf.html#Acc"><span class="id" title="inductive">Acc</span></a> <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.R"><span class="id" title="variable">R</span></a> <a class="idref" href="structures.DCPOs.html#y:315"><span class="id" title="variable">y</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#63a68285c81db8f9bc456233bb9ed181"><span class="id" title="notation">¬</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.rank"><span class="id" title="definition">rank</span></a> <a class="idref" href="structures.DCPOs.html#y:315"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#Hy:318"><span class="id" title="variable">Hy</span></a>) (<a class="idref" href="structures.DCPOs.html#Ord.rank"><span class="id" title="definition">rank</span></a> <a class="idref" href="structures.DCPOs.html#x:314"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#Hx:317"><span class="id" title="variable">Hx</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.max_chain_length" class="idref" href="#Ord.max_chain_length"><span class="id" title="lemma">max_chain_length</span></a> <a id="21d7155d5fbb1dc4cafd3ae1cda5509b" class="idref" href="#21d7155d5fbb1dc4cafd3ae1cda5509b"><span class="id" title="binder">α</span></a> <a id="y:320" class="idref" href="#y:320"><span class="id" title="binder">y</span></a> <a id="Hy:321" class="idref" href="#Hy:321"><span class="id" title="binder">Hy</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.chain_to"><span class="id" title="definition">chain_to</span></a> <a class="idref" href="structures.DCPOs.html#21d7155d5fbb1dc4cafd3ae1cda5509b"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#y:320"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">le</span></a> <a class="idref" href="structures.DCPOs.html#21d7155d5fbb1dc4cafd3ae1cda5509b"><span class="id" title="variable">α</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.rank"><span class="id" title="definition">rank</span></a> <a class="idref" href="structures.DCPOs.html#y:320"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#Hy:321"><span class="id" title="variable">Hy</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+This means we can define an ordinal larger than any chain. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="Ord.not_a_chain_length" class="idref" href="#Ord.not_a_chain_length"><span class="id" title="definition">not_a_chain_length</span></a> (<a id="HR:322" class="idref" href="#HR:322"><span class="id" title="binder">HR</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Wf.html#well_founded"><span class="id" title="definition">well_founded</span></a> <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS.R"><span class="id" title="variable">R</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.sup_succ"><span class="id" title="constructor">sup_succ</span></a> (<span class="id" title="keyword">fun</span> <a id="y:323" class="idref" href="#y:323"><span class="id" title="binder">y</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#Ord.rank"><span class="id" title="definition">rank</span></a> <a class="idref" href="structures.DCPOs.html#y:323"><span class="id" title="variable">y</span></a> (<a class="idref" href="structures.DCPOs.html#HR:322"><span class="id" title="variable">HR</span></a> <a class="idref" href="structures.DCPOs.html#y:323"><span class="id" title="variable">y</span></a>)).<br/>
+
+<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="Ord.no_long_chain_to" class="idref" href="#Ord.no_long_chain_to"><span class="id" title="lemma">no_long_chain_to</span></a> <a id="y:324" class="idref" href="#y:324"><span class="id" title="binder">y</span></a> <a id="HR:325" class="idref" href="#HR:325"><span class="id" title="binder">HR</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#63a68285c81db8f9bc456233bb9ed181"><span class="id" title="notation">¬</span></a> <a class="idref" href="structures.DCPOs.html#Ord.chain_to"><span class="id" title="definition">chain_to</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.not_a_chain_length"><span class="id" title="definition">not_a_chain_length</span></a> <a class="idref" href="structures.DCPOs.html#HR:325"><span class="id" title="variable">HR</span></a>) <a class="idref" href="structures.DCPOs.html#y:324"><span class="id" title="variable">y</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#Ord.MAX_CHAINS"><span class="id" title="section">MAX_CHAINS</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#Ord"><span class="id" title="module">Ord</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Notation</span> <a id="ord" class="idref" href="#ord"><span class="id" title="abbreviation">ord</span></a> := <a class="idref" href="structures.DCPOs.html#t"><span class="id" title="record">Ord.t</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab283"></a><h2 class="section">Tarsky-style fixed point</h2>
+
+<div class="paragraph"> </div>
+
+ To obtain the least fixed point, we generalize the Kleene
+  construction used in the continuous case by constructing
+  a family of approximants <span class="inlinecode"><span class="id" title="var">f_α</span></span> such that <span class="inlinecode"><span class="id" title="var">f_</span>(⋃ᵢ</span> <span class="inlinecode">1+<a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a>ᵢ)</span> <span class="inlinecode">=</span> <span class="inlinecode">⋁ᵢ</span> <span class="inlinecode"><span class="id" title="var">f</span>(<span class="id" title="var">f_α</span>ᵢ)</span>.
+  Note that we recover the Kleene iterates as the special cases
+  <span class="inlinecode"><span class="id" title="var">f_n</span></span> <span class="inlinecode">=</span> <span class="inlinecode"><span class="id" title="var">f</span>^<span class="id" title="var">n</span>(⊥)</span> for <span class="inlinecode"><span class="id" title="var">n</span>∈<span class="id" title="var">ℕ</span></span>, and <span class="inlinecode"><span class="id" title="var">f_</span>ω</span> <span class="inlinecode">=</span> <span class="inlinecode"><span class="id" title="var">f</span>^*(⊥)</span>.
+
+<div class="paragraph"> </div>
+
+  This construction is documented for example in the paper
+  "Constructive versions of Tarski's fixed point theorems"
+  by Cousot &amp; Cousot. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Module</span> <a id="TFP" class="idref" href="#TFP"><span class="id" title="module">TFP</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Section</span> <a id="TFP.TFP" class="idref" href="#TFP.TFP"><span class="id" title="section">TFP</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<a id="Pdcpo:327" class="idref" href="#Pdcpo:327"><span class="id" title="binder">Pdcpo</span></a> : <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a>} (<a id="f:328" class="idref" href="#f:328"><span class="id" title="binder">f</span></a> : <a class="idref" href="structures.DCPOs.html#P:326"><span class="id" title="variable">P</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#P:326"><span class="id" title="variable">P</span></a>) `{<a id="Hf:329" class="idref" href="#Hf:329"><span class="id" title="binder">Hf</span></a> : <span class="id" title="abbreviation">Monotonic</span> <a class="idref" href="structures.DCPOs.html#f:328"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <span class="id" title="notation">++&gt;</span> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a>)}.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab284"></a><h3 class="section">Specification</h3>
+
+<div class="paragraph"> </div>
+
+ While we will eventually be able to construct <span class="inlinecode"><span class="id" title="var">f_α</span></span>
+    by recursion on the structure of <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span>, the recursion step
+    involves a supremum that is only defined by virtue of
+    the set of predecessor approximants being directed.
+    In turn this is true only because these approximants
+    increase with <span class="inlinecode"><a class="idref" href="interfaces.MonoidalCategory.html#6b7ad2f815df84de9065357ab0e76f40"><span class="id" title="abbreviation">α</span></a></span> and the fact that ordinal numbers
+    are totally ordered.
+
+<div class="paragraph"> </div>
+
+    Because of this somewhat circular dependency between
+    the definition and some of its logical consequences,
+    writing a specification first is more convenient. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Fixpoint</span> <a id="TFP.Approximant" class="idref" href="#TFP.Approximant"><span class="id" title="definition">Approximant</span></a> (<a id="0817226ec17d1a9dd91229df677f1f2d" class="idref" href="#0817226ec17d1a9dd91229df677f1f2d"><span class="id" title="binder">α</span></a> : <a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a>) (<a id="y:331" class="idref" href="#y:331"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#TFP.TFP.P"><span class="id" title="variable">P</span></a>) : <span class="id" title="keyword">Prop</span> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <a id="x:333" class="idref" href="#x:333"><span class="id" title="binder">x</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#ba2b0e492d2b4675a0acf3ea92aabadd"><span class="id" title="notation">(</span></a><span class="id" title="keyword">∀</span> <a id="i:334" class="idref" href="#i:334"><span class="id" title="binder">i</span></a>, <a class="idref" href="structures.DCPOs.html#Approximant:332"><span class="id" title="definition">Approximant</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">Ord.pred</span></a> <a class="idref" href="structures.DCPOs.html#0817226ec17d1a9dd91229df677f1f2d"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:334"><span class="id" title="variable">i</span></a>) (<a class="idref" href="structures.DCPOs.html#x:333"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:334"><span class="id" title="variable">i</span></a>)<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#ba2b0e492d2b4675a0acf3ea92aabadd"><span class="id" title="notation">)</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#ba2b0e492d2b4675a0acf3ea92aabadd"><span class="id" title="notation">∧</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.Posets.html#IsSup"><span class="id" title="class">IsSup</span></a> (<span class="id" title="keyword">fun</span> <a id="i:335" class="idref" href="#i:335"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#x:333"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#i:335"><span class="id" title="variable">i</span></a>)) <a class="idref" href="structures.DCPOs.html#y:331"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Existing Class</span> <span class="id" title="var">Approximant</span>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+To show that they can be constructed, we must first
+    establish that the approximants increase with their
+    ordinal index. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.approx_le" class="idref" href="#TFP.approx_le"><span class="id" title="lemma">approx_le</span></a> <a id="b795e7c283fedd13b21fafcecaab5370" class="idref" href="#b795e7c283fedd13b21fafcecaab5370"><span class="id" title="binder">α</span></a> <a id="6cfa47c6fd8871e7a1a2a64ab3020c8a" class="idref" href="#6cfa47c6fd8871e7a1a2a64ab3020c8a"><span class="id" title="binder">β</span></a> <a id="x:338" class="idref" href="#x:338"><span class="id" title="binder">x</span></a> <a id="y:339" class="idref" href="#y:339"><span class="id" title="binder">y</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">Ord.le</span></a> <a class="idref" href="structures.DCPOs.html#b795e7c283fedd13b21fafcecaab5370"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#6cfa47c6fd8871e7a1a2a64ab3020c8a"><span class="id" title="variable">β</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.Approximant"><span class="id" title="class">Approximant</span></a> <a class="idref" href="structures.DCPOs.html#b795e7c283fedd13b21fafcecaab5370"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#x:338"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.Approximant"><span class="id" title="class">Approximant</span></a> <a class="idref" href="structures.DCPOs.html#6cfa47c6fd8871e7a1a2a64ab3020c8a"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#y:339"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#x:338"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:339"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab285"></a><h3 class="section">Construction step</h3>
+
+<div class="paragraph"> </div>
+
+ Because ordinals are totally ordered, this means all sets
+    of approximants are directed, and we can take their sup. 
+</div>
+<div class="code">
+
+<br/>
+
+<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab286"></a><h3 class="section">Definition</h3>
+
+<div class="paragraph"> </div>
+
+ With all this in place we can now define the recursive
+    construction of our approximants. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Record</span> <a id="TFP.approximant" class="idref" href="#TFP.approximant"><span class="id" title="record">approximant</span></a> {<a id="6b80ea56a146664f1dc703e80796616c" class="idref" href="#6b80ea56a146664f1dc703e80796616c"><span class="id" title="binder">α</span></a> : <a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a>} :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="TFP.mka" class="idref" href="#TFP.mka"><span class="id" title="constructor">mka</span></a> {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="TFP.aval" class="idref" href="#TFP.aval"><span class="id" title="projection">aval</span></a> :&gt; <a class="idref" href="structures.DCPOs.html#TFP.TFP.P"><span class="id" title="variable">P</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="TFP.aprop" class="idref" href="#TFP.aprop"><span class="id" title="projection">aprop</span></a> : <a class="idref" href="structures.DCPOs.html#TFP.Approximant"><span class="id" title="class">Approximant</span></a> <a class="idref" href="structures.DCPOs.html#6b80ea56a146664f1dc703e80796616c"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#aval:352"><span class="id" title="method">aval</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Arguments</span> <a class="idref" href="structures.DCPOs.html#TFP.approximant"><span class="id" title="record">approximant</span></a> : <span class="id" title="tactic">clear</span> <span class="id" title="var">implicits</span>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Arguments</span> <a class="idref" href="structures.DCPOs.html#TFP.mka"><span class="id" title="constructor">mka</span></a> {<span class="id" title="var">_</span>} <span class="id" title="var">_</span> {<span class="id" title="var">_</span>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Fixpoint</span> <a id="TFP.approx_construct" class="idref" href="#TFP.approx_construct"><span class="id" title="definition">approx_construct</span></a> (<a id="0ec1a90825d6033b3aa501c2defab923" class="idref" href="#0ec1a90825d6033b3aa501c2defab923"><span class="id" title="binder">α</span></a> : <a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a>) : <a class="idref" href="structures.DCPOs.html#TFP.approximant"><span class="id" title="record">approximant</span></a> <a class="idref" href="structures.DCPOs.html#0ec1a90825d6033b3aa501c2defab923"><span class="id" title="variable">α</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.mka"><span class="id" title="constructor">mka</span></a> (<a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> (<span class="id" title="keyword">fun</span> <a id="i:356" class="idref" href="#i:356"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#approx_construct:355"><span class="id" title="definition">approx_construct</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">Ord.pred</span></a> <a class="idref" href="structures.DCPOs.html#0ec1a90825d6033b3aa501c2defab923"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:356"><span class="id" title="variable">i</span></a>)))).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Notation</span> <a id="TFP.approx" class="idref" href="#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <span class="id" title="var">α</span> := (<a class="idref" href="structures.DCPOs.html#TFP.aval"><span class="id" title="projection">aval</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.approx_construct"><span class="id" title="definition">approx_construct</span></a> <span class="id" title="var">α</span>)).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+<a id="lab287"></a><h3 class="section">Well-foundedness</h3>
+
+<div class="paragraph"> </div>
+
+ The set of approximants is well-ordered with respect to
+    the underlying dcpo. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.approx_lt" class="idref" href="#TFP.approx_lt"><span class="id" title="lemma">approx_lt</span></a> <a id="3914f777b029db32e2c6c5703ee6438e" class="idref" href="#3914f777b029db32e2c6c5703ee6438e"><span class="id" title="binder">α</span></a> <a id="b2f454e8a4eeccf7c9ddc9d97f5041a7" class="idref" href="#b2f454e8a4eeccf7c9ddc9d97f5041a7"><span class="id" title="binder">β</span></a> <a id="x:359" class="idref" href="#x:359"><span class="id" title="binder">x</span></a> <a id="y:360" class="idref" href="#y:360"><span class="id" title="binder">y</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lct"><span class="id" title="definition">lct</span></a> <a class="idref" href="structures.DCPOs.html#x:359"><span class="id" title="variable">x</span></a> <a class="idref" href="structures.DCPOs.html#y:360"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.Approximant"><span class="id" title="class">Approximant</span></a> <a class="idref" href="structures.DCPOs.html#3914f777b029db32e2c6c5703ee6438e"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#x:359"><span class="id" title="variable">x</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.Approximant"><span class="id" title="class">Approximant</span></a> <a class="idref" href="structures.DCPOs.html#b2f454e8a4eeccf7c9ddc9d97f5041a7"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#y:360"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#63a68285c81db8f9bc456233bb9ed181"><span class="id" title="notation">¬</span></a> <a class="idref" href="structures.DCPOs.html#Ord.le"><span class="id" title="definition">Ord.le</span></a> <a class="idref" href="structures.DCPOs.html#b2f454e8a4eeccf7c9ddc9d97f5041a7"><span class="id" title="variable">β</span></a> <a class="idref" href="structures.DCPOs.html#3914f777b029db32e2c6c5703ee6438e"><span class="id" title="variable">α</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Based on this specification, we can show that the set
+    of approximants generated in this way is well-founded. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Record</span> <a id="TFP.candidate" class="idref" href="#TFP.candidate"><span class="id" title="record">candidate</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.U"><span class="id" title="definition">Ord.U</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a id="TFP.mkc" class="idref" href="#TFP.mkc"><span class="id" title="constructor">mkc</span></a> {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="TFP.cval" class="idref" href="#TFP.cval"><span class="id" title="projection">cval</span></a> :&gt; <a class="idref" href="structures.DCPOs.html#TFP.TFP.P"><span class="id" title="variable">P</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a id="TFP.cprop" class="idref" href="#TFP.cprop"><span class="id" title="projection">cprop</span></a> : <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">∃</span></a> <a id="6fd9b0b43c64d7c08ccd7a676de13e49" class="idref" href="#6fd9b0b43c64d7c08ccd7a676de13e49"><span class="id" title="binder">α</span></a><a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#a883bdd010993579f99d60b3775bcf54"><span class="id" title="notation">,</span></a> <a class="idref" href="structures.DCPOs.html#TFP.Approximant"><span class="id" title="class">Approximant</span></a> <a class="idref" href="structures.DCPOs.html#6fd9b0b43c64d7c08ccd7a676de13e49"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#cval:362"><span class="id" title="method">cval</span></a>;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="TFP.lt" class="idref" href="#TFP.lt"><span class="id" title="definition">lt</span></a> (<a id="x:365" class="idref" href="#x:365"><span class="id" title="binder">x</span></a> <a id="y:366" class="idref" href="#y:366"><span class="id" title="binder">y</span></a> : <a class="idref" href="structures.DCPOs.html#TFP.candidate"><span class="id" title="record">candidate</span></a>) :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lct"><span class="id" title="definition">lct</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.cval"><span class="id" title="projection">cval</span></a> <a class="idref" href="structures.DCPOs.html#x:365"><span class="id" title="variable">x</span></a>) (<a class="idref" href="structures.DCPOs.html#TFP.cval"><span class="id" title="projection">cval</span></a> <a class="idref" href="structures.DCPOs.html#y:366"><span class="id" title="variable">y</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.lt_wf" class="idref" href="#TFP.lt_wf"><span class="id" title="lemma">lt_wf</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Wf.html#well_founded"><span class="id" title="definition">well_founded</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lt"><span class="id" title="definition">lt</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Definition</span> <a id="TFP.lfp" class="idref" href="#TFP.lfp"><span class="id" title="definition">lfp</span></a> :=<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.not_a_chain_length"><span class="id" title="definition">Ord.not_a_chain_length</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lt"><span class="id" title="definition">lt</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lt_wf"><span class="id" title="lemma">lt_wf</span></a>).<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+Now we can show that this is indeed the least fixed point. 
+</div>
+<div class="code">
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.approx_postfixed" class="idref" href="#TFP.approx_postfixed"><span class="id" title="lemma">approx_postfixed</span></a> `{<a id="H:369" class="idref" href="#H:369"><span class="id" title="binder">Approximant</span></a>} :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#y:368"><span class="id" title="variable">y</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#y:368"><span class="id" title="variable">y</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.approx_below_prefixed" class="idref" href="#TFP.approx_below_prefixed"><span class="id" title="lemma">approx_below_prefixed</span></a> `{<a id="H:372" class="idref" href="#H:372"><span class="id" title="binder">Approximant</span></a>} <a id="z:373" class="idref" href="#z:373"><span class="id" title="binder">z</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#z:373"><span class="id" title="variable">z</span></a>) <a class="idref" href="structures.DCPOs.html#z:373"><span class="id" title="variable">z</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#y:371"><span class="id" title="variable">y</span></a> <a class="idref" href="structures.DCPOs.html#z:373"><span class="id" title="variable">z</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.approx_unfold" class="idref" href="#TFP.approx_unfold"><span class="id" title="lemma">approx_unfold</span></a> (<a id="ba8fbbde3901f322b29e5d1c93a7bc50" class="idref" href="#ba8fbbde3901f322b29e5d1c93a7bc50"><span class="id" title="binder">α</span></a> : <a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <a class="idref" href="structures.DCPOs.html#ba8fbbde3901f322b29e5d1c93a7bc50"><span class="id" title="variable">α</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#dsup"><span class="id" title="method">dsup</span></a> (<span class="id" title="keyword">fun</span> <a id="i:375" class="idref" href="#i:375"><span class="id" title="binder">i</span></a> ⇒ <a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">Ord.pred</span></a> <a class="idref" href="structures.DCPOs.html#ba8fbbde3901f322b29e5d1c93a7bc50"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:375"><span class="id" title="variable">i</span></a>))).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.approx_stops" class="idref" href="#TFP.approx_stops"><span class="id" title="lemma">approx_stops</span></a> (<a id="85691cdef259d2e911eac710f7f4e4a3" class="idref" href="#85691cdef259d2e911eac710f7f4e4a3"><span class="id" title="binder">α</span></a> : <a class="idref" href="structures.DCPOs.html#ord"><span class="id" title="abbreviation">ord</span></a>) (<a id="i:377" class="idref" href="#i:377"><span class="id" title="binder">i</span></a> : <a class="idref" href="structures.DCPOs.html#Ord.ar"><span class="id" title="projection">Ord.ar</span></a> <a class="idref" href="structures.DCPOs.html#85691cdef259d2e911eac710f7f4e4a3"><span class="id" title="variable">α</span></a>) :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">Ord.pred</span></a> <a class="idref" href="structures.DCPOs.html#85691cdef259d2e911eac710f7f4e4a3"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:377"><span class="id" title="variable">i</span></a>)) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> (<a class="idref" href="structures.DCPOs.html#Ord.pred"><span class="id" title="projection">Ord.pred</span></a> <a class="idref" href="structures.DCPOs.html#85691cdef259d2e911eac710f7f4e4a3"><span class="id" title="variable">α</span></a> <a class="idref" href="structures.DCPOs.html#i:377"><span class="id" title="variable">i</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <a class="idref" href="structures.DCPOs.html#85691cdef259d2e911eac710f7f4e4a3"><span class="id" title="variable">α</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <a class="idref" href="structures.DCPOs.html#85691cdef259d2e911eac710f7f4e4a3"><span class="id" title="variable">α</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.approx_chain" class="idref" href="#TFP.approx_chain"><span class="id" title="lemma">approx_chain</span></a> <a id="089af77f586df8ee001bdf0f64b07e5e" class="idref" href="#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="binder">α</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#Ord.chain_to"><span class="id" title="definition">Ord.chain_to</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lt"><span class="id" title="definition">lt</span></a> <a class="idref" href="structures.DCPOs.html#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="variable">α</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.mkc"><span class="id" title="constructor">mkc</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <a class="idref" href="structures.DCPOs.html#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="variable">α</span></a>) (<a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#ex_intro"><span class="id" title="constructor">ex_intro</span></a> <span class="id" title="var">_</span> <a class="idref" href="structures.DCPOs.html#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="variable">α</span></a> (<span class="id" title="var">_</span> : <a class="idref" href="structures.DCPOs.html#TFP.Approximant"><span class="id" title="class">Approximant</span></a> <a class="idref" href="structures.DCPOs.html#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="variable">α</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <a class="idref" href="structures.DCPOs.html#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="variable">α</span></a>)))) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#f031fe1957c4a4a8e217aa46af2b4e25"><span class="id" title="notation">∨</span></a><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <a class="idref" href="structures.DCPOs.html#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="variable">α</span></a>) <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#TFP.approx"><span class="id" title="abbreviation">approx</span></a> <a class="idref" href="structures.DCPOs.html#089af77f586df8ee001bdf0f64b07e5e"><span class="id" title="variable">α</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.lfp_fixed" class="idref" href="#TFP.lfp_fixed"><span class="id" title="lemma">lfp_fixed</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lfp"><span class="id" title="definition">lfp</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lfp"><span class="id" title="definition">lfp</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.lfp_least_prefixed" class="idref" href="#TFP.lfp_least_prefixed"><span class="id" title="lemma">lfp_least_prefixed</span></a> <a id="y:381" class="idref" href="#y:381"><span class="id" title="binder">y</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> (<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#y:381"><span class="id" title="variable">y</span></a>) <a class="idref" href="structures.DCPOs.html#y:381"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lfp"><span class="id" title="definition">lfp</span></a> <a class="idref" href="structures.DCPOs.html#y:381"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Lemma</span> <a id="TFP.lfp_least" class="idref" href="#TFP.lfp_least"><span class="id" title="lemma">lfp_least</span></a> <a id="y:382" class="idref" href="#y:382"><span class="id" title="binder">y</span></a> :<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#TFP.TFP.f"><span class="id" title="variable">f</span></a> <a class="idref" href="structures.DCPOs.html#y:382"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#y:382"><span class="id" title="variable">y</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#::type_scope:x_'-&gt;'_x"><span class="id" title="notation">→</span></a> <a class="idref" href="structures.DCPOs.html#lce"><span class="id" title="method">lce</span></a> <a class="idref" href="structures.DCPOs.html#TFP.lfp"><span class="id" title="definition">lfp</span></a> <a class="idref" href="structures.DCPOs.html#y:382"><span class="id" title="variable">y</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#TFP.TFP"><span class="id" title="section">TFP</span></a>.<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="structures.DCPOs.html#TFP"><span class="id" title="module">TFP</span></a>.<br/>
+
+<br/>
+</div>
+
+<div class="doc">
+When <span class="inlinecode"><span class="id" title="var">f</span></span> is Scott-continuous then the two constructions coincide. 
+</div>
+<div class="code">
+
+<br/>
+<span class="id" title="keyword">Lemma</span> <a id="lfp_kleene" class="idref" href="#lfp_kleene"><span class="id" title="lemma">lfp_kleene</span></a> `{<a id="Pdcpo:384" class="idref" href="#Pdcpo:384"><span class="id" title="binder">Pdcpo</span></a> : <a class="idref" href="structures.DCPOs.html#DCPO"><span class="id" title="class">DCPO</span></a>} <a id="f:385" class="idref" href="#f:385"><span class="id" title="binder">f</span></a> `{<a id="Hf:386" class="idref" href="#Hf:386"><span class="id" title="binder">Hf</span></a> : !<a class="idref" href="structures.DCPOs.html#ScottContinuous"><span class="id" title="class">ScottContinuous</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Datatypes.html#false"><span class="id" title="constructor">false</span></a> <a class="idref" href="structures.DCPOs.html#f:385"><span class="id" title="variable">f</span></a>} :<br/>
+&nbsp;&nbsp;<a class="idref" href="structures.DCPOs.html#lfp"><span class="id" title="definition">TFP.lfp</span></a> <a class="idref" href="structures.DCPOs.html#f:385"><span class="id" title="variable">f</span></a> <a class="idref" href="http://coq.inria.fr/distrib/V8.15.1/stdlib//Coq.Init.Logic.html#6cd0f7b28b6092304087c7049437bb1a"><span class="id" title="notation">=</span></a> <a class="idref" href="structures.DCPOs.html#lfp"><span class="id" title="definition">lfp</span></a> <a class="idref" href="structures.DCPOs.html#f:385"><span class="id" title="variable">f</span></a>.<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
