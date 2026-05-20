@@ -401,18 +401,35 @@ End SET.
 
 Module Prod (C D : CategoryDefinition) <: Category.
 
-  (** Objects and morphisms *)
+  (** To avoid universe issues, we defined our own versions of [prod]. *)
 
-  Definition t : Type := C.t * D.t.
-  Definition m (A B : t) : Type := C.m (fst A) (fst B) * D.m (snd A) (snd B).
+  Record t_def :=
+    mkt {
+      tfst : C.t;
+      tsnd : D.t;
+    }.
+
+  Record m_def {A B} :=
+    mkm {
+      mfst : C.m (tfst A) (tfst B);
+      msnd : D.m (tsnd A) (tsnd B);
+    }.
+
+  Arguments m_def : clear implicits.
+  Arguments mkm {A B} _ _.
+
+  Definition t : Type := t_def.
+  Definition m : t -> t -> Type := m_def.
 
   (** Composition *)
 
   Definition id A : m A A :=
-    (C.id (fst A), D.id (snd A)).
+    mkm (C.id (tfst A))
+        (D.id (tsnd A)).
 
   Definition compose {A B C} (g : m B C) (f : m A B) : m A C :=
-    (C.compose (fst g) (fst f), D.compose (snd g) (snd f)).
+    mkm (C.compose (mfst g) (mfst f))
+        (D.compose (msnd g) (msnd f)).
 
   (** Proofs *)
 

@@ -1,8 +1,10 @@
+(*
 Require Import structures.Category.
 Require Import structures.Lattice.
 Require Import lattices.Upset.
 Require Import lattices.LatticeProduct.
 Require Import lattices.FCD.
+*)
 
 
 (** * Effect signatures *)
@@ -31,6 +33,7 @@ Notation "0" := empty_sig.
 
 (** * Interpretations *)
 
+(*
 Class LazyMorphism {A B : cdlattice} (f : A -> B) :=
   {
     lcdlm_inf :> Inf.Morphism f;
@@ -53,3 +56,4 @@ Class InterpMorphism {E A B} (α : interp E A) (β : interp E B) (f : A -> B) :=
     intm_lmor {ar} (m : E ar) :> CDL.Morphism f;
     op_mor {ar} (m : E ar) (k : ar -> A) : f (op α m k) = op β m (*(f @ k)%mor;*) (fun x => f ( k x));
   }.
+*)

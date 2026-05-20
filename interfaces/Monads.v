@@ -3,77 +3,362 @@ Require Import interfaces.Functor.
 Require Import interfaces.Adjunctions.
 
 
-(** * Monad on a category *)
+(** * Defining monads *)
 
-(** ** Definition *)
+(** Below we provide two possible ways to define a monad
+  and show that they are equivalent. Both involve
+  an object map [M : C.t -> C.t] together with
+  a unit morphism [η : ∀ X · X → M X]. *)
 
-(** We follow the traditional category theory definition of equipping
-  an endofunctor with unit and multiplication natural transformations.
-  The "bind" operation (Kleisli extension) is derived from them in the
-  theory module below. *)
+(** ** Full interface *)
 
-Module Type MonadDefinition (C : CategoryDefinition).
-  Include FunctorDefinition C C.
+(** The interface below has some redundant axioms, but
+  it is not expected to be the usual way to define a monad.
+  Rather, it will be constructed using one of the two options
+  below where the chosen half of the interface is defined,
+  and the other half is derived. *)
 
-  Parameter eta : forall X, C.m X (omap X).
-  Parameter mu : forall X, C.m (omap (omap X)) (omap X).
+Module Type MonadDefinition (C : Category).
+  Import (notations) C.
+
+  Include Functor.Functor C C.
+
+  Parameter eta : forall X, X ~~> omap X.
+  Parameter mu : forall X, omap (omap X) ~~> omap X.
+  Parameter ext : forall {X Y}, (X ~~> omap Y) -> (omap X ~~> omap Y).
 
   Axiom eta_natural :
-    forall {X Y} (f : C.m X Y),
-      C.compose (eta Y) f = C.compose (fmap f) (eta X).
+    forall {X Y} (f : X ~~> Y),
+      eta Y @ f = fmap f @ eta X.
 
   Axiom mu_natural :
-    forall {X Y} (f : C.m X Y),
-      C.compose (mu Y) (fmap (fmap f)) = C.compose (fmap f) (mu X).
+    forall {X Y} (f : X ~~> Y),
+      mu Y @ fmap (fmap f) = fmap f @ mu X.
+
+  (** Properties of [ext] *)
+
+  Axiom ext_eta :
+    forall {X Y} (f : C.m X (omap Y)),
+      ext f @ eta X = f.
+
+  Axiom eta_ext :
+    forall X,
+      ext (eta X) = C.id (omap X).
+
+  Axiom ext_ext :
+    forall {X Y Z} (g : Y ~~> omap Z) (f : X ~~> omap Y),
+      ext g @ ext f = ext (ext g @ f).
+
+  (** Properties of [mu] and [fmap] *)
 
   Axiom mu_eta_l :
     forall X,
-      C.compose (mu X) (eta (omap X)) = C.id (omap X).
+      mu X @ eta (omap X) = C.id (omap X).
 
   Axiom mu_eta_r :
     forall X,
-      C.compose (mu X) (fmap (eta X)) = C.id (omap X).
+      mu X @ fmap (eta X) = C.id (omap X).
 
   Axiom mu_mu :
     forall X,
-      C.compose (mu X) (mu (omap X)) = C.compose (mu X) (fmap (mu X)).
+      mu X @ mu (omap X) = mu X @ fmap (mu X).
+
+  (** Property relating the two approaches. *)
+
+  Axiom ext_spec :
+    forall {X Y} (f : X ~~> omap Y),
+      ext f = mu Y @ fmap f.
 
 End MonadDefinition.
 
-(** ** General theory *)
+(** ** By the Kleisli extension operator *)
 
-Module MonadTheory (C : Category) (T : MonadDefinition C).
-  Import T.
+(** The more compact approach is then to define
+  the Kleisli extension operator and show that
+  it satisfies some basic properties. *)
 
-  (** ** Kleisli extension and its properties *)
+Module Type KleisliMonadDefinition (C : Category).
+  Import (notations) C.
 
-  Definition ext {X Y} (f : C.m X (T.omap Y)) : C.m (T.omap X) (T.omap Y) :=
-    C.compose (mu Y) (fmap f).
+  Parameter omap : C.t -> C.t.
+  Parameter eta : forall X, X ~~> omap X.
+  Parameter ext : forall {X Y}, (X ~~> omap Y) -> (omap X ~~> omap Y).
 
-  Proposition ext_eta_l X :
-    ext (eta X) = C.id (omap X).
+  Axiom ext_eta :
+    forall {X Y} (f : C.m X (omap Y)),
+      ext f @ eta X = f.
+
+  Axiom eta_ext :
+    forall X,
+      ext (eta X) = C.id (omap X).
+
+  Axiom ext_ext :
+    forall {X Y Z} (g : Y ~~> omap Z) (f : X ~~> omap Y),
+      ext g @ ext f = ext (ext g @ f).
+
+End KleisliMonadDefinition.
+
+(** This allows us to define both the multiplication and
+  the morphism part of the functor. *)
+
+Module ExpandKleisliMonadDefinition (C : Category) (T : KleisliMonadDefinition C).
+  Import (notations) C.
+
+  Definition fmap {X Y} (f : X ~~> Y) : T.omap X ~~> T.omap Y :=
+    T.ext (T.eta Y @ f).
+
+  Definition mu X : T.omap (T.omap X) ~~> T.omap X :=
+    T.ext (C.id (T.omap X)).
+
+  Lemma fmap_id X :
+    fmap (C.id X) = C.id (T.omap X).
   Proof.
-    unfold ext.
-    apply mu_eta_r.
-  Qed.
-
-  Proposition ext_eta_r {X Y} (f : C.m X (omap Y)) :
-    C.compose (ext f) (eta X) = f.
-  Proof.
-    unfold ext.
-    rewrite C.compose_assoc, <- eta_natural.
-    rewrite <- C.compose_assoc, mu_eta_l.
-    rewrite C.compose_id_left.
+    unfold fmap.
+    rewrite C.compose_id_right.
+    rewrite T.eta_ext.
     reflexivity.
   Qed.
 
-  Proposition ext_ext {X Y Z} (f : C.m X (omap Y)) (g : C.m Y (omap Z)) :
-    C.compose (ext g) (ext f) = ext (C.compose (ext g) f).
+  Lemma fmap_compose {X Y Z} (g : Y ~~> Z) (f : X ~~> Y) :
+    fmap (g @ f) = fmap g @ fmap f.
+  Proof.
+    unfold fmap.
+    rewrite T.ext_ext. f_equal.
+    rewrite <- (C.compose_assoc _ (T.eta Y)), T.ext_eta, C.compose_assoc.
+    reflexivity.
+  Qed.
+
+  Lemma eta_natural {X Y} (f : C.m X Y) :
+    T.eta Y @ f = fmap f @ T.eta X.
+  Proof.
+    unfold fmap.
+    rewrite T.ext_eta.
+    reflexivity.
+  Qed.
+
+  Lemma mu_natural {X Y} (f : C.m X Y) :
+    mu Y @ fmap (fmap f) = fmap f @ mu X.
+  Proof.
+    unfold fmap, mu.
+    rewrite !T.ext_ext.
+    rewrite <- (C.compose_assoc _ (T.eta (T.omap Y))), T.ext_eta.
+    rewrite C.compose_id_left, C.compose_id_right.
+    reflexivity.
+  Qed.
+
+  Lemma mu_eta_l X :
+    mu X @ T.eta (T.omap X) = C.id (T.omap X).
+  Proof.
+    unfold mu.
+    rewrite T.ext_eta.
+    reflexivity.
+  Qed.
+
+  Lemma mu_eta_r X :
+    mu X @ fmap (T.eta X) = C.id (T.omap X).
+  Proof.
+    unfold fmap, mu.
+    rewrite T.ext_ext.
+    rewrite <- C.compose_assoc, T.ext_eta, C.compose_id_left.
+    rewrite T.eta_ext.
+    reflexivity.
+  Qed.
+
+  Lemma mu_mu X :
+    mu X @ mu (T.omap X) = mu X @ fmap (mu X).
+  Proof.
+    unfold fmap, mu.
+    rewrite !T.ext_ext.
+    rewrite <- C.compose_assoc, T.ext_eta.
+    rewrite C.compose_id_left, C.compose_id_right.
+    reflexivity.
+  Qed.
+
+  Lemma ext_spec {X Y} (f : X ~~> T.omap Y) :
+    T.ext f = mu Y @ fmap f.
+  Proof.
+    unfold fmap, mu.
+    rewrite T.ext_ext.
+    rewrite <- C.compose_assoc, T.ext_eta, C.compose_id_left.
+    reflexivity.
+  Qed.
+
+End ExpandKleisliMonadDefinition.
+
+(** ** As functor with extra structure *)
+
+(** The more traditional category theory approach defines a monad as
+  an endofunctor with unit and multiplication natural transformations. *)
+
+Module Type FunctorMonadDefinition (C : Category).
+  Import (notations) C.
+
+  (** This definition is more verbose and starts with a functor. *)
+
+  Include Functor.Functor C C.
+
+  (** We then define the unit and multiplication natural transformations. *)
+
+  Parameter eta : forall X, X ~~> omap X.
+  Parameter mu : forall X, omap (omap X) ~~> omap X.
+
+  Axiom eta_natural :
+    forall {X Y} (f : X ~~> Y),
+      eta Y @ f = fmap f @ eta X.
+
+  Axiom mu_natural :
+    forall {X Y} (f : X ~~> Y),
+      mu Y @ fmap (fmap f) = fmap f @ mu X.
+
+  (** Finally the following diagrams must commute. *)
+
+  Axiom mu_eta_l :
+    forall X,
+      mu X @ eta (omap X) = C.id (omap X).
+
+  Axiom mu_eta_r :
+    forall X,
+      mu X @ fmap (eta X) = C.id (omap X).
+
+  Axiom mu_mu :
+    forall X,
+      mu X @ mu (omap X) = mu X @ fmap (mu X).
+
+End FunctorMonadDefinition.
+
+(** Given a monad defined in this way, it is easy to define
+  the Kleisli extension and validate the properties above. *)
+
+Module ExpandFunctorMonadDefinition (C : Category) (T : FunctorMonadDefinition C).
+  Import C.
+
+  Definition ext {X Y} (f : X ~~> T.omap Y) :=
+    T.mu Y @ T.fmap f.
+
+  Lemma ext_eta {X Y} (f : X ~~> T.omap Y) :
+    ext f @ T.eta X = f.
   Proof.
     unfold ext.
-    rewrite C.compose_assoc, <- (C.compose_assoc (fmap f)), <- mu_natural.
-    repeat rewrite ?C.compose_assoc, ?fmap_compose.
-    rewrite <- C.compose_assoc, mu_mu, C.compose_assoc.
+    rewrite compose_assoc, <- T.eta_natural.
+    rewrite <- compose_assoc, T.mu_eta_l.
+    rewrite compose_id_left. reflexivity.
+  Qed.
+
+  Lemma eta_ext X :
+    ext (T.eta X) = id (T.omap X).
+  Proof.
+    unfold ext.
+    apply T.mu_eta_r.
+  Qed.
+
+  Lemma ext_ext {X Y Z} (g : Y ~~> T.omap Z) (f : X ~~> T.omap Y) :
+    ext g @ ext f = ext (ext g @ f).
+  Proof.
+    unfold ext.
+    rewrite !T.fmap_compose, !compose_assoc.
+    rewrite <- (compose_assoc _ (T.mu Y)), <- T.mu_natural, !compose_assoc.
+    rewrite <- (compose_assoc _ (T.mu (T.omap Z))), T.mu_mu, !compose_assoc.
+    reflexivity.
+  Qed.
+
+  Lemma ext_def {X Y} (f : X ~~> T.omap Y) :
+    ext f = T.mu Y @ T.fmap f.
+  Proof.
+    reflexivity.
+  Qed.
+
+End ExpandFunctorMonadDefinition.
+
+
+(** * Derived theory *)
+
+(** Once a monad has been defined using either option, and expanded
+  into a full [MonadDefinition] by including
+  the appropriate [ExpandFooMonadDefinition] module,
+  the following theory becomes available. *)
+
+Module MonadTheory (C : Category) (T : MonadDefinition C).
+  Import (notations) C.
+
+  (** ** Rewriting version of the core properties *)
+
+  Lemma ext_eta_rewrite {X Y} (f : X ~~> T.omap Y) {W} (w : W ~~> X) :
+    T.ext f @ T.eta X @ w = f @ w.
+  Proof.
+    rewrite <- C.compose_assoc, T.ext_eta.
+    reflexivity.
+  Qed.
+
+  Lemma ext_ext_rewrite {X Y Z} (g: Y ~~> T.omap Z) (f: X~~>_) {W} (w: W~~>_):
+    T.ext g @ T.ext f @ w = T.ext (T.ext g @ f) @ w.
+  Proof.
+    rewrite <- C.compose_assoc, T.ext_ext.
+    reflexivity.
+  Qed.
+
+  Lemma eta_natural_rewrite {X Y} (f : X ~~> Y) {W} (w : W ~~> X) :
+    T.eta Y @ f @ w = T.fmap f @ T.eta X @ w.
+  Proof.
+    rewrite <- C.compose_assoc, T.eta_natural, C.compose_assoc.
+    reflexivity.
+  Qed.
+
+  Lemma mu_natural_rewrite {X Y} (f : X ~~> Y) {W} (w : W ~~> _) :
+    T.mu Y @ T.fmap (T.fmap f) @ w = T.fmap f @ T.mu X @ w.
+  Proof.
+    rewrite <- C.compose_assoc, T.mu_natural, C.compose_assoc.
+    reflexivity.
+  Qed.
+
+  Lemma mu_eta_l_rewrite X {W} (w : W ~~> _) :
+    T.mu X @ T.eta (T.omap X) @ w = w.
+  Proof.
+    rewrite <- C.compose_assoc, T.mu_eta_l, C.compose_id_left.
+    reflexivity.
+  Qed.
+
+  Lemma mu_eta_r_rewrite X {W} (w : W ~~> _) :
+    T.mu X @ T.fmap (T.eta X) @ w = w.
+  Proof.
+    rewrite <- C.compose_assoc, T.mu_eta_r, C.compose_id_left.
+    reflexivity.
+  Qed.
+
+  Lemma mu_mu_rewrite X {W} (w : W ~~> _) :
+    T.mu X @ T.mu (T.omap X) @ w =
+    T.mu X @ T.fmap (T.mu X) @ w.
+  Proof.
+    rewrite <- C.compose_assoc, T.mu_mu, C.compose_assoc.
+    reflexivity.
+  Qed.
+
+  Lemma ext_spec_rewrite {X Y} (f : X ~~> T.omap Y) {W} (w : W ~~> _) :
+    T.ext f @ w = T.mu Y @ T.fmap f @ w.
+  Proof.
+    rewrite T.ext_spec, C.compose_assoc.
+    reflexivity.
+  Qed.
+
+  (** ** Inter-definition of the various constructions *)
+
+  (** We provide an [ext_spec]-style property for each one. *)
+
+  Lemma mu_spec X :
+    T.mu X = T.ext (C.id (T.omap X)).
+  Proof.
+    rewrite T.ext_spec.
+    rewrite T.fmap_id, C.compose_id_right.
+    reflexivity.
+  Qed.
+
+  Lemma fmap_spec {X Y} (f : X ~~> Y) :
+    T.fmap f = T.ext (T.eta Y @ f).
+  Proof.
+    rewrite T.ext_spec.
+    rewrite T.eta_natural.
+    rewrite T.fmap_compose.
+    rewrite mu_natural_rewrite.
+    rewrite T.mu_eta_r, C.compose_id_right.
     reflexivity.
   Qed.
 
@@ -85,14 +370,14 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
     Definition t := C.t.
     Definition m X Y := C.m X (T.omap Y).
 
-    Definition id X := eta X.
-    Definition compose {X Y Z} (g : m Y Z) (f : m X Y) := C.compose (ext g) f.
+    Definition id X := T.eta X.
+    Definition compose {X Y Z} (g : m Y Z) (f : m X Y) := T.ext g @ f.
 
     Proposition compose_id_left {X Y} (f : m X Y) :
       compose (id Y) f = f.
     Proof.
       unfold compose, id.
-      rewrite ext_eta_l, C.compose_id_left.
+      rewrite T.eta_ext, C.compose_id_left.
       reflexivity.
     Qed.
 
@@ -100,7 +385,7 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
       compose f (id X) = f.
     Proof.
       unfold compose, id.
-      rewrite ext_eta_r.
+      rewrite T.ext_eta.
       reflexivity.
     Qed.
 
@@ -108,7 +393,7 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
       compose (compose h g) f = compose h (compose g f).
     Proof.
       unfold compose.
-      rewrite <- ext_ext, C.compose_assoc.
+      rewrite <- ext_ext_rewrite.
       reflexivity.
     Qed.
 
@@ -120,7 +405,7 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
   Module KlF <: Functor C Kl.
 
     Definition omap (X : C.t) : Kl.t := X.
-    Definition fmap {X Y} (f : C.m X Y) : Kl.m X Y := C.compose (eta Y) f.
+    Definition fmap {X Y} (f : X ~~> Y) : Kl.m X Y := T.eta Y @ f.
 
     Proposition fmap_id X :
       fmap (C.id X) = Kl.id X.
@@ -130,11 +415,11 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
       reflexivity.
     Qed.
 
-    Proposition fmap_compose {X Y Z} (g : C.m Y Z) (f : C.m X Y) :
-      fmap (C.compose g f) = Kl.compose (fmap g) (fmap f).
+    Proposition fmap_compose {X Y Z} (g : Y ~~> Z) (f : X ~~> Y) :
+      fmap (g @ f) = Kl.compose (fmap g) (fmap f).
     Proof.
       unfold fmap, Kl.compose.
-      rewrite <- (C.compose_assoc f (eta Y)), ext_eta_r, C.compose_assoc.
+      rewrite ext_eta_rewrite, C.compose_assoc.
       reflexivity.
     Qed.
 
@@ -144,21 +429,21 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
   Module KlU <: Functor Kl C.
 
     Definition omap (X : Kl.t) : C.t := T.omap X.
-    Definition fmap {X Y} (f : Kl.m X Y) : C.m (omap X) (omap Y) := ext f.
+    Definition fmap {X Y} (f : Kl.m X Y) : omap X ~~> omap Y := T.ext f.
 
     Proposition fmap_id X :
       fmap (Kl.id X) = C.id (omap X).
     Proof.
       unfold fmap, Kl.id.
-      rewrite ext_eta_l.
+      rewrite T.eta_ext.
       reflexivity.
     Qed.
 
     Proposition fmap_compose {X Y Z} (g : Kl.m Y Z) (f : Kl.m X Y) :
-      fmap (Kl.compose g f) = C.compose (fmap g) (fmap f).
+      fmap (Kl.compose g f) = fmap g @ fmap f.
     Proof.
       unfold fmap, Kl.compose.
-      rewrite ext_ext.
+      rewrite T.ext_ext.
       reflexivity.
     Qed.
 
@@ -173,10 +458,10 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
       C.id (T.omap X).
 
     Proposition unit_natural {A V} (f : C.m A V) :
-      C.compose (unit V) f = C.compose (KlU.fmap (KlF.fmap f)) (unit A).
+      unit V @ f = KlU.fmap (KlF.fmap f) @ unit A.
     Proof.
       unfold unit, counit, KlU.fmap, KlF.fmap.
-      rewrite ext_eta_r.
+      rewrite T.ext_eta.
       reflexivity.
     Qed.
 
@@ -184,16 +469,16 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
       Kl.compose (counit Y) (KlF.fmap (KlU.fmap ϕ)) = Kl.compose ϕ (counit X).
     Proof.
       unfold Kl.compose, counit, KlF.fmap, KlU.fmap, KlU.omap.
-      rewrite <- C.compose_assoc, ext_eta_r.
+      rewrite <- C.compose_assoc, T.ext_eta.
       rewrite C.compose_id_left, C.compose_id_right.
       reflexivity.
     Qed.
 
     Proposition unit_counit X :
-      C.compose (KlU.fmap (counit X)) (unit (KlU.omap X)) = C.id (KlU.omap X).
+      KlU.fmap (counit X) @ unit (KlU.omap X) = C.id (KlU.omap X).
     Proof.
       unfold KlU.fmap, KlU.omap, unit, counit.
-      rewrite ext_eta_r.
+      rewrite T.ext_eta.
       reflexivity.
     Qed.
 
@@ -202,7 +487,7 @@ Module MonadTheory (C : Category) (T : MonadDefinition C).
     Proof.
       unfold Kl.compose, KlF.omap, KlF.fmap, Kl.id, unit, counit.
       rewrite <- C.compose_assoc.
-      rewrite ext_eta_r, C.compose_id_left.
+      rewrite T.ext_eta, C.compose_id_left.
       reflexivity.
     Qed.
 
@@ -214,43 +499,3 @@ End MonadTheory.
 Module Type Monad (C : Category) :=
   MonadDefinition C <+
   MonadTheory C.
-
-
-(** * Monads on concrete categories *)
-
-(** We can give specialized for the special case of concrete
-  categories, where objects are sets with additional structure,
-  we can provide some additional tools. *)
-
-Require Import ConcreteCategory.
-
-(** ** Definition *)
-
-(** XXX it's probably much easier in general to define monads on [Set]
-  and other concrete categories using bind + ret and minimal
-  conditions to establish the required functoriality and naturality
-  properties.*)
-
-(** ** Theory *)
-
-Module ConcreteMonadTheory (C : ConcreteCategory) (T : Monad C).
-
-  Notation "'do' x <- t ;; f" := (C.apply (T.ext (fun x => f)) t)
-    (right associativity, x binder, at level 60).
-
-  Notation ret := (C.apply (T.eta _)).
-
-  (** Could add here: rewrite database, etc. *)
-
-End ConcreteMonadTheory.
-
-Module Type ConcreteMonad (C : ConcreteCategory) :=
-  Monad C <+
-  ConcreteMonadTheory C.
-
-
-(** * Monads on [Set] *)
-
-(** It could be useful here to specialize [ConcreteMonadDefinition] to the
-  case where [C := Set] so that we're not encumbered by the trivial
-  "extra structure" carried by plain sets. *)
