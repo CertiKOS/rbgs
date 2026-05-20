@@ -1,4 +1,4 @@
-COQDOCEXTRAFLAGS := -g --parse-comments
+COQDOCEXTRAFLAGS := --parse-comments
 
 pre-all::
 	+make -C coqrel
