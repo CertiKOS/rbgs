@@ -494,9 +494,8 @@ Module TryStackAuxProof.
         + apply functional_extensionality; intro newer.
           apply functional_extensionality; intro older.
           rewrite HE.
-          unfold is_live, tsa_is_live, is_vertex, tsa_is_vertex,
-            is_pending, tsa_is_pending.
-          now rewrite <- HV, <- HP, <- HG.
+          unfold is_vertex, tsa_is_vertex, is_pending, tsa_is_pending.
+          now rewrite <- HV, <- HP.
         + split; [now rewrite HP|now rewrite HG].
     Qed.
 

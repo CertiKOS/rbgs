@@ -1791,7 +1791,7 @@ Module ListPoolProof.
       - intro n. simpl. unfold node_update.
         destruct (node_eq_dec (pair actor loc) n); auto using Hvertices.
       - intros newer older Hedge. simpl in Hedge.
-        destruct Hedge as [Hold | [Hnew [Hlive Hcompleted]]].
+        destruct Hedge as [Hold | [Hnew [Holder_vertex Hcompleted]]].
         + destruct (Hedges _ _ Hold) as
             (newer_ts & older_ts & Hnewer_ts & Holder_ts & Hlt).
           destruct (Hedgevertices _ _ Hold) as [Hnewer_vertex Holder_vertex].
@@ -1812,7 +1812,7 @@ Module ListPoolProof.
           exists newer_ts, older_ts. repeat split; auto.
           * simpl. rewrite timestamp_update_neq by congruence. exact Hnewer_ts.
           * simpl. rewrite timestamp_update_neq by congruence. exact Holder_ts.
-        + subst newer. destruct Hlive as [Holder_vertex Holder_live].
+        + subst newer.
           assert (Holder_array : array_vertex a older).
           { unfold array_vertex, is_vertex in *.
             rewrite <- Hvertices. exact Holder_vertex. }
@@ -1832,7 +1832,7 @@ Module ListPoolProof.
                exact Holder_ts.
             -- simpl. trivial.
       - intros newer2 older2 Hedge. simpl in Hedge.
-        destruct Hedge as [Hold | [-> [Hlive Hcompleted]]].
+        destruct Hedge as [Hold | [-> [Holder Hcompleted]]].
         + destruct (Hedgevertices _ _ Hold) as [Hnewer_vertex Holder_vertex].
           split; unfold is_vertex in *; simpl.
           * rewrite node_update_neq.
@@ -1845,8 +1845,8 @@ Module ListPoolProof.
                exact (Holder_vertex (proj1 Hpoolfresh)).
         + split.
           * unfold is_vertex. simpl. rewrite node_update_eq. discriminate.
-          * destruct Hlive as [Holder _]. unfold is_vertex in *.
-            simpl. destruct (node_eq_dec (pair actor loc) older2).
+          * unfold is_vertex in *. simpl.
+            destruct (node_eq_dec (pair actor loc) older2).
             -- subst. exfalso. exact (Holder (proj1 Hpoolfresh)).
             -- rewrite node_update_neq by congruence. exact Holder.
       - intro n. simpl. apply Hgarbage.
@@ -1902,11 +1902,11 @@ Module ListPoolProof.
             unfold order_at. simpl. rewrite TMap.gss.
             apply list_before_head.
             -- intro Heq. subst older.
-               exact (proj1 Holder_old (proj1 Hpoolfresh)).
+               exact (Holder_old (proj1 Hpoolfresh)).
             -- apply (proj1 Hstructural actor older).
-               destruct Holder_old as [Hvertex Hlive]. split.
+               destruct Holder_live as [_ Hlive]. split.
                ++ unfold array_vertex, is_vertex in *.
-                  rewrite <- Hvertices. exact Hvertex.
+                  rewrite <- Hvertices. exact Holder_old.
                ++ intro Hgarbage_a. apply Hlive.
                   apply (proj2 (Hgarbage _)). exact Hgarbage_a.
         + intros owner first second Hneq Hfirst Hsecond.
@@ -1914,7 +1914,7 @@ Module ListPoolProof.
           destruct (PositiveMap.E.eq_dec owner actor) as [Howner|Howner].
           * subst owner first. left. simpl. right. split; [reflexivity|].
             split.
-            -- destruct Hsecond as [Hv Hg]. split; [|exact Hg].
+            -- destruct Hsecond as [Hv _].
                unfold is_vertex in *. simpl in Hv.
                rewrite node_update_neq in Hv by
                  (intro Heq; inversion Heq; congruence). exact Hv.
@@ -1936,7 +1936,7 @@ Module ListPoolProof.
           * subst owner.
             destruct (Nat.eq_dec second loc) as [->|Hsecondloc].
             -- right. simpl. right. split; [reflexivity|]. split.
-               ++ destruct Hfirst as [Hv Hg]. split; [|exact Hg].
+               ++ destruct Hfirst as [Hv _].
                   unfold is_vertex in *. simpl in Hv.
                   rewrite node_update_neq in Hv by
                     (intro Heq; inversion Heq; congruence). exact Hv.
@@ -1985,12 +1985,11 @@ Module ListPoolProof.
       intros Hrep Hdefined Hstamped Hfresh older Hedge.
       destruct Hrep as (Hvertices & Hedges & Hedgevertices & Hgarbage &
         Hpending & Hsnapshots & Hrows).
-      simpl in Hedge. destruct Hedge as [Hold | [_ [Hlive Hcompleted]]].
+      simpl in Hedge. destruct Hedge as [Hold | [_ [Holder_vertex Hcompleted]]].
       - destruct (Hedgevertices _ _ Hold) as [Hnewvertex _].
         unfold is_vertex in Hnewvertex.
         rewrite Hvertices, (proj1 Hfresh) in Hnewvertex. contradiction.
-      - destruct Hlive as [Holder_vertex Holder_live].
-        assert (Holder_array : array_vertex a older).
+      - assert (Holder_array : array_vertex a older).
         { unfold array_vertex, is_vertex in *.
           rewrite <- Hvertices. exact Holder_vertex. }
         destruct (timestamp_defined_vertex a older Hdefined Holder_array)
@@ -4339,8 +4338,8 @@ Module ListPoolProof.
       - now rewrite Hvertices.
       - apply functional_extensionality; intro newer.
         apply functional_extensionality; intro older.
-        unfold is_live, is_vertex, is_pending.
-        now rewrite Hedges, Hvertices, Hpending, Hgarbage.
+        unfold is_vertex, is_pending.
+        now rewrite Hedges, Hvertices, Hpending.
       - now rewrite Hpending.
       - exact Hgarbage.
     Qed.
@@ -4768,7 +4767,7 @@ Module ListPoolProof.
                                                    Hedge.
                                                  simpl in Hedge.
                                                  destruct Hedge as
-                                                   [Hold|[Heq [Htarget_live
+                                                   [Hold|[Heq [Htarget_vertex
                                                      Hold_complete]]].
                                                  ------ destruct
                                                      (proj1 (proj2 (proj2 Hpool))
@@ -4777,9 +4776,7 @@ Module ListPoolProof.
                                                       exfalso.
                                                       apply Htarget_vertex.
                                                       exact (proj1 Hpoolfresh).
-                                                 ------ destruct Htarget_live as
-                                                     [Htarget_vertex _].
-                                                      exfalso.
+                                                 ------ exfalso.
                                                       apply Htarget_vertex.
                                                       exact (proj1 Hpoolfresh).
                                       ++++ assert (Hold_live : array_live a n).
@@ -4849,7 +4846,7 @@ Module ListPoolProof.
                                                    Hedge.
                                                  simpl in Hedge.
                                                  destruct Hedge as
-                                                   [Hold|[Heq [Hgenerated_live
+                                                   [Hold|[Heq [Hgenerated_vertex
                                                      Hold_complete]]].
                                                  ------ eapply Hcut; eauto.
                                                  ------ subst newer.

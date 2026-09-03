@@ -114,7 +114,7 @@ Module ListPoolSpec.
         lp_edges :=
           fun n1 n2 =>
             lp_edges s n1 n2 \/
-            (n1 = n /\ is_live s n2 /\ ~ is_pending s n2);
+            (n1 = n /\ is_vertex s n2 /\ ~ is_pending s n2);
         lp_snapshots := lp_snapshots s;
         lp_pending_pushes :=
           TMap.add actor loc (lp_pending_pushes s);
@@ -187,8 +187,10 @@ Module ListPoolSpec.
       ListPoolControl ->
       Prop :=
 
-    (** Interval-sequential push.  A new push is ordered above every live
-        push that has already completed, but not above overlapping pushes. *)
+    (** Interval-sequential push.  A new push is ordered above every
+        already-defined vertex whose push has completed, including removed
+        vertices, but not above overlapping pushes.  This is the
+        garbage-independent edge rule from Fig. 19 of the paper. *)
     | step_push_inv actor s v loc e :
         TMap.find actor (lp_pending_pushes s) = None ->
         fresh_node s (actor, loc) ->

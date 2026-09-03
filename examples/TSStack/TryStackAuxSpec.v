@@ -95,7 +95,7 @@ Module TryStackAuxSpec.
         tsa_edges :=
           fun n1 n2 =>
             tsa_edges s n1 n2 \/
-            (n1 = n /\ tsa_is_live s n2 /\ ~ tsa_is_pending s n2);
+            (n1 = n /\ tsa_is_vertex s n2 /\ ~ tsa_is_pending s n2);
         tsa_snapshots := tsa_snapshots s;
         tsa_pending_pushes :=
           TMap.add actor loc (tsa_pending_pushes s);
