@@ -64,6 +64,22 @@ Module TryStackAuxSpec.
       tsa_snapshots : TMap.t LPNodeSet;
       tsa_pending_pushes : TMap.t Addr;
       tsa_garbage : LPNodeSet;
+      (** Ghost timing data.  These fields are deterministic functions of
+          the pre-state and the event, never constrain a transition, and
+          exist only so that the TryStack layer proof can state a
+          state-based invariant about which speculative linearisations
+          are still realisable.  [tsa_now] is a logical clock advanced by
+          every recorded event; the other fields record at which clock
+          value a vertex was created ([tsa_node_inv]) and its push
+          completed ([tsa_node_ret]), when each pending snapshot was
+          taken ([tsa_snap_time]), and for each removed vertex the
+          remover, the remover's snapshot time and the removal time
+          ([tsa_removals]). *)
+      tsa_now : nat;
+      tsa_node_inv : LPNodeMap nat;
+      tsa_node_ret : LPNodeMap nat;
+      tsa_snap_time : TMap.t nat;
+      tsa_removals : LPNodeMap (tid * nat * nat);
     }.
 
     Definition tsa_is_vertex
@@ -99,7 +115,12 @@ Module TryStackAuxSpec.
         tsa_snapshots := tsa_snapshots s;
         tsa_pending_pushes :=
           TMap.add actor loc (tsa_pending_pushes s);
-        tsa_garbage := tsa_garbage s
+        tsa_garbage := tsa_garbage s;
+        tsa_now := S (tsa_now s);
+        tsa_node_inv := node_update n (tsa_now s) (tsa_node_inv s);
+        tsa_node_ret := tsa_node_ret s;
+        tsa_snap_time := tsa_snap_time s;
+        tsa_removals := tsa_removals s
       |}.
 
     Definition tsa_finish_push
@@ -110,7 +131,16 @@ Module TryStackAuxSpec.
         tsa_snapshots := tsa_snapshots s;
         tsa_pending_pushes :=
           TMap.remove actor (tsa_pending_pushes s);
-        tsa_garbage := tsa_garbage s
+        tsa_garbage := tsa_garbage s;
+        tsa_now := S (tsa_now s);
+        tsa_node_inv := tsa_node_inv s;
+        tsa_node_ret :=
+          match TMap.find actor (tsa_pending_pushes s) with
+          | Some loc => node_update (actor, loc) (tsa_now s) (tsa_node_ret s)
+          | None => tsa_node_ret s
+          end;
+        tsa_snap_time := tsa_snap_time s;
+        tsa_removals := tsa_removals s
       |}.
 
     Definition tsa_start_snapshot
@@ -121,7 +151,12 @@ Module TryStackAuxSpec.
         tsa_snapshots :=
           TMap.add actor (fun n => tsa_is_vertex s n) (tsa_snapshots s);
         tsa_pending_pushes := tsa_pending_pushes s;
-        tsa_garbage := tsa_garbage s
+        tsa_garbage := tsa_garbage s;
+        tsa_now := S (tsa_now s);
+        tsa_node_inv := tsa_node_inv s;
+        tsa_node_ret := tsa_node_ret s;
+        tsa_snap_time := TMap.add actor (tsa_now s) (tsa_snap_time s);
+        tsa_removals := tsa_removals s
       |}.
 
     Definition tsa_clear_snapshot
@@ -131,17 +166,35 @@ Module TryStackAuxSpec.
         tsa_edges := tsa_edges s;
         tsa_snapshots := TMap.remove actor (tsa_snapshots s);
         tsa_pending_pushes := tsa_pending_pushes s;
-        tsa_garbage := tsa_garbage s
+        tsa_garbage := tsa_garbage s;
+        tsa_now := S (tsa_now s);
+        tsa_node_inv := tsa_node_inv s;
+        tsa_node_ret := tsa_node_ret s;
+        tsa_snap_time := TMap.remove actor (tsa_snap_time s);
+        tsa_removals := tsa_removals s
       |}.
 
-    Definition tsa_mark_garbage
-        (n : LPNodeId) (s : TryStackAuxState) : TryStackAuxState :=
+    (** A successful [trypop] is one recorded event: the snapshot is
+        cleared, the node becomes garbage, and the removal is logged with
+        the remover's snapshot time. *)
+    Definition tsa_remove_node
+        (actor : tid) (n : LPNodeId) (s : TryStackAuxState) :
+        TryStackAuxState :=
       {|
         tsa_vertices := tsa_vertices s;
         tsa_edges := tsa_edges s;
-        tsa_snapshots := tsa_snapshots s;
+        tsa_snapshots := TMap.remove actor (tsa_snapshots s);
         tsa_pending_pushes := tsa_pending_pushes s;
-        tsa_garbage := set_add n (tsa_garbage s)
+        tsa_garbage := set_add n (tsa_garbage s);
+        tsa_now := S (tsa_now s);
+        tsa_node_inv := tsa_node_inv s;
+        tsa_node_ret := tsa_node_ret s;
+        tsa_snap_time := TMap.remove actor (tsa_snap_time s);
+        tsa_removals :=
+          match TMap.find actor (tsa_snap_time s) with
+          | Some st => node_update n (actor, st, tsa_now s) (tsa_removals s)
+          | None => tsa_removals s
+          end
       |}.
 
     Definition empty_try_stack_aux_state : TryStackAuxState :=
@@ -150,7 +203,12 @@ Module TryStackAuxSpec.
         tsa_edges := empty_edges;
         tsa_snapshots := TMap.empty LPNodeSet;
         tsa_pending_pushes := TMap.empty Addr;
-        tsa_garbage := empty_node_set
+        tsa_garbage := empty_node_set;
+        tsa_now := 0;
+        tsa_node_inv := empty_node_map;
+        tsa_node_ret := empty_node_map;
+        tsa_snap_time := TMap.empty nat;
+        tsa_removals := empty_node_map
       |}.
 
     (** Empty [trypop] is represented by two adjacent observable events.
@@ -228,8 +286,7 @@ Module TryStackAuxSpec.
                  (TSuccNode v (fst n) (snd n)) |} ->
         StepTryStackAux e
           (TSAReady s)
-          (TSAReady
-            (tsa_mark_garbage n (tsa_clear_snapshot actor s)))
+          (TSAReady (tsa_remove_node actor n s))
     | step_tsa_trypop_fail actor s N e :
         TMap.find actor (tsa_snapshots s) = Some N ->
         e = {| te_tid := actor;

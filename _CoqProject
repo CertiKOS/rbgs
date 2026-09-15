@@ -80,6 +80,7 @@ examples/TSStack/NodeMemSpec.v
 examples/TSStack/SPListSpec.v
 examples/TSStack/ListPoolSpec.v
 examples/TSStack/TryStackAuxSpec.v
+examples/TSStack/TryStackAuxGhost.v
 examples/TSStack/TryStackSpec.v
 examples/TSStack/SPListFamilySpec.v
 examples/TSStack/SPListArraySpec.v
@@ -110,6 +111,8 @@ examples/TSStack/TryStackAux.v
 examples/TSStack/TryStack.v
 examples/TSStack/ListPoolProof.v
 examples/TSStack/TryStackAuxProof.v
+examples/TSStack/TryStackLinearization.v
+examples/TSStack/TryStackProof.v
 examples/TSStack/SPListProof.v
 examples/TSStack/SPListFamily.v
 

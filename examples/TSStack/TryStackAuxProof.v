@@ -530,12 +530,12 @@ Module TryStackAuxProof.
       unfold graph_represents, tsa_clear_snapshot; simpl. tauto.
     Qed.
 
-    Lemma graph_represents_mark_garbage p s n :
+    Lemma graph_represents_mark_garbage p s actor n :
       graph_represents p s ->
-      graph_represents (mark_garbage n p) (tsa_mark_garbage n s).
+      graph_represents (mark_garbage n p) (tsa_remove_node actor n s).
     Proof.
       intros [HV [HE [HP HG]]].
-      unfold graph_represents, mark_garbage, tsa_mark_garbage; simpl.
+      unfold graph_represents, mark_garbage, tsa_remove_node; simpl.
       now rewrite HV, HE, HP, HG.
     Qed.
 
@@ -1113,13 +1113,13 @@ Module TryStackAuxProof.
       TMap.find actor (lp_snapshots p) = None ->
       TMap.find actor (tsa_snapshots s) = Some N ->
       snapshot_protocol (mark_garbage n p)
-        (tsa_mark_garbage n (tsa_clear_snapshot actor s))
+        (tsa_remove_node actor n s)
         (TMap.add actor (ls_linr tsa_trypop ret) pi).
     Proof.
       intros Hprotocol Htoken Hcp Has.
       pose proof (snapshot_protocol_trypop_fail p s pi actor N ret
         Hprotocol Htoken Hcp Has) as Hfail.
-      unfold snapshot_protocol, mark_garbage, tsa_mark_garbage in *;
+      unfold snapshot_protocol, mark_garbage, tsa_remove_node, tsa_clear_snapshot in *;
         simpl in *. exact Hfail.
     Qed.
 
@@ -1131,10 +1131,9 @@ Module TryStackAuxProof.
     Lemma graph_represents_trypop_succ p s actor n :
       graph_represents p s ->
       graph_represents (mark_garbage n p)
-        (tsa_mark_garbage n (tsa_clear_snapshot actor s)).
+        (tsa_remove_node actor n s).
     Proof.
-      unfold graph_represents, mark_garbage, tsa_mark_garbage,
-        tsa_clear_snapshot; simpl.
+      unfold graph_represents, mark_garbage, tsa_remove_node; simpl.
       intros [HV [HE [HP HG]]]. repeat split; try assumption.
       now rewrite HG.
     Qed.
@@ -1774,9 +1773,7 @@ Module TryStackAuxProof.
           destruct H2 as [_ Hlive]. exfalso. apply Hlive.
           destruct Hgraph as [_ [_ [_ HG]]]. now rewrite HG. }
         exists
-          (TSAReady
-            (tsa_mark_garbage (pair owner0 loc0)
-              (tsa_clear_snapshot actor0 a0))),
+          (TSAReady (tsa_remove_node actor0 (pair owner0 loc0) a0)),
           (TMap.add actor0
             (ls_linr tsa_trypop (TSuccNode v owner0 loc0)) π1).
         split.
@@ -1789,13 +1786,10 @@ Module TryStackAuxProof.
               (li_lts E) (li_lts F)
               (LPReady (mark_garbage (pair owner0 loc0) s))
               (TSAReady
-                (tsa_mark_garbage (pair owner0 loc0)
-                  (tsa_clear_snapshot actor0 a0)))
+                (tsa_remove_node actor0 (pair owner0 loc0) a0))
               (TMap.add actor0
                 (ls_linr tsa_trypop (TSuccNode v owner0 loc0)) π1))).
-          { exists
-              (tsa_mark_garbage (pair owner0 loc0)
-                (tsa_clear_snapshot actor0 a0)).
+          { exists (tsa_remove_node actor0 (pair owner0 loc0) a0).
             split; [reflexivity|]. split.
             - now apply graph_represents_trypop_succ.
             - split.
