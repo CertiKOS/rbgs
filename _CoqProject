@@ -82,6 +82,7 @@ examples/TSStack/ListPoolSpec.v
 examples/TSStack/TryStackAuxSpec.v
 examples/TSStack/TryStackAuxGhost.v
 examples/TSStack/TryStackSpec.v
+examples/TSStack/TSStackSpec.v
 examples/TSStack/SPListFamilySpec.v
 examples/TSStack/SPListArraySpec.v
 examples/CustomStateSA.v
@@ -109,11 +110,13 @@ examples/TSStack/SPListArrayProof.v
 examples/TSStack/ListPool.v
 examples/TSStack/TryStackAux.v
 examples/TSStack/TryStack.v
+examples/TSStack/TSStack.v
 examples/TSStack/ListPoolProof.v
 examples/TSStack/TryStackAuxProof.v
 examples/TSStack/TryStackLinearization.v
 examples/TSStack/TryStackTrace.v
 examples/TSStack/TryStackProof.v
+examples/TSStack/TSStackProof.v
 examples/TSStack/SPListProof.v
 examples/TSStack/SPListFamily.v
 
