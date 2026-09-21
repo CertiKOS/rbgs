@@ -28,6 +28,7 @@ Require Import examples.TSStack.TryStackAuxProof.
 Require Import examples.TSStack.TryStackSpec.
 Require Import examples.TSStack.TryStack.
 Require Import examples.TSStack.TryStackLinearization.
+Require Import examples.TSStack.TryStackTrace.
 
 
 (** Correctness proof of the TryStack layer over TryStackAux.
@@ -36,9 +37,8 @@ Require Import examples.TSStack.TryStackLinearization.
     set of configurations realisable by the consistent histories of the
     ghost-timed concrete state ([TryStackLinearization.Real]).  Every
     concrete event is simulated by the replay lemmas of that file.  The
-    only fact about the specifications that is not proved there is the
-    trace theorem [real_nonempty]: every well-formed ghost state admits a
-    consistent history.  It is a section hypothesis of this proof. *)
+    trace theorem [real_nonempty] (every well-formed ghost state admits a
+    consistent history) is proved in [TryStackTrace]. *)
 Module TryStackProof.
   Import Reg LinCCALBase LTSSpec Lang Semantics.
   Import AssertionsSet.
@@ -65,9 +65,10 @@ Module TryStackProof.
     Definition rg_relation :=
       @AssertionsSet.A.RGRelation _ _ (li_lts E) (li_lts F).
 
-    (** The trace theorem, assumed here. *)
-    Hypothesis real_nonempty :
+    (** The trace theorem. *)
+    Lemma real_nonempty :
       forall s : @TryStackAuxState A, tsa_ghost_wf s -> exists h, consistent s h.
+    Proof. intros s Hwf. exact (TryStackTrace.trace_theorem s Hwf). Qed.
 
     Definition J (c : @TryStackAuxControl A) (phi : @PhaseMap A)
         (Delta : @AbstractConfig _ (li_lts F)) : Prop :=
@@ -1337,6 +1338,5 @@ Module TryStackProof.
     Definition MListPoolTryStack :
         layer_implementation_linearizability (@ListPoolProof.E A D) F :=
       LIVComp (@TryStackAuxProof.MListPoolTryStackAux A D) MTryStackLinearizable.
-
   End Proof.
 End TryStackProof.

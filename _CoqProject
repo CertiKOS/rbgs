@@ -112,6 +112,7 @@ examples/TSStack/TryStack.v
 examples/TSStack/ListPoolProof.v
 examples/TSStack/TryStackAuxProof.v
 examples/TSStack/TryStackLinearization.v
+examples/TSStack/TryStackTrace.v
 examples/TSStack/TryStackProof.v
 examples/TSStack/SPListProof.v
 examples/TSStack/SPListFamily.v
