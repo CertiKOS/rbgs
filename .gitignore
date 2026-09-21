@@ -18,3 +18,9 @@ Makefile.conf
 *~
 
 .claude/
+
+# Documentation build products (regenerate with pdflatex in docs/proof-details)
+docs/proof-details/*.pdf
+
+# External paper PDFs kept locally for reference only
+docs/paper/

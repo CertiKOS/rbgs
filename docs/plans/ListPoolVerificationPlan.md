@@ -960,7 +960,7 @@ larger opaque invariants.
 Primary work:
 
 - `examples/TSStack/ListPoolProof.v`
-- `examples/TSStack/ListPoolVerificationPlan.md`
+- `docs/plans/ListPoolVerificationPlan.md`
 
 Expected prerequisite edits:
 

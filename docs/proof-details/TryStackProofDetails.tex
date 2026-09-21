@@ -1,0 +1,1064 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlength{\emergencystretch}{3em}
+
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{theorem}[lemma]{Theorem}
+\newtheorem{proposition}[lemma]{Proposition}
+\newtheorem{invariant}[lemma]{Invariant}
+\theoremstyle{definition}
+\newtheorem{definition}[lemma]{Definition}
+\newtheorem{example}[lemma]{Example}
+\theoremstyle{remark}
+\newtheorem{remark}[lemma]{Remark}
+
+\newcommand{\Tid}{\mathsf{Tid}}
+\newcommand{\Loc}{\mathsf{Loc}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\Node}{\mathsf{Node}}
+\newcommand{\Pos}{\mathsf{Pos}}
+\newcommand{\dom}{\mathop{\mathrm{dom}}}
+\newcommand{\gap}{\mathop{\mathrm{gap}}}
+\newcommand{\rank}{\mathop{\mathrm{rank}}}
+\newcommand{\Ready}{\mathsf{Ready}}
+\newcommand{\Atomic}{\mathsf{Atomic}}
+\newcommand{\Inv}{\mathsf{inv}}
+\newcommand{\Lini}{\mathsf{lini}}
+\newcommand{\Linr}{\mathsf{linr}}
+\newcommand{\Push}{\mathsf{push}}
+\newcommand{\TryPop}{\mathsf{trypop}}
+\newcommand{\Succ}{\mathsf{Succ}}
+\newcommand{\Fail}{\mathsf{Fail}}
+\newcommand{\Empty}{\mathsf{Empty}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\poss}{\Delta}
+\newcommand{\conc}{\sigma}
+\newcommand{\abst}{\rho}
+\newcommand{\tokens}{\pi}
+\newcommand{\entails}{\mathrel{\vDash}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\now}{\mathsf{now}}
+\newcommand{\Real}{\mathsf{Real}}
+\newcommand{\Rep}{\mathsf{Rep}}
+\newcommand{\Tok}{\mathsf{Tok}}
+\newcommand{\Placed}{\mathsf{placed}}
+\newcommand{\Popped}{\mathsf{popped}}
+\newcommand{\RetBefore}{\mathsf{returned}}
+\newcommand{\Blk}{\mathsf{Blk}}
+\newcommand{\FS}{\mathsf{FS}}
+\newcommand{\Safe}{\mathsf{Safe}}
+\newcommand{\Newer}{\mathsf{newer}}
+\newcommand{\cut}{\mathsf{cut}}
+\newcommand{\rem}{\mathsf{rem}}
+\newcommand{\snap}{\mathsf{snap}}
+\newcommand{\phase}[1]{\mathsf{#1}}
+\newcommand{\PhaseIs}{\mathsf{PhaseIs}}
+\newcommand{\Done}{\mathsf{Done}}
+\newcommand{\Inside}{\mathsf{Inside}}
+\newcommand{\lt}{\prec}
+\newcommand{\lte}{\preceq}
+\newcommand{\ret}{\mathsf{ret}}
+\newcommand{\pop}{\mathsf{pop}}
+\newcommand{\inv}{\mathsf{inv}}
+\newcommand{\steps}{\mathsf{steps}}
+
+\title{The TryStack Layer: A Detailed Account of the Mechanized Proof\\
+  \large from the snapshot-based TryStackAux to the atomic TryStack}
+\author{Proof exposition for the mechanized development}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note explains the correctness proof of the TryStack layer.  The
+implementation is an identity adapter: it forwards \(\Push\) and \(\TryPop\)
+to the TryStackAux underlay.  All the difficulty is in the specifications.
+TryStackAux performs a \(\TryPop\) by taking a snapshot of the vertex set at
+invocation and removing, at response time, a vertex that is top \emph{in that
+snapshot}; TryStack pops a top of the \emph{current} live graph atomically.
+Linearizing the former as the latter requires the abstract pop to be placed
+retroactively, sometimes before the abstract linearization of a push that was
+already visible concretely.  The proof therefore keeps, for every reachable
+concrete state, the set of \emph{all} abstract configurations that can be
+realized by a consistent placement of abstract events into the concrete
+timeline.  We present the ghost-timed concrete state, the notion of an
+abstract history and its consistency conditions, the representation of an
+abstract configuration at a cut, the invariant, the rely--guarantee relations,
+the replay argument that simulates each concrete event, the trace theorem
+that guarantees the invariant is never vacuous, and the assembly of the
+method triples.  Coq-specific engineering is mentioned only where it reflects
+a genuine mathematical point.
+\end{abstract}
+
+\tableofcontents
+
+\section{Statement of the refinement}
+
+Fix a thread domain \(\Upsilon\subseteq\Tid\) and a value type \(\Val\).  A
+node identifier is a pair
+\[
+  n=(\beta,\ell)\in\Node\triangleq\Tid\times\Loc,
+\]
+where \(\beta\) is the thread that pushed the node.  The layer imports the
+TryStackAux interface \(\mathcal E\) and exports the TryStack interface
+\(\mathcal F\); both offer the same two operations
+\[
+  \Push(v)\ :\ \mathbf 1,\qquad
+  \TryPop\ :\ \{\Succ(v,\beta,\ell),\ \Succ(\Empty),\ \Fail\}.
+\]
+The implementation is the identity adapter
+\[
+  \Push_\alpha(v):\ \ r\leftarrow\mathcal E.\Push(v);\ \mathsf{return}(),
+  \qquad
+  \TryPop_\alpha:\ \ r\leftarrow\mathcal E.\TryPop;\ \mathsf{return}(r).
+\]
+The results are
+\begin{itemize}[nosep]
+\item \(\mathsf{MTryStack}\): a layer implementation simulation
+  \(\mathcal E\to\mathcal F\) obtained from the soundness theorem of the
+  set-valued rely--guarantee logic;
+\item \(\mathsf{MTryStackLinearizable}\): the corresponding linearizability
+  statement;
+\item \(\mathsf{MListPoolTryStack}\): its vertical composition with the
+  ListPool-to-TryStackAux proof, a linearizability statement from the
+  ListPool underlay to the atomic TryStack.
+\end{itemize}
+The development has no admitted facts.  Beyond classical logic and the
+extensionality principles already used by the framework, no axiom is needed.
+
+\section{The two specifications}
+
+Both specifications describe the stack as a DAG whose vertices are pushed
+nodes.  An edge \(x\to y\) records that the push of \(x\) started after the
+push of \(y\) had completed; two overlapping pushes are unordered.  A
+\emph{top} vertex is a live vertex with no live vertex above it.
+
+\subsection{The atomic TryStack}
+
+A TryStack state is a tuple \(\abst=(V,E,P,g)\): the vertex map
+\(V:\Node\rightharpoonup\Val\), the edge relation \(E\), the pending-push map
+\(P:\Tid\rightharpoonup\Loc\), and the garbage set \(g\).  A vertex is live if
+it is defined and not garbage.  The transitions are:
+\begin{itemize}[nosep]
+\item \(\Push(v)\) invocation by \(\alpha\) at a fresh location \(\ell\):
+  add \(V(\alpha,\ell)=v\), add edges from \((\alpha,\ell)\) to every
+  defined, non-pending vertex, set \(P(\alpha)=\ell\).
+\item \(\Push\) response: remove \(P(\alpha)\).
+\item \(\TryPop\): an invocation moves to an atomic-pending control state;
+  the response either marks a top live vertex \(n\) as garbage and returns
+  \(\Succ(V(n),n)\), returns \(\Succ(\Empty)\) when every vertex is garbage,
+  or returns \(\Fail\) without changing the state.
+\end{itemize}
+Push is interval-sequential (its two events may be separated by other
+threads' events); try-pop is atomic (its two events are adjacent, enforced by
+the control state \(\Atomic(\abst,\alpha,\TryPop)\)).
+
+\subsection{The snapshot-based TryStackAux}
+
+A TryStackAux state is \(\conc=(V,E,S,P,g)\) with an additional snapshot map
+\(S:\Tid\rightharpoonup\mathcal P(\Node)\).  Push behaves as above.  A
+\(\TryPop\) by \(\alpha\) has two branches:
+\begin{itemize}[nosep]
+\item \emph{snapshot branch}: the invocation records \(S(\alpha)=\dom V\);
+  the response either removes a vertex \(n\) that is top in
+  \(S(\alpha)\setminus g\) (with respect to \(E\)) and returns
+  \(\Succ(V(n),n)\), or returns \(\Fail\); both clear \(S(\alpha)\);
+\item \emph{empty branch}: when every vertex is garbage the invocation may
+  enter an atomic-pending state whose only response is \(\Succ(\Empty)\).
+\end{itemize}
+The crucial difference is that the removed vertex \(n\) is top only among
+the vertices that existed at the snapshot.  A vertex \(x\) pushed after the
+snapshot may already sit above \(n\) in the current graph.
+
+\subsection{Ghost timing}
+
+To reason about which retroactive placements are possible, the TryStackAux
+state carries ghost fields that never restrict a transition:
+\begin{itemize}[nosep]
+\item a logical clock \(\now\), advanced by every recorded event;
+\item \(i_n\), the clock value at which the push of \(n\) was invoked, and
+  \(r_n\), the clock value of its response (undefined while pending);
+\item \(\snap(\alpha)\), the clock value of \(\alpha\)'s pending snapshot;
+\item \(\rem(n)=(\alpha,st,rt)\) for a removed vertex: the remover, the
+  clock value of its snapshot and the clock value of the removal.
+\end{itemize}
+Every recorded clock value is distinct.  We write \(x\to_\conc y\) for the
+concrete edge, which the well-formedness invariant identifies with
+\(r_y<i_x\).
+
+\begin{invariant}[Ghost well-formedness, \code{tsa_ghost_wf}]
+\label{inv:wf}
+The following hold in every reachable state and are preserved by every step.
+\begin{enumerate}[nosep]
+\item \(n\) is a vertex iff \(i_n\) is defined; \(i_n<\now\); if \(r_n\) is
+  defined then \(i_n<r_n<\now\); \(n\) is pending iff \(i_n\) is defined
+  and \(r_n\) is not.
+\item \(x\to_\conc y\iff r_y<i_x\).
+\item \(S(\alpha)=N\) iff \(\snap(\alpha)=t\) is defined and
+  \(N=\{n\mid i_n<t\}\).
+\item \(n\in g\) iff \(\rem(n)\) is defined.
+\item (\emph{Blocking}) If \(\rem(n)=(\alpha,st,rt)\) then
+  \(i_n<st<rt<\now\), and every \(y\) with \(i_y<st\) and \(y\to_\conc n\)
+  satisfies \(\rem(y)=(\_,\_,rt')\) with \(rt'<rt\).
+\item Clock values are unique across all recorded events.
+\item A thread pushes sequentially: if \(i_{(\alpha,\ell_1)}<i_{(\alpha,\ell_2)}\)
+  then \(r_{(\alpha,\ell_1)}\) is defined and below \(i_{(\alpha,\ell_2)}\).
+\end{enumerate}
+\end{invariant}
+
+Clause~5 is the semantic content of the underlay's success rule: when
+\(\alpha\) removes \(n\), every vertex of its snapshot that is above \(n\) is
+already garbage.  It is the only fact about removals that the linearization
+argument uses.
+
+\section{Why the abstract pop must be placed retroactively}
+
+\begin{example}[The lagging push]\label{ex:f1}
+Consider the following concrete trace, with clock values on the left.
+\[
+\begin{array}{cl}
+0,1 & \text{thread 1 pushes } m \text{ and completes};\\
+2 & \text{thread 2 starts pushing } n\ (n\to_\conc m);\\
+3 & \text{thread 3 snapshots } \{m,n\};\\
+4 & \text{thread 4 starts pushing } x\ (x\to_\conc m,\ x\not\to_\conc n);\\
+5 & \text{thread 2 completes } n;\\
+6 & \text{thread 5 snapshots } \{m,n,x\};\\
+7 & \text{thread 5 removes } n;\\
+8 & \text{thread 3 removes } m\ (\text{top of }\{m,n\}\setminus\{n\}).
+\end{array}
+\]
+The final removal is legal for TryStackAux: \(x\) is not in thread~3's
+snapshot.  For the atomic TryStack, however, \(m\) can only be popped when
+no live vertex is above it.  Both \(n\) and \(x\) are above \(m\)
+concretely.  The pop of \(m\) can be linearized right after thread~3's
+snapshot at clock~3 \emph{provided the abstract push-inv of \(n\) is placed
+after it}: abstractly, \(n\)'s push then starts at ``3.1'' even though it
+started at~2 concretely.  This is sound because \(n\)'s push is still pending
+at clock~3.  Thread~5's pop of \(n\) at clock~6 is then legal because
+\(x\)'s abstract push-inv (clock~4) precedes \(n\)'s response (clock~5), so
+\(x\) is not above \(n\) abstractly.
+\end{example}
+
+The example shows that the abstract push-inv of a vertex may lag behind its
+concrete push-inv, and that the correct lag depends on events that happen
+later.  The proof therefore does not commit to a particular placement; it
+keeps every placement that is consistent with the events recorded so far.
+
+\section{Abstract histories}
+
+\subsection{Positions}
+
+Abstract events are placed into the gaps between concrete events.  A position
+is a pair
+\[
+  p=(g,k)\in\Pos\triangleq\mathbb N\times\mathbb N,
+\]
+meaning ``in the gap right after the concrete event with clock value \(g\),
+at rank \(k\)''.  Positions are ordered lexicographically, written
+\(p\lt q\).  The rank budget of a gap is bounded,
+\[
+  \mathsf{ok}(p)\ \triangleq\ \rank(p)<2\gap(p)+2,
+\]
+and the rank \(2g+2\) is reserved for the abstract push response of the
+concrete event at \(g\):
+\[
+  \ret(r)\triangleq(r,2r+2).
+\]
+Thus the abstract response of a completed push is fixed at its concrete
+response (it is the last event of its gap), while abstract push-invs and pops
+float within the budgeted ranks.  The bound is what makes the replay argument
+of Section~\ref{sec:replay} a finite iteration over ranks.
+
+\subsection{Histories and consistency}
+
+\begin{definition}[History]
+A history is a pair \(h=(h_\inv,h_\pop)\) with
+\(h_\inv:\Node\rightharpoonup\Pos\) (the abstract push-inv of each vertex)
+and \(h_\pop:\Node\rightharpoonup\Pos\times\Tid\) (the abstract pop of a
+vertex and the popping thread).
+\end{definition}
+
+Write \(x\to_h y\) for the \emph{abstract edge}: \(h_\inv(x)=p\), \(r_y\)
+is defined and \(\ret(r_y)\lt p\), i.e.\ the abstract push of \(x\) starts
+after the response of \(y\).
+
+\begin{definition}[Consistency, \code{consistent}]\label{def:consistent}
+A history \(h\) is consistent with a ghost-timed state \(\conc\) when:
+\begin{enumerate}[nosep,label=(C\arabic*)]
+\item\label{c:inv} if \(h_\inv(n)=p\) then \(\mathsf{ok}(p)\), \(\gap(p)<\now\),
+  \(i_n\le\gap(p)\), and \(\gap(p)\le r_n\) whenever \(r_n\) is defined:
+  the abstract push-inv lies between the concrete push-inv and the concrete
+  response;
+\item\label{c:ret} if \(r_n\) is defined then \(h_\inv(n)\) is defined;
+\item\label{c:pop} if \(h_\pop(n)=(p,\alpha)\) then \(\mathsf{ok}(p)\),
+  \(\gap(p)<\now\), \(h_\inv(n)=q\lt p\), and either
+  \(\rem(n)=(\alpha,st,rt)\) with \(st\le\gap(p)\le rt\)
+  (a \emph{committed} pop, placed within the remover's interval), or
+  \(\rem(n)\) is undefined, \(\snap(\alpha)=st\le\gap(p)\) and \(i_n<st\)
+  (a \emph{speculative} pop of a vertex in \(\alpha\)'s pending snapshot);
+\item\label{c:remp} every removed vertex is popped by its remover;
+\item\label{c:spec} a thread's pending snapshot speculates on at most one
+  vertex;
+\item\label{c:top} (\emph{top}) if \(h_\pop(n)=(p,\alpha)\) and \(x\) has
+  \(h_\inv(x)=q\lt p\) and \(x\to_h n\), then \(h_\pop(x)=(p',\_)\) with
+  \(p'\lt p\): every abstractly newer vertex whose push started before the
+  pop was already popped;
+\item\label{c:uniq} all positions used by \(h\) are pairwise distinct.
+\end{enumerate}
+\end{definition}
+
+Condition~\ref{c:top} is exactly the TryStack pop rule read along the
+abstract order: a vertex is popped only while it is a top of the abstract
+live graph.  Conditions~\ref{c:inv} and~\ref{c:pop} bound the retroactive
+freedom by the concrete intervals of the operations involved, which is what
+linearizability permits.
+
+\subsection{Phases}
+
+The proof needs to know, for each active thread, which operation it invoked
+and how far it has progressed.  A \emph{phase map} \(\varphi:\Tid\rightharpoonup\)
+\[
+  \{\phase{PushInvoked}(v),\ \phase{PushPending}(v,\ell),\ \phase{PushDone}(v),\
+    \phase{PopInvoked},\ \phase{PopSnapshot},\ \phase{PopEmptyPending},\
+    \phase{PopDone}(r)\}
+\]
+records this.  It is \emph{consistent} with a control state \(c\) (payload
+\(\conc\)) when \(P(t)=\ell\) iff \(\varphi(t)=\phase{PushPending}(\_,\ell)\);
+\(S(t)\) is defined iff \(\varphi(t)=\phase{PopSnapshot}\);
+\(\varphi(t)=\phase{PopEmptyPending}\) iff \(c=\Atomic(\conc,t,\TryPop)\);
+a pending push's node carries its value; a \(\phase{PushDone}(v)\) thread has a
+latest completed node of value \(v\); a \(\phase{PopDone}(\Succ(v,\beta,\ell))\)
+thread is the recorded remover of \((\beta,\ell)\), which has value \(v\);
+and \(\phase{PopEmptyPending}\) implies that every vertex is garbage.
+
+\section{Representation of an abstract configuration}
+
+\subsection{Cuts and tokens}
+
+A history describes all abstract events; the abstract state \emph{at a
+position} is obtained by executing the events before it.  For a position
+\(C\) (the \emph{cut}) define
+\begin{align*}
+  \Placed_h(C,n)&\triangleq h_\inv(n)=q\lt C,\\
+  \Popped_h(C,n)&\triangleq h_\pop(n)=(q,\_)\lt C,\qquad
+  \Popped_h(C,\alpha,n)\ \text{with the popper fixed},\\
+  \RetBefore_\conc(C,n)&\triangleq r_n\ \text{defined and}\ \ret(r_n)\lt C.
+\end{align*}
+The framework represents the progress of thread \(t\)'s current operation
+\(m\) by a token \(\tokens(t)\in\{\Inv(m),\Lini(m),\Linr(m,r)\}\): invoked
+but not yet linearized, interval-invocation linearized, response linearized
+with result \(r\).  The token that thread \(t\) must carry at cut \(C\) is
+determined by its phase and the history:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\(\varphi(t)\) & \(\Tok_{\conc,\varphi,h}(C,t)\)\\
+\midrule
+undefined & no token\\
+\(\phase{PushInvoked}(v)\) & \(\Inv(\Push v)\)\\
+\(\phase{PushPending}(v,\ell)\) &
+  \(\Lini(\Push v)\) if \(\Placed(C,(t,\ell))\), else \(\Inv(\Push v)\)\\
+\(\phase{PushDone}(v)\), latest node \((t,\ell)\) &
+  \(\Linr(\Push v,())\) if \(\RetBefore(C,(t,\ell))\); else
+  \(\Lini\) if placed, else \(\Inv\)\\
+\(\phase{PopInvoked}\), \(\phase{PopEmptyPending}\) & \(\Inv(\TryPop)\)\\
+\(\phase{PopSnapshot}\) &
+  \(\Linr(\TryPop,\Succ(V(n),n))\) if \(t\) speculatively popped a live
+  \(n\) before \(C\); else \(\Inv(\TryPop)\)\\
+\(\phase{PopDone}(\Succ(v,\beta,\ell))\) &
+  \(\Linr(\TryPop,\Succ(v,\beta,\ell))\) if \(\Popped(C,t,(\beta,\ell))\),
+  else \(\Inv(\TryPop)\)\\
+\(\phase{PopDone}(\Fail)\), \(\phase{PopDone}(\Succ\Empty)\) &
+  \(\Linr(\TryPop,r)\) (or \(\Inv(\TryPop)\) for the one thread whose
+  response is being replayed)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The last row uses a parameter \(pd\) (``pending done'') that names the
+thread whose failed or empty response is currently being replayed; outside
+the replay it is \(\bot\).
+
+\begin{definition}[Representation at a cut, \code{represents_at}]
+\(\Rep_{\conc,\varphi,h}(C,pd,\abst,\tokens)\) holds when
+\(\abst=\Ready(V',E',P',g')\) and
+\begin{align*}
+  V'(n)&=V(n) &&\text{if }\Placed(C,n),\qquad V'(n)=\bot\ \text{otherwise};\\
+  E'(x,y)&\iff \Placed(C,x)\land x\to_h y;\\
+  P'(t)=\ell&\iff \Placed(C,(t,\ell))\land\lnot\RetBefore(C,(t,\ell));\\
+  g'(n)&\iff\Popped(C,n);\\
+  \tokens(t)&=\Tok_{\conc,\varphi,h}(C,t)\quad\text{for all }t.
+\end{align*}
+\end{definition}
+
+The abstract graph is thus the concrete vertex map restricted to the vertices
+whose abstract push has started, with abstract edges, pending pushes that
+have started abstractly but not returned, and garbage equal to the popped
+vertices.
+
+\subsection{Realizable configurations}
+
+The \emph{final cut} of a state is \(\cut(\conc)\triangleq(\now,0)\): the
+position right after the last concrete event.  The abstract configurations
+realizable from control state \(c\) with phases \(\varphi\) are
+\[
+  \Real(c,\varphi)\ \triangleq\
+  \{(\abst,\tokens)\mid \exists h.\ h\text{ consistent with }\conc\land
+     \Rep_{\conc,\varphi,h}(\cut(\conc),\bot,\abst,\tokens)\},
+  \qquad \conc=\mathrm{payload}(c).
+\]
+
+\section{The invariant}
+
+A proof state is \(w=(c,\poss)\) where \(c\) is the concrete control state
+and \(\poss\) is a nonempty set of possibilities \((\abst,\tokens)\) sharing
+an active-thread domain.
+
+\begin{invariant}[\(J\) and \(I\)]
+\(J(c,\varphi,\poss)\) is the conjunction of
+\begin{enumerate}[nosep]
+\item ghost well-formedness of \(c\) (Invariant~\ref{inv:wf});
+\item phase consistency of \(\varphi\) with \(c\);
+\item soundness: \(\poss\subseteq\Real(c,\varphi)\);
+\item completeness: for every history \(h\) consistent with \(\conc\) there
+  is \((\abst,\tokens)\in\poss\) with
+  \(\Rep_{\conc,\varphi,h}(\cut(\conc),\bot,\abst,\tokens)\).
+\end{enumerate}
+The global invariant is \(I(c,\poss)\triangleq\exists\varphi.\ J(c,\varphi,\poss)\).
+\end{invariant}
+
+Soundness says every retained possibility is explained by a consistent
+history; completeness says every consistent history is represented.  The
+pair pins \(\poss\) down to \(\Real(c,\varphi)\) up to the choice of
+representatives, and completeness is what later lets the proof select, after
+a concrete response, the branch that realizes the observed result.
+
+\subsection{Phases are determined by tokens}
+
+\begin{lemma}[Token shape, \code{J_token_shape}]\label{lem:shape}
+If \(J(c,\varphi,\poss)\) and \((\abst,\tokens)\in\poss\), then for every
+thread \(t\) the token \(\tokens(t)\) has the shape prescribed by
+\(\varphi(t)\): no token iff no phase; \(\Inv(\Push v)\) with \(P(t)\)
+undefined for \(\phase{PushInvoked}(v)\); \(\Inv\) or \(\Lini\) of
+\(\Push v\) with \(P(t)=\ell\) for \(\phase{PushPending}(v,\ell)\);
+\(\Linr(\Push v,())\) for \(\phase{PushDone}(v)\); \(\Inv(\TryPop)\) with no
+snapshot for \(\phase{PopInvoked}\); \(\Inv(\TryPop)\) or a
+\(\Linr(\TryPop,\Succ(\ldots))\) with a snapshot for \(\phase{PopSnapshot}\);
+\(\Inv(\TryPop)\) in the atomic-pending control state for
+\(\phase{PopEmptyPending}\); \(\Linr(\TryPop,r)\) for \(\phase{PopDone}(r)\).
+\end{lemma}
+
+The proof unfolds \(\Tok\) at the final cut.  Two cases need
+Invariant~\ref{inv:wf}: for \(\phase{PushDone}(v)\) the latest node has a
+response \(r<\now\), so \(\ret(r)\lt\cut(\conc)\) and the token is
+\(\Linr\); for \(\phase{PopDone}(\Succ(v,\beta,\ell))\) the removal is
+recorded, so by~\ref{c:remp} and~\ref{c:pop} its pop lies below the final
+cut and the token is \(\Linr\).
+
+\begin{lemma}[Phase determinacy, \code{phase_from_token}, \code{phase_unique}]
+\label{lem:determinacy}
+If \(J(c,\varphi,\poss)\), \(J(c,\varphi',\poss')\), \((\abst,\tokens)\in\poss\),
+\((\abst',\tokens')\in\poss'\) and \(\tokens(t)=\tokens'(t)\), then
+\(\varphi(t)=\varphi'(t)\).  In particular any two phase maps witnessing
+\(I\) for the same proof state agree everywhere.
+\end{lemma}
+
+The shapes of Lemma~\ref{lem:shape} are pairwise incompatible once the
+concrete control state is fixed: pending-push entries, snapshots and the
+atomic control state separate the push phases from each other and the pop
+phases from each other, and \(\Linr\) results are injective.  Consequently
+\(\varphi\) is a function of the proof state, and assertions may quantify
+over ``the'' phase map.
+
+\section{Rely and guarantee}
+
+\begin{definition}
+\begin{align*}
+  G_\alpha(w,w')&\triangleq I(w)\land I(w')\land
+    \forall\varphi,\varphi'.\ J\text{-witnesses for }w,w'\Rightarrow
+    \forall t\ne\alpha.\ \varphi'(t)=\varphi(t),\\
+  R_\beta(w,w')&\triangleq I(w)\land
+    \forall\varphi,\varphi'.\ J\text{-witnesses for }w,w'\Rightarrow
+    \varphi'(\beta)=\varphi(\beta).
+\end{align*}
+\end{definition}
+
+A step of \(\alpha\) may change anything about the concrete state and the
+possibility set, as long as the invariant holds and no other thread's phase
+changes.  Correspondingly, an observer relies only on its own phase being
+preserved.  This is enough because every method assertion below is of the
+form ``\(I\) holds and my phase satisfies a predicate''.
+
+\begin{lemma}[Validity and compatibility]
+\begin{enumerate}[nosep]
+\item (\code{valid_rg}) Under \(R_\beta\), thread \(\beta\) has a token in
+  all possibilities of \(w\) iff it has one in all possibilities of \(w'\).
+  By Lemma~\ref{lem:shape}, having a token is equivalent to having a phase,
+  and \(R_\beta\) preserves the phase.
+\item (\code{parallel_compatible}) For \(\alpha\ne\beta\), each of
+  \(G_\alpha\), the framework's invocation step of \(\alpha\) (which adds
+  \(\Inv(m)\) to \(\alpha\)'s token in every possibility), its return step
+  (which removes \(\Linr(m,r)\)), and the identity, implies \(R_\beta\).
+  For the invocation and return steps, the token of \(\beta\) is unchanged,
+  so Lemma~\ref{lem:determinacy} gives \(\varphi'(\beta)=\varphi(\beta)\).
+\end{enumerate}
+\end{lemma}
+
+The framework's invocation and return steps also preserve \(J\)
+(\code{J_ac_inv}, \code{J_ac_res}): the phase map is updated at \(\alpha\)
+to \(\phase{PushInvoked}(v)\) or \(\phase{PopInvoked}\), respectively removed,
+and the representation of every history is adjusted by the same token
+update, which matches the \(\Tok\) table.
+
+\section{Simulating a concrete event}\label{sec:replay}
+
+\subsection{The generic step}
+
+Every concrete event is simulated by one lemma scheme.  Let \(c\) step to
+\(c'\), with payloads \(\conc,\conc'\), and let \(\varphi'\) be the phase map
+after the event (the acting thread's phase changes, all others are kept).
+
+\begin{lemma}[\code{real_step_generic}]\label{lem:generic}
+Assume \(J(c,\varphi,\poss)\), ghost well-formedness of \(c'\), phase
+consistency of \(\varphi'\) with \(c'\), and the \emph{event property}:
+for every history \(h'\) consistent with \(\conc'\),
+\begin{enumerate}[nosep]
+\item[(a)] the restriction \(h'{\restriction}\cut(\conc)\) (the events of
+  \(h'\) below the old final cut) is consistent with \(\conc\);
+\item[(b)] every possibility representing
+  \(h'{\restriction}\cut(\conc)\) at \(\cut(\conc)\) for \((\conc,\varphi)\)
+  can take finitely many abstract steps to a possibility representing
+  \(h'\) at \(\cut(\conc')\) for \((\conc',\varphi')\).
+\end{enumerate}
+Then there is \(\poss'\), contained in the step-closure of \(\poss\), with
+\(J(c',\varphi',\poss')\).
+\end{lemma}
+
+\begin{proof}
+Take
+\[
+  \poss'\triangleq\{(\abst',\tokens')\mid
+    (\abst',\tokens')\text{ reachable from }\poss\land
+    (\abst',\tokens')\in\Real(c',\varphi')\}.
+\]
+Soundness of \(\poss'\) is immediate.  For completeness, let \(h'\) be
+consistent with \(\conc'\).  By (a) and the completeness of \(\poss\), some
+\((\abst,\tokens)\in\poss\) represents \(h'{\restriction}\cut(\conc)\); by
+(b) it steps to a representative of \(h'\), which lies in \(\poss'\).
+Finally \(\poss'\) is nonempty because the trace theorem
+(Section~\ref{sec:trace}) supplies a consistent history of \(\conc'\), and
+completeness applied to it exhibits a member.
+\end{proof}
+
+The nonemptiness step is where the trace theorem is indispensable: the
+framework's possibility sets are intrinsically nonempty, so a concrete
+event whose every explanation had been discarded would be a genuine proof
+failure.
+
+\subsection{What the two parts of the event property mean}
+
+A history is a choice of linearization points: condition~\ref{c:inv} places
+the abstract push-inv of \(n\) inside the real-time interval of its push,
+\ref{c:pop} places the pop of \(n\) inside the interval of the try-pop that
+removed it (or, speculatively, after the snapshot of a try-pop still in
+progress), and the remaining conditions say that executing the events in
+position order is a legal run of the atomic TryStack.  A consistent history
+of the current state is therefore precisely a \emph{linearization of the
+trace so far}, and a possibility \((\abst,\tokens)\in\poss\) is the abstract
+state reached by running one such linearization up to the present moment.
+The invariant keeps all of them because the trace so far does not determine
+which linearization the future will need.
+
+Part~(a), \emph{restriction}, says that every linearization of the longer
+trace, when cut back to the events already placed before the present
+moment, is a linearization of the shorter trace.  Semantically this is the
+statement that the new concrete event never invalidates an already
+observable abstract past: the abstract events below the old cut form a run
+that was already legal, and the new event only adds abstract events in the
+gap just opened.  Part~(a) is what allows the proof to be a
+\emph{forward} simulation over a set: it guarantees that the explanations
+of the extended trace are extensions of explanations of the prefix, so the
+family of possibilities carried so far contains a representative of every
+future that remains possible.  Without it, an event could require an
+abstract past that no retained possibility has, and completeness would be
+lost.  Note the quantification: it ranges over histories of the \emph{new}
+state.  A history of the old state need not extend, and the proof never
+claims it does.  Linearizations of the prefix that no longer extend are
+simply dropped, which is the set-valued analogue of a backward simulation
+or a prophecy variable choosing the right future.
+
+Part~(b), \emph{replay}, says that the abstract machine can actually
+execute the events that the new linearization places in the fresh gap,
+starting from a possibility that has executed the events before it.  This
+is the half that connects the invariant to the layer simulation: the
+framework demands that possibilities evolve only by abstract steps, because
+those steps are exactly what shows that the specification \(\mathcal F\)
+accepts the linearized trace.  Consistency conditions are stated on
+positions and clock values; part~(b) turns them into transitions of the
+TryStack LTS: the top condition~\ref{c:top} becomes the enabledness of the
+atomic pop, the interval conditions become the presence or absence of the
+pending-push entry, and the token table becomes the update of the
+linearization tokens that the framework reads at method return.
+
+Together the two parts are the induction step of a linearizability proof
+phrased over sets of partial linearizations.  Linearizability asks for one
+total order of the operations of the complete trace that respects real time
+and is accepted by the specification.  Part~(a) ensures that such an order,
+whenever it exists for the complete trace, is visible at every prefix as a
+retained possibility; part~(b) ensures that the specification accepts each
+prefix of that order, step by step; and the trace theorem
+(Section~\ref{sec:trace}) ensures that at least one such order exists for
+every reachable state, so that the retained set is never empty.  At a method
+return the framework then reads the acting thread's token, which by
+Lemma~\ref{lem:shape} is \(\Linr(m,r)\) in every retained possibility, and
+concludes that every possible linearization returns the observed result.
+
+\subsection{Restriction}
+
+Part (a) of the event property is proved once for all events
+(\code{restrict_consistent}).  Let \(\conc\) and \(\conc'\) be related by
+\emph{ghost extension}: clock values recorded in \(\conc'\) below
+\(\now(\conc)\) are exactly those of \(\conc\), a removal recorded in
+\(\conc'\) with \(rt\ge\now(\conc)\) corresponds in \(\conc\) to a pending
+snapshot at the same \(st\), and so on.  Every step of TryStackAux is a ghost
+extension of its pre-state.  Then for \(h'\) consistent with \(\conc'\), the
+history \(h'{\restriction}\cut(\conc)\) is consistent with \(\conc\): the
+push-inv and pop conditions transfer because the relevant clock values are
+below \(\now(\conc)\); a committed pop of \(h'\) whose removal is not yet
+recorded in \(\conc\) becomes a \emph{speculative} pop in \(\conc\), which
+is legitimate because the popper's snapshot is pending in \(\conc\) with the
+same snapshot time; and the top condition transfers because abstract edges
+below the cut are the same.  A side condition needed for~\ref{c:spec} is
+that two committed pops by the same thread cannot both fall below the cut
+while being unrecorded in \(\conc\); it holds because a thread has one
+snapshot at a time.
+
+\subsection{Replay}
+
+Part (b) is a replay of the abstract events of \(h'\) that lie between the
+two cuts.  One position at a time, the representation is moved from cut
+\(C\) to \(\mathsf{next}(C)\) (\(C\) with the rank incremented):
+\begin{itemize}[nosep]
+\item If \(h'_\inv(n)=C\) (\code{replay_inv}): the abstract state takes the
+  TryStack push-invocation step of \(n=(t,\ell)\).  The vertex \(n\) is
+  fresh in the represented state (not placed before \(C\), not popped),
+  the edges it gains are exactly the abstract edges \(n\to_{h'}y\) with \(y\)
+  placed before \(C\) (a vertex placed and non-pending at \(C\) is one
+  whose response precedes \(C\), and \(\ret(r_y)\lt C=h'_\inv(n)\) is the
+  definition of \(n\to_{h'}y\)), and thread \(t\)'s token becomes
+  \(\Lini(\Push v)\), as the \(\Tok\) table requires once \(n\) is placed.
+\item If \(h'_\pop(n)=(C,\alpha)\) (\code{replay_pop}): the abstract state
+  takes the atomic try-pop invocation and success response of \(\alpha\)
+  for \(n\).  Condition~\ref{c:top} shows that \(n\) is a top of the
+  represented live graph: any live \(x\) with an abstract edge \(x\to n\) is
+  placed before \(C\) and therefore popped before \(C\), i.e.\ garbage.  The
+  token of \(\alpha\) becomes \(\Linr(\TryPop,\Succ(V(n),n))\).
+\item If \(C=\ret(r)\) for the response of \((t,\ell)\) (\code{replay_ret}):
+  the abstract push-response step of \(t\) is taken; the pending entry
+  \(P'(t)\) is removed and the token becomes \(\Linr(\Push v,())\).  The
+  entry is present because~\ref{c:ret} and~\ref{c:inv} place \(h'_\inv(t,\ell)\)
+  before \(\ret(r)\).
+\item Otherwise nothing happens at \(C\) and the representation is
+  unchanged (\code{represents_at_next_none}).
+\end{itemize}
+In each case the tokens of all other threads are unchanged because the
+predicates \(\Placed\), \(\Popped\), \(\RetBefore\) change only at the
+thread whose event sits at \(C\).  Iterating from rank \(0\) to \(2g+3\)
+replays a whole gap (\code{replay_gap}); by the rank budget the cut
+\((g,2g+3)\) sees the same events as \((g{+}1,0)\) (\code{cut_equiv_gap_end}),
+so one gap of replay moves the final cut forward by one clock tick
+(\code{replay_last_gap}).  Failed and empty pop responses are replayed
+separately (\code{replay_done}): the two abstract events are adjacent, and
+for the empty result the side condition ``every placed vertex is popped''
+is what the TryStack empty rule requires.
+
+The phases needed by the replay (\code{gap_phases}) hold in the last gap:
+a push-inv placed in the gap of the concrete event just recorded belongs
+either to the pending push of the acting thread or to a completed push
+(whose thread is \(\phase{PushDone}\)); a pop placed there is either the
+committed pop of the acting thread or a speculative pop of a thread in
+\(\phase{PopSnapshot}\).
+
+\subsection{The event lemmas}
+
+For each of the seven TryStackAux transitions there is a lemma
+(\code{real_step_push_inv}, \code{real_step_push_res},
+\code{real_step_snapshot}, \code{real_step_remove}, \code{real_step_fail},
+\code{real_step_empty_inv}, \code{real_step_empty_res}) establishing the
+event property with the appropriate phase update:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lll@{}}
+\toprule
+concrete event of \(\alpha\) & new phase of \(\alpha\) & abstract events replayed\\
+\midrule
+\(\Push(v)\) invocation at \(\ell\) & \(\phase{PushPending}(v,\ell)\) &
+  the events of the new last gap (possibly \(h'_\inv(\alpha,\ell)\))\\
+\(\Push\) response & \(\phase{PushDone}(v)\) &
+  the last gap, ending with \(\ret\) of \((\alpha,\ell)\)\\
+snapshot invocation & \(\phase{PopSnapshot}\) & the last gap\\
+success response for \(n\) & \(\phase{PopDone}(\Succ(V(n),n))\) &
+  the last gap; the committed pop of \(n\) lies below the new cut\\
+failure response & \(\phase{PopDone}(\Fail)\) &
+  the last gap, then the abstract \(\Fail\) pop of \(\alpha\)\\
+empty invocation & \(\phase{PopEmptyPending}\) & none (control state only)\\
+empty response & \(\phase{PopDone}(\Succ\Empty)\) &
+  the abstract \(\Succ(\Empty)\) pop of \(\alpha\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The interesting transfer facts are the following.
+\begin{itemize}[nosep]
+\item A push invocation adds a vertex that no history of the pre-state can
+  mention; the token of \(\alpha\) is \(\Inv(\Push v)\) before and after the
+  old cut, matching \(\phase{PushPending}\) with the node not yet placed.
+\item A push response makes the responded node \((\alpha,\ell)\) the latest
+  node of \(\alpha\).  Its abstract push-inv, if it had not been placed
+  already, must be placed in the last gap; the replay places it and then
+  takes the response.
+\item A success response for \(n\) must, in every retained branch, have
+  popped \(n\) before the new cut: \ref{c:remp} and~\ref{c:pop} give
+  \(h'_\pop(n)=(p,\alpha)\) with \(\gap(p)\le rt=\now(\conc)\).  Branches of
+  the pre-state in which \(\alpha\) had speculatively popped a different
+  vertex, or none, are those whose history does not restrict from any
+  consistent history of the post-state; they are dropped by the definition
+  of \(\poss'\).  The concrete garbage update is mirrored abstractly because
+  the represented garbage is the popped set.
+\item A failure response is possible in every branch in which \(\alpha\) has
+  not speculatively popped: the token \(\Inv(\TryPop)\) is turned into
+  \(\Linr(\TryPop,\Fail)\) by the adjacent abstract invocation and failure
+  response.  Branches with a speculative pop are dropped.
+\item The empty branch is atomic on both sides.  At the concrete invocation
+  the phase becomes \(\phase{PopEmptyPending}\) with the token unchanged; at
+  the response the abstract events are replayed with the ``pending done''
+  parameter set to \(\alpha\).  The TryStack empty rule needs every abstract
+  vertex to be garbage; the concrete side condition says every concrete
+  vertex is garbage, i.e.\ removed, hence popped below the cut by
+  \ref{c:remp}.
+\end{itemize}
+
+Phase consistency of \(\varphi'\) with \(c'\) is checked separately for
+each event (\code{pc_push_inv}, \ldots, \code{pc_empty_res}); ghost
+well-formedness of \(c'\) is the preservation theorem of
+Invariant~\ref{inv:wf}.
+
+\section{The method triples}
+
+\subsection{Assertions}
+
+All assertions are of the form
+\[
+  \PhaseIs_\alpha(Q)\ \triangleq\ I\land\forall\varphi.\ J\text{-witness}\Rightarrow Q(\varphi(\alpha)),
+\]
+which by Lemma~\ref{lem:determinacy} is a statement about the unique phase
+of \(\alpha\).  It entails \(I\) and is stable under \(R_\alpha\), since the
+rely preserves \(\alpha\)'s phase.  The postcondition of an operation is
+\[
+  \Done_\alpha(m,r)\triangleq
+  \PhaseIs_\alpha(\phase{PushDone}(v))\ \text{for }m=\Push v,\qquad
+  \PhaseIs_\alpha(\phase{PopDone}(r))\ \text{for }m=\TryPop.
+\]
+By Lemma~\ref{lem:shape}, \(\Done_\alpha(m,r)\) implies that every
+possibility carries the token \(\Linr(m,r)\) for \(\alpha\), which is the
+framework's requirement at a method return.
+
+The framework's invocation step exposes the precondition: after the
+invocation of \(m\) by \(\alpha\) the assertion
+\(\PhaseIs_\alpha(\phase{PushInvoked}(v))\), respectively
+\(\PhaseIs_\alpha(\phase{PopInvoked})\), holds (\code{ginv_exposes_phase});
+after the return step from \(\Done_\alpha(m,r)\) the invariant \(I\) holds
+again with \(\alpha\)'s phase removed (\code{gret_closes_done}).
+
+\subsection{Threads outside the domain}
+
+If \(\alpha\notin\Upsilon\), both layers raise an error at the invocation.
+The precondition is split (\code{phase_or_error}) into
+\(\Inside_\alpha(P)\triangleq P\land\alpha\in\Upsilon\) and the abstract
+error assertion: from a possibility with token \(\Inv(m)\) and
+\(\abst=\Ready(\_)\) (the represented state is always \(\Ready\)), the
+TryStack error transition is reachable.  Inside the domain the underlay
+invocation raises no error.
+
+\subsection{Push}
+
+\[
+  \{\PhaseIs_\alpha(\phase{PushInvoked}(v))\}\quad
+  \Push_\alpha(v)\quad
+  \{r.\ \Done_\alpha(\Push v,r)\}.
+\]
+The underlay call is a single visible operation.  Its invocation update
+(\code{push_inv_update}) moves the phase to \(\phase{PushPending}(v,\ell)\)
+for the location \(\ell\) chosen by the underlay and is justified by
+Lemma~\ref{lem:generic} with the push-invocation event lemma.  The location
+is recovered from the pre-state's pending map when the response update
+(\code{push_res_update}) moves the phase to \(\phase{PushDone}(v)\).  Both
+updates satisfy \(G_\alpha\) because only \(\alpha\)'s phase changes
+(\code{G_intro}).  The trailing \(\mathsf{return}\) needs only stability of
+the postcondition.
+
+\subsection{Try-pop}
+
+\[
+  \{\PhaseIs_\alpha(\phase{PopInvoked})\}\quad
+  \TryPop_\alpha\quad
+  \{r.\ \Done_\alpha(\TryPop,r)\}.
+\]
+The invocation update (\code{trypop_inv_update}) inspects the concrete step:
+the snapshot branch yields \(\phase{PopSnapshot}\), the empty branch
+\(\phase{PopEmptyPending}\); the intermediate assertion is the disjunction.
+The response update (\code{trypop_res_update}) again inspects the step.  If
+the pre-state is atomic-pending the response is \(\Succ(\Empty)\) and the
+phase was \(\phase{PopEmptyPending}\).  Otherwise the phase was
+\(\phase{PopSnapshot}\) and the response is either a success for a vertex
+\(n\) that is top in \(S(\alpha)\setminus g\) (phase
+\(\phase{PopDone}(\Succ(V(n),n))\)) or a failure (phase
+\(\phase{PopDone}(\Fail)\)).  In every case Lemma~\ref{lem:generic} with the
+matching event lemma yields the new possibility set.
+
+\subsection{Initial state and assembly}
+
+In the initial state the clock is \(0\), no vertex exists, and the only
+consistent history is empty; the singleton configuration with the initial
+TryStack state and no tokens both is realizable and represents every
+consistent history (\code{initial_I}).  The soundness theorem of the set
+logic then combines validity of the rely--guarantee pair, parallel
+compatibility, the two method triples with their exposure and closing
+lemmas, and the initial invariant into \(\mathsf{MTryStack}\).
+
+\section{The trace theorem}\label{sec:trace}
+
+\begin{theorem}[\code{TryStackTrace.trace_theorem}]
+Every ghost-well-formed TryStackAux state admits a consistent history.
+\end{theorem}
+
+This is the only fact about the specifications that the layer proof does
+not obtain from the event lemmas.  It states that the retroactive placement
+that the invariant relies on always exists, and it is a genuinely global
+combinatorial statement: Example~\ref{ex:f1} shows that the right placement
+of an early event depends on late events.
+
+\subsection{Candidate placements that do not work}
+
+Several natural placement rules fail, which is why the proof below is
+inductive and chooses positions by a least-fixpoint criterion.  Write
+\(\rem(n)=(\alpha_n,st_n,rt_n)\) for a removed vertex.
+\begin{itemize}[nosep]
+\item \emph{Pop at the snapshot, pushes lock-step.}  Let \(x\to_\conc n\)
+  with both completed, \(\alpha\) snapshot \(\{n,x\}\), then \(\beta\)
+  snapshot the same set, \(\beta\) remove \(x\), \(\alpha\) remove \(n\).
+  Then \(\pop(x)\) is placed after \(\pop(n)\) while \(x\) is above \(n\)
+  and live, violating~\ref{c:top}.  The pop of \(n\) must wait for the pop
+  of \(x\).
+\item \emph{Pop at the removal.}  Let \(\alpha\) snapshot \(\{n\}\), then a
+  push of \(x\) start and complete (\(x\to_\conc n\)), then \(\alpha\)
+  remove \(n\).  The pop of \(n\) must precede the abstract push-inv of
+  \(x\), which cannot be delayed past \(x\)'s completion; the pop must be
+  placed before \(i_x\).
+\item \emph{Wait for all blockers.}  Combining the two shapes, waiting for
+  every above-\(n\) vertex of the snapshot to be popped can push
+  \(\pop(n)\) past the push of a completed, never-removed vertex above
+  \(n\).  The correct rule postpones the push-inv of a blocker that is still
+  pending instead of waiting for its pop.
+\end{itemize}
+These shapes were found by exhaustive search over short traces before the
+mechanization; the construction below was validated the same way.
+
+\subsection{Abstract histories with unbounded ranks}
+
+The construction ignores the rank budget and restores it at the end.  An
+\emph{abstract history} is a history whose positions satisfy the
+consistency conditions of Definition~\ref{def:consistent} except
+\(\mathsf{ok}\), with the convention that the push response of \(m\) follows
+every abstract event of gap \(r_m\) (so \(x\to_h y\) simply means
+\(r_y<\gap(h_\inv(x))\)), with all pops committed (no speculative pops), and
+with two additional \emph{induction invariants}:
+\begin{enumerate}[nosep,label=(I\arabic*)]
+\item\label{i:tot} every vertex has an abstract push-inv;
+\item\label{i:nd} (\emph{no needless delay}) if \(x\) is not popped,
+  \(m\) is completed, \(i_x\le r_m<\gap(h_\inv(x))\), then \(m\) is popped
+  and \(h_\pop(m)\lt h_\inv(x)\).
+\end{enumerate}
+\ref{i:nd} says that the abstract push-inv of an unpopped vertex is delayed
+past the response of a vertex it does not concretely follow only when that
+vertex was popped before the delayed position.  Without it, a history could
+delay an unpopped \(x\) past \(\ret(r_m)\) for an \(m\) that is removed
+later while \(x\) is still live, and then the removal of \(m\) would have no
+consistent placement.
+
+\subsection{Reverse induction on the clock}
+
+The theorem is proved by induction on \(\now\).  For a well-formed state
+with \(\now=T+1\), the event recorded at clock \(T\) is undone, producing a
+well-formed state with clock \(T\) (Invariant~\ref{inv:wf} is re-established
+by hand for each of the four undo operations; the push-response undo needs
+clause~7 to show the pusher has no other pending node).  The abstract
+history of the smaller state is then extended:
+\begin{itemize}[nosep]
+\item push invocation of \(x\) at \(T\): place \(h_\inv(x)=(T,0)\);
+\item push response, snapshot, or no event at \(T\): keep the history;
+\item removal of \(n\) at \(T\) with snapshot time \(st\): insert the pop of
+  \(n\) as described next.
+\end{itemize}
+
+\subsection{Inserting a pop}
+
+Fix the removal \(\rem(n)=(\alpha,st,T)\) and the abstract history \(h\) of
+the state without it.  If \(n\) is pending, no vertex is abstractly above
+\(n\) and the pop is placed at \((T,0)\).  Otherwise let \(r_n\) be its
+response and call \(x\) \emph{newer} if \(r_n<\gap(h_\inv(x))\).
+
+\begin{definition}[Feasible and safe positions]
+For a position \(Q\), a \emph{blocker} is a newer vertex \(x\) with
+\(h_\inv(x)\lt Q\) that is not popped before \(Q\).  The position \(Q\) is
+\emph{feasible and safe}, \(\FS(Q)\), when
+\begin{enumerate}[nosep]
+\item \((st,0)\lte Q\), \(h_\inv(n)\lt Q\) and \(\gap(Q)\le T\);
+\item every blocker \(x\) is \emph{pending at} \(Q\): \(r_x\ge\gap(Q)\) if
+  defined;
+\item every blocker \(x\) is \emph{safe}: for every popped \(m\) with
+  \(\gap(h_\inv(x))\le r_m<\gap(Q)\) and \(h_\pop(m)\not\lt Q\), the vertex
+  \(x\) is popped and \(h_\pop(x)\lt h_\pop(m)\).
+\end{enumerate}
+\end{definition}
+
+Inserting the pop at \(P=(g,k)\) means: \(h_\pop(n)=(P,\alpha)\); every
+existing event at gap \(g\) with rank at least \(k\) is shifted up by
+\(T+2\); every blocker \(x\) has its push-inv moved to \((g,k+1+i_x)\),
+right after the new pop and before the shifted events.  The moved vertices
+are exactly those whose push-inv must be postponed behind the pop
+(condition~2 makes that legal); condition~3 ensures that postponing does not
+create an abstract edge \(x\to m\) for an \(m\) popped later while \(x\)
+is live.
+
+\begin{lemma}[Existence, \code{exists_M}]\label{lem:M}
+Let \(C\) be the set of newer vertices that are completed and not popped.
+If \(C=\emptyset\), then \(\FS((T,0))\).  Otherwise let \(M\) be the least
+\(h_\inv(x_0)\) over \(x_0\in C\); then \(\FS(M)\).
+\end{lemma}
+
+\begin{proof}
+For \(x_0\in C\): by \ref{i:nd} applied to \(x_0\) and \(n\) (which is not
+popped in \(h\)), \(i_{x_0}>r_n\); by the blocking clause of
+Invariant~\ref{inv:wf}, \(i_{x_0}\notin(r_n,st)\), for otherwise \(x_0\)
+would be removed and hence popped by~\ref{c:remp}; and \(i_{x_0}\ne st\).
+So \(i_{x_0}>st\), which gives \((st,0)\lt M\).  A blocker \(x\) at \(M\)
+with \(r_x<\gap(M)\) is either in \(C\) with \(h_\inv(x)\lt M\), contradicting
+minimality, or popped after \(M\); but \(x_0\) is newer than \(x\), placed
+before that pop and unpopped, contradicting~\ref{c:top}.  Safety is
+vacuous for the same reason: any \(m\) popped after \(M\) with
+\(r_m<\gap(M)\) would see the unpopped \(x_0\) above it.
+\end{proof}
+
+Let \(P\) be the least position with \(\FS(P)\) (it exists classically);
+by Lemma~\ref{lem:M}, \(P\lte M\).
+
+\begin{lemma}[Moved vertices are already popped, \code{blocker_popped}]
+\label{lem:U}
+Every blocker of \(P\) is popped in \(h\) (necessarily after \(P\)).
+\end{lemma}
+
+\begin{proof}
+Suppose \(x\) is an unpopped blocker.  As in Lemma~\ref{lem:M},
+\(i_x>st\), so \(Q\triangleq h_\inv(x)\) satisfies condition~1 of \(\FS\).
+Any blocker \(z\) of \(Q\) with \(r_z<\gap(Q)\) is either unpopped, hence in
+\(C\) with \(h_\inv(z)\lt Q\lt P\lte M\), contradicting the minimality of
+\(M\), or popped after \(Q\), contradicting~\ref{c:top} for the unpopped
+newer \(x\).  Safety at \(Q\) is vacuous for the same reason.  Hence
+\(\FS(Q)\) with \(Q\lt P\), contradicting the minimality of \(P\).
+\end{proof}
+
+\begin{lemma}[The extended history is an abstract history, \code{new_acons}]
+\end{lemma}
+
+\begin{proof}[Proof sketch]
+The shift preserves the order of existing events and keeps them distinct
+from the new positions.  The pop of \(n\) at \(P\) satisfies~\ref{c:pop}
+since \(st\le g\le T\) and \(h_\inv(n)\lt P\) (\(n\) is not newer than
+itself, so it is not moved).  For~\ref{c:top} at the new pop: a newer \(x\)
+placed before \(P\) is not moved, hence not a blocker, hence popped before
+\(P\).  For~\ref{c:top} at an old pop \(m\) shifted to \(p\): if \(x\) is
+unmoved the claim is inherited; if \(x\) is moved and \(m\) is popped after
+\(P\), then either \(x\) was already newer than \(m\) (inherited) or the
+move crossed \(\ret(r_m)\), in which case safety gives
+\(h_\pop(x)\lt h_\pop(m)\).  For~\ref{i:nd}: by Lemma~\ref{lem:U} moved
+vertices are popped, so~\ref{i:nd} concerns only unmoved vertices, for
+which the only new completed-and-popped pair is \((x,n)\), and
+\ref{i:nd} of \(h\) excludes an unpopped \(x\) delayed past \(\ret(r_n)\)
+since \(n\) was not popped in \(h\).  \ref{i:tot} is unchanged.
+\end{proof}
+
+\subsection{Restoring the rank budget}
+
+An abstract history may use ranks beyond \(2g+1\).  Alongside the history
+the induction maintains a \emph{key map} from clock values to abstract
+events: the push-inv of \(x\) is keyed by \(i_x\) and the pop of \(n\) by
+\(st_n\); both keys are at most the gap of the event by~\ref{c:inv}
+and~\ref{c:pop}, and keys are distinct by clause~6 of
+Invariant~\ref{inv:wf}.  Compression replaces the rank of an event at gap
+\(g\) by the number of keys \(t\le g\) whose event lies at gap \(g\) with a
+smaller rank.  This is an order isomorphism on the events of each gap, so
+all consistency conditions transfer, and the new rank is at most \(g+1\),
+within the budget \(2g+2\); in particular \(\ret(r)\) still follows every
+compressed event of gap \(r\), so abstract edges are unchanged.  The key map
+makes the count computable without any choice principle.
+
+\section{Correspondence with the mechanized definitions}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}ll@{}}
+\toprule
+this note & Coq\\
+\midrule
+ghost fields \(\now,i_n,r_n,\snap,\rem\) &
+  \code{tsa_now}, \code{tsa_node_inv}, \code{tsa_node_ret}, \code{tsa_snap_time}, \code{tsa_removals}\\
+Invariant~\ref{inv:wf} & \code{TryStackAuxGhost.tsa_ghost_wf}, \code{step_preserves_wf}\\
+positions, \(\mathsf{ok}\), \(\ret\) & \code{Pos}, \code{pos_lt}, \code{pos_ok}, \code{ret_pos}\\
+history, \(x\to_h y\) & \code{History}, \code{abs_edge}\\
+Definition~\ref{def:consistent} & \code{TryStackLinearization.consistent}\\
+phases, phase consistency & \code{Phase}, \code{PhaseMap}, \code{phase_consistent}\\
+\(\Tok\), \(\Rep\), \(\cut\), \(\Real\) &
+  \code{token_at}, \code{represents_at}, \code{final_cut}, \code{Real}\\
+\(J\), \(I\) & \code{TryStackProof.J}, \code{TryStackProof.I}\\
+Lemmas~\ref{lem:shape}, \ref{lem:determinacy} &
+  \code{J_token_shape}, \code{phase_from_token}, \code{phase_unique}\\
+\(G_\alpha\), \(R_\beta\) & \code{G}, \code{R}, \code{valid_rg}, \code{parallel_compatible}\\
+Lemma~\ref{lem:generic} & \code{real_step_generic}, \code{ac_real_step}\\
+restriction & \code{restrict}, \code{ghost_extends}, \code{restrict_consistent}\\
+replay & \code{replay_inv}, \code{replay_pop}, \code{replay_ret}, \code{replay_gap}, \code{replay_done}\\
+event lemmas & \code{real_step_push_inv}, \ldots, \code{real_step_empty_res}\\
+assertions & \code{PhaseIs}, \code{Done}, \code{Inside}, \code{phase_or_error}\\
+triples & \code{push_method_triple}, \code{trypop_method_triple}\\
+results & \code{MTryStack}, \code{MTryStackLinearizable}, \code{MListPoolTryStack}\\
+abstract history, \ref{i:tot}, \ref{i:nd} & \code{TryStackTrace.acons} (\code{a_total}, \code{a_nd})\\
+undo operations & \code{undo_inv}, \code{undo_ret}, \code{undo_snap}, \code{undo_rem}, \code{with_now}\\
+\(\FS\), blockers, \(C\) & \code{FS}, \code{blocker}, \code{Cset}\\
+Lemmas~\ref{lem:M}, \ref{lem:U} & \code{exists_M}, \code{blocker_popped}\\
+insertion & \code{shift}, \code{moved_b}, \code{new_hist}, \code{new_acons}\\
+compression & \code{KeyMap}, \code{cnt}, \code{compress}, \code{compress_consistent}\\
+trace theorem & \code{TryStackTrace.trace_theorem}, used as \code{TryStackProof.real_nonempty}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

@@ -1,0 +1,1298 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlength{\emergencystretch}{3em}
+
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{theorem}[lemma]{Theorem}
+\newtheorem{proposition}[lemma]{Proposition}
+\newtheorem{invariant}[lemma]{Invariant}
+\theoremstyle{definition}
+\newtheorem{definition}[lemma]{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}[lemma]{Remark}
+
+\newcommand{\Tid}{\mathsf{Tid}}
+\newcommand{\Loc}{\mathsf{Loc}}
+\newcommand{\Val}{\mathsf{Val}}
+\newcommand{\Node}{\mathsf{Node}}
+\newcommand{\TS}{\mathsf{TS}}
+\newcommand{\topts}{\mathsf{TSTop}}
+\newcommand{\interval}[2]{[#1,#2]}
+\newcommand{\dom}{\mathop{\mathrm{dom}}}
+\newcommand{\fst}{\mathop{\mathrm{fst}}}
+\newcommand{\live}{\mathsf{live}}
+\newcommand{\pending}{\mathsf{pending}}
+\newcommand{\fresh}{\mathsf{fresh}}
+\newcommand{\Ready}{\mathsf{Ready}}
+\newcommand{\Atomic}{\mathsf{Atomic}}
+\newcommand{\Inv}{\mathsf{inv}}
+\newcommand{\Lini}{\mathsf{lini}}
+\newcommand{\Linr}{\mathsf{linr}}
+\newcommand{\GetTop}{\mathsf{getTop}}
+\newcommand{\Push}{\mathsf{push}}
+\newcommand{\TryRemove}{\mathsf{tryRemove}}
+\newcommand{\Succ}{\mathsf{Succ}}
+\newcommand{\Fail}{\mathsf{Fail}}
+\newcommand{\Empty}{\mathsf{Empty}}
+\newcommand{\true}{\mathsf{true}}
+\newcommand{\false}{\mathsf{false}}
+\newcommand{\arrayedge}{E_{\!a}}
+\newcommand{\poolgraph}{E_{\!p}}
+\newcommand{\poss}{\Delta}
+\newcommand{\conc}{\sigma}
+\newcommand{\abst}{\rho}
+\newcommand{\tokens}{\pi}
+\newcommand{\oplusset}{\mathbin{\oplus}}
+\newcommand{\wandsep}{\mathbin{-\!*\!-}}
+\newcommand{\entails}{\mathrel{\vDash}}
+\newcommand{\tran}{\mathrel{\rightsquigarrow}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\alltok}[2]{#1\mathrel{\mapsto_{\forall}}#2}
+\newcommand{\sometok}[2]{#1\mathrel{\mapsto_{\exists}}#2}
+\newcommand{\circinv}[2]{#1\mathrel{\mapsto_{#2}}\circ(\Inv)}
+\newcommand{\bulletinv}[2]{#1\mathrel{\mapsto_{#2}}\bullet(\Lini)}
+\newcommand{\bulletret}[3]{#1\mathrel{\mapsto_{#2}}\bullet(\Linr,#3)}
+
+\title{A Rely--Guarantee Hoare Proof of the ListPool Layer\\
+  \large over SPListArray and Interval Timestamps}
+\author{Proof exposition for the mechanized development}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note explains the correctness argument for the ListPool layer whose
+underlay is the horizontal composition of an SPListArray and an interval
+timestamp object.  The central result is a set-valued rely--guarantee Hoare
+proof for the three ListPool methods.  The technically interesting method is
+\(\GetTop\): its implementation scans rows non-atomically, retains the maximal
+timestamp observed, and uses a second counter read to distinguish a stable
+empty pool from interference.  The proof therefore keeps a set of abstract
+possibilities, including both an atomic fallback and many interval-snapshot
+branches.  We present the representation invariant, the rectangularity
+condition that makes independent snapshot choices compositional, the
+rely--guarantee relations, the loop invariant, the candidate-commit argument,
+and the empty/failure counter argument.  Coq-specific proof engineering is
+omitted except where it reflects a genuine mathematical issue.
+\end{abstract}
+
+\tableofcontents
+
+\section{Statement of the refinement}
+
+Fix a finite, duplicate-free list of participating threads
+\(\Upsilon\subseteq\Tid\).  A node identifier is a pair
+\[
+  n=(\beta,\ell)\in\Node\triangleq\Tid\times\Loc .
+\]
+The implementation layer imports
+\[
+  \mathcal E \;\triangleq\;
+  \mathsf{SPListArray}(\Upsilon)\otimes \mathsf{Timestamp}
+\]
+and exports the ListPool interface
+\[
+  \mathcal F \;\triangleq\;
+  \{\Push(v),\GetTop,\TryRemove(\beta,\ell)\}.
+\]
+The implementation is
+\begin{align*}
+\Push_\alpha(v):\quad &
+  \ell\leftarrow\mathsf{array.insert}(v);\quad
+  t\leftarrow\mathsf{newTS}();\quad
+  \mathsf{array.setTS}(\ell,t);\quad \mathsf{return}();
+\\
+\TryRemove_\alpha(\beta,\ell):\quad &
+  b\leftarrow\mathsf{array.tryRemove}(\beta,\ell);\quad
+  \mathsf{return}(b).
+\end{align*}
+For \(\GetTop\), the caller resets its iterator, scans every row
+\(\beta\in\Upsilon\), retains the greatest observed timestamp, and accumulates
+the counters returned by empty rows.  If a candidate was found it is returned.
+Otherwise the implementation reads the aggregate counter once more and
+returns \(\Succ(\Empty)\) exactly when this read equals the accumulated count;
+it returns \(\Fail\) otherwise.
+
+The verified statement is an implementation simulation
+\[
+  \mathcal M_{\mathsf{LP}}:\mathcal E\preccurlyeq\mathcal F,
+\]
+from which contextual linearizability of the layer follows by the generic
+simulation-to-linearizability theorem.  The simulation proof is discharged by
+one rely--guarantee Hoare triple per exported method.
+
+\section{Concrete and abstract transition systems}
+
+\subsection{Interval timestamps}
+
+Timestamps are either the sentinel \(\topts\), stored in a newly allocated
+node, or a closed natural-number interval:
+\[
+  t ::= \topts \mid \interval{l}{u}, \qquad l\le u.
+\]
+The strict order is deliberately partial:
+\[
+\interval{l_1}{u_1}<_{\TS}\interval{l_2}{u_2}
+  \quad\Longleftrightarrow\quad u_1<l_2,
+  \qquad
+\interval{l}{u}<_{\TS}\topts,
+  \qquad
+\topts\not<_{\TS}t.
+\]
+Thus overlapping intervals are incomparable.  The timestamp object has a
+clock \(\tau\) and a partial map \(q:\Tid\rightharpoonup\mathbb N\) of pending
+invocations.  Invocation by \(\alpha\) records \(q(\alpha)=\tau\).  A response
+may return \(\interval{l}{u}\) when \(q(\alpha)=l\) and \(l\le u\), after which
+the clock becomes at least \(u+1\).  Its invariant is
+\[
+  q(\alpha)=l \quad\Longrightarrow\quad l\le\tau.
+\]
+Consequently every interval completed before a later invocation is strictly
+below the interval returned by that later invocation.
+
+\subsection{The SPListArray state}
+
+Only the following mathematical view of the array state \(a\) is needed:
+\[
+  a=(C,V,T,g,O,S,PC).
+\]
+Here \(C:\Tid\to\mathbb N\) contains monotonically increasing per-row
+counters; \(V:\Node\rightharpoonup\Val\) contains every allocated value;
+\(T:\Node\rightharpoonup\TS\) stores timestamps; \(g\subseteq\Node\) is the
+monotone garbage set; \(O(\beta)\) is the current live order of row \(\beta\);
+\(S(\alpha)\) is the scan progress of caller \(\alpha\); and
+\(PC(\alpha)\), when defined, is the aggregate counter saved at invocation of
+\(\mathsf{getCounter}\).
+
+The concrete timestamp edge points from newer to older:
+\[
+  \arrayedge(n_1,n_2)
+  \quad\Longleftrightarrow\quad
+  \exists t_1,t_2.\ T(n_1)=t_1\land T(n_2)=t_2\land t_2<_{\TS}t_1.
+\]
+Insertion in row \(\alpha\) allocates \((\alpha,\ell)\) with timestamp
+\(\topts\), increments \(C(\alpha)\), and prepends \(\ell\) to
+\(O(\alpha)\).  Removal adds a node to \(g\) and removes its address from the
+live order, but does not erase its value or timestamp.
+
+A row scan saves both \(O(\beta)\) and \(C(\beta)\) at invocation.  Its
+response returns either the first still-live address from that saved order or
+the saved counter when no such address remains.  The scan-progress state
+classifies nodes relative to caller \(\alpha\) as
+\(\mathsf{Unvisited}\), \(\mathsf{Visiting}\),
+\(\mathsf{Visited}\), or \(\mathsf{Ignored}\).  A node inserted after its row
+was snapshotted is \(\mathsf{Ignored}\) for that scan.
+
+\subsection{The abstract ListPool DAG}
+
+An abstract pool state is
+\[
+  p=(V_p,E_p,S_p,P_p,g_p),
+\]
+where \(V_p:\Node\rightharpoonup\Val\),
+\(E_p\subseteq\Node\times\Node\),
+\(S_p:\Tid\rightharpoonup\mathcal P(\Node)\) stores per-thread snapshots,
+\(P_p:\Tid\rightharpoonup\Loc\) stores pending pushes, and
+\(g_p\subseteq\Node\) is garbage.  Edges point from a newer/higher node to an
+older/lower node.  For \(N\subseteq\Node\),
+\[
+  \mathsf{top}(N,E_p,n)
+  \;\triangleq\;
+  n\in N\ \land\ \forall n'\in N.\ \neg E_p(n',n).
+\]
+
+The relevant interval-sequential transitions are as follows.
+
+\begin{description}
+\item[Push invocation.]  For fresh \(n=(\alpha,\ell)\), add
+  \(V_p(n)=v\), record \(P_p(\alpha)=\ell\), and add
+  \[
+    \{(n,n')\mid n'\text{ is live and }n'\notin |P_p|\}.
+  \]
+  Hence a new push is ordered after every already completed live push, but is
+  not ordered against overlapping pending pushes.
+
+\item[Push response.] Remove \(\alpha\) from \(P_p\).
+
+\item[Snapshot invocation.] Set
+  \(S_p(\alpha)=\dom(V_p)\), leaving the graph unchanged.
+
+\item[Node response.] If \(S_p(\alpha)=N\), a response
+  \(\Succ(v,n)\) is legal when either
+  \(n\in g_p\) and \(V_p(n)=v\), or
+  \[
+    \mathsf{top}(N\setminus g_p,E_p,n)\land V_p(n)=v.
+  \]
+  The response clears \(S_p(\alpha)\).
+
+\item[Atomic alternatives.] A \(\GetTop\) invocation may instead enter an
+  atomic pending state.  From there it may return \(\Fail\) unconditionally,
+  or \(\Succ(\Empty)\) when every allocated vertex is garbage.
+
+\item[Removal.] \(\TryRemove(n)\) atomically returns \(\true\) and adds
+  \(n\) to \(g_p\) when \(n\) is live; it returns \(\false\) when
+  \(n\in g_p\).
+\end{description}
+
+Calls by actors outside \(\Upsilon\), and removals with an owner outside
+\(\Upsilon\) or an undefined node, have matching abstract error transitions.
+This alignment is required for the error branch of each Hoare triple.
+
+\section{Set-valued logical states}
+
+\subsection{Possibilities and operation tokens}
+
+A proof state is
+\[
+  w=(\conc,\poss),
+\]
+where \(\conc\) is one concrete underlay state and \(\poss\) is a nonempty set
+of abstract possibilities.  A possibility is a pair \((\abst,\tokens)\) of an
+abstract ListPool control state and a linearization-token map.  For operation
+\(m\), the token of thread \(\alpha\) is one of
+\[
+  \Inv(m),\qquad \Lini(m),\qquad \Linr(m,r).
+\]
+They mean, respectively, that the external invocation exists but has not
+taken an abstract interval step, that its interval invocation has occurred,
+and that its response has been linearized with result \(r\).
+
+We use the paper-style assertions
+\begin{align*}
+  \alltok{\alpha}{\circ(m)}
+    &\quad\text{all possibilities carry }\Inv(m),\\
+  \sometok{\alpha}{\circ(m)}
+    &\quad\text{a nonempty subconfiguration carries }\Inv(m),\\
+  \alltok{\alpha}{\bullet(m)},\ \sometok{\alpha}{\bullet(m)}
+    &\quad\text{similarly for }\Lini(m),\\
+  \alltok{\alpha}{\bullet(m,r)},\ \sometok{\alpha}{\bullet(m,r)}
+    &\quad\text{similarly for }\Linr(m,r).
+\end{align*}
+The connective \(P\oplusset Q\) decomposes the possibility family into two
+nonempty speculative subfamilies satisfying \(P\) and \(Q\).  It is a union
+connective, not ordinary propositional disjunction.  In particular, retaining
+\[
+  \sometok{\alpha}{\circ(\GetTop)}
+  \quad\text{and}\quad
+  \sometok{\alpha}{\bullet(\GetTop)}
+\]
+means that both fallback and snapshot explanations coexist until the concrete
+return value determines which explanation is usable.
+
+For a snapshot \(N\), the paper's named assertion is represented semantically
+as
+\[
+\begin{split}
+  \mathsf{gettingT}(\alpha,N,P)\ \triangleq\ &
+  \bigl(\alltok{\alpha}{\bullet(\GetTop)}
+   \land S_p(\alpha)=N\land P\bigr)
+   \oplusset \mathsf{true}.
+\end{split}
+\]
+Thus its left summand is a genuine, nonempty family of snapshot branches; the
+right summand frames all alternatives not currently under discussion.
+
+\subsection{Why rectangularity is necessary}
+
+Different threads speculate independently about when to take their snapshot
+invocations.  Merely knowing that each thread has some suitable branch is
+insufficient: a later commit for \(\alpha\) must not destroy the branch needed
+by a concurrent \(\beta\).
+
+Write \(p\equiv_{\mathrm{sh}}q\) when the two pool states have identical
+\(V_p,E_p,P_p,g_p\); snapshots may differ.  The invariant requires:
+\begin{enumerate}
+\item every pair of possibilities has shared-equivalent pool states; and
+\item for any possibilities \((p_1,\pi_1),(p_2,\pi_2)\) and actor \(\alpha\),
+there is a possibility \((p,\pi)\) that takes \(\alpha\)'s snapshot and token
+from the first and every other thread's snapshot and token from the second:
+\[
+\begin{array}{ll}
+ S_p(\alpha)=S_{p_1}(\alpha), & \pi(\alpha)=\pi_1(\alpha),\\
+ S_p(\beta)=S_{p_2}(\beta), & \pi(\beta)=\pi_2(\beta)\quad(\beta\ne\alpha),
+\end{array}
+\]
+with \(p\equiv_{\mathrm{sh}}p_2\).
+\end{enumerate}
+This Cartesian closure is the semantic counterpart of the paper's
+independent-snapshot connective \(\wandsep\).  It justifies slicing the set of
+possibilities by \(\alpha\)'s eventual choice while preserving every foreign
+thread's local view.
+
+\section{The global invariant}
+
+The stable invariant has four top-level conjuncts:
+\[
+\boxed{\begin{aligned}
+  I(\conc,\poss)\ \triangleq\ {}&
+  \mathsf{ConcreteWF}(\conc)
+  \land
+  \bigl(\forall(\abst,\tokens)\in\poss.\
+        \mathsf{BranchRep}(\conc,\abst,\tokens)\bigr)\\
+  &{}\land \mathsf{Rect}(\poss)
+  \land \mathsf{CounterProtocol}(\conc,\poss).
+\end{aligned}}
+\]
+We now expand each part.
+
+\subsection{Concrete well-formedness}
+
+Let \(a\) and \((\tau,q)\) be the array and timestamp components of
+\(\conc\).  Then \(\mathsf{ConcreteWF}\) contains:
+\begin{align*}
+&q(\alpha)=l \Longrightarrow l\le\tau,
+\tag{WF-TS}\\
+&T(n)=\interval{l}{u}\Longrightarrow u+1\le\tau,
+\tag{WF-Clock}\\
+&V(n)=v\Longrightarrow
+  \exists t.\ T(n)=t\land\mathsf{wf}_{\TS}(t),
+\tag{WF-Domain-1}\\
+&T(n)=t\Longrightarrow\exists v.\ V(n)=v,
+\qquad
+ n\in g\Longrightarrow n\in\dom(V),
+\tag{WF-Domain-2}\\
+&n=(\beta,\ell)\text{ is live}
+  \Longleftrightarrow \ell\in O(\beta),
+\tag{WF-Order}\\
+&n\in\dom(V)\Longrightarrow\beta\in\Upsilon,
+\qquad \mathsf{NoDup}(O(\beta)).
+\tag{WF-Threads}
+\end{align*}
+The clock property is the bridge between completed timestamps and future
+timestamp invocations.  The order properties connect each row-level
+\(\mathsf{getTop}\) response to the graph argument.
+
+\subsection{Branch representation}
+
+Every stable abstract possibility is \(\Ready(p)\), and
+\(\mathsf{BranchRep}(\conc,\Ready(p),\tokens)\) consists of three pieces.
+
+First, \(p\) represents the concrete array:
+\begin{align*}
+V_p(n)&=V(n),
+\tag{Rep-V}\\
+E_p(n_1,n_2)&\Longrightarrow \arrayedge(n_1,n_2),
+\tag{Rep-E}\\
+E_p(n_1,n_2)&\Longrightarrow n_1,n_2\in\dom(V_p),
+\tag{Rep-Dom}\\
+n\in g_p&\Longleftrightarrow n\in g,
+\tag{Rep-G}\\
+n\in |P_p|&\Longleftrightarrow T(n)=\topts,
+\tag{Rep-P}\\
+S_p(\alpha)=N\land n\in N&\Longrightarrow n\in\dom(V).
+\tag{Rep-S}
+\end{align*}
+Within one row, abstract edges between live vertices agree with allocation
+order, and any two distinct live vertices in that row are comparable by an
+abstract edge.  This is stronger than simple edge inclusion and is exactly
+what identifies the row response as the row's abstract top.
+
+Second, the pool control state and token map obey a protocol:
+\begin{align*}
+P_p(\alpha)=\ell
+  &\Longrightarrow \exists v.\ \pi(\alpha)=\Lini(\Push(v)),\\
+S_p(\alpha)=N
+  &\Longrightarrow \pi(\alpha)=\Lini(\GetTop),\\
+\pi(\alpha)=\Lini(\Push(v))
+  &\Longrightarrow \exists\ell.\ P_p(\alpha)=\ell.
+\end{align*}
+
+Third, pending timestamp invocations retain a causal edge fact.  Define
+\[
+\mathsf{outgoingBefore}(a,p,n,l)\ \triangleq\
+  \forall m.\ E_p(n,m)\Longrightarrow
+  \exists l_m,u_m.\ T(m)=\interval{l_m}{u_m}\land u_m<l.
+\]
+Then
+\begin{align*}
+q(\alpha)=l&\Longrightarrow\exists\ell.\ P_p(\alpha)=\ell,\\
+q(\alpha)=l\land P_p(\alpha)=\ell
+  &\Longrightarrow
+  \mathsf{outgoingBefore}(a,p,(\alpha,\ell),l).
+\tag{Rep-Causal}
+\end{align*}
+When \(\mathsf{newTS}\) returns \(\interval{l}{u}\), every abstract outgoing
+edge of that push therefore becomes a concrete timestamp edge.  This proves
+\(E_p\subseteq\arrayedge\) after \(\mathsf{setTS}\).
+
+\subsection{Pending aggregate counters}
+
+The final invariant clause states
+\[
+PC(\alpha)=c
+\quad\Longrightarrow\quad
+\exists(\rho,\pi)\in\Delta.\ \pi(\alpha)=\Lini(\GetTop).
+\]
+An internal aggregate-counter call can therefore be pending only when an
+abstract \(\GetTop\) interval invocation exists.  This rules out stale
+counter state at a fresh external invocation and is essential for both
+stability and error reasoning.
+
+\section{Speculative witnesses used by the scan}
+
+\subsection{Candidate and row witnesses}
+
+Suppose caller \(\alpha\) has completed rows in list \(A\), and the
+implementation accumulator contains
+\[
+  r=(v,\beta,\ell,t),\qquad n_r=(\beta,\ell).
+\]
+A \emph{candidate view} is an actual possibility
+\((\Ready(p),\pi)\in\Delta\) with a snapshot \(S_p(\alpha)=N\) such that
+\begin{align*}
+&\pi(\alpha)=\Lini(\GetTop),\quad V_p(n_r)=v,\quad \beta\in A,\\
+&n_r\in g_p\quad\text{or}\quad
+  \Bigl(n_r\in N\setminus g_p\ \land
+   \forall n'\in N\setminus g_p.\
+     \fst(n')\in A\Rightarrow\neg E_p(n',n_r)\Bigr).
+\tag{Cand-Top}
+\end{align*}
+If the observed timestamp was \(\topts\), the view additionally asserts
+\[
+  \forall n'\in N\setminus g_p.\ \neg E_p(n',n_r).
+\tag{Cand-TopTS}
+\]
+The stronger condition is needed because the timestamp saved in \(r\) does
+not change when the node is later stamped.
+
+During a pending row call, a \emph{row snapshot view} ties the saved concrete
+row order \(L\) to the same abstract possibility: all addresses in \(L\) are
+in \(N\); every live snapshot node of that row occurs in \(L\); and abstract
+edges between live snapshot nodes respect the order in \(L\).  The proof uses
+a combined candidate--row witness rather than conjoining two existential
+assertions.  This prevents accidentally taking the candidate from one
+speculative branch and row coverage from an unrelated branch.
+
+\subsection{The node-cut invariant}
+
+The paper motivates deletion of ignored vertices from a snapshot.  A literal
+induction over ignored nodes would require finite support for the
+predicate-valued historical vertex set, which the state representation does
+not provide.  The mechanized proof instead maintains the exact consequence
+needed at commit time.
+
+For a live, nonignored node \(n\), a \emph{node cut} is a real possibility
+with snapshot \(N\) such that
+\begin{equation}
+\begin{split}
+&\pi(\alpha)=\Lini(\GetTop),\quad S_p(\alpha)=N,
+  \quad n\in N,\quad V_p(n)=V(n),\\
+&\forall n'\in N\setminus g_p.\
+  E_p(n',n)\Longrightarrow
+  \mathsf{status}_{\alpha}(n')\ne\mathsf{Ignored}.
+\end{split}
+\tag{Cut}
+\end{equation}
+The global scan assertion requires such a cut for every concrete live node
+that is not ignored by the current scan.  Old cuts survive a push that is
+ignored by the scan; a newly inserted nonignored node receives a fresh cut in
+the newly forked snapshot family.  At the end of a complete scan, every
+nonignored live predecessor has been visited.  Candidate maximality excludes
+all such predecessors, so the cut witnesses that the candidate is a genuine
+top.  This proof-relevant construction replaces the paper's finite repeated
+removal argument without adding a finiteness axiom.
+
+\subsection{The stale-\texorpdfstring{\(\topts\)}{TSTop} problem}
+
+There is a tempting but false loop invariant: ``the saved candidate is a top
+under the current concrete timestamp order.''  A scan may read \(n\) while
+\(T(n)=\topts\), after which the owning push replaces \(\topts\) by an interval.
+The saved candidate still contains \(\topts\), so its comparison behavior no
+longer matches the current array state.
+
+The proof separates two cases:
+\begin{itemize}
+\item If the saved timestamp is an interval, it is immutable.  The assertion
+  records that the current concrete timestamp is still that exact interval.
+\item If the saved timestamp is \(\topts\), no equality with the current
+  timestamp is required.  Instead, condition \textup{(Cand-TopTS)} is retained.
+\end{itemize}
+Why is \textup{(Cand-TopTS)} stable?  Any push that begins while \(n\) is still
+pending sees \(n\in|P_p|\), and the abstract push rule deliberately does not
+add an edge to a pending node.  Completing \(n\)'s timestamp later changes the
+concrete timestamp order but adds no abstract edge.  Older completed pushes
+cannot become incoming predecessors of \(n\), and later pushes not present in
+the saved snapshot are irrelevant.  This causal argument covers precisely the
+case that timestamp comparison alone cannot handle.
+
+\section{Rely and guarantee relations}
+
+The Hoare judgment has the form
+\[
+  \{P\}_{R_\alpha,G_\alpha,I}\ c\ \{x.Q(x)\},
+\]
+meaning that thread \(\alpha\) executes \(c\), environment steps satisfy
+\(R_\alpha\), implementation steps satisfy \(G_\alpha\), and all stable
+boundaries satisfy \(I\).
+
+\subsection{Evolution relations}
+
+Several monotone relations summarize exactly what interference may do.
+
+\paragraph{Array evolution.}
+For every owner \(\beta\),
+\[
+C(\beta)\le C'(\beta),
+\qquad
+C(\beta)=C'(\beta)\Longrightarrow O'(\beta)\subseteq O(\beta).
+\tag{Arr-Evol}
+\]
+Thus a counter can increase only because of insertion; with no increase, the
+live order can only shrink by removal.
+
+\paragraph{Garbage and intervals.}
+Garbage is monotone, timestamp domains do not shrink, and an existing interval
+timestamp is immutable:
+\begin{align*}
+g&\subseteq g',\\
+T(n)\downarrow&\Longrightarrow T'(n)\downarrow,\\
+T(n)=\interval{l}{u}&\Longrightarrow T'(n)=\interval{l}{u}.
+\end{align*}
+The timestamp clock is also monotone.
+
+\paragraph{Local concrete state.}
+For observer \(\beta\), its scan progress and pending aggregate-counter entry
+are unchanged by foreign steps.  Its pending timestamp lower bound is likewise
+unchanged.
+
+\paragraph{Token evolution.}
+Old token views are retained.  The only new view permitted for observer
+\(\beta\) is \(\Lini(\GetTop)\), and it must be justified by an old
+\(\Inv(\GetTop)\) view.  Formally,
+\begin{align*}
+\mathsf{view}_\beta(\Delta,t)&\Rightarrow
+  \mathsf{view}_\beta(\Delta',t),\\
+\mathsf{view}_\beta(\Delta',t)&\Rightarrow
+  \mathsf{view}_\beta(\Delta,t)\ \lor\
+  \bigl(t=\Lini(\GetTop)\land
+        \mathsf{view}_\beta(\Delta,\Inv(\GetTop))\bigr).
+\end{align*}
+This is the logical permission to add snapshot branches while retaining the
+atomic fallback.
+
+\paragraph{Abstract local views.}
+Existing pairs consisting of an observer's pending-push entry and snapshot
+entry remain available.  New snapshot alternatives may appear, but the
+pending-push component of every new view agrees with some old view.  Candidate
+views, row views, combined candidate--row views, and node cuts are preserved.
+The causal fact \(\mathsf{outgoingBefore}\) for the observer's pending push is
+also preserved.
+
+\subsection{Definitions of \texorpdfstring{\(G_\alpha\) and \(R_\alpha\)}{G and R}}
+
+The guarantee \(G_\alpha(w,w')\) is the conjunction of all evolution clauses
+above, with observer-indexed clauses required for every
+\(\beta\ne\alpha\).  The rely \(R_\alpha(w,w')\) is the same conjunction
+specialized to observer \(\alpha\).  Schematically,
+\[
+\begin{split}
+G_\alpha={}&
+ \bigwedge_{\beta\ne\alpha}
+  (\mathsf{TokenRely}_\beta\land\mathsf{PoolLocal}_\beta
+   \land\mathsf{LocalConcrete}_\beta
+   \land\mathsf{WitnessPreservation}_\beta)
+\\&{}land\mathsf{ArrEvol}\land\mathsf{ClockMono}
+ \land\mathsf{GarbageEvol}\land\mathsf{IntervalEvol},\\
+R_\alpha={}&
+ \mathsf{TokenRely}_\alpha\land\mathsf{PoolLocal}_\alpha
+ \land\mathsf{LocalConcrete}_\alpha
+ \land\mathsf{WitnessPreservation}_\alpha
+\\&{}land\mathsf{ArrEvol}\land\mathsf{ClockMono}
+ \land\mathsf{GarbageEvol}\land\mathsf{IntervalEvol}.
+\end{split}
+\]
+
+The construction immediately suggests the compatibility proof:
+\[
+  \alpha\ne\beta\quad\Longrightarrow\quad G_\alpha\subseteq R_\beta.
+\]
+Identity, invocation, and response bookkeeping steps satisfy the corresponding
+relies, and both relations are transitive.  Hence the pair \((R,G)\) is a valid
+parallel rely--guarantee assignment.  The long preservation arguments for
+push, removal, snapshot forks, and possibility restriction exist to establish
+the witness-preservation clauses of this inclusion.
+
+\section{Generic method assertions and Hoare rules}
+
+For any exported operation \(m\), define
+\[
+\begin{aligned}
+\mathsf{Active}_\alpha(m)&\triangleq
+ I\land\alltok{\alpha}{\circ(m)},\\
+\mathsf{Completed}_\alpha(m,r)&\triangleq
+ I\land\alltok{\alpha}{\bullet(m,r)}.
+\end{aligned}
+\]
+Both assertions are stable under \(R_\alpha\), except that an active
+\(\GetTop\) needs a specialized existential entry assertion because
+interference is allowed to add snapshot branches.
+
+The proof repeatedly uses three semantic Hoare principles.
+
+\begin{description}
+\item[Underlay call.] To prove a visible call, show that its invocation cannot
+error, prove an invocation update \(P\tran P'\), prove one response update
+\(P'\tran Q(r)\) for each return \(r\), and establish stability of the
+intermediate assertions.
+
+\item[Error split.] Before an underlay call, refine \(P\) into either a safe
+precondition or an abstract-error possibility.  This handles calls outside
+the finite domain and undefined removals without assuming safety.
+
+\item[Logical update.] A concrete-free update may restrict or extend the
+possibility family along zero or more legal abstract steps.  It is used to
+commit to a candidate slice and to add the counter-result alternatives.
+\end{description}
+
+The crucial discipline is that ordinary deterministic underlay steps use a
+pointwise image of \(\Delta\), preserving one descendant for every prior
+possibility.  The proof restricts the family only when the concrete observation
+has supplied enough information to justify a commit.
+
+\section{The \texorpdfstring{\(\TryRemove\)}{tryRemove} triple}
+
+The target triple is
+\[
+\boxed{
+\{\mathsf{Active}_\alpha(\TryRemove(\beta,\ell))\}
+\ \mathsf{array.tryRemove}(\beta,\ell)\ 
+\{b.\mathsf{Completed}_\alpha(\TryRemove(\beta,\ell),b)\}.
+}
+\]
+
+The precondition is split into a safe array call or an abstract error.  If
+\(\alpha\notin\Upsilon\), if \(\beta\notin\Upsilon\), or if the node is
+undefined, branch representation supplies the corresponding ListPool error
+step.  Otherwise the array invocation is safe.
+
+On a successful response, the concrete array adds
+\(n=(\beta,\ell)\) to \(g\).  Every possibility performs the matching atomic
+ListPool invocation and successful response, adds \(n\) to \(g_p\), and changes
+\(\alpha\)'s token to \(\Linr(\TryRemove(n),\true)\).  On failure, branch
+representation gives \(n\in g_p\); every possibility performs the failed
+abstract response and leaves the graph unchanged.  Because garbage is
+monotone, an existing candidate either remains live/top or moves to the
+garbage alternative.  Row views and node cuts survive: weakening liveness by
+adding garbage cannot create a new live predecessor.  This establishes the
+guarantee and the postcondition for both booleans.
+
+\section{The \texorpdfstring{\(\Push\)}{push} triple}
+
+The target triple is
+\[
+\boxed{
+\{\mathsf{Active}_\alpha(\Push(v))\}
+\ \ell\leftarrow\mathsf{insert}(v);\,
+ t\leftarrow\mathsf{newTS}();\,
+ \mathsf{setTS}(\ell,t)\ 
+\{\_.\mathsf{Completed}_\alpha(\Push(v),())\}.
+}
+\]
+
+The useful intermediate assertions are
+\begin{align*}
+\mathsf{PushActor}(\alpha,v)
+  &\triangleq \mathsf{Active}_\alpha(\Push(v))\land\alpha\in\Upsilon,
+\\
+\mathsf{PushLin}(\alpha,v,\ell)
+  &\triangleq I\land\alltok{\alpha}{\bullet(\Push(v))}
+    \land\alpha\in\Upsilon
+    \land \forall\text{ local views}.\ P_p(\alpha)=\ell,
+\\
+\mathsf{PushStamped}(\alpha,v,\ell,l,u)
+  &\triangleq \mathsf{PushLin}(\alpha,v,\ell)
+    \land l\le u\land u+1\le\tau
+\\&\qquad{}land q(\alpha)\uparrow
+    \land\mathsf{outgoingBefore}(a,p,(\alpha,\ell),l).
+\end{align*}
+
+\subsection{Insertion and speculative snapshot saturation}
+
+The array insertion allocates \(n=(\alpha,\ell)\) with timestamp \(\topts\),
+increments its row counter, and adds it to the row head.  Every abstract branch
+takes the ListPool push invocation, adding the same value and the appropriate
+outgoing edges.  Thus
+\[
+  \mathsf{PushActor}(\alpha,v)
+  \tran \mathsf{PushLin}(\alpha,v,\ell).
+\]
+
+Insertion may affect every currently scanning thread: if the new node lies in
+an unvisited row, some future snapshot explanation should contain it; if its
+row was already snapshotted, it is ignored for that scan.  The possibility
+family is therefore saturated by optional snapshot forks for the participating
+threads.  Each fork retains the old branch and, when legal, adds the branch
+that takes a ListPool snapshot invocation.  Repeated optional forks preserve
+rectangularity and all old token/local views.  The node-cut invariant is
+updated constructively: ignored insertions preserve old cuts, whereas a
+nonignored insertion obtains a fresh cut from a new snapshot branch.
+
+\subsection{Timestamp invocation and response}
+
+Invocation of \(\mathsf{newTS}\) records the current clock lower bound \(l\).
+The branch invariant implies that every outgoing abstract predecessor of the
+pending push already carries an interval whose upper endpoint is below \(l\).
+This is exactly \(\mathsf{outgoingBefore}\).
+
+The timestamp response returns only an interval \(\interval{l}{u}\) with
+\(l\le u\), clears \(q(\alpha)\), and advances the clock beyond \(u\).  A
+sentinel response is impossible and is assigned the false assertion.  Hence
+the response establishes \(\mathsf{PushStamped}\).
+
+\subsection{Installing the timestamp and completing the push}
+
+The final array call replaces \(T(n)=\topts\) by
+\(T(n)=\interval{l}{u}\).  For every abstract edge \(E_p(n,m)\), causal
+ordering gives \(T(m)=\interval{l_m}{u_m}\) with \(u_m<l\); therefore
+\[
+  \interval{l_m}{u_m}<_{\TS}\interval{l}{u}
+  \quad\text{and hence}\quad \arrayedge(n,m).
+\]
+All old interval timestamps are unchanged.  Every possibility takes the
+abstract push response, removes \(\alpha\) from \(P_p\), and sets its token to
+\(\Linr(\Push(v),())\).  The representation and protocol invariants are
+restored, yielding \(\mathsf{Completed}_\alpha(\Push(v),())\).
+
+\section{The \texorpdfstring{\(\GetTop\)}{getTop} triple}
+
+This is the core of the proof.  Its external triple is
+\[
+\boxed{
+\{\mathsf{GetTopEntry}(\alpha)\}
+\ \mathsf{getTopImpl}_\alpha\ 
+\{r.\mathsf{Completed}_\alpha(\GetTop,r)\}.
+}
+\]
+The entry assertion contains \(I\), an existential unlinearized fallback
+\(\sometok{\alpha}{\circ(\GetTop)}\), and either a valid in-domain local state
+or evidence that \(\alpha\notin\Upsilon\).  The latter case takes the abstract
+error step.  In the former case the pending-counter protocol proves that
+\(PC(\alpha)\) is absent.
+
+\subsection{Reset and the initial fork}
+
+The array reset installs empty scan progress for \(\alpha\).  At its response,
+the proof applies an optional abstract snapshot step:
+\[
+  \Delta' = \Delta
+   \ \cup\ 
+   \{\text{descendants obtained by taking }\alpha\text{'s snapshot invocation}\}.
+\]
+Thus the reset postcondition contains both
+\[
+  \sometok{\alpha}{\circ(\GetTop)}
+  \quad\text{and}\quad
+  \sometok{\alpha}{\bullet(\GetTop)},
+\]
+at least one concrete snapshot view, and node cuts for all initially live
+nodes.  The first token family is reserved for atomic \(\Fail\),
+\(\Succ(\Empty)\), and garbage explanations; the second supplies nonempty
+top explanations.
+
+\subsection{Loop invariant}
+
+Let the fixed thread list decompose as
+\[
+  \Upsilon=A\mathbin{++}B,
+\]
+where \(A\) has been scanned and \(B\) remains.  Let the concrete accumulator
+be \((r,c)\), with optional candidate \(r\) and empty-row count \(c\).  The
+stable assertion \(\mathsf{ScanFold}_\alpha(B,r,c)\) contains:
+
+\begin{enumerate}
+\item the global invariant \(I\), domain membership of \(\alpha\), absence of
+its pending aggregate counter, and exact scan progress with visited rows
+\(A\), no current row, and all seen nodes owned by rows in \(A\);
+
+\item both token families
+\(\sometok{\alpha}{\circ(\GetTop)}\) and
+\(\sometok{\alpha}{\bullet(\GetTop)}\), a snapshot possibility, and available
+node cuts;
+
+\item every seen node has a timestamp in the concrete domain; and
+
+\item the following accumulator condition.
+\end{enumerate}
+
+If \(r=\mathsf{None}\), define
+\[
+\mathsf{EmptyEvidence}(A,c,a)\ \triangleq\
+c\le\sum_{\beta\in A}C(\beta)
+\ \land\ 
+\left(c=\sum_{\beta\in A}C(\beta)
+ \Rightarrow \forall\beta\in A.\ O(\beta)=[]\right).
+\tag{Empty-Ev}
+\]
+The invariant requires \(\mathsf{EmptyEvidence}\) and says every node seen so
+far is garbage.  This assertion is stable by \textup{(Arr-Evol)}: if the total
+does not increase, each component counter is unchanged and each current row
+order is included in the previously empty order.
+
+If \(r=\mathsf{Some}(v,\beta,\ell,t)\), the invariant contains a candidate
+view, timestamp validity, and maximality over seen live nodes:
+\[
+  \forall n,t'.\ \mathsf{seen}(n)\land n\notin g\land T(n)=t'
+  \Longrightarrow \neg(t<_{\TS}t').
+\tag{Cand-Max}
+\]
+For interval candidates, timestamp validity is exact equality with the current
+array timestamp.  For \(\topts\) candidates, the separate causal safety
+condition described earlier is used.
+
+During the call on the next row \(\beta\), a pending assertion additionally
+records the saved row order and counter, a row snapshot view, no duplicates,
+and the combined candidate--row witness.  It also records
+\[
+ C_{\mathrm{saved}}(\beta)\le C(\beta),
+\qquad
+C_{\mathrm{saved}}(\beta)=C(\beta)
+ \Rightarrow O(\beta)\subseteq O_{\mathrm{saved}}(\beta).
+\]
+
+\subsection{One row-step triple}
+
+For \(B=\beta::B'\), the loop body satisfies
+\[
+\boxed{
+\{\mathsf{ScanFold}_\alpha(\beta::B',r,c)\}
+\ \mathsf{scanStep}(\beta,r,c)\ 
+\{(r',c').\mathsf{ScanFold}_\alpha(B',r',c')\}.
+}
+\]
+
+At invocation of \(\mathsf{array.getTop}(\beta)\), the saved row order is
+linked to a snapshot possibility and the scan state changes from idle to
+visiting.  The response has two cases.
+
+\paragraph{Nonempty row.}
+Suppose the row returns \((v,t,\ell)\).  The saved-order semantics makes
+\((\beta,\ell)\) the first currently live address in the saved order.  Row
+ordering then excludes any live incoming predecessor from that row in the
+same snapshot.  The returned node receives a candidate view, using its node
+cut when necessary.  The implementation chooses between it and the old
+candidate by the boolean version of \(<_{\TS}\).  In the ``newer'' branch,
+the new timestamp is strictly above the old saved interval and becomes the
+maximal candidate.  In the retained branch, the failed comparison directly
+preserves \textup{(Cand-Max)}.  All combinations involving \(\topts\) are
+handled by the causal safety predicate, so no equality between a stale saved
+\(\topts\) and the current timestamp is assumed.
+
+\paragraph{Empty row.}
+Suppose the row returns saved counter \(d\).  The implementation changes
+\(c\) to \(c+d\).  If no candidate exists, the row response proves the new
+empty-evidence bound.  If equality with the current row counter holds, the
+current live order is empty; otherwise the inequality records possible
+interference.  If a candidate already exists, an empty response cannot
+introduce a larger seen live node, so its candidate view and maximality are
+preserved.
+
+In both cases the current row is appended to \(A\), its snapshot nodes become
+seen, and the scan returns to the idle phase.  The generic finite-list
+\(\mathsf{foreach}\) rule iterates this triple to obtain
+\[
+  \mathsf{ScanFold}_\alpha(\Upsilon,\mathsf{None},0)
+  \tran \exists r,c.\mathsf{ScanFold}_\alpha([],r,c).
+\]
+
+\subsection{Committing a nonempty candidate}
+
+At loop exit with candidate \(r=(v,\beta,\ell,t)\), the candidate view supplies
+a donor possibility \((p_d,\pi_d)\) with snapshot \(N\).  Since all rows have
+been visited, condition \textup{(Cand-Top)} strengthens to one of:
+\[
+  n_r\in g_{p_d}
+  \qquad\text{or}\qquad
+  \mathsf{top}(N\setminus g_{p_d},E_{p_d},n_r).
+\]
+In the live case, the node-cut invariant excludes ignored incoming
+predecessors and candidate maximality excludes nonignored ones.  In the
+garbage case, the relaxed abstract garbage-response rule applies directly.
+
+The commit has two mathematical stages.
+
+\paragraph{Actor slice.}
+Restrict \(\Delta\) to branches whose \(\alpha\)-snapshot and \(\alpha\)-token
+equal the donor's choices:
+\[
+  \mathsf{Slice}_\alpha(\Delta,p_d,\pi_d).
+\]
+Rectangularity proves this slice nonempty and, for every foreign observer,
+still representative of all its former local choices.  This is the formal
+meaning of selecting one \(\oplusset\)-summand without invalidating concurrent
+proofs.
+
+\paragraph{Pointwise response image.}
+Every branch in the slice takes either the abstract top response or the
+abstract garbage response, clears \(S_p(\alpha)\), and changes the token to
+\(\Linr(\GetTop,\Succ(v,\beta,\ell))\).  Applying this response pointwise
+produces \(\Delta'\).  Shared graph equality transfers the donor's top/garbage
+fact to every branch in the slice.  The result is
+\[
+\mathsf{ScanFold}_\alpha([],\mathsf{Some}(r),c)
+\tran
+\mathsf{Completed}_\alpha(\GetTop,\Succ(v,\beta,\ell)).
+\]
+
+\subsection{The empty/failure counter protocol}
+
+At loop exit with no candidate, let the accumulated count be \(c\).  From
+\textup{(Empty-Ev)} over all rows,
+\[
+  c\le C_{\mathrm{tot}}
+  \quad\text{and}\quad
+  c=C_{\mathrm{tot}}\Rightarrow
+  \forall\beta\in\Upsilon.\ O(\beta)=[].
+\tag{All-Empty}
+\]
+
+Invocation of \(\mathsf{array.getCounter}\) saves
+\(s=C_{\mathrm{tot}}\) and later returns some \(z\) satisfying
+\[
+  s\le z\le C'_{\mathrm{tot}}.
+\tag{Counter-Bounds}
+\]
+At invocation time, the proof extends the possibility family with an atomic
+\(\Fail\) response alternative unconditionally.  If \(c=s\),
+\textup{(All-Empty)} and the live-order representation imply that every
+abstract vertex is garbage, so it also adds an atomic
+\(\Succ(\Empty)\) alternative.  Old unlinearized and snapshot branches are
+retained.
+
+At response time:
+\begin{itemize}
+\item If \(z=c\), then \(c\le s\le z=c\), hence \(c=s\).  The empty
+alternative was created and is legal; slice to it and return
+\(\Succ(\Empty)\).
+\item If \(z\ne c\), slice to the always-available failure alternative and
+return \(\Fail\).
+\end{itemize}
+This is exactly the concrete branch
+\[
+  \mathsf{if}\ z=c\ \mathsf{then}\ \Succ(\Empty)\ \mathsf{else}\ \Fail.
+\]
+The counter argument does not claim that a failed scan saw a single atomic
+empty instant.  It only claims emptiness when equality rules out every
+overlapping insertion; otherwise the permissive abstract failure transition
+accounts for the execution.
+
+\section{Assembly of the Hoare proof}
+
+The three method triples are now:
+\begin{align*}
+\{\mathsf{Active}_\alpha(\Push(v))\}\;&\mathsf{pushImpl}(v)\;
+ \{r.\mathsf{Completed}_\alpha(\Push(v),r)\},\\
+\{\mathsf{GetTopEntry}(\alpha)\}\;&\mathsf{getTopImpl}\;
+ \{r.\mathsf{Completed}_\alpha(\GetTop,r)\},\\
+\{\mathsf{Active}_\alpha(\TryRemove(n))\}\;&\mathsf{tryRemoveImpl}(n)\;
+ \{r.\mathsf{Completed}_\alpha(\TryRemove(n),r)\}.
+\end{align*}
+
+For \(\GetTop\), sequential composition has the following proof outline:
+\[
+\begin{array}{c}
+\mathsf{GetTopEntry}
+\\ \Downarrow\ \mathsf{resetIter}
+\\ \mathsf{GetTopReset}
+\\ \Downarrow\ \text{logical initialization}
+\\ \mathsf{ScanFold}(\Upsilon,\mathsf{None},0)
+\\ \Downarrow\ \mathsf{foreach}\text{ using the row triple}
+\\ \exists r,c.\ \mathsf{ScanFold}([],r,c)
+\\ \Downarrow
+\\
+\begin{cases}
+\mathsf{candidate\ slice+response},&r=\mathsf{Some}(r_0),\\
+\mathsf{counter\ invocation+response},&r=\mathsf{None},
+\end{cases}
+\\ \Downarrow
+\\ \mathsf{Completed}_\alpha(\GetTop,\mathsf{result}).
+\end{array}
+\]
+
+The initial concrete state satisfies \(I\): maps and garbage are empty,
+counters and row orders are initialized for \(\Upsilon\), the timestamp clock
+is zero, and the abstract configuration is the singleton empty pool with an
+empty token map.  Singleton configurations are rectangular.  The
+rely--guarantee assignment is valid and parallel-compatible, and each method's
+pre/post assertions expose and discharge the generic invocation/response
+tokens.  Soundness of the set-valued rely--guarantee logic therefore yields
+the layer simulation.
+
+\begin{theorem}[ListPool layer correctness]
+For every value type and finite thread domain \(\Upsilon\), the implementation
+of ListPool using \(\mathsf{SPListArray}(\Upsilon)\otimes\mathsf{Timestamp}\)
+simulates the interval-sequential DAG specification of ListPool.  Consequently
+the implementation layer is contextually linearizable with respect to that
+specification.
+\end{theorem}
+
+\clearpage
+\section{Coq proof statistics}
+
+\subsection{Whole-development footprint}
+
+The following table reports the size of the primary Coq development for this
+layer.  ``Physical'' is the result of \code{wc -l}.  The remaining three
+columns use \code{coqwc}'s classification: declaration and term lines are
+reported as ``spec'', tactic-script lines as ``proof'', and comment-only lines
+as ``comments''.  Blank and layout-only lines explain why the \code{coqwc}
+columns do not sum to the physical count.
+
+\begin{center}
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+File & Physical & \code{coqwc} spec & \code{coqwc} proof & Comments \\
+\midrule
+\code{ListPool.v}       &    166 &   118 &    14 & 10 \\
+\code{ListPoolSpec.v}   &    355 &   269 &    22 & 21 \\
+\code{TimestampSpec.v}  &    202 &   122 &    37 & 13 \\
+\code{ListPoolProof.v}  & 10,953 & 2,854 & 7,534 & 92 \\
+\midrule
+Total                    & 11,676 & 3,363 & 7,607 & 136 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Within \code{ListPoolProof.v}, the 2,854 declaration/term lines, 7,534 proof
+lines, and 92 comment lines leave 473 blank or layout-only physical lines.
+Thus tactic script accounts for 68.8\% of the physical file, and the ratio of
+classified proof lines to classified declaration lines is 2.64.  The three
+supporting files add only 73 proof lines; 99.0\% of the 7,607 proof lines in
+the four-file development are in \code{ListPoolProof.v} itself.
+
+\subsection{Method-level footprint}
+
+The next table partitions the proof file into its shared foundation, the
+three method-specific regions, and final packaging.  These are syntactic,
+non-overlapping regions: the method rows do not charge reused foundational
+lemmas to each consumer.
+
+\begin{center}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Region & Source lines & Physical & Spec & Proof & \% physical & \% proof \\
+\midrule
+Shared foundation & 1--3,408 & 3,408 & 1,172 & 1,959 & 31.1 & 26.0 \\
+\code{tryRemove} & 3,409--4,031 & 623 & 57 & 556 & 5.7 & 7.4 \\
+\code{push} & 4,032--5,709 & 1,678 & 248 & 1,378 & 15.3 & 18.3 \\
+\code{getTop} & 5,710--10,903 & 5,194 & 1,369 & 3,601 & 47.4 & 47.8 \\
+Layer packaging & 10,904--10,953 & 50 & 8 & 40 & 0.5 & 0.5 \\
+\midrule
+Total & 1--10,953 & 10,953 & 2,854 & 7,534 & 100.0 & 100.0 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Nearly half of both the physical source and the classified proof script is
+dedicated to \code{getTop}.  Its 3,601 proof lines are 2.61 times the size of
+the \code{push} proof and 6.48 times the size of the \code{tryRemove} proof.
+This is consistent with the mathematical structure: \code{getTop} alone needs
+speculative snapshot families, the row fold, candidate commitment, and the
+empty/failure counter protocol.
+
+\subsection{Phase-by-phase profile}
+
+A finer architectural partition is shown below.  ``Defs'' combines ordinary
+and program definitions.  The \code{coqwc} columns were computed on each
+source interval with header suppression disabled; comments and layout lines
+are omitted from this table, so Physical need not equal Spec plus Proof.
+
+\begin{center}
+\scriptsize
+\begin{tabular}{lrrrrrr}
+\toprule
+Phase & Source lines & Physical & Spec & Proof & Lemmas & Defs \\
+\midrule
+Setup and global invariant & 1--469 & 469 & 247 & 153 & 14 & 25 \\
+Possibilities and rely--guarantee & 470--1,595 & 1,126 & 464 & 549 & 49 & 29 \\
+Representation preservation and removal & 1,596--4,031 & 2,436 & 518 & 1,813 & 88 & 6 \\
+Push triple & 4,032--5,709 & 1,678 & 248 & 1,378 & 36 & 12 \\
+\code{getTop} snapshot and reset & 5,710--6,623 & 914 & 252 & 608 & 39 & 10 \\
+\code{getTop} loop and row calls & 6,624--8,817 & 2,194 & 548 & 1,565 & 52 & 15 \\
+\code{getTop} candidate commit & 8,818--9,521 & 704 & 198 & 473 & 24 & 3 \\
+\code{getTop} empty/failure counter & 9,522--10,655 & 1,134 & 277 & 814 & 37 & 6 \\
+Triple assembly and layer theorem & 10,656--10,953 & 298 & 102 & 181 & 12 & 3 \\
+\midrule
+Total & 1--10,953 & 10,953 & 2,854 & 7,534 & 351 & 109 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The loop-and-row phase is the largest \code{getTop} subproof, with 1,565
+classified proof lines.  The counter phase contributes another 814 lines, and
+the candidate-slicing commit contributes 473.  The large
+``representation preservation and removal'' phase includes the common
+preservation library used by all methods as well as the dedicated
+\code{tryRemove} triple; it is therefore intentionally broader than the
+method-level \code{tryRemove} row above.
+
+\subsection{Declaration and obligation profile}
+
+The proof file contains 351 \code{Lemma} declarations, 104 ordinary
+\code{Definition}s, five \code{Program Definition}s, five auxiliary
+\code{Variant}s, and two recursive \code{Fixpoint}s.  The five program
+definitions generate nine explicit \code{Next Obligation} proofs.  Hence the
+file has 360 completed \code{Qed} proof blocks: 351 named lemmas and nine
+generated obligations.  The definitions are mostly logical assertions,
+possibility transformers, and auxiliary relations, not executable ListPool
+components.
+
+For a useful measure of proof granularity, define a lemma's \emph{declaration
+span} as the inclusive physical-line interval from its \code{Lemma} command to
+the line containing its closing \code{Qed}.  This includes the statement,
+proof script, comments, and local whitespace.  The 351 spans total 9,355 lines,
+have mean 26.7, median 16, minimum 2, and maximum 493 lines.
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Declaration span & Lemmas & Percentage \\
+\midrule
+2--10 lines & 117 & 33.3\% \\
+11--25 lines & 129 & 36.8\% \\
+26--50 lines & 70 & 19.9\% \\
+51--100 lines & 22 & 6.3\% \\
+101--200 lines & 8 & 2.3\% \\
+More than 200 lines & 5 & 1.4\% \\
+\midrule
+Total & 351 & 100.0\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Thus 70.1\% of lemmas occupy at most 25 lines, while the small number of large
+response-update proofs accounts for a substantial fraction of the file.  The
+ten largest lemma spans are:
+
+\begin{center}
+\footnotesize
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.42\textwidth}rr
+                >{\raggedright\arraybackslash}p{0.30\textwidth}}
+\toprule
+Lemma & Source lines & Span & Main obligation \\
+\midrule
+\code{push_insert_res_update} & 4,390--4,882 & 493 & Insert response and snapshot saturation \\
+\code{getTop_row_inv_update} & 7,233--7,521 & 289 & Begin a row scan and align witnesses \\
+\code{tryRemove_true_res_update} & 3,505--3,754 & 250 & Successful removal response \\
+\code{push_setTS_res_update} & 5,270--5,519 & 250 & Install timestamp and finish push \\
+\code{getTop_row_empty_res_update} & 8,310--8,549 & 240 & Empty-row response and counter evidence \\
+\code{pool_represents_start_push} & 1,771--1,970 & 200 & Preserve the graph representation at push \\
+\code{getTop_reset_res_update} & 6,424--6,622 & 199 & Reset response and optional snapshot fork \\
+\code{getTop_row_nonempty_res_update} & 8,551--8,748 & 198 & Nonempty-row candidate update \\
+\code{tryRemove_false_res_update} & 3,756--3,948 & 193 & Failed removal response \\
+\path{possibility_rectangular_add_actor_alternative} & 9,795--9,915 & 121 & Preserve rectangularity for counter alternatives \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Together these ten declarations span 2,433 lines, or 26.0\% of all lemma
+spans.  Their concentration around response updates reflects the central proof
+burden: each observed underlay response must update every abstract possibility,
+restore \(I\), and establish all foreign-thread guarantee clauses.
+
+The development contains no \code{Admitted}, \code{admit}, \code{Axiom}, or
+\code{Abort} escape hatch.
+
+\subsection{Reproducing the counts}
+
+The counts can be reproduced from the repository root with
+\begin{quote}
+\small
+\begin{verbatim}
+wc -l examples/TSStack/ListPool*.v \
+  examples/TSStack/TimestampSpec.v
+coqwc examples/TSStack/ListPool*.v \
+  examples/TSStack/TimestampSpec.v
+\end{verbatim}
+\end{quote}
+
+\section{Where the mechanization strengthens the paper argument}
+
+Three points are worth making explicit for readers comparing this proof with
+the paper outline.
+
+\begin{enumerate}
+\item The proof uses a genuinely set-valued abstract configuration throughout.
+The atomic fallback, interval-snapshot branches, and independent choices for
+different scans coexist.  No singleton abstraction can express the required
+future-dependent commit.
+
+\item Rectangularity is maintained as an invariant, not treated informally.
+It is what makes actor-local restriction a valid guarantee step for every
+other thread.
+
+\item The node-cut witness replaces induction over an implicitly finite set of
+ignored historical vertices.  This both avoids a hidden finiteness assumption
+and states the exact semantic resource used by the final candidate commit.
+The separate \(\topts\)-safety condition similarly exposes a causal argument
+that would be lost in a naive current-timestamp invariant.
+\end{enumerate}
+
+These strengthenings do not change the algorithm or the abstract
+specification.  They make explicit the resources required for a stable,
+compositional Hoare proof.
+
+\appendix
+\section{Correspondence with the mechanized definitions}
+
+This appendix is only a navigation aid; none of the main argument depends on
+Coq syntax.
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.39\textwidth}
+                >{\raggedright\arraybackslash}p{0.49\textwidth}}
+\toprule
+Mathematical notion & Mechanized name \\
+\midrule
+Concrete and branch invariants &
+\code{concrete_wf}, \code{pool_represents}, \code{pool_protocol},
+\code{timestamp_pending_edges}, \code{branch_represents} \\
+Rectangular possibility family &
+\code{pool_shared_eq}, \code{branch_merge},
+\code{possibility_rectangular} \\
+Global invariant & \code{I} \\
+Rely and guarantee & \code{R}, \code{G} \\
+Paper-style snapshot family & \code{GettingT} and the
+\(\mapsto_{\exists},\mapsto_{\forall},\oplusset\) assertions \\
+Candidate/row witnesses &
+\code{candidate_view}, \code{row_snapshot_view},
+\code{candidate_row_view} \\
+Proof-relevant ignored-node elimination &
+\code{node_cut_view}, \code{node_cuts_available} \\
+Loop accumulator &
+\code{EmptyEvidence}, \code{candidate_maximal},
+\code{ScanAccumulator}, \code{ScanFold}, \code{ScanPending} \\
+Candidate restriction and response &
+\code{ac_actor_slice}, \code{getTop_candidate_commit_update} \\
+Empty/failure protocol &
+\code{CounterPending}, \code{getTop_counter_inv_update},
+\code{getTop_counter_res_update} \\
+Method triples &
+\code{push_method_triple}, \code{getTop_method_triple},
+\code{tryRemove_method_triple} \\
+Layer theorem & \code{MListPool}, \code{MListPoolLinearizable} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The source of the mechanized proof is
+\path{examples/TSStack/ListPoolProof.v}; the implementation and specification
+are in \path{examples/TSStack/ListPool.v} and
+\path{examples/TSStack/ListPoolSpec.v}.
+
+\end{document}
