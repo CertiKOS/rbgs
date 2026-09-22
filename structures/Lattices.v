@@ -7,13 +7,13 @@ Require Export structures.Posets.
 
 Class CDLattice (L : Type) :=
   {
-    cdl_poset :> Poset L;
+    cdl_poset :: Poset L;
 
     lsup : forall {I}, (I -> L) -> L;
     linf : forall {I}, (I -> L) -> L;
 
-    lsup_sup {I} (u : I -> L) :> IsSup u (lsup u);
-    linf_inf {I} (u : I -> L) :> IsInf u (linf u);
+    lsup_sup {I} (u : I -> L) :: IsSup u (lsup u);
+    linf_inf {I} (u : I -> L) :: IsInf u (linf u);
 
     sup_inf {I J} (x : forall i:I, J i -> L) :
       lsup (fun i => linf (fun j => x i j)) =

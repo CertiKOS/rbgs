@@ -1,12 +1,14 @@
 opam-version: "2.0"
+version: "dev"
+synopsis: "Refinement-Based Game Semantics"
 homepage: "https://certikos.github.io/rbgs/html/toc.html"
+maintainer: "Jeremie Koenig <jeremie.koenig@yale.edu>"
 bug-reports: "https://github.com/CertiKOS/rbgs/issues"
 dev-repo: "git+https://github.com/CertiKOS/rbgs.git"
-version: "dev"
 
-synopsis: "Refinement-Based Game Semantics"
 depends: [
-  "coq" {= "8.15.1"}
-  "coq-iris" {= "4.0.0"}
+  "rocq-core" {= "9.2.0"}
+  "rocq-stdlib" {= "9.2.0"}
+  "rocq-iris" {= "4.5.0"}
   "menhir"
 ]

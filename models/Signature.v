@@ -1,7 +1,7 @@
 (** Effect signatures and their homomorphisms. *)
 
-Require Import FunctionalExtensionality.
-Require Import Effects.
+Require Import Stdlib.Logic.FunctionalExtensionality.
+Require Import structures.Effects.
 
 
 (** * Signatures *)
@@ -234,6 +234,7 @@ Canonical Structure sigsum (E F : sig) :=
     ar m := match m with inl me => ar me | inr mf => ar mf end;
   |}.
 
+Declare Scope sig_scope.
 Bind Scope sig_scope with sig.
 Delimit Scope sig_scope with sig.
 Infix "+" := sigsum : sig_scope.

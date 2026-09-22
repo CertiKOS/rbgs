@@ -1,7 +1,8 @@
-Require Import FMapPositive.
-Require Import Relation_Operators Operators_Properties.
-Require Import Program.
-Require Import Classical.
+Require Import Stdlib.FSets.FMapPositive.
+Require Import Stdlib.Relations.Relation_Operators.
+Require Import Stdlib.Relations.Operators_Properties.
+Require Import Stdlib.Program.Program.
+Require Import Stdlib.Logic.Classical.
 
 Require Import coqrel.LogicalRelations.
 Require Import interfaces.Category.
@@ -15,8 +16,8 @@ Require Import models.EffectSignatures.
 Module LinCCALBase <: Category.
 
   Module TMap := PositiveMap.
-  Notation tid := TMap.key.
-  Notation tmap := TMap.t.
+  Abbreviation tid := TMap.key.
+  Abbreviation tmap := TMap.t.
 
   (** ** Concurrent object specifications *)
 
@@ -62,7 +63,7 @@ Module LinCCALBase <: Category.
     (** More generally, behaviors of this kind can be described by
       transition systems with the same shape as [next]. *)
 
-    Notation lts E A := (A -> tid -> forall m, outcome E m A).
+    Abbreviation lts E A := (A -> tid -> forall m, outcome E m A).
 
     (** In fact, [next] constitutes a final coalgebra over specifications,
       meaning that states in any transition system can be mapped to
@@ -100,7 +101,7 @@ Module LinCCALBase <: Category.
 
   End Spec.
 
-  Notation spec := Spec.t.
+  Abbreviation spec := Spec.t.
 
   Declare Scope spec_scope.
   Delimit Scope spec_scope with spec.
@@ -232,7 +233,7 @@ Module LinCCALBase <: Category.
   (** To formulate this criterion, we will use the following helpful
     definitions and properties. *)
 
-  Notation star := (clos_refl_trans _).
+  Abbreviation star := (clos_refl_trans _).
 
   Definition reachable {A} (R : relation A) (P : A -> Prop) (x : A) :=
     exists y, star R x y /\ P y.
@@ -868,7 +869,7 @@ Module LinCCALBase <: Category.
       symmetry in x. rename x into Hs1i. cbn in Hs1i.
       assert (Hs1s: specified (mkst Δ s1 Γ)) by eauto using comp_tmap_specified_l.
       eapply comp_tmap_action_l with (n:=n) in Hs12; eauto.
-      eapply correct_next in Hs1; eauto using (eaction M i q m n).
+      eapply correct_next in Hs1; eauto using eaction.
       clear Hs1i Hs1s.
       pose proof (TMap.gss i (mkts q (mk n) R) s1) as Hs1i.
       revert Hs12 Hs1 Hs1i.
@@ -1066,8 +1067,9 @@ Module LinCCALBase <: Category.
          * To handle the next instruction, we invoke
          * its implementation in [N].
          *)
+        pose proof (einvoke N t m) as Hstep.
         eapply correct_next in Hs2;
-          eauto using (einvoke N t m), comp_tmap_specified_r.
+          eauto using einvoke, comp_tmap_specified_r.
         eapply comp_tmap_invoke_r in Hs12; eauto.
         pose proof (TMap.gss t (mkts m (N m) None) s2) as Hs2t'.
         revert Hs12 Hs1 Hs2 Hs1t Hs2t'.
@@ -1132,8 +1134,9 @@ Module LinCCALBase <: Category.
             specialize (Hs12 t). rewrite H in Hs12.
             dependent destruction Hs12; auto.
           }
+          pose proof (einvoke M t q) as Hstep.
           eapply correct_next in Hs1;
-            eauto using (einvoke M t q), comp_tmap_specified_l.
+            eauto using comp_tmap_specified_l.
           eapply comp_tmap_invoke_l in Hs12; eauto.
           eapply comp_tmap_commit_l in Hs1; eauto.
           destruct Hs1 as (Δ' & s12' & s1' & Hsteps & Hs1' & Hs12').
@@ -1150,8 +1153,9 @@ Module LinCCALBase <: Category.
           dependent destruction x0. rename m into u, n into v, m0 into m.
           symmetry in x1. rename x1 into Hs1t.
           symmetry in x. rename x into Hs2t.
+          pose proof (eaction N t m u v) as Hstep.
           eapply correct_next in Hs2;
-            eauto using (eaction N t m u v), comp_tmap_specified_r.
+            eauto using comp_tmap_specified_r.
           eapply comp_tmap_action_r in Hs12; eauto.
           apply comp_specified_sufficient. intro Hspec'.
           eapply comp_tmap_commit_r in Hs2; eauto.
@@ -1171,8 +1175,9 @@ Module LinCCALBase <: Category.
           dependent destruction Hs12t;
             dependent destruction H0; cbn in *;
             dependent destruction x0.
+          pose proof (ereturn M t q r) as Hstep.
           eapply correct_next in Hs1;
-            eauto using (ereturn M t q r), comp_tmap_specified_l.
+            eauto using comp_tmap_specified_l.
           eapply comp_tmap_return_l in Hs12; eauto.
           eapply comp_tmap_commit_l in Hs1; eauto.
           destruct Hs1 as (Δ' & s12' & s1' & Hsteps & Hs1' & Hs12').
@@ -1262,7 +1267,7 @@ End LinCCALTensSpec.
 Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
   Import (notations, canonicals) Reg.Plus.
   Import B.
-  Obligation Tactic := intros.
+  Local Obligation Tactic := intros.
 
   Module Tens <: SymmetricMonoidalStructure B.
 
@@ -1534,14 +1539,16 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
             symmetry in x0; rename x0 into Hs1t.
             symmetry in x; rename x into Hs2t.
             destruct q as [q1|q2].
-            * eapply correct_next in Hs1;
-                eauto using (einvoke M1 t q1), fmap_tmap_specified_l.
+            * pose proof (einvoke M1 t q1) as Hstep.
+              eapply correct_next in Hs1;
+                eauto using fmap_tmap_specified_l.
               eapply fmap_lsteps_l; eauto.
               intros i. destruct (classic (i = t)); subst.
               -- rewrite !TMap.gss, Hs2t. constructor.
               -- rewrite !TMap.gso; auto.
-            * eapply correct_next in Hs2;
-                eauto using (einvoke M2 t q2), fmap_tmap_specified_r.
+            * pose proof (einvoke M2 t q2) as Hstep.
+              eapply correct_next in Hs2;
+                eauto using fmap_tmap_specified_r.
               eapply fmap_lsteps_r; eauto.
               intros i. destruct (classic (i = t)); subst.
               -- rewrite !TMap.gss, Hs1t. constructor.
@@ -1557,8 +1564,9 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
               apply inj_somets2 in H as [HT ?]; subst.
               destruct T; dependent destruction HT.
               cbn in H0. destruct Spec.next eqn:HΔ1'; dependent destruction H0.
+              pose proof (eaction M1 t) as Hstep.
               eapply correct_next in Hs1;
-                eauto using (eaction M1 t), fmap_tmap_specified_l.
+                eauto using fmap_tmap_specified_l.
               eapply fmap_lsteps_l; eauto.
               intros i. destruct (classic (i = t)); subst.
               -- rewrite !TMap.gss, Hs2t. constructor.
@@ -1571,8 +1579,9 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
               apply inj_somets2 in H as [HT ?]; subst.
               destruct T; dependent destruction HT.
               cbn in H0. destruct Spec.next eqn:HΔ2'; dependent destruction H0.
+              pose proof (eaction M2 t) as Hstep.
               eapply correct_next in Hs2;
-                eauto using (eaction M2 t), fmap_tmap_specified_r.
+                eauto using fmap_tmap_specified_r.
               eapply fmap_lsteps_r; eauto.
               intros i. destruct (classic (i = t)); subst.
               -- rewrite !TMap.gss, Hs1t. constructor.
@@ -1587,8 +1596,9 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
               assert (q = inl q0) by congruence. subst.
               apply inj_somets2 in H as [HT ?]; subst.
               destruct T; dependent destruction HT.
+              pose proof (ereturn M1 t _ r) as Hstep.
               eapply correct_next in Hs1;
-                eauto using (ereturn M1 t _ r), fmap_tmap_specified_l.
+                eauto using fmap_tmap_specified_l.
               eapply fmap_lsteps_l; eauto.
               intros i. destruct (classic (i = t)); subst.
               -- rewrite !TMap.grs, Hs2t. constructor.
@@ -1600,8 +1610,9 @@ Module LinCCALTens (B : LinCCALTensSpec) <: Monoidal B.
               assert (q = inr q0) by congruence. subst.
               apply inj_somets2 in H as [HT ?]; subst.
               destruct T; dependent destruction HT.
+              pose proof (ereturn M2 t _ r) as Hstep.
               eapply correct_next in Hs2;
-                eauto using (ereturn M2 t _ r), fmap_tmap_specified_r.
+                eauto using fmap_tmap_specified_r.
               eapply fmap_lsteps_r; eauto.
               intros i. destruct (classic (i = t)); subst.
               -- rewrite !TMap.grs, Hs1t. constructor.
@@ -2241,19 +2252,19 @@ Module LinCCALExample.
 
   (** ** Register specification *)
 
-  Variant Ereg_op {S} :=
+  Variant Ereg_op {S : Type} :=
     | get
     | set (s : S).
 
   Arguments Ereg_op : clear implicits.
 
-  Definition Ereg_ar {S} (m : Ereg_op S) :=
+  Definition Ereg_ar {S} (m : Ereg_op S) : Type :=
     match m with
       | get => S
       | set _ => unit
     end.
 
-  Canonical Structure Ereg S :=
+  Canonical Structure Ereg (S : Type) :=
     {|
       Sig.op := Ereg_op S;
       Sig.ar := Ereg_ar;

@@ -2,7 +2,7 @@ Require Import interfaces.Category.
 Require Import interfaces.Functor.
 Require Import interfaces.FunctorCategory.
 Require Import interfaces.MonoidalCategory.
-Require Import FunctionalExtensionality.
+Require Import Stdlib.Logic.FunctionalExtensionality.
 
 
 (** * Category of sets and functions *)

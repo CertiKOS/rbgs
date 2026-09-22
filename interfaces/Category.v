@@ -1,6 +1,6 @@
-Require Import Coq.Logic.ProofIrrelevance.
-Require Import Coq.Program.Tactics.
-Require Import Coq.Setoids.Setoid.
+Require Import Stdlib.Logic.ProofIrrelevance.
+Require Import Stdlib.Program.Tactics.
+Require Import Stdlib.Setoids.Setoid.
 
 
 (** * Introduction *)

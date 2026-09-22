@@ -1,7 +1,3 @@
 [submodule "coqrel"]
 	path = coqrel
 	url = https://github.com/CertiKOS/coqrel.git
-[submodule "compcert"]
-	path = compcert
-	url = https://github.com/CertiKOS/compcert.git
-	branch = compcerto

@@ -1,8 +1,8 @@
-Require Import Coq.Logic.Classical.
-Require Import FunctionalExtensionality.
-Require Import PropExtensionality.
-Require Import ProofIrrelevance.
-Require Import Program.
+Require Import Stdlib.Logic.Classical.
+Require Import Stdlib.Logic.FunctionalExtensionality.
+Require Import Stdlib.Logic.PropExtensionality.
+Require Import Stdlib.Logic.ProofIrrelevance.
+Require Import Stdlib.Program.Program.
 Require Import coqrel.LogicalRelations.
 Require Import interfaces.Category.
 Require Import interfaces.ConcreteCategory.
@@ -80,9 +80,9 @@ Global Hint Extern 5 (Directed (fun i => ?f (?x i))) =>
 Class DCPO (P : Type) :=
   {
     lce : relation P;
-    lce_po :> PartialOrder lce;
+    lce_po :: PartialOrder lce;
     dsup : forall {I} (x : I -> P) `{Hx: !Directed x}, P;
-    dsup_is_sup {I} (x : I -> P) `{!Directed x} :> IsSup x (dsup x);
+    dsup_is_sup {I} (x : I -> P) `{!Directed x} :: IsSup x (dsup x);
   }.
 
 Definition lct `{DCPO} x y :=
@@ -342,7 +342,7 @@ Qed.
 
 Class ScottContinuous strict {A B} `{Adcpo: DCPO A} `{Bdcpo: DCPO B} (f: A -> B) :=
   {
-    sc_lce :>
+    sc_lce ::
       Monotonic f (lce ++> lce);
     sc_lub `{HJ : ArityCondition strict} (x: J -> A) `{Dx: !Directed x} y:
       (forall j, lce (f (x j)) y) -> lce (f (dsup x)) y;
@@ -464,7 +464,7 @@ Module DCPO <: ConcreteCategory.
 
 End DCPO.
 
-Notation dcpo := DCPO.structured_set.
+Abbreviation dcpo := DCPO.structured_set.
 
 
 (** * Free DCPO *)
@@ -562,7 +562,7 @@ Module FDC.
 
 End FDC.
 
-Notation fdc := FDC.carrier.
+Abbreviation fdc := FDC.carrier.
 
 
 (** * Fixed point constructions *)
@@ -612,7 +612,7 @@ Notation fdc := FDC.carrier.
 Section LFP.
   Context `{Pdcpo : DCPO} (f : P -> P) `{Hf : !ScottContinuous false f}.
 
-  (** *** Approximation sequence *)
+  (** *** Abbreviation sequence *)
 
   (** Consider a Scott-continuous function [f : D -> D] on a DCPO [D].
     Since [⊥ ≲ f ⊥] and [f] is monotonic, we have [f ⊥ ≲ f (f ⊥)],
@@ -938,7 +938,7 @@ Module Ord.
 
 End Ord.
 
-Notation ord := Ord.t.
+Abbreviation ord := Ord.t.
 
 (** ** Tarsky-style fixed point *)
 
@@ -1038,7 +1038,7 @@ Module TFP.
   Fixpoint approx_construct (α : ord) : approximant α :=
     mka (dsup (fun i => f (approx_construct (Ord.pred α i)))).
 
-  Notation approx α := (aval (approx_construct α)).
+  Abbreviation approx α := (aval (approx_construct α)).
 
   (** *** Well-foundedness *)
 
@@ -1061,7 +1061,7 @@ Module TFP.
 
   Record candidate : Ord.U :=
     mkc {
-      cval :> P;
+      cval : P;
       cprop : exists α, Approximant α cval;
     }.
 
@@ -1117,7 +1117,7 @@ Module TFP.
     f (approx α) = approx α.
   Proof.
     intros Hi.
-    apply antisymmetry; auto using approx_postfixed.
+    apply antisymmetry, approx_postfixed.
     transitivity (f (approx (Ord.pred α i))).
     - rewrite <- Hi. monotonicity.
       rewrite approx_unfold. apply sup_lub. intros j.

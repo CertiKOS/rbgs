@@ -1,9 +1,9 @@
-Require Import ProofIrrelevance.
-Require Import FunctionalExtensionality.
-Require Import PropExtensionality.
-Require Import Relations.
-Require Import RelationClasses.
-Require Import List.
+Require Import Stdlib.Logic.ProofIrrelevance.
+Require Import Stdlib.Logic.FunctionalExtensionality.
+Require Import Stdlib.Logic.PropExtensionality.
+Require Import Stdlib.Relations.Relations.
+Require Import Stdlib.Classes.RelationClasses.
+Require Import Stdlib.Lists.List.
 
 Require Import interfaces.Category.
 
@@ -30,8 +30,17 @@ Existing Instance coh_refl.
 Existing Instance coh_symm.
 
 Definition t := space.
+Declare Scope obj_scope.
 Bind Scope obj_scope with t.
 Bind Scope obj_scope with space.
+
+Lemma coh_refl_hint (A : t) :
+  forall a : token A, coh a a.
+Proof.
+  reflexivity.
+Qed.
+
+Hint Resolve coh_refl_hint : core.
 
 (** ** Cliques *)
 
@@ -45,6 +54,7 @@ Record clique (A : t) :=
 
 Arguments has {A}.
 
+Declare Scope hom_scope.
 Bind Scope hom_scope with clique.
 Open Scope hom_scope.
 
@@ -134,7 +144,7 @@ Program Definition lmap (A B : t) : t :=
   |}.
 Next Obligation.
   intros A B [a b].
-  eauto using reflexivity.
+  auto.
 Qed.
 Next Obligation.
   intros A B [a1 b1] [a2 b2] H Ha.
@@ -177,7 +187,7 @@ Ltac process_obligation :=
   repeat match goal with x : _ * _ |- _ => destruct x end;
   firstorder
     (subst;
-     eauto using lmap_coh, lmap_det, has_coh, (reflexivity (R:=coh));
+     eauto using lmap_coh, lmap_det, has_coh;
      try congruence).
 
 Local Obligation Tactic :=
@@ -640,9 +650,9 @@ Program Definition csunit : space :=
     coh x y := True;
   |}.
 
+(*
 Notation "1" := csunit : coh_scope.
 
-(*
 (** Left unitor *)
 
 Program Definition lam A : 1 * A --o A :=
@@ -700,7 +710,7 @@ Next Obligation.
   split.
   - constructor. eauto using lmap_coh, lmap_det.
   - inversion 1; clear H; subst.
-    eauto using f_equal, lmap_coh, (reflexivity (R:=coh)).
+    eauto using f_equal, lmap_coh.
 Qed.
 
 
@@ -736,7 +746,7 @@ Next Obligation.
   f_equal; eauto using lmap_coh, lmap_det.
 Qed.
 
-Infix ";;" := seq_lmap : lmap_scope.
+Infix ";;" := seq_lmap : hom_scope.
 
 (** ** Exponential *)
 
@@ -758,7 +768,6 @@ Program Definition dag (A : space) : space :=
 Next Obligation.
   intros A l.
   induction l; constructor; auto.
-  reflexivity.
 Qed.
 Next Obligation.
   intros A s t Hst.

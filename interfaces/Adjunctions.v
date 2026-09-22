@@ -43,7 +43,7 @@ Module Type AdjointFunctorsTheory
     (FG : AdjointFunctorsDefinition C D F G).
 
   Import FG.
-  Obligation Tactic := cbn.
+  Local Obligation Tactic := cbn.
 
   (** *** Universal morphisms *)
 

@@ -1,6 +1,6 @@
 Require Export interfaces.Category.
-Require Import FunctionalExtensionality.
-Require Import ProofIrrelevance.
+Require Import Stdlib.Logic.FunctionalExtensionality.
+Require Import Stdlib.Logic.ProofIrrelevance.
 
 
 (** * Mathematical structures and enrichment *)

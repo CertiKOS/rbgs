@@ -142,9 +142,9 @@ Module MonoidalTheory (C : Category) (M : MonoidalDefinition C).
   Notation "1" := Tens.unit : obj_scope.
   Infix "*" := Tens.omap : obj_scope.
   Infix "*" := Tens.fmap : hom_scope.
-  Notation α := Tens.assoc.
-  Notation λ := Tens.lunit.
-  Notation ρ := Tens.runit.
+  Abbreviation α := Tens.assoc.
+  Abbreviation λ := Tens.lunit.
+  Abbreviation ρ := Tens.runit.
 
 End MonoidalTheory.
 
@@ -314,7 +314,7 @@ Module SymmetricMonoidalTheory (C : Category) (M : SymmetricMonoidalDefinition C
   Import C M.
   Include MonoidalTheory C M.
 
-  Notation γ := Tens.swap.
+  Abbreviation γ := Tens.swap.
 
 End SymmetricMonoidalTheory.
 
@@ -678,7 +678,7 @@ End CartesianDefinition.
 
 Module CartesianTheory (C : Category) (M : CartesianDefinition C).
   Import C M.
-  Notation T := Prod.unit.
+  Abbreviation T := Prod.unit.
   Infix "&&" := Prod.omap (at level 40, left associativity) : obj_scope.
   Infix "&&" := Prod.fmap : hom_scope.
 End CartesianTheory.

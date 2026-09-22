@@ -17,8 +17,8 @@ Require Import interfaces.ConcreteCategory.
 
 Class PartialOrder {P} (R : relation P) :=
   {
-    po_preorder :> PreOrder R;
-    po_antisym :> Antisymmetric P eq R;
+    po_preorder :: PreOrder R;
+    po_antisym :: Antisymmetric P eq R;
   }.
 
 (** *** Suprema *)
@@ -50,7 +50,7 @@ Section SUP_PROPERTIES.
     R u y <-> forall i, R (x i) y.
   Proof.
     split.
-    - intros H i. etransitivity; eauto using sup_ub.
+    - intros H i. etransitivity; eauto. apply sup_ub.
     - apply sup_lub.
   Qed.
 End SUP_PROPERTIES.
@@ -87,7 +87,7 @@ Section INF_PROPERTIES.
     R x u <-> forall i, R x (y i).
   Proof.
     split.
-    - intros H i. etransitivity; eauto using inf_lb.
+    - intros H i. etransitivity; eauto. apply inf_lb.
     - apply inf_glb.
   Qed.
 End INF_PROPERTIES.
@@ -101,7 +101,7 @@ End INF_PROPERTIES.
 Class Poset (P : Type) :=
   {
     ref : relation P;
-    ref_po :> PartialOrder ref;
+    ref_po :: PartialOrder ref;
   }.
 
 Module Poset <: ConcreteCategory.
@@ -134,7 +134,7 @@ Module Poset <: ConcreteCategory.
 
 End Poset.
 
-Notation poset := Poset.structured_set.
+Abbreviation poset := Poset.structured_set.
 
 Declare Scope poset_scope.
 Delimit Scope poset_scope with poset.

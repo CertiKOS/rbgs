@@ -1,15 +1,15 @@
-Require Import LogicalRelations.
+Require Import coqrel.LogicalRelations.
 Require Import interfaces.Category.
 Require Import interfaces.ConcreteCategory.
 Require Import structures.Posets.
 Require Import structures.DCPOs.
 Require Import structures.Lattices.
 
-Require Import PropExtensionality.
-Require Import FunctionalExtensionality.
-Require Import Classical.
-Require Import ClassicalChoice.
-Require Import ChoiceFacts.
+Require Import Stdlib.Logic.PropExtensionality.
+Require Import Stdlib.Logic.FunctionalExtensionality.
+Require Import Stdlib.Logic.Classical.
+Require Import Stdlib.Logic.ClassicalChoice.
+Require Import Stdlib.Logic.ChoiceFacts.
 
 
 (** * Dcpo-lattices *)

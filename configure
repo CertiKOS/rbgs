@@ -17,6 +17,13 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# CompCert is disabled for now
+
+if [ -n "$COMPCERT" ]; then
+    echo >&2 "CompCert is not yet available in this version. Use -nocompcert."
+    exit 1
+fi
+
 # Make sure the relevant submodules are available
 
 if [ -e .git ]; then

@@ -4,8 +4,9 @@ Require Import interfaces.Functor.
 Require Import interfaces.MonoidalCategory.
 Require Import interfaces.Limits.
 Require Import models.Sets.
-Require Import FunctionalExtensionality.
-Require Import Program.
+Require Import Stdlib.Logic.FunctionalExtensionality.
+Require Import Stdlib.Program.Program.
+Require Import Stdlib.Logic.JMeq.
 
 
 (** * Effect signatures *)
@@ -823,8 +824,6 @@ Module SigComp (B : SigTensReq).
       destruct Hm. cbn in *. f_equal.
       apply functional_extensionality. auto.
     Qed.
-
-    Require Import JMeq.
 
     Lemma aeq' {E X} (m1 m2 : B.op E) (k1 k2 : _ -> X) :
       m1 = m2 ->

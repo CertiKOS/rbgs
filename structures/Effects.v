@@ -11,6 +11,7 @@ Require Import lattices.FCD.
 
 Definition esig := Type -> Type.
 
+Declare Scope esig_scope.
 Delimit Scope esig_scope with esig.
 Bind Scope esig_scope with esig.
 
