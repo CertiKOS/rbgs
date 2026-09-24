@@ -3,6 +3,14 @@
 All prose documentation for this development lives here. Coq sources stay
 under `examples/`, `models/`, `structures/`, `lattices/` and `interfaces/`.
 
+## `CoqPitfalls.md`
+
+A maintained list of Coq pitfalls specific to this development (notation
+clashes, rewriting failures, tactic conventions) and the workarounds that
+proved reliable. Read it before starting a proof session; add an entry
+whenever a session loses time to something that is not a real proof
+obstacle.
+
 ## `plans/`
 
 Verification plans: the design notes written before (and maintained during)

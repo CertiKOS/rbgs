@@ -69,6 +69,7 @@ models/simlin/PaperTheorems.v
 examples/Common/AtomicLTS.v
 examples/Common/Heap.v
 examples/Common/MemSpec.v
+examples/Common/CASMemSpec.v
 examples/Common/OwnedMemSpec.v
 examples/Common/ThreadDomain.v
 examples/Common/IndexedFamilySpec.v
@@ -109,6 +110,7 @@ examples/TSStack/SPListArray.v
 examples/TSStack/SPListArrayProof.v
 examples/TSStack/ListPool.v
 examples/TSStack/Timestamp.v
+examples/TSStack/NodeMem.v
 examples/TSStack/TryStackAux.v
 examples/TSStack/TryStack.v
 examples/TSStack/TSStack.v

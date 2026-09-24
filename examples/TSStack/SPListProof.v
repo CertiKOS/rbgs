@@ -1,10 +1,11 @@
 Require Import FMapPositive.
-Require Import Relation_Operators.
+Require Import Relation_Operators Operators_Properties.
 Require Import Coq.Arith.PeanoNat.
 Require Import Coq.Bool.Bool.
 Require Import Coq.Lists.List.
 Require Import Coq.Logic.FunctionalExtensionality.
 Require Import Coq.Program.Equality.
+Require Import Lia.
 
 Require Import models.EffectSignatures.
 Require Import models.LinCCAL.
@@ -30,7 +31,7 @@ Require Import examples.TSStack.SPList.
     singleton, while all program judgments are set-logic judgments. *)
 Module SPListProof.
   Import Reg LinCCALBase LTSSpec Lang Semantics.
-  Import AssertionsSingle SingletonPossibility.
+  Import AssertionsSingle.
   Import TPSimulationSet.TPSimulation.
   Import AtomicLTS CASRegSpec TimestampSpec NodeMemSpec SPListSpec.
   Import ListNotations.
@@ -1069,7 +1070,6 @@ Module SPListProof.
             (snd (cas_value cc)) s /\
           snapshot_consistent s (SinglePossState.π w).
 
-    Definition SI := lift_assert source_I.
 
     Definition timestamp_evol (actor : tid) (old new : TS) : Prop :=
       old = new \/ (actor = owner /\ old = TSTop).
@@ -1192,8 +1192,6 @@ Module SPListProof.
     Definition source_R (observer : tid) : rg_relation :=
       AssertionsSingle.GuaranteeGeneratedRely source_G observer.
 
-    Definition R t := lift_relation (source_R t).
-    Definition G t := lift_relation (source_G t).
 
     Definition token_eq (observer : tid) : rg_relation :=
       fun w w' =>
@@ -1467,13 +1465,6 @@ Module SPListProof.
       rewrite Heq. tauto.
     Qed.
 
-    Lemma valid_rg observer :
-      RGISimulationSet.RGISimulation.ValidRGI
-        (R observer) (G observer) SI observer.
-    Proof.
-      eapply lift_valid_rgi. apply source_valid_rg.
-    Qed.
-
     Lemma source_parallel_compatible actor observer :
       actor <> observer -> forall w w',
       (source_G actor w w' \/
@@ -1484,17 +1475,6 @@ Module SPListProof.
     Proof.
       intros Hneq. eapply AssertionsSingle.guarantee_generated_parallel_compatible.
       exact Hneq.
-    Qed.
-
-    Lemma parallel_compatible actor observer :
-      actor <> observer -> forall w w',
-      (G actor w w' \/
-       (AssertionsSet.GINV actor w w' \/ AssertionsSet.GRET actor w w') \/
-       AssertionsSet.A.GId w w') /\ SI w ->
-      R observer w w'.
-    Proof.
-      intros Hneq. eapply lift_parallel_compat; [exact Hneq|].
-      apply source_parallel_compatible; exact Hneq.
     Qed.
 
     Lemma heap_evol_refl actor h : heap_evol actor h h.
@@ -1586,6 +1566,1003 @@ Module SPListProof.
       intros (mc & cc & s & Hsigma & Hrho & Hmc & Hcc & Hrep & Hsnap).
       rewrite Hsigma. exact Hcc.
     Qed.
+
+    (** ** Slot-local replay of abstract steps
+
+        Possibilities in a set differ only in per-thread "slots": a thread's
+        snapshot entry and its linearization-map entry.  Abstract steps of
+        a thread never inspect another thread's slot, so a sequence of
+        steps can be replayed on a possibility that differs only in some
+        other thread's slot. *)
+
+    Definition payload_agree (q : tid) (s s' : @SPListState A) : Prop :=
+      counter s = counter s' /\ nodes s = nodes s' /\ order s = order s' /\
+      (forall r, r <> q ->
+        TMap.find r (snapshot s) = TMap.find r (snapshot s')).
+
+    Definition control_agree (q : tid) (c c' : abstract_control) : Prop :=
+      match c, c' with
+      | Ready s, Ready s' => payload_agree q s s'
+      | AtomicPending s t op, AtomicPending s' t' op' =>
+          t = t' /\ op = op' /\ payload_agree q s s'
+      | _, _ => False
+      end.
+
+    Lemma payload_agree_refl q s : payload_agree q s s.
+    Proof. repeat split; auto. Qed.
+
+    Lemma payload_agree_sym q s s' :
+      payload_agree q s s' -> payload_agree q s' s.
+    Proof.
+      intros (Hc & Hn & Ho & Hs). repeat split; auto.
+      intros r Hr. symmetry. auto.
+    Qed.
+
+    Lemma actual_snapshot_agree q t s s' :
+      t <> q -> payload_agree q s s' ->
+      actual_snapshot t s = actual_snapshot t s'.
+    Proof.
+      intros Hneq (Hc & Hn & Ho & Hs).
+      unfold actual_snapshot. rewrite (Hs t Hneq), Ho. reflexivity.
+    Qed.
+
+    Lemma payload_agree_start q t s s' :
+      t <> q -> payload_agree q s s' ->
+      payload_agree q (start_snapshot t s) (start_snapshot t s').
+    Proof.
+      intros Hneq (Hc & Hn & Ho & Hs).
+      repeat split; simpl; auto.
+      intros r Hr. destruct (PositiveMap.E.eq_dec r t) as [->|Hrt].
+      - rewrite !TMap.gss, Ho, Hc. reflexivity.
+      - rewrite !TMap.gso by exact Hrt. auto.
+    Qed.
+
+    Lemma payload_agree_clear q t s s' :
+      payload_agree q s s' ->
+      payload_agree q (clear_snapshot t s) (clear_snapshot t s').
+    Proof.
+      intros (Hc & Hn & Ho & Hs).
+      repeat split; simpl; auto.
+      intros r Hr. destruct (PositiveMap.E.eq_dec r t) as [->|Hrt].
+      - rewrite !TMap.grs. reflexivity.
+      - rewrite !TMap.gro by exact Hrt. auto.
+    Qed.
+
+    Lemma payload_agree_insert q v l s s' :
+      payload_agree q s s' ->
+      payload_agree q (insert v l s) (insert v l s').
+    Proof.
+      intros (Hc & Hn & Ho & Hs).
+      repeat split; simpl; auto; congruence.
+    Qed.
+
+    Lemma payload_agree_setTS q l ts s s' :
+      payload_agree q s s' ->
+      payload_agree q (setTS l ts s) (setTS l ts s').
+    Proof.
+      intros Hagree. pose proof Hagree as (Hc & Hn & Ho & Hs).
+      unfold setTS. rewrite <- Hn.
+      destruct (nodes s l) as [[v [|lo hi]]|]; auto.
+      repeat split; simpl; auto; congruence.
+    Qed.
+
+    Lemma payload_agree_remove q l s s' :
+      payload_agree q s s' ->
+      payload_agree q (remove l s) (remove l s').
+    Proof.
+      intros (Hc & Hn & Ho & Hs).
+      repeat split; simpl; auto; congruence.
+    Qed.
+
+    Definition control_snapshot (q : tid) (c : abstract_control) :=
+      TMap.find q (snapshot (abstract_payload c)).
+
+    Lemma step_replay q ev c1 c2 c1' :
+      te_tid ev <> q ->
+      @StepSPList A owner ev c1 c2 ->
+      control_agree q c1 c1' ->
+      exists c2',
+        @StepSPList A owner ev c1' c2' /\ control_agree q c2 c2' /\
+        control_snapshot q c2' = control_snapshot q c1'.
+    Proof.
+      intros Hneq Hstep Hagree.
+      inversion Hstep; subst; simpl in Hneq;
+        destruct c1' as [s' | s' t' op']; simpl in Hagree; try contradiction;
+        try (destruct Hagree as (<- & <- & Hagree));
+        pose proof Hagree as (Hc & Hn & Ho & Hs).
+      - (* getTop inv *)
+        eexists. split; [|split].
+        + constructor. rewrite <- (Hs _ Hneq). assumption.
+        + apply payload_agree_start; auto.
+        + unfold control_snapshot. simpl.
+          rewrite TMap.gso by congruence. reflexivity.
+      - (* getTop nonEmpty *)
+        eexists. split; [|split].
+        + eapply step_getTop_nonEmpty.
+          * rewrite <- (actual_snapshot_agree q _ s s' Hneq Hagree).
+            eassumption.
+          * rewrite <- Hn. eassumption.
+        + apply payload_agree_clear; auto.
+        + unfold control_snapshot. simpl.
+          rewrite TMap.gro by congruence. reflexivity.
+      - (* getTop empty *)
+        eexists. split; [|split].
+        + eapply step_getTop_empty.
+          rewrite <- (actual_snapshot_agree q _ s s' Hneq Hagree).
+          eassumption.
+        + apply payload_agree_clear; auto.
+        + unfold control_snapshot. simpl.
+          rewrite TMap.gro by congruence. reflexivity.
+      - (* linsert inv *)
+        eexists. split; [|split].
+        + constructor; auto.
+        + simpl. repeat split; auto.
+        + reflexivity.
+      - (* linsert res *)
+        eexists. split; [|split].
+        + constructor. rewrite <- Hn. assumption.
+        + apply payload_agree_insert; auto.
+        + reflexivity.
+      - (* setTS inv *)
+        eexists. split; [|split].
+        + constructor; auto.
+        + simpl. repeat split; auto.
+        + reflexivity.
+      - (* setTS res *)
+        eexists. split; [|split].
+        + constructor.
+        + apply payload_agree_setTS; auto.
+        + unfold control_snapshot. simpl. unfold setTS.
+          destruct (nodes s' l) as [[? [|? ?]]|]; reflexivity.
+      - (* getCounter inv *)
+        eexists. split; [|split].
+        + constructor.
+        + simpl. repeat split; auto.
+        + reflexivity.
+      - (* getCounter res *)
+        exists (Ready s'). split; [|split].
+        + rewrite Hc. constructor.
+        + assumption.
+        + reflexivity.
+      - (* tryRemove inv *)
+        eexists. split; [|split].
+        + constructor. rewrite <- Hn. assumption.
+        + simpl. repeat split; auto.
+        + reflexivity.
+      - (* tryRemove succ *)
+        eexists. split; [|split].
+        + constructor; [rewrite <- Hn | rewrite <- Ho]; assumption.
+        + apply payload_agree_remove; auto.
+        + reflexivity.
+      - (* tryRemove fail *)
+        exists (Ready s'). split; [|split].
+        + constructor; [rewrite <- Hn | rewrite <- Ho]; assumption.
+        + assumption.
+        + reflexivity.
+    Qed.
+
+    (** Linearization-map entries only ever advance, so a thread whose entry
+        is unchanged across a step sequence took no step in it. *)
+    Definition ls_rank (ls : option (@LinState (li_sig F))) : nat :=
+      match ls with
+      | None => O
+      | Some (ls_inv _) => S O
+      | Some (ls_lini _) => S (S O)
+      | Some (ls_linr _ _) => S (S (S O))
+      end.
+
+    Lemma poss_step_rank q (ρ1 ρ2 : abstract_state) π1 π2 :
+      @poss_step _ (li_lts F) (PossOk ρ1 π1) (PossOk ρ2 π2) ->
+      Peano.le (ls_rank (TMap.find q π1)) (ls_rank (TMap.find q π2)) /\
+      (TMap.find q π1 = TMap.find q π2 \/
+       Peano.lt (ls_rank (TMap.find q π1)) (ls_rank (TMap.find q π2))).
+    Proof.
+      intros Hstep. inversion Hstep; subst;
+        match goal with
+        | Hlin : TMap.find ?tt π1 = Some _ |- _ =>
+          destruct (PositiveMap.E.eq_dec q tt) as [->|Hqt];
+          [ rewrite Hlin, TMap.gss; unfold ls_rank; simpl;
+            split; [repeat constructor|right; repeat constructor]
+          | rewrite TMap.gso by exact Hqt; split; [apply Nat.le_refl|left; reflexivity] ]
+        end.
+    Qed.
+
+    Lemma poss_steps_from_error p :
+      @poss_steps _ (li_lts F) PossError p -> p = PossError.
+    Proof.
+      intros H. apply clos_rt_rt1n in H.
+      remember PossError as e. induction H; subst; [reflexivity|].
+      inversion H.
+    Qed.
+
+    Lemma poss_steps_rank q (ρ1 ρ2 : abstract_state) π1 π2 :
+      @poss_steps _ (li_lts F) (PossOk ρ1 π1) (PossOk ρ2 π2) ->
+      Peano.le (ls_rank (TMap.find q π1)) (ls_rank (TMap.find q π2)).
+    Proof.
+      intros Hsteps.
+      remember (PossOk ρ1 π1) as p1. remember (PossOk ρ2 π2) as p2.
+      revert ρ1 π1 ρ2 π2 Heqp1 Heqp2.
+      induction Hsteps as [p1 p2 Hstep | p | p1 p2 p3 H12 IH12 H23 IH23];
+        intros ρ1 π1 ρ2 π2 E1 E2; subst.
+      - apply (poss_step_rank q) in Hstep. tauto.
+      - inversion E2; subst. apply Nat.le_refl.
+      - destruct p2 as [ρm πm|].
+        + etransitivity; [eapply IH12 | eapply IH23]; eauto.
+        + apply poss_steps_from_error in H23. discriminate.
+    Qed.
+
+    Lemma poss_step_replay q ρx πx ρx' πx' ρy πy :
+      @poss_step _ (li_lts F) (PossOk ρx πx) (PossOk ρx' πx') ->
+      TMap.find q πx' = TMap.find q πx ->
+      control_agree q ρx ρy ->
+      (forall r, r <> q -> TMap.find r πx = TMap.find r πy) ->
+      exists ρy' πy',
+        @poss_step _ (li_lts F) (PossOk ρy πy) (PossOk ρy' πy') /\
+        control_agree q ρx' ρy' /\
+        control_snapshot q ρy' = control_snapshot q ρy /\
+        (forall r, r <> q -> TMap.find r πx' = TMap.find r πy') /\
+        TMap.find q πy' = TMap.find q πy.
+    Proof.
+      intros Hstep Hq Hagree Htok.
+      inversion Hstep; subst.
+      - (* inv step *)
+        match goal with
+        | Hlin : TMap.find ?tt πx = Some (ls_inv ?ff),
+          Hs : Step (li_lts F) ?ev ρx ρx' |- _ =>
+          assert (Htq : tt <> q)
+            by (intros Heq; subst; rewrite TMap.gss, Hlin in Hq; discriminate);
+          destruct (step_replay q ev _ _ ρy Htq Hs Hagree)
+            as (ρy' & Hstep' & Hagree' & Hsnap');
+          exists ρy', (TMap.add tt (ls_lini ff) πy);
+          split; [|split; [exact Hagree'|split; [exact Hsnap'|split]]];
+          [ eapply ps_inv; [exact Hstep' | rewrite <- Htok by exact Htq; exact Hlin]
+          | intros r Hr; destruct (PositiveMap.E.eq_dec r tt) as [->|Hrt];
+            [rewrite !TMap.gss; reflexivity
+            |rewrite !TMap.gso by exact Hrt; auto]
+          | rewrite TMap.gso by congruence; reflexivity ]
+        end.
+      - (* res step *)
+        match goal with
+        | Hlin : TMap.find ?tt πx = Some (ls_lini ?ff),
+          Hs : Step (li_lts F) ?ev ρx ρx' |- _ =>
+          assert (Htq : tt <> q)
+            by (intros Heq; subst; rewrite TMap.gss, Hlin in Hq; discriminate);
+          destruct (step_replay q ev _ _ ρy Htq Hs Hagree)
+            as (ρy' & Hstep' & Hagree' & Hsnap');
+          eexists ρy', (TMap.add tt (ls_linr ff _) πy);
+          split; [|split; [exact Hagree'|split; [exact Hsnap'|split]]];
+          [ eapply ps_ret; [exact Hstep' | rewrite <- Htok by exact Htq; exact Hlin]
+          | intros r Hr; destruct (PositiveMap.E.eq_dec r tt) as [->|Hrt];
+            [rewrite !TMap.gss; reflexivity
+            |rewrite !TMap.gso by exact Hrt; auto]
+          | rewrite TMap.gso by congruence; reflexivity ]
+        end.
+    Qed.
+
+    Lemma poss_steps_replay q ρx πx ρx' πx' ρy πy :
+      @poss_steps _ (li_lts F) (PossOk ρx πx) (PossOk ρx' πx') ->
+      TMap.find q πx' = TMap.find q πx ->
+      control_agree q ρx ρy ->
+      (forall r, r <> q -> TMap.find r πx = TMap.find r πy) ->
+      exists ρy' πy',
+        @poss_steps _ (li_lts F) (PossOk ρy πy) (PossOk ρy' πy') /\
+        control_agree q ρx' ρy' /\
+        control_snapshot q ρy' = control_snapshot q ρy /\
+        (forall r, r <> q -> TMap.find r πx' = TMap.find r πy') /\
+        TMap.find q πy' = TMap.find q πy.
+    Proof.
+      intros Hsteps. apply clos_rt_rt1n in Hsteps.
+      remember (PossOk ρx πx) as p1. remember (PossOk ρx' πx') as p2.
+      revert ρx πx ρx' πx' ρy πy Heqp1 Heqp2.
+      induction Hsteps as [p | p1 p2 p3 H12 H23 IH];
+        intros ρx πx ρx' πx' ρy πy E1 E2 Hq Hagree Htok; subst.
+      - inversion E2; subst. exists ρy, πy.
+        repeat split; auto. apply rt_refl.
+      - destruct p2 as [ρm πm|].
+        2:{ exfalso. apply clos_rt1n_rt, poss_steps_from_error in H23.
+            discriminate. }
+        assert (Hqm : TMap.find q πm = TMap.find q πx).
+        { pose proof (poss_step_rank q _ _ _ _ H12)
+            as [Hle [Heq|Hlt]]; [symmetry; exact Heq|].
+          exfalso.
+          pose proof (poss_steps_rank q _ _ _ _
+            (clos_rt1n_rt _ _ _ _ H23)) as Hle'.
+          rewrite Hq in Hle'.
+          exact (Nat.lt_irrefl _ (Nat.lt_le_trans _ _ _ Hlt Hle')). }
+        destruct (poss_step_replay q _ _ _ _ _ _ H12 Hqm Hagree Htok)
+          as (ρy1 & πy1 & Hstep1 & Hagree1 & Hsnap1 & Htok1 & Hq1).
+        destruct (IH _ _ _ _ ρy1 πy1 eq_refl eq_refl) as
+          (ρy' & πy' & Hsteps' & Hagree' & Hsnap' & Htok' & Hq');
+          [congruence | exact Hagree1 | exact Htok1 |].
+        exists ρy', πy'. repeat split; auto.
+        + eapply rt_trans; [apply rt_step; exact Hstep1 | exact Hsteps'].
+        + congruence.
+        + congruence.
+    Qed.
+
+    (** ** The payload of a possibility is determined by the concrete state *)
+
+    Definition payload_of (w : single_state) : @SPListState A :=
+      abstract_payload (SinglePossState.ρ w).
+
+    Lemma source_I_ready w :
+      source_I w -> SinglePossState.ρ w = Ready (payload_of w).
+    Proof.
+      intros (mc & cc & s & Eσ & Eρ & _). unfold payload_of.
+      rewrite Eρ. reflexivity.
+    Qed.
+
+    Lemma represents_determined h top count s s' :
+      represents h top count s -> represents h top count s' ->
+      counter s = counter s' /\ nodes s = nodes s' /\ order s = order s'.
+    Proof.
+      intros (chain & Hsp & Hc & Hl & Hn & Ho)
+        (chain' & Hsp' & Hc' & Hl' & Hn' & Ho').
+      assert (chain' = chain).
+      { eapply linked_deterministic; eapply HLinked_implies_linked; eauto. }
+      subst chain'. repeat split; congruence.
+    Qed.
+
+    Lemma source_I_payload_determined w w' :
+      source_I w -> source_I w' ->
+      SinglePossState.σ w = SinglePossState.σ w' ->
+      counter (payload_of w) = counter (payload_of w') /\
+      nodes (payload_of w) = nodes (payload_of w') /\
+      order (payload_of w) = order (payload_of w').
+    Proof.
+      intros HI HI' Eσ.
+      destruct HI as (mc & cc & s & Eσ1 & Eρ1 & _ & _ & Hrep & _).
+      destruct HI' as (mc' & cc' & s' & Eσ2 & Eρ2 & _ & _ & Hrep' & _).
+      unfold payload_of. rewrite Eρ1, Eρ2. simpl.
+      rewrite Eσ, Eσ2 in Eσ1. inversion Eσ1; subst mc' cc'.
+      eapply represents_determined; eauto.
+    Qed.
+
+    (** ** Pointwise possibility facade
+
+        [SPListImpl.getTop_impl] reads a node's timestamp before its taken
+        flag.  When the flag is read as [false], [getTop] linearizes at the
+        earlier timestamp read, which cannot be known at that time.  The
+        proof therefore keeps, between the two reads, both the possibility
+        in which [getTop] has already returned and the one in which it is
+        still scanning, and drops one of them at the flag read.
+
+        Every assertion below holds pointwise on all possibilities of a
+        set.  The rely/guarantee relations relate each new possibility back
+        to an old one, and in addition preserve the "twin" structure that
+        keeps both branches available for an observer [q]: for every
+        possibility there is one that differs only in [q]'s slot (its
+        snapshot entry and its linearization-map entry) and carries the
+        other linearization kind. *)
+
+    Definition set_state :=
+      @SetPossState.ProofStateSet _ _ (li_lts E) (li_lts F).
+    Definition set_assertion := @Assertion set_state.
+    Definition set_relation :=
+      @AssertionsSet.A.RGRelation _ _ (li_lts E) (li_lts F).
+
+    Definition mk (σ : concrete_state) (ρ : abstract_state)
+        (π : tmap (@LinState (li_sig F))) : single_state :=
+      @SinglePossState.Build_ProofStateSingle _ _ (li_lts E) (li_lts F)
+        σ ρ π.
+
+    Definition mks (σ : concrete_state)
+        (Δ : @AbstractConfig (li_sig F) (li_lts F)) : set_state :=
+      @SetPossState.Build_ProofStateSet _ _ (li_lts E) (li_lts F) σ Δ.
+
+    Definition slot_snapshot (q : tid) (w : single_state) :=
+      TMap.find q (snapshot (payload_of w)).
+    Definition slot_token (q : tid) (w : single_state) :=
+      TMap.find q (SinglePossState.π w).
+
+    (** Agreement everywhere except in [q]'s slot. *)
+    Definition offslot_agree (q : tid) (x y : single_state) : Prop :=
+      SinglePossState.σ x = SinglePossState.σ y /\
+      (forall r, r <> q -> slot_snapshot r x = slot_snapshot r y) /\
+      (forall r, r <> q -> slot_token r x = slot_token r y).
+
+    (** Agreement on the concrete state and on [q]'s slot. *)
+    Definition slot_agree (q : tid) (x y : single_state) : Prop :=
+      SinglePossState.σ x = SinglePossState.σ y /\
+      slot_snapshot q x = slot_snapshot q y /\
+      slot_token q x = slot_token q y.
+
+    (** An assertion of thread [q] that only looks at the concrete state,
+        the (concrete-state-determined) payload, and [q]'s own slot. *)
+    Definition slot_local (q : tid) (P : assertion) : Prop :=
+      forall x y, P x -> source_I y -> slot_agree q x y -> P y.
+
+    Definition kind_lini (q : tid) (x : single_state) : Prop :=
+      exists f, slot_token q x = Some (ls_lini f).
+    Definition kind_linr (q : tid) (x : single_state) : Prop :=
+      exists f ret, slot_token q x = Some (ls_linr f ret).
+
+    Definition HasKind (K : tid -> single_state -> Prop) (q : tid)
+        (s : set_state) : Prop :=
+      forall ρ π, SetPossState.Δ s ρ π ->
+        exists ρ' π', SetPossState.Δ s ρ' π' /\
+          offslot_agree q (mk (SetPossState.σ s) ρ π)
+            (mk (SetPossState.σ s) ρ' π') /\
+          K q (mk (SetPossState.σ s) ρ' π').
+
+    Definition twins_preserved (q : tid) (s s' : set_state) : Prop :=
+      (HasKind kind_lini q s -> HasKind kind_lini q s') /\
+      (HasKind kind_linr q s -> HasKind kind_linr q s').
+
+    Definition lift_assert (P : assertion) : set_assertion :=
+      fun s => forall ρ π, SetPossState.Δ s ρ π ->
+        P (mk (SetPossState.σ s) ρ π).
+
+    Definition lift_backward (Rs : rg_relation) (s s' : set_state) : Prop :=
+      forall ρ' π', SetPossState.Δ s' ρ' π' ->
+        exists ρ π, SetPossState.Δ s ρ π /\
+          Rs (mk (SetPossState.σ s) ρ π) (mk (SetPossState.σ s') ρ' π').
+
+    Definition lift_relation (actor : tid) (Rs : rg_relation) :
+        set_relation :=
+      fun s s' => lift_backward Rs s s' /\
+        forall q, q <> actor -> twins_preserved q s s'.
+
+    Definition SI : set_assertion := lift_assert source_I.
+    Definition G (t : tid) : set_relation := lift_relation t (source_G t).
+    Definition R (t : tid) : set_relation :=
+      fun s s' => lift_backward (source_R t) s s' /\ twins_preserved t s s'.
+
+    Lemma lift_impl (P Q : assertion) :
+      (forall x, P x -> Q x) ->
+      forall s, lift_assert P s -> lift_assert Q s.
+    Proof. intros HPQ s HP ρ π Hposs. apply HPQ, HP, Hposs. Qed.
+
+    Lemma lift_no_error ev (P : assertion) :
+      (forall x, P x -> AssertionsSingle.A.ANoError ev x) ->
+      forall s, lift_assert P s -> AssertionsSet.A.ANoError ev s.
+    Proof.
+      intros Hsafe s HP.
+      destruct (ac_nonempty (SetPossState.Δ s)) as (ρ & π & Hposs).
+      exact (Hsafe _ (HP _ _ Hposs)).
+    Qed.
+
+    Lemma lift_stable t (P : assertion) :
+      AssertionsSingle.A.Stable (source_R t) source_I P ->
+      AssertionsSet.A.Stable (R t) SI (lift_assert P).
+    Proof.
+      unfold AssertionsSingle.A.Stable, AssertionsSet.A.Stable,
+        AssertionsSingle.A.ComposeA, AssertionsSet.A.ComposeA.
+      intros Hstable s' [[s [HP [Hback _]]] HI] ρ' π' Hposs'.
+      destruct (Hback _ _ Hposs') as (ρ & π & Hposs & HR).
+      apply Hstable. split.
+      - exists (mk (SetPossState.σ s) ρ π). split; [apply HP, Hposs | exact HR].
+      - apply HI, Hposs'.
+    Qed.
+
+    Lemma lift_post_lin (P : assertion) t ls :
+      (forall x, P x -> TMap.find t (SinglePossState.π x) = Some ls) ->
+      forall s, lift_assert P s ->
+      forall ρ π, SetPossState.Δ s ρ π -> TMap.find t π = Some ls.
+    Proof. intros Hlin s HP ρ π Hposs. exact (Hlin _ (HP _ _ Hposs)). Qed.
+
+    Lemma lift_initial (P : assertion) σ ρ π :
+      P (mk σ ρ π) -> lift_assert P (mks σ (ac_singleton ρ π)).
+    Proof.
+      intros HP ρ' π' Hposs. inversion Hposs; subst. exact HP.
+    Qed.
+
+    Lemma kind_lini_token q x y :
+      slot_token q x = slot_token q y -> kind_lini q x -> kind_lini q y.
+    Proof. intros Heq [f Hf]. exists f. rewrite <- Heq. exact Hf. Qed.
+
+    Lemma kind_linr_token q x y :
+      slot_token q x = slot_token q y -> kind_linr q x -> kind_linr q y.
+    Proof. intros Heq [f [ret Hf]]. exists f, ret. rewrite <- Heq. exact Hf. Qed.
+
+    Lemma offslot_agree_change_σ q σ1 σ2 ρ π ρ' π' :
+      offslot_agree q (mk σ1 ρ π) (mk σ1 ρ' π') ->
+      offslot_agree q (mk σ2 ρ π) (mk σ2 ρ' π').
+    Proof. intros [_ [Hs Ht]]. split; [reflexivity|split; assumption]. Qed.
+
+    Lemma twins_preserved_refl q σ σ' Δ :
+      twins_preserved q (mks σ Δ) (mks σ' Δ).
+    Proof.
+      assert (Hgen : forall K : tid -> single_state -> Prop,
+        (forall σ1 σ2 ρ π, K q (mk σ1 ρ π) -> K q (mk σ2 ρ π)) ->
+        HasKind K q (mks σ Δ) -> HasKind K q (mks σ' Δ)).
+      { intros K Kσ HK ρ π Hposs.
+        destruct (HK ρ π Hposs) as (ρ' & π' & Hposs' & Hoff & Hkind).
+        exists ρ', π'. split; [exact Hposs'|]. split.
+        - eapply offslot_agree_change_σ. exact Hoff.
+        - eapply Kσ. exact Hkind. }
+      split; apply Hgen; intros σ1 σ2 ρ π H; exact H.
+    Qed.
+
+    Lemma lift_valid_rgi t :
+      RGISimulationSet.RGISimulation.ValidRGI (R t) (G t) SI t.
+    Proof.
+      constructor. intros s s' [Hback _] _. split.
+      - intros Hnone ρ' π' Hposs'.
+        destruct (Hback _ _ Hposs') as (ρ & π & Hposs & HR).
+        pose proof (source_R_token t _ _ HR) as Htok.
+        unfold token_eq in Htok. simpl in Htok.
+        exact (eq_trans (eq_sym Htok) (Hnone _ _ Hposs)).
+      - intros Hnone' ρ π Hposs.
+        destruct (ac_nonempty (SetPossState.Δ s')) as (ρ' & π' & Hposs').
+        destruct (Hback _ _ Hposs') as (ρ0 & π0 & Hposs0 & HR).
+        pose proof (source_R_token t _ _ HR) as Htok.
+        unfold token_eq in Htok. simpl in Htok.
+        pose proof (eq_trans Htok (Hnone' _ _ Hposs')) as Hn0.
+        eapply ac_find_none_same; eauto.
+    Qed.
+
+    Lemma lift_ginv_twins t1 t2 f σ Δ :
+      t1 <> t2 ->
+      twins_preserved t2 (mks σ Δ) (mks σ (ac_inv Δ t1 f)).
+    Proof.
+      intros Hneq. split; intros HK ρ' π' Hposs'; inversion Hposs'; subst;
+        destruct (HK _ _ Hposs) as (ρy & πy & Hpossy & [Hσ [Hs Ht]] & Hkind);
+        exists ρy, (TMap.add t1 (ls_inv f) πy);
+        (split; [constructor; exact Hpossy|]);
+        (split; [split; [reflexivity|split; [exact Hs|]]|]).
+      - intros r Hr. unfold slot_token. simpl.
+        destruct (PositiveMap.E.eq_dec r t1) as [->|Hrt].
+        + rewrite !TMap.gss. reflexivity.
+        + rewrite !TMap.gso by exact Hrt. apply Ht, Hr.
+      - eapply kind_lini_token; [|exact Hkind].
+        unfold slot_token. simpl. rewrite TMap.gso by congruence. reflexivity.
+      - intros r Hr. unfold slot_token. simpl.
+        destruct (PositiveMap.E.eq_dec r t1) as [->|Hrt].
+        + rewrite !TMap.gss. reflexivity.
+        + rewrite !TMap.gso by exact Hrt. apply Ht, Hr.
+      - eapply kind_linr_token; [|exact Hkind].
+        unfold slot_token. simpl. rewrite TMap.gso by congruence. reflexivity.
+    Qed.
+
+    Lemma lift_gret_twins t1 t2 σ Δ :
+      t1 <> t2 ->
+      twins_preserved t2 (mks σ Δ) (mks σ (ac_res Δ t1)).
+    Proof.
+      intros Hneq. split; intros HK ρ' π' Hposs'; inversion Hposs'; subst;
+        destruct (HK _ _ Hposs) as (ρy & πy & Hpossy & [Hσ [Hs Ht]] & Hkind);
+        exists ρy, (TMap.remove t1 πy);
+        (split; [constructor; exact Hpossy|]);
+        (split; [split; [reflexivity|split; [exact Hs|]]|]).
+      - intros r Hr. unfold slot_token. simpl.
+        destruct (PositiveMap.E.eq_dec r t1) as [->|Hrt].
+        + rewrite !TMap.grs. reflexivity.
+        + rewrite !TMap.gro by exact Hrt. apply Ht, Hr.
+      - eapply kind_lini_token; [|exact Hkind].
+        unfold slot_token. simpl. rewrite TMap.gro by congruence. reflexivity.
+      - intros r Hr. unfold slot_token. simpl.
+        destruct (PositiveMap.E.eq_dec r t1) as [->|Hrt].
+        + rewrite !TMap.grs. reflexivity.
+        + rewrite !TMap.gro by exact Hrt. apply Ht, Hr.
+      - eapply kind_linr_token; [|exact Hkind].
+        unfold slot_token. simpl. rewrite TMap.gro by congruence. reflexivity.
+    Qed.
+
+    Lemma twins_preserved_equiv q s s' s'' :
+      SetPossState.σ s' = SetPossState.σ s'' ->
+      ac_equiv (SetPossState.Δ s') (SetPossState.Δ s'') ->
+      twins_preserved q s s' -> twins_preserved q s s''.
+    Proof.
+      intros Hσ Heq [H1 H2].
+      assert (Hconv : forall K, HasKind K q s' -> HasKind K q s'').
+      { intros K HK ρ π Hposs. apply Heq in Hposs.
+        destruct (HK _ _ Hposs) as (ρ' & π' & Hposs' & Hoff & Hkind).
+        exists ρ', π'. split; [apply Heq, Hposs'|].
+        rewrite <- Hσ. split; assumption. }
+      split; intros HK; apply Hconv; auto.
+    Qed.
+
+    Lemma lift_parallel_compat t1 t2 :
+      t1 <> t2 -> forall s s',
+        (G t1 s s' \/
+         (AssertionsSet.GINV t1 s s' \/ AssertionsSet.GRET t1 s s') \/
+         AssertionsSet.A.GId s s') /\ SI s ->
+        R t2 s s'.
+    Proof.
+      intros Hneq s s' [Hrel HI].
+      destruct Hrel as [[Hback Htwins] | [[[f Hinv] | [f [ret Hret]]] | Hid]].
+      - split.
+        + intros ρ' π' Hposs'.
+          destruct (Hback _ _ Hposs') as (ρ & π & Hposs & HG).
+          exists ρ, π. split; [exact Hposs|].
+          apply (source_parallel_compatible t1 t2 Hneq). left. exact HG.
+        + apply Htwins. congruence.
+      - destruct Hinv as [Hσ [Hnone HΔ]]. split.
+        + intros ρ' π' Hposs'. apply HΔ in Hposs'. inversion Hposs'; subst.
+          eexists ρ', _. split; [exact Hposs|].
+          apply (source_parallel_compatible t1 t2 Hneq).
+          right. left. left. exists f.
+          unfold AssertionsSingle.Ginv, AssertionsSingle.LiftRelation_π. simpl.
+          split; [exact Hσ|]. split; [reflexivity|].
+          split; [exact (Hnone _ _ Hposs)|reflexivity].
+        + destruct s as [σ Δ], s' as [σ' Δ']. simpl in *. subst σ'.
+          eapply twins_preserved_equiv with (s' := mks σ (ac_inv Δ t1 f)).
+          * reflexivity.
+          * intros ρ π. simpl. symmetry. apply HΔ.
+          * apply lift_ginv_twins. exact Hneq.
+      - destruct Hret as [Hσ [Hlin HΔ]]. split.
+        + intros ρ' π' Hposs'. apply HΔ in Hposs'. inversion Hposs'; subst.
+          eexists ρ', _. split; [exact Hposs|].
+          apply (source_parallel_compatible t1 t2 Hneq).
+          right. left. right. exists f, ret.
+          unfold AssertionsSingle.Gret, AssertionsSingle.LiftRelation_π. simpl.
+          split; [exact Hσ|]. split; [reflexivity|].
+          split; [exact (Hlin _ _ Hposs)|reflexivity].
+        + destruct s as [σ Δ], s' as [σ' Δ']. simpl in *. subst σ'.
+          eapply twins_preserved_equiv with (s' := mks σ (ac_res Δ t1)).
+          * reflexivity.
+          * intros ρ π. simpl. symmetry. apply HΔ.
+          * apply lift_gret_twins. exact Hneq.
+      - unfold AssertionsSet.A.GId in Hid. subst s'. split.
+        + intros ρ π Hposs. exists ρ, π. split; [exact Hposs|].
+          apply (source_parallel_compatible t1 t2 Hneq).
+          right. right. reflexivity.
+        + destruct s as [σ Δ]. apply twins_preserved_refl.
+    Qed.
+
+    Lemma lift_ginv_compose t f (I P : assertion) :
+      (forall x, AssertionsSingle.A.ComposeA I (AssertionsSingle.Ginv t f) x ->
+        P x) ->
+      forall s, AssertionsSet.A.ComposeA (lift_assert I)
+        (AssertionsSet.Ginv t f) s -> lift_assert P s.
+    Proof.
+      intros Himpl s [s0 [HI [Hσ [Hnone HΔ]]]] ρ' π' Hposs'.
+      apply HΔ in Hposs'. inversion Hposs'; subst.
+      apply Himpl. eexists (mk (SetPossState.σ s0) ρ' _). split.
+      - eapply HI. exact Hposs.
+      - unfold AssertionsSingle.Ginv, AssertionsSingle.LiftRelation_π. simpl.
+        split; [exact Hσ|]. split; [reflexivity|].
+        split; [exact (Hnone _ _ Hposs)|reflexivity].
+    Qed.
+
+    Lemma lift_gret_compose t f ret (Q I : assertion) :
+      (forall x, AssertionsSingle.A.ComposeA Q (AssertionsSingle.Gret t f ret) x ->
+        I x) ->
+      forall s, AssertionsSet.A.ComposeA (lift_assert Q)
+        (AssertionsSet.Gret t f ret) s -> lift_assert I s.
+    Proof.
+      intros Himpl s [s0 [HQ [Hσ [Hlin HΔ]]]] ρ' π' Hposs'.
+      apply HΔ in Hposs'. inversion Hposs'; subst.
+      apply Himpl. eexists (mk (SetPossState.σ s0) ρ' _). split.
+      - eapply HQ. exact Hposs.
+      - unfold AssertionsSingle.Gret, AssertionsSingle.LiftRelation_π. simpl.
+        split; [exact Hσ|]. split; [reflexivity|].
+        split; [exact (Hlin _ _ Hposs)|reflexivity].
+    Qed.
+
+    (** *** Transfer of facts between twins *)
+
+    Lemma offslot_control_agree q x y :
+      source_I x -> source_I y -> offslot_agree q x y ->
+      control_agree q (SinglePossState.ρ x) (SinglePossState.ρ y).
+    Proof.
+      intros HIx HIy [Hσ [Hs Ht]].
+      pose proof (source_I_payload_determined _ _ HIx HIy Hσ) as (Hc & Hn & Ho).
+      rewrite (source_I_ready _ HIx), (source_I_ready _ HIy). simpl.
+      repeat split; auto.
+    Qed.
+
+    Lemma control_agree_ready q c s' :
+      control_agree q c (Ready s') ->
+      exists s, c = Ready s /\ payload_agree q s s'.
+    Proof.
+      destruct c as [s | s t op]; simpl; [eauto | contradiction].
+    Qed.
+
+    Lemma control_agree_ready' q s c' :
+      control_agree q (Ready s) c' ->
+      exists s', c' = Ready s' /\ payload_agree q s s'.
+    Proof.
+      destruct c' as [s' | s' t op]; simpl; [eauto | contradiction].
+    Qed.
+
+    Lemma control_agree_snapshot q c c' :
+      control_agree q c c' ->
+      forall r, r <> q ->
+        TMap.find r (snapshot (abstract_payload c)) =
+        TMap.find r (snapshot (abstract_payload c')).
+    Proof.
+      destruct c as [s | s t op], c' as [s' | s' t' op']; simpl;
+        try contradiction.
+      - intros (_ & _ & _ & Hs). exact Hs.
+      - intros (_ & _ & (_ & _ & _ & Hs)). exact Hs.
+    Qed.
+
+    Lemma represents_payload_agree q h top count s s' :
+      payload_agree q s s' -> represents h top count s ->
+      represents h top count s'.
+    Proof.
+      intros (Hc & Hn & Ho & _) (chain & Hsp & Hcount & Hlen & Hnodes & Horder).
+      exists chain. split; [exact Hsp|]. repeat split; congruence.
+    Qed.
+
+    (** A replayed twin satisfies the invariant: its payload agrees with
+        the original image off [q], and its [q] slot is the twin's. *)
+    Lemma source_I_transfer q x' y y' :
+      source_I x' -> source_I y ->
+      SinglePossState.σ y' = SinglePossState.σ x' ->
+      control_agree q (SinglePossState.ρ x') (SinglePossState.ρ y') ->
+      (forall r, r <> q -> slot_token r x' = slot_token r y') ->
+      control_snapshot q (SinglePossState.ρ y') = slot_snapshot q y ->
+      slot_token q y' = slot_token q y ->
+      source_I y'.
+    Proof.
+      intros HIx' HIy Hσ Hagree Htok Hsnap Hq.
+      destruct HIx' as (mc & cc & sx & Eσ & Eρ & Hmc & Hcc & Hrep & Hcons).
+      destruct HIy as (mcy & ccy & sy & Eσy & Eρy & _ & _ & _ & Hconsy).
+      rewrite Eρ in Hagree.
+      destruct (control_agree_ready' _ _ _ Hagree) as (sy' & Eρ' & Hpay).
+      exists mc, cc, sy'. split; [exact (eq_trans Hσ Eσ)|]. split; [exact Eρ'|].
+      split; [exact Hmc|]. split; [exact Hcc|]. split.
+      - eapply represents_payload_agree; eauto.
+      - intros r. destruct (PositiveMap.E.eq_dec r q) as [->|Hrq].
+        + unfold control_snapshot, slot_snapshot, payload_of in Hsnap.
+          rewrite Eρ', Eρy in Hsnap. simpl in Hsnap.
+          unfold slot_token in Hq.
+          rewrite Hsnap, Hq. apply Hconsy.
+        + destruct Hpay as (_ & _ & _ & Hs).
+          rewrite <- (Hs r Hrq). unfold slot_token in Htok.
+          rewrite <- (Htok r Hrq). apply Hcons.
+    Qed.
+
+    Lemma source_G_transfer t q x x' y y' :
+      q <> t ->
+      source_G t x x' ->
+      source_I y -> source_I y' ->
+      offslot_agree q x y ->
+      SinglePossState.σ y' = SinglePossState.σ x' ->
+      control_agree q (SinglePossState.ρ x') (SinglePossState.ρ y') ->
+      (forall r, r <> q -> slot_token r x' = slot_token r y') ->
+      control_snapshot q (SinglePossState.ρ y') = slot_snapshot q y ->
+      slot_token q y' = slot_token q y ->
+      source_G t y y'.
+    Proof.
+      intros Hqt HG HIy HIy' [Hσxy [Hsxy Htxy]] Hσ Hagree Htok Hsnap Hq.
+      destruct HG as (HIx & HIx' & Hheap & Hpriv & Hcas & Hsnaps & Htoks).
+      pose proof (source_I_payload_determined _ _ HIx HIy Hσxy)
+        as (_ & Hnodes & _).
+      pose proof (control_agree_snapshot _ _ _ Hagree) as Hs'.
+      split; [exact HIy|]. split; [exact HIy'|].
+      rewrite <- Hσxy, Hσ. split; [exact Hheap|].
+      split.
+      { intros l Hactor Hundef. apply Hpriv; [exact Hactor|].
+        unfold payload_of in Hnodes. rewrite Hnodes. exact Hundef. }
+      split; [exact Hcas|].
+      split.
+      - intros r Hr. destruct (PositiveMap.E.eq_dec r q) as [->|Hrq].
+        + unfold control_snapshot, slot_snapshot, payload_of in Hsnap.
+          symmetry. exact Hsnap.
+        + unfold slot_snapshot, payload_of in Hsxy.
+          rewrite <- (Hsxy r Hrq), <- (Hs' r Hrq). apply Hsnaps. exact Hr.
+      - intros r Hr. destruct (PositiveMap.E.eq_dec r q) as [->|Hrq].
+        + unfold slot_token in Hq. symmetry. exact Hq.
+        + unfold slot_token in Htxy, Htok.
+          rewrite <- (Htxy r Hrq), <- (Htok r Hrq). apply Htoks. exact Hr.
+    Qed.
+
+    Lemma map_domain_equiv_of_tokens q (π1 π2 π1' π2' : tmap (@LinState (li_sig F))) :
+      domain_equiv (map_domain π1) (map_domain π2) ->
+      (forall r, r <> q -> TMap.find r π1' = TMap.find r π2') ->
+      TMap.find q π1' = TMap.find q π1 ->
+      TMap.find q π2' = TMap.find q π2 ->
+      domain_equiv (map_domain π1') (map_domain π2').
+    Proof.
+      intros Hdom Hoff H1 H2 r. unfold map_domain.
+      destruct (PositiveMap.E.eq_dec r q) as [->|Hrq].
+      - rewrite H1, H2. apply Hdom.
+      - rewrite (Hoff r Hrq). reflexivity.
+    Qed.
+
+    (** *** Lifting a pointwise update
+
+        The image of a possibility set under a thread's update.  Only
+        images with the domain [D] are kept, which is what makes the result
+        a well-formed configuration.  [D] is chosen as the domain of one
+        witness image; every image has that domain anyway because the
+        postcondition fixes the acting thread's slot. *)
+    Definition image_prop (Δ : @AbstractConfig (li_sig F) (li_lts F))
+        (σ σ' : concrete_state) (Q : assertion) (Gs : rg_relation)
+        (D : ThreadDomain) : @AbstractConfigProp (li_sig F) (li_lts F) :=
+      fun ρ' π' => exists ρ π, Δ ρ π /\
+        @poss_steps _ (li_lts F) (PossOk ρ π) (PossOk ρ' π') /\
+        Q (mk σ' ρ' π') /\ Gs (mk σ ρ π) (mk σ' ρ' π') /\
+        domain_equiv (map_domain π') D.
+
+    Definition image_config Δ σ σ' Q Gs D
+        (Hne : exists ρ' π', image_prop Δ σ σ' Q Gs D ρ' π') :
+        @AbstractConfig (li_sig F) (li_lts F) :=
+      {| ac_active := D;
+         ac_prop := image_prop Δ σ σ' Q Gs D;
+         ac_nonempty := Hne;
+         ac_domain := fun ρ' π' H =>
+           match H with
+           | ex_intro _ ρ (ex_intro _ π (conj _ (conj _ (conj _ (conj _ Hdom))))) =>
+               Hdom
+           end |}.
+
+    Lemma lift_pupdate t ev (P Q : assertion) :
+      (forall x, P x -> source_I x) ->
+      (forall x, Q x -> source_I x) ->
+      slot_local t Q ->
+      AssertionsSingle.PUpdate (source_G t) ev P Q ->
+      AssertionsSet.PUpdate (G t) ev (lift_assert P) (lift_assert Q).
+    Proof.
+      intros HPI HQI Hloc Hupd σ Δ HP σ' Hstep.
+      destruct (ac_nonempty Δ) as (ρ0 & π0 & Hposs0).
+      destruct (Hupd σ ρ0 π0 (HP _ _ Hposs0) σ' Hstep)
+        as (ρ0' & π0' & Hsteps0 & HQ0 & HG0).
+      assert (Hne : exists ρ' π',
+        image_prop Δ σ σ' Q (source_G t) (map_domain π0') ρ' π').
+      { exists ρ0', π0', ρ0, π0.
+        split; [exact Hposs0|]. split; [exact Hsteps0|].
+        split; [exact HQ0|]. split; [exact HG0|]. apply domain_equiv_refl. }
+      exists (image_config Δ σ σ' Q (source_G t) (map_domain π0') Hne).
+      split; [|split].
+      - intros ρ' π' (ρ & π & Hposs & Hsteps & _). econstructor; eauto.
+      - intros ρ' π' (ρ & π & _ & _ & HQ & _). exact HQ.
+      - split.
+        + intros ρ' π' (ρ & π & Hposs & _ & _ & HG & _).
+          exists ρ, π. split; assumption.
+        + intros q Hq.
+          assert (Hgen : forall K : tid -> single_state -> Prop,
+            (forall x y, slot_token q x = slot_token q y -> K q x -> K q y) ->
+            HasKind K q (mks σ Δ) ->
+            HasKind K q (mks σ'
+              (image_config Δ σ σ' Q (source_G t) (map_domain π0') Hne))).
+          { intros K Ktok HK ρ' π' (ρ & π & Hposs & Hsteps & HQ' & HG & Hdom).
+            destruct (HK ρ π Hposs) as (ρy & πy & Hpossy & Hoff & Hkind).
+            pose proof (HPI _ (HP _ _ Hposs)) as HIx.
+            pose proof (HPI _ (HP _ _ Hpossy)) as HIy.
+            pose proof HG as (_ & _ & _ & _ & _ & _ & Htoks).
+            simpl in Htoks.
+            pose proof (offslot_control_agree q _ _ HIx HIy Hoff) as Hagree.
+            simpl in Hagree.
+            pose proof Hoff as [_ [Hsxy Htxy]].
+            destruct (poss_steps_replay q ρ π ρ' π' ρy πy Hsteps
+              (eq_sym (Htoks q Hq)) Hagree Htxy)
+              as (ρy' & πy' & Hstepsy & Hagree' & Hsnap' & Htok' & Hqy).
+            assert (HIy' : source_I (mk σ' ρy' πy')).
+            { apply (source_I_transfer q (mk σ' ρ' π') (mk σ ρy πy)
+                (mk σ' ρy' πy')).
+              - exact (HQI _ HQ').
+              - exact HIy.
+              - reflexivity.
+              - exact Hagree'.
+              - intros r Hr. exact (Htok' r Hr).
+              - exact Hsnap'.
+              - exact Hqy. }
+            assert (Htq : t <> q) by (intros Heq; apply Hq; symmetry; exact Heq).
+            assert (HQy' : Q (mk σ' ρy' πy')).
+            { eapply Hloc; [exact HQ' | exact HIy' |].
+              split; [reflexivity|]. split.
+              - unfold slot_snapshot, payload_of. simpl.
+                apply (control_agree_snapshot _ _ _ Hagree' t Htq).
+              - exact (Htok' t Htq). }
+            assert (HGy : source_G t (mk σ ρy πy) (mk σ' ρy' πy')).
+            { apply (source_G_transfer t q (mk σ ρ π) (mk σ' ρ' π')
+                (mk σ ρy πy) (mk σ' ρy' πy')).
+              - exact Hq.
+              - exact HG.
+              - exact HIy.
+              - exact HIy'.
+              - exact Hoff.
+              - reflexivity.
+              - exact Hagree'.
+              - intros r Hr. exact (Htok' r Hr).
+              - exact Hsnap'.
+              - exact Hqy. }
+            exists ρy', πy'. split; [|split].
+            - exists ρy, πy. split; [exact Hpossy|]. split; [exact Hstepsy|].
+              split; [exact HQy'|]. split; [exact HGy|].
+              eapply domain_equiv_trans; [|exact Hdom].
+              apply (map_domain_equiv_of_tokens q πy π πy' π').
+              + eapply domain_equiv_trans; [eapply ac_domain; exact Hpossy|].
+                apply domain_equiv_symm. eapply ac_domain; exact Hposs.
+              + intros r Hr. symmetry. apply Htok', Hr.
+              + exact Hqy.
+              + symmetry. exact (Htoks q Hq).
+            - split; [reflexivity|]. split.
+              + intros r Hr. unfold slot_snapshot, payload_of. simpl.
+                apply (control_agree_snapshot _ _ _ Hagree' r Hr).
+              + intros r Hr. exact (Htok' r Hr).
+            - eapply Ktok; [|exact Hkind]. exact (eq_sym Hqy). }
+          split.
+          * intros HK. exact (Hgen kind_lini (kind_lini_token q) HK).
+          * intros HK. exact (Hgen kind_linr (kind_linr_token q) HK).
+    Qed.
+
+    (** A concrete step that changes no possibility. *)
+    Lemma lift_pupdate_pure t ev (P Q : assertion) :
+      (forall x, P x -> forall σ',
+        Step (li_lts E) ev (SinglePossState.σ x) σ' ->
+        Q (mk σ' (SinglePossState.ρ x) (SinglePossState.π x)) /\
+        source_G t x (mk σ' (SinglePossState.ρ x) (SinglePossState.π x))) ->
+      AssertionsSet.PUpdate (G t) ev (lift_assert P) (lift_assert Q).
+    Proof.
+      intros Hupd σ Δ HP σ' Hstep. exists Δ. split; [apply ac_steps_refl|].
+      split.
+      - intros ρ π Hposs. exact (proj1 (Hupd _ (HP _ _ Hposs) _ Hstep)).
+      - split.
+        + intros ρ π Hposs. exists ρ, π. split; [exact Hposs|].
+          exact (proj2 (Hupd _ (HP _ _ Hposs) _ Hstep)).
+        + intros q _. apply twins_preserved_refl.
+    Qed.
+
+    (** *** Program rules with pointwise leaf obligations *)
+
+    Lemma singleton_provable_vis_safe {X} t
+        (P : assertion) (Q : X -> assertion)
+        (m : Sig.op (li_sig E)) (k : Sig.ar m -> Prog (li_sig E) X)
+        (P' : assertion) (Q' : Sig.ar m -> assertion) :
+      (⊨ P ==>> AssertionsSingle.A.ANoError (Build_ThreadEvent t (InvEv m))) ->
+      (⊨ P' ==>> source_I) ->
+      (forall a, ⊨ Q' a ==>> source_I) ->
+      AssertionsSingle.A.Stable (source_R t) source_I P' ->
+      (forall a, AssertionsSingle.A.Stable (source_R t) source_I (Q' a)) ->
+      AssertionsSingle.PUpdate (source_G t)
+        (Build_ThreadEvent t (InvEv m)) P P' ->
+      (forall ret, AssertionsSingle.PUpdate (source_G t)
+        (Build_ThreadEvent t (ResEv m ret)) P' (Q' ret)) ->
+      (forall ret,
+        [li_lts E, li_lts F, R t, G t, SI, t] ⊢
+          {{ lift_assert (Q' ret) }} k ret {{ fun a => lift_assert (Q a) }}) ->
+      (⊨ P ==>> source_I) ->
+      slot_local t P' ->
+      (forall a, slot_local t (Q' a)) ->
+      [li_lts E, li_lts F, R t, G t, SI, t] ⊢
+        {{ lift_assert P }} Vis m k {{ fun a => lift_assert (Q a) }}.
+    Proof.
+      intros Herror HinvP HinvQ HstableP HstableQ Hpinv Hpret Hnext HPI
+        HlocP HlocQ.
+      eapply SetLogic.provable_vis_safe with
+        (P' := lift_assert P') (Q' := fun a => lift_assert (Q' a)).
+      - intros s HP. eapply lift_no_error; [exact Herror|exact HP].
+      - intros s HP. eapply lift_impl; [exact HinvP|exact HP].
+      - intros a s HQ. eapply lift_impl; [exact (HinvQ a)|exact HQ].
+      - apply lift_stable; exact HstableP.
+      - intros a. apply lift_stable; exact (HstableQ a).
+      - apply lift_pupdate.
+        + exact HPI.
+        + exact HinvP.
+        + exact HlocP.
+        + exact Hpinv.
+      - intros ret. apply lift_pupdate.
+        + exact HinvP.
+        + exact (HinvQ ret).
+        + exact (HlocQ ret).
+        + exact (Hpret ret).
+      - exact Hnext.
+    Qed.
+
+    Lemma singleton_provable_ret_safe {X} t (a : X)
+        (P : assertion) (Q : X -> assertion) :
+      (⊨ P ==>> Q a) ->
+      (⊨ Q a ==>> source_I) ->
+      AssertionsSingle.A.Stable (source_R t) source_I (Q a) ->
+      [li_lts E, li_lts F, R t, G t, SI, t] ⊢
+        {{ lift_assert P }} Ret a {{ fun r => lift_assert (Q r) }}.
+    Proof.
+      intros HP Hinv Hstable.
+      eapply SetLogic.provable_ret_safe.
+      - intros s Hpre. eapply lift_impl; [exact HP|exact Hpre].
+      - intros s Hpost. eapply lift_impl; [exact Hinv|exact Hpost].
+      - apply lift_stable; exact Hstable.
+    Qed.
+
+    Ltac singleton_ret_safe := eapply singleton_provable_ret_safe.
+
+    Lemma valid_rg observer :
+      RGISimulationSet.RGISimulation.ValidRGI
+        (R observer) (G observer) SI observer.
+    Proof. apply lift_valid_rgi. Qed.
+
+    Lemma parallel_compatible actor observer :
+      actor <> observer -> forall w w',
+      (G actor w w' \/
+       (AssertionsSet.GINV actor w w' \/ AssertionsSet.GRET actor w w') \/
+       AssertionsSet.A.GId w w') /\ SI w ->
+      R observer w w'.
+    Proof. apply lift_parallel_compat. Qed.
 
     Definition Active (t : tid) (m : Sig.op (li_sig F)) : assertion :=
       source_I //\\ ALin t (ls_inv m).
@@ -1914,6 +2891,114 @@ Module SPListProof.
       - eapply source_R_preserves_defined; eauto.
     Qed.
 
+
+    (** *** Slot locality of the method assertions *)
+
+    Lemma slot_local_conj q (P Q : assertion) :
+      slot_local q P -> slot_local q Q -> slot_local q (P //\\ Q).
+    Proof.
+      intros HP HQ x y [Hx1 Hx2] HI Hag. split; [eapply HP|eapply HQ]; eauto.
+    Qed.
+
+    Lemma slot_local_source_I q : slot_local q source_I.
+    Proof. intros x y _ HI _. exact HI. Qed.
+
+    Lemma slot_local_ALin q ls : slot_local q (ALin q ls).
+    Proof.
+      intros x y Hx HI [_ [_ Ht]]. unfold ALin in *. unfold slot_token in Ht.
+      rewrite <- Ht. exact Hx.
+    Qed.
+
+    Lemma slot_local_active t m : slot_local t (Active t m).
+    Proof.
+      unfold Active. apply slot_local_conj;
+        [apply slot_local_source_I | apply slot_local_ALin].
+    Qed.
+
+    Lemma slot_local_completed t m ret : slot_local t (Completed t m ret).
+    Proof.
+      unfold Completed. apply slot_local_conj;
+        [apply slot_local_source_I | apply slot_local_ALin].
+    Qed.
+
+    Lemma slot_local_active_owned t m : slot_local t (ActiveOwned t m).
+    Proof.
+      intros x y [Hx Ho] HI Hag. split; [|exact Ho].
+      eapply slot_local_active; eauto.
+    Qed.
+
+    Lemma slot_agree_nodes q x y :
+      source_I x -> source_I y -> slot_agree q x y ->
+      nodes (payload_of x) = nodes (payload_of y).
+    Proof.
+      intros HIx HIy [Hσ _].
+      exact (proj1 (proj2 (source_I_payload_determined _ _ HIx HIy Hσ))).
+    Qed.
+
+    Lemma slot_local_active_defined t m l :
+      slot_local t (ActiveDefined t m l).
+    Proof.
+      intros x y [Hact [a Hnode]] HI Hag.
+      pose proof (proj1 Hact) as HIx.
+      split; [eapply slot_local_active; eauto|].
+      exists a. pose proof (slot_agree_nodes t x y HIx HI Hag) as Hn.
+      unfold payload_of in Hn. rewrite <- Hn. exact Hnode.
+    Qed.
+
+    Lemma slot_local_active_owned_defined t m l :
+      slot_local t (ActiveOwnedDefined t m l).
+    Proof.
+      intros x y [Hact Ho] HI Hag. split; [|exact Ho].
+      eapply slot_local_active_defined; eauto.
+    Qed.
+
+    Lemma slot_local_cas_is q p : slot_local q (CASIs p).
+    Proof.
+      intros x y Hx _ [Hσ _]. unfold CASIs in *. rewrite <- Hσ. exact Hx.
+    Qed.
+
+    Lemma slot_local_insert_read t v p : slot_local t (InsertRead t v p).
+    Proof.
+      unfold InsertRead. apply slot_local_conj;
+        [apply slot_local_active_owned | apply slot_local_cas_is].
+    Qed.
+
+    Lemma slot_local_insert_allocated t v p l :
+      slot_local t (InsertAllocated t v p l).
+    Proof.
+      intros x y [Hread [Hundef Hcell]] HI Hag.
+      pose proof (proj1 (proj1 (proj1 Hread))) as HIx.
+      pose proof Hag as [Hσ _].
+      split; [eapply slot_local_insert_read; eauto|].
+      split.
+      - unfold NodeUndefined in *.
+        pose proof (slot_agree_nodes t x y HIx HI Hag) as Hn.
+        unfold payload_of in Hn. rewrite <- Hn. exact Hundef.
+      - rewrite <- Hσ. exact Hcell.
+    Qed.
+
+    Lemma slot_local_getTop_scan t count p :
+      slot_local t (GetTopScan t count p).
+    Proof.
+      intros x y [HI [Hlin Hdata]] HIy Hag.
+      pose proof Hag as [Hσ [Hs Ht]].
+      destruct Hdata as
+        (saved & chain & suffix & prefix & H1 & H2 & H3 & H4 & H5 & H6).
+      split; [exact HIy|]. split; [eapply slot_local_ALin; eauto|].
+      exists saved, chain, suffix, prefix.
+      unfold slot_snapshot, payload_of in Hs.
+      rewrite <- Hσ, <- Hs.
+      split; [exact H1|]. split; [exact H2|]. split; [exact H3|].
+      split; [exact H4|]. split; [exact H5|]. exact H6.
+    Qed.
+
+    Lemma slot_local_getTop_loop t count p :
+      slot_local t (GetTopLoop t count p).
+    Proof.
+      destruct p; simpl;
+        [apply slot_local_getTop_scan | apply slot_local_completed].
+    Qed.
+
     Lemma snapshot_consistent_add_inv s pi t m :
       snapshot_consistent s pi -> TMap.find t pi = None ->
       snapshot_consistent s (TMap.add t (ls_inv m) pi).
@@ -2175,6 +3260,9 @@ Module SPListProof.
         + apply ImplRefl.
         + apply completed_entails_I.
         + apply completed_stable.
+      - apply active_entails_I.
+      - apply slot_local_active.
+      - intros q. apply slot_local_completed.
     Qed.
 
     Lemma setTS_inv_update t l ts :
@@ -2322,39 +3410,45 @@ Module SPListProof.
         + apply ImplRefl.
         + apply completed_entails_I.
         + apply completed_stable.
+      - apply active_owned_defined_entails_I.
+      - apply slot_local_active_owned_defined.
+      - intros []. apply slot_local_completed.
     Qed.
 
     Lemma setTS_active_valid_or_error t l ts :
       ⊨ SActive t (lsetTS l ts) ==>>
         SActiveOwnedDefined t (lsetTS l ts) l \\// AssertionsSet.APError.
     Proof.
-      intros w [x [Hview [HI Hlin]]].
+      intros w Hall.
+      destruct (ac_nonempty (SetPossState.Δ w)) as (ρ0 & π0 & Hposs0).
+      pose proof (Hall _ _ Hposs0) as [HI0 Hlin0].
       destruct (PositiveMap.E.eq_dec t owner) as [Howner|Howner].
-      - destruct (nodes (abstract_payload (SinglePossState.ρ x)) l)
+      - destruct (nodes (payload_of (mk (SetPossState.σ w) ρ0 π0)) l)
           as [a|] eqn:Hnode.
-        + assert (Hdefined : NodeDefined l x) by (exists a; exact Hnode).
-          left. exists x. split; [exact Hview|].
-          split.
-          * split; [split; [exact HI|exact Hlin]|exact Hdefined].
-          * exact Howner.
-        + right. destruct HI as
+        + left. intros ρ π Hposs. pose proof (Hall _ _ Hposs) as [HI Hlin].
+          split; [|exact Howner]. split; [split; assumption|].
+          exists a.
+          pose proof (proj1 (proj2 (source_I_payload_determined _ _ HI HI0
+            eq_refl))) as Hn.
+          unfold payload_of in Hn, Hnode. simpl in Hn, Hnode. simpl.
+          rewrite Hn. exact Hnode.
+        + right. destruct HI0 as
             (mc & cc & s & Eσ & Eρ & Hmc & Hcc & Hrep & Hsnap).
-          econstructor.
-          * eapply singleton_view_member; exact Hview.
-          * apply rt_step. eapply ps_error.
-            -- rewrite Eρ.
-               eapply (@error_setTS_undefined A owner t s l ts _).
-               ++ rewrite Eρ in Hnode. simpl in Hnode. exact Hnode.
-               ++ reflexivity.
-            -- exact Hlin.
-      - right. destruct HI as
+          econstructor; [exact Hposs0|].
+          apply rt_step. eapply ps_error.
+          * simpl in Eρ. rewrite Eρ.
+            eapply (@error_setTS_undefined A owner t s l ts _).
+            -- unfold payload_of in Hnode. simpl in Hnode.
+               rewrite Eρ in Hnode. simpl in Hnode. exact Hnode.
+            -- reflexivity.
+          * exact Hlin0.
+      - right. destruct HI0 as
           (mc & cc & s & Eσ & Eρ & Hmc & Hcc & Hrep & Hsnap).
-        econstructor.
-        + eapply singleton_view_member; exact Hview.
-        + apply rt_step. eapply ps_error.
-          * rewrite Eρ.
-            eapply (@error_setTS_not_owner A owner t s l ts _); eauto.
-          * exact Hlin.
+        econstructor; [exact Hposs0|].
+        apply rt_step. eapply ps_error.
+        + simpl in Eρ. rewrite Eρ.
+          eapply (@error_setTS_not_owner A owner t s l ts _); eauto.
+        + exact Hlin0.
     Qed.
 
     Lemma setTS_triple t l ts :
@@ -2571,28 +3665,37 @@ Module SPListProof.
         + apply ImplRefl.
         + apply completed_entails_I.
         + apply completed_stable.
+      - apply active_defined_entails_I.
+      - apply slot_local_active_defined.
+      - intros ret. apply slot_local_completed.
     Qed.
 
     Lemma tryRemove_active_valid_or_error t l :
       ⊨ SActive t (ltryRemove l) ==>>
         SActiveDefined t (ltryRemove l) l \\// AssertionsSet.APError.
     Proof.
-      intros w [x [Hview [HI Hlin]]].
-      destruct (nodes (abstract_payload (SinglePossState.ρ x)) l)
+      intros w Hall.
+      destruct (ac_nonempty (SetPossState.Δ w)) as (ρ0 & π0 & Hposs0).
+      pose proof (Hall _ _ Hposs0) as [HI0 Hlin0].
+      destruct (nodes (payload_of (mk (SetPossState.σ w) ρ0 π0)) l)
         as [a|] eqn:Hnode.
-      - assert (Hdefined : NodeDefined l x) by (exists a; exact Hnode).
-        left. exists x. split; [exact Hview|].
-        split; [split; assumption|exact Hdefined].
-      - right. destruct HI as
+      - left. intros ρ π Hposs. pose proof (Hall _ _ Hposs) as [HI Hlin].
+        split; [split; assumption|].
+        exists a.
+        pose proof (proj1 (proj2 (source_I_payload_determined _ _ HI HI0
+          eq_refl))) as Hn.
+        unfold payload_of in Hn, Hnode. simpl in Hn, Hnode. simpl.
+        rewrite Hn. exact Hnode.
+      - right. destruct HI0 as
           (mc & cc & s & Eσ & Eρ & Hmc & Hcc & Hrep & Hsnap).
-        econstructor.
-        + eapply singleton_view_member; exact Hview.
-        + apply rt_step. eapply ps_error.
-          * rewrite Eρ.
-            eapply (@error_tryRemove_undefined A owner t s l _).
-            -- rewrite Eρ in Hnode. simpl in Hnode. exact Hnode.
-            -- reflexivity.
-          * exact Hlin.
+        econstructor; [exact Hposs0|].
+        apply rt_step. eapply ps_error.
+        + simpl in Eρ. rewrite Eρ.
+          eapply (@error_tryRemove_undefined A owner t s l _).
+          * unfold payload_of in Hnode. simpl in Hnode.
+            rewrite Eρ in Hnode. simpl in Hnode. exact Hnode.
+          * reflexivity.
+        + exact Hlin0.
     Qed.
 
     Lemma tryRemove_triple t l :
@@ -2881,23 +3984,33 @@ Module SPListProof.
             -- apply ImplRefl.
             -- apply completed_entails_I.
             -- apply completed_stable.
+          * apply insert_allocated_entails_I.
+          * apply slot_local_insert_allocated.
+          * intros []. apply slot_local_completed.
+        + apply insert_read_entails_I.
+        + apply slot_local_insert_read.
+        + intros l. apply slot_local_insert_allocated.
+      - apply active_owned_entails_I.
+      - apply slot_local_active_owned.
+      - intros q. apply slot_local_insert_read.
     Qed.
 
     Lemma insert_active_valid_or_error t v :
       ⊨ SActive t (linsert v) ==>>
         lift_assert (ActiveOwned t (linsert v)) \\// AssertionsSet.APError.
     Proof.
-      intros w [x [Hview [HI Hlin]]].
+      intros w Hall.
+      destruct (ac_nonempty (SetPossState.Δ w)) as (ρ0 & π0 & Hposs0).
+      pose proof (Hall _ _ Hposs0) as [HI0 Hlin0].
       destruct (PositiveMap.E.eq_dec t owner) as [Howner|Howner].
-      - left. exists x. split; [exact Hview|]. split; [split; assumption|assumption].
-      - right. destruct HI as
+      - left. intros ρ π Hposs. split; [apply Hall, Hposs|exact Howner].
+      - right. destruct HI0 as
           (mc & cc & s & Eσ & Eρ & Hmc & Hcc & Hrep & Hsnap).
-        econstructor.
-        + eapply singleton_view_member; exact Hview.
-        + apply rt_step. eapply ps_error.
-          * rewrite Eρ. eapply (@error_linsert_not_owner A owner t s v _);
-              eauto.
-          * exact Hlin.
+        econstructor; [exact Hposs0|].
+        apply rt_step. eapply ps_error.
+        + simpl in Eρ. rewrite Eρ.
+          eapply (@error_linsert_not_owner A owner t s v _); eauto.
+        + exact Hlin0.
     Qed.
 
     Lemma insert_triple t v :
@@ -3035,182 +4148,1066 @@ Module SPListProof.
             repeat rewrite TMap.gso by exact Hneq. reflexivity.
     Qed.
 
-    Lemma getTop_mem_inv_update t count l :
-      AssertionsSingle.PUpdate (source_G t)
-        (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmget l))))
-        (GetTopScan t count (Some l))
-        (GetTopScan t count (Some l)).
+    (** ** [getTop]: per-field reads and the two-possibility window
+
+        [getTop_impl] reads a node's value, next pointer and timestamp, and
+        then its taken flag.  The value and next pointer never change; the
+        timestamp is set once (from [TSTop]) and the flag flipped once.  A
+        node observed untaken after its timestamp was read was untaken,
+        with that timestamp, at the time of the timestamp read, which is
+        therefore the linearization point.  Between the two reads the proof
+        keeps both the "still scanning" and the "already returned"
+        possibilities. *)
+
+    Definition NodeCell (l : Addr) (v : A) (nx : Ptr)
+        (σ : concrete_state) : Prop :=
+      exists ts taken,
+        mem_heap (fst σ) l = Some (pair (pair (pair v ts) taken) nx).
+
+    Definition GetTopScanVal (t : tid) (count : nat) (l : Addr) (v : A) :
+        assertion :=
+      fun w => GetTopScan t count (Some l) w /\
+        exists nx, NodeCell l v nx (SinglePossState.σ w).
+
+    Definition GetTopScanAt (t : tid) (count : nat) (l : Addr) (v : A)
+        (nx : Ptr) : assertion :=
+      fun w => GetTopScan t count (Some l) w /\
+        NodeCell l v nx (SinglePossState.σ w).
+
+    Definition GetTopKind (t : tid) (count : nat) (l : Addr) (v : A)
+        (nx : Ptr) (ts : TS) : assertion :=
+      fun w => GetTopScanAt t count l v nx w \/
+        Completed t (@lgetTop A) (@inl (@LNode A) nat (pair (pair v ts) l)) w.
+
+    Definition GetTopWindow (t : tid) (count : nat) (l : Addr) (v : A)
+        (nx : Ptr) (ts : TS) : set_assertion :=
+      fun s =>
+        lift_assert (GetTopKind t count l v nx ts) s /\
+        NodeCell l v nx (SetPossState.σ s) /\
+        HasKind kind_lini t s /\
+        (live_at (mem_heap (fst (SetPossState.σ s))) l = true ->
+          HasKind kind_linr t s).
+
+    Definition GetTopTakenPost (t : tid) (count : nat) (l : Addr) (v : A)
+        (nx : Ptr) (ts : TS) (b : bool) : assertion :=
+      if b then GetTopLoop t count nx
+      else Completed t (@lgetTop A) (@inl (@LNode A) nat (pair (pair v ts) l)).
+
+    (** *** Stability *)
+
+    Lemma source_R_node_cell t l v nx x x' :
+      source_R t x x' ->
+      NodeCell l v nx (SinglePossState.σ x) ->
+      NodeCell l v nx (SinglePossState.σ x').
     Proof.
-      pupdate_intros_atomic.
-      destruct Hpre as [HIpre [Hlin Hdata]].
-      destruct Hdata as
-        (saved & chain & suffix & prefix & Hfull & Hsaved & Hsuffix &
-         Hchain & Hforall & Hfilter).
-      assert (HIpost : source_I
-        (@SinglePossState.Build_ProofStateSingle _ _ (li_lts E) (li_lts F)
-          (pair (Pending s3 t0 (nmget l0)) s2) ρ1 π1)).
-      { eapply source_I_change_controls with
-          (w := @SinglePossState.Build_ProofStateSingle _ _
-            (li_lts E) (li_lts F) (pair (Idle s3) s2) ρ1 π1).
-        - exact HIpre.
-        - reflexivity.
-        - reflexivity.
-        - reflexivity.
-        - pose proof (source_I_cas_control _ HIpre) as Hok. simpl in Hok.
-          exact Hok. }
-      pupdate_finish. split.
-      - split; [exact HIpost|]. split; [exact Hlin|].
-        exists saved, chain, suffix, prefix. repeat split; assumption.
-      - eapply source_G_same_payload; simpl; eauto.
+      intros HR (ts & taken & Hcell).
+      destruct HR as [[actor [Hneq HG]] | Hadmin].
+      - destruct HG as (_ & _ & Hheap & _). specialize (Hheap l).
+        rewrite Hcell in Hheap. destruct Hheap as [new [Hnew Hevol]].
+        destruct new as [[[v' ts'] taken'] nx'].
+        destruct Hevol as (Hv & _ & _ & Hn). simpl in Hv, Hn. subst v' nx'.
+        exists ts', taken'. exact Hnew.
+      - apply AssertionsSingle.linearization_rely_observer_view in Hadmin.
+        destruct Hadmin as [Hσ _]. rewrite <- Hσ. exists ts, taken. exact Hcell.
     Qed.
 
-    Lemma getTop_mem_res_update t count l node :
-      AssertionsSingle.PUpdate (source_G t)
-        (Build_ThreadEvent t (@ResEv (li_sig E) (in_mem (nmget l)) node))
-        (GetTopScan t count (Some l))
-        (GetTopReadPost t count l node).
+    Lemma source_R_live_imp t l v nx x x' :
+      source_R t x x' ->
+      NodeCell l v nx (SinglePossState.σ x) ->
+      live_at (mem_heap (fst (SinglePossState.σ x'))) l = true ->
+      live_at (mem_heap (fst (SinglePossState.σ x))) l = true.
     Proof.
-      destruct node as [[[v ts] taken] next].
-      pupdate_intros_atomic.
-      destruct Hpre as [HIpre [Hlin Hdata]]. pose proof HIpre as HIpre0.
+      intros HR (ts & taken & Hcell) Hlive.
+      destruct HR as [[actor [Hneq HG]] | Hadmin].
+      - destruct HG as (_ & _ & Hheap & _). specialize (Hheap l).
+        rewrite Hcell in Hheap. destruct Hheap as [new [Hnew Hevol]].
+        destruct new as [[[v' ts'] taken'] nx'].
+        destruct Hevol as (_ & _ & Htaken & _). simpl in Htaken.
+        unfold live_at, node_live in *. rewrite Hnew in Hlive. rewrite Hcell.
+        simpl in *. destruct taken; [|reflexivity].
+        specialize (Htaken eq_refl). subst taken'. discriminate.
+      - apply AssertionsSingle.linearization_rely_observer_view in Hadmin.
+        destruct Hadmin as [Hσ _]. rewrite Hσ. exact Hlive.
+    Qed.
+
+    Lemma getTop_scan_val_entails_I t count l v :
+      ⊨ GetTopScanVal t count l v ==>> source_I.
+    Proof. intros w [[HI _] _]. exact HI. Qed.
+
+    Lemma getTop_scan_at_entails_I t count l v nx :
+      ⊨ GetTopScanAt t count l v nx ==>> source_I.
+    Proof. intros w [[HI _] _]. exact HI. Qed.
+
+    Lemma getTop_scan_val_stable t count l v :
+      AssertionsSingle.A.Stable (source_R t) source_I
+        (GetTopScanVal t count l v).
+    Proof.
+      unfold AssertionsSingle.A.Stable.
+      intros out [[pre [[Hscan [nx Hcell]] HR]] HIout]. split.
+      - eapply getTop_scan_stable.
+        split; [exists pre; split; [exact Hscan|exact HR] | exact HIout].
+      - exists nx. eapply source_R_node_cell; eauto.
+    Qed.
+
+    Lemma getTop_scan_at_stable t count l v nx :
+      AssertionsSingle.A.Stable (source_R t) source_I
+        (GetTopScanAt t count l v nx).
+    Proof.
+      unfold AssertionsSingle.A.Stable.
+      intros out [[pre [[Hscan Hcell] HR]] HIout]. split.
+      - eapply getTop_scan_stable.
+        split; [exists pre; split; [exact Hscan|exact HR] | exact HIout].
+      - eapply source_R_node_cell; eauto.
+    Qed.
+
+    Lemma slot_local_node_cell q l v nx :
+      slot_local q (fun w => NodeCell l v nx (SinglePossState.σ w)).
+    Proof. intros x y Hx _ [Hσ _]. rewrite <- Hσ. exact Hx. Qed.
+
+    Lemma slot_local_getTop_scan_val t count l v :
+      slot_local t (GetTopScanVal t count l v).
+    Proof.
+      intros x y [Hscan [nx Hcell]] HI Hag. split.
+      - eapply slot_local_getTop_scan; eauto.
+      - exists nx. eapply slot_local_node_cell; eauto.
+    Qed.
+
+    Lemma slot_local_getTop_scan_at t count l v nx :
+      slot_local t (GetTopScanAt t count l v nx).
+    Proof.
+      intros x y [Hscan Hcell] HI Hag. split.
+      - eapply slot_local_getTop_scan; eauto.
+      - eapply slot_local_node_cell; eauto.
+    Qed.
+
+    Lemma getTop_kind_entails_I t count l v nx ts :
+      ⊨ GetTopKind t count l v nx ts ==>> source_I.
+    Proof.
+      intros w [HA | HB]; [exact (proj1 (proj1 HA)) | exact (proj1 HB) ].
+    Qed.
+
+    Lemma getTop_window_entails_I t count l v nx ts :
+      ⊨ GetTopWindow t count l v nx ts ==>> SI.
+    Proof.
+      intros s [Hkinds _] ρ π Hposs.
+      eapply getTop_kind_entails_I. apply Hkinds, Hposs.
+    Qed.
+
+    Lemma getTop_window_stable t count l v nx ts :
+      AssertionsSet.A.Stable (R t) SI (GetTopWindow t count l v nx ts).
+    Proof.
+      unfold AssertionsSet.A.Stable, AssertionsSet.A.ComposeA.
+      intros s' [[s [[Hkinds [Hcell [Hlini Hlinr]]] [Hback Htwins]]] HI].
+      destruct (ac_nonempty (SetPossState.Δ s')) as (ρ0 & π0 & Hposs0).
+      destruct (Hback _ _ Hposs0) as (ρ1 & π1 & Hposs1 & HR0).
+      split; [|split; [|split]].
+      - intros ρ' π' Hposs'.
+        destruct (Hback _ _ Hposs') as (ρ & π & Hposs & HR).
+        pose proof (Hkinds _ _ Hposs) as Hk. pose proof (HI _ _ Hposs') as HI'.
+        destruct Hk as [HA | HB].
+        + left. eapply getTop_scan_at_stable.
+          split; [exists (mk (SetPossState.σ s) ρ π); split;
+            [exact HA|exact HR] | exact HI'].
+        + right. eapply completed_stable.
+          split; [exists (mk (SetPossState.σ s) ρ π); split;
+            [exact HB|exact HR] | exact HI'].
+      - exact (source_R_node_cell t l v nx (mk (SetPossState.σ s) ρ1 π1)
+          (mk (SetPossState.σ s') ρ0 π0) HR0 Hcell).
+      - apply (proj1 Htwins). exact Hlini.
+      - intros Hlive. apply (proj2 Htwins). apply Hlinr.
+        exact (source_R_live_imp t l v nx (mk (SetPossState.σ s) ρ1 π1)
+          (mk (SetPossState.σ s') ρ0 π0) HR0 Hcell Hlive).
+    Qed.
+
+    Lemma getTop_taken_post_entails_I t count l v nx ts b :
+      ⊨ GetTopTakenPost t count l v nx ts b ==>> source_I.
+    Proof.
+      destruct b; simpl;
+        [apply getTop_loop_entails_I | apply completed_entails_I].
+    Qed.
+
+    Lemma getTop_taken_post_stable t count l v nx ts b :
+      AssertionsSingle.A.Stable (source_R t) source_I
+        (GetTopTakenPost t count l v nx ts b).
+    Proof.
+      destruct b; simpl; [apply getTop_loop_stable | apply completed_stable].
+    Qed.
+
+    (** *** Transfer across the mem control (same heap and CAS value) *)
+
+    Lemma getTop_scan_change_controls t count p w mc' cc' :
+      GetTopScan t count p w ->
+      mem_heap mc' = mem_heap (fst (SinglePossState.σ w)) ->
+      cas_value cc' = cas_value (snd (SinglePossState.σ w)) ->
+      mem_control_ok mc' -> cas_control_ok cc' ->
+      GetTopScan t count p
+        (mk (pair mc' cc') (SinglePossState.ρ w) (SinglePossState.π w)).
+    Proof.
+      intros [HI [Hlin Hdata]] Hheap Hcas Hmc Hcc.
+      split; [exact (source_I_change_controls _ _ _ HI Hheap Hcas Hmc Hcc)|].
+      split; [exact Hlin|].
+      destruct Hdata as
+        (saved & chain & suffix & prefix & H1 & H2 & H3 & H4 & H5 & H6).
+      exists saved, chain, suffix, prefix. simpl. rewrite Hheap, Hcas.
+      split; [exact H1|]. split; [exact H2|]. split; [exact H3|].
+      split; [exact H4|]. split; [exact H5|]. exact H6.
+    Qed.
+
+    Lemma completed_change_controls t m ret w mc' cc' :
+      Completed t m ret w ->
+      mem_heap mc' = mem_heap (fst (SinglePossState.σ w)) ->
+      cas_value cc' = cas_value (snd (SinglePossState.σ w)) ->
+      mem_control_ok mc' -> cas_control_ok cc' ->
+      Completed t m ret
+        (mk (pair mc' cc') (SinglePossState.ρ w) (SinglePossState.π w)).
+    Proof.
+      intros [HI Hlin] Hheap Hcas Hmc Hcc.
+      split; [exact (source_I_change_controls _ _ _ HI Hheap Hcas Hmc Hcc)|].
+      exact Hlin.
+    Qed.
+
+    Lemma getTop_kind_change_controls t count l v nx ts w mc' cc' :
+      GetTopKind t count l v nx ts w ->
+      mem_heap mc' = mem_heap (fst (SinglePossState.σ w)) ->
+      cas_value cc' = cas_value (snd (SinglePossState.σ w)) ->
+      mem_control_ok mc' -> cas_control_ok cc' ->
+      GetTopKind t count l v nx ts
+        (mk (pair mc' cc') (SinglePossState.ρ w) (SinglePossState.π w)).
+    Proof.
+      intros [[Hscan Hcell] | Hcomp] Hheap Hcas Hmc Hcc.
+      - left. split.
+        + exact (getTop_scan_change_controls _ _ _ _ _ _ Hscan Hheap Hcas Hmc Hcc).
+        + destruct Hcell as (ts' & taken & Hcell). exists ts', taken.
+          simpl. rewrite Hheap. exact Hcell.
+      - right. exact (completed_change_controls _ _ _ _ _ _ Hcomp Hheap Hcas Hmc Hcc).
+    Qed.
+
+    Lemma offslot_agree_refl q x : offslot_agree q x x.
+    Proof. split; [reflexivity|]. split; intros; reflexivity. Qed.
+
+    Lemma offslot_agree_sym q x y :
+      offslot_agree q x y -> offslot_agree q y x.
+    Proof.
+      intros [Hσ [Hs Ht]]. split; [symmetry; exact Hσ|].
+      split; intros r Hr; symmetry; auto.
+    Qed.
+
+    Lemma HasKind_change_σ (K : tid -> single_state -> Prop) q σ1 σ2 Δ :
+      (forall σ1 σ2 ρ π, K q (mk σ1 ρ π) -> K q (mk σ2 ρ π)) ->
+      HasKind K q (mks σ1 Δ) -> HasKind K q (mks σ2 Δ).
+    Proof.
+      intros Kσ HK ρ π Hposs.
+      destruct (HK ρ π Hposs) as (ρ' & π' & Hposs' & Hoff & Hkind).
+      exists ρ', π'. split; [exact Hposs'|]. split.
+      - eapply offslot_agree_change_σ. exact Hoff.
+      - eapply Kσ. exact Hkind.
+    Qed.
+
+    Lemma kind_lini_σ q σ1 σ2 ρ π :
+      kind_lini q (mk σ1 ρ π) -> kind_lini q (mk σ2 ρ π).
+    Proof. intros H. exact H. Qed.
+
+    Lemma kind_linr_σ q σ1 σ2 ρ π :
+      kind_linr q (mk σ1 ρ π) -> kind_linr q (mk σ2 ρ π).
+    Proof. intros H. exact H. Qed.
+
+    (** *** The completing step of a scanning possibility *)
+
+    Lemma getTop_scan_facts t count l v ts taken nx σ s π :
+      GetTopScan t count (Some l) (mk σ (Ready s) π) ->
+      mem_heap (fst σ) l = Some (pair (pair (pair v ts) taken) nx) ->
+      exists tl,
+        linked (mem_heap (fst σ)) nx tl /\
+        actual_snapshot t s =
+          Some (pair (live_order (mem_heap (fst σ)) (l :: tl)) count) /\
+        nodes s l = Some (pair v ts) /\
+        TMap.find t π = Some (ls_lini (@lgetTop A)) /\
+        exists chain prefix saved,
+          linked (mem_heap (fst σ)) (fst (cas_value (snd σ))) chain /\
+          chain = prefix ++ (l :: tl) /\
+          TMap.find t (snapshot s) = Some (pair saved count) /\
+          List.Forall (fun l => In l chain) saved /\
+          List.filter (live_at (mem_heap (fst σ))) saved =
+            live_order (mem_heap (fst σ)) (l :: tl).
+    Proof.
+      intros [HI [Hlin Hdata]] Hcell.
       destruct Hdata as
         (saved & chain & suffix & prefix & Hfull & Hsaved & Hsuffix &
          Hchain & Hforall & Hfilter).
-      destruct HIpre as
-        (mc & cc & s & Eσ & Eρ & Hmc & Hcc & Hrep & Hsnap).
-      simpl in Eσ, Eρ. inversion Eσ; subst mc cc. subst ρ1.
-      rename H0 into Hconcrete.
-      assert (Hspatial_read :
-        @sepcon _ heap_Join
-          (HCell l0 (pair (pair (pair v ts) taken) next))
-          (HFrame l0 s3) s3).
-      { apply heap_cell_sep. exact Hconcrete. }
-      assert (Hlocal_read :
-        s3 l0 = Some (pair (pair (pair v ts) taken) next)).
-      { eapply heap_cell_read_frame; exact Hspatial_read. }
-      simpl in Hfull, Hsuffix, Hfilter, Hsaved.
+      simpl in Hfull, Hsaved, Hsuffix, Hfilter.
+      destruct HI as (mc & cc & s0 & Eσ & Eρ & Hmc & Hcc & Hrep & Hsnap).
+      simpl in Eρ. inversion Eρ; subst s0.
       destruct Hrep as
         (repchain & Hrepspatial & Hcount & Hlength & Hnodes & Horder).
       pose proof (HLinked_implies_linked _ _ _ Hrepspatial) as Hreplinked.
+      simpl in Eσ. subst σ. simpl in *.
       assert (Erep : repchain = chain) by
         (eapply linked_deterministic; eauto).
       subst repchain.
       inversion Hsuffix as
         [|hd hv hts htaken hnext tl Hhead Htail Hfresh]; subst hd.
       subst suffix.
-      rewrite Hlocal_read in Hhead. inversion Hhead; subst hv hts htaken hnext.
-      assert (Hin : In l0 chain).
-      { rewrite Hchain. apply in_or_app. right. now left. }
-      assert (Habstract : nodes s l0 = Some (pair v ts)).
-      { rewrite Hnodes. eapply linked_abstract_lookup; eauto. }
-      assert (Hactual : actual_snapshot t0 s =
-          Some (pair (live_order s3 (l0 :: tl)) count)).
+      rewrite Hcell in Hhead. inversion Hhead; subst hv hts htaken hnext.
+      exists tl. split; [exact Htail|]. split.
       { eapply actual_snapshot_from_scan_data with
-          (h := s3) (top := fst (cas_value s2))
-          (chain := chain) (saved := saved) (suffix := l0 :: tl).
-        - exact Hfull.
-        - exact Horder.
-        - exact Hsaved.
-        - exact Hforall.
-        - exact Hfilter. }
-      destruct taken.
-      - destruct next as [nxt|].
-        + pupdate_finish.
-          assert (HIpost : source_I
-            (@SinglePossState.Build_ProofStateSingle _ _ (li_lts E) (li_lts F)
-              (pair (Idle s3) s2) (Ready s) π1)).
-          { eapply source_I_change_controls with
-              (w := @SinglePossState.Build_ProofStateSingle _ _
-                (li_lts E) (li_lts F)
-                (pair (Pending s3 t0 (nmget l0)) s2) (Ready s) π1);
-              simpl; eauto. }
-          split.
-          * simpl. split; [exact HIpost|]. split; [exact Hlin|].
-            exists saved, chain, tl, (prefix ++ (l0 :: nil)).
-            repeat split.
-            -- simpl. exact Hfull.
-            -- exact Hsaved.
-            -- simpl. exact Htail.
-            -- rewrite Hchain, <- app_assoc. reflexivity.
-            -- exact Hforall.
-            -- assert (Hdead : live_at s3 l0 = false).
-               { unfold live_at, node_live. rewrite Hlocal_read. reflexivity. }
-               simpl in Hfilter. rewrite Hdead in Hfilter. exact Hfilter.
-          * eapply source_G_same_payload; simpl; eauto.
-        + pupdate_start.
-          pupdate_forward t0
-            (ResEv (@lgetTop A) (@inr (@LNode A) nat count)).
-          eapply step_getTop_empty.
-          assert (Hdead : live_at s3 l0 = false).
-          { unfold live_at, node_live. rewrite Hlocal_read. reflexivity. }
-          simpl in Hactual. rewrite Hdead in Hactual.
-          assert (Etl : tl = nil) by
-            (eapply linked_deterministic; [exact Htail|constructor]).
-          subst tl. exact Hactual.
-          pupdate_finish.
-          assert (Etl_post : tl = nil) by
-            (eapply linked_deterministic; [exact Htail|constructor]).
-          subst tl.
-          assert (HIpost : source_I
-            (@SinglePossState.Build_ProofStateSingle _ _ (li_lts E) (li_lts F)
-              (pair (Idle s3) s2) (Ready (clear_snapshot t0 s))
-              (TMap.add t0
-                (ls_linr (@lgetTop A) (@inr (@LNode A) nat count)) π1))).
-          { exists (Idle s3), s2, (clear_snapshot t0 s). simpl.
-            split; [reflexivity|]. split; [reflexivity|].
-            split; [reflexivity|]. split; [exact Hcc|].
-            split.
-            - exists chain. repeat split; auto.
-            - eapply snapshot_consistent_getTop_res; eauto. }
-          split.
-          * simpl. split; [exact HIpost|].
-            unfold ALin. simpl. rewrite TMap.gss. reflexivity.
-          * unfold source_G. repeat split; auto.
-            -- simpl. apply heap_evol_refl.
-            -- unfold cas_evol. simpl.
-               destruct (PositiveMap.E.eq_dec t0 owner).
-               ++ exists chain, chain, nil. repeat split; auto.
-               ++ reflexivity.
-            -- intros r Hneq. simpl. rewrite TMap.gro by exact Hneq.
-               reflexivity.
-            -- intros r Hneq. simpl. rewrite TMap.gso by exact Hneq.
-               reflexivity.
-      - pupdate_start.
-        pupdate_forward t0
-          (ResEv (@lgetTop A)
-            (@inl (@LNode A) nat (pair (pair v ts) l0))).
-        eapply step_getTop_nonEmpty.
-        { assert (Hlive : live_at s3 l0 = true).
-          { unfold live_at, node_live. rewrite Hlocal_read. reflexivity. }
-          simpl in Hactual. rewrite Hlive in Hactual. exact Hactual. }
-        { exact Habstract. }
-        pupdate_finish.
-        assert (HIpost : source_I
-          (@SinglePossState.Build_ProofStateSingle _ _ (li_lts E) (li_lts F)
-            (pair (Idle s3) s2) (Ready (clear_snapshot t0 s))
-            (TMap.add t0
-              (ls_linr (@lgetTop A)
-                (@inl (@LNode A) nat (pair (pair v ts) l0))) π1))).
-        { exists (Idle s3), s2, (clear_snapshot t0 s). simpl.
-          split; [reflexivity|]. split; [reflexivity|].
-          split; [reflexivity|]. split; [exact Hcc|].
-          split.
-          - exists chain. repeat split; auto.
-          - eapply snapshot_consistent_getTop_res; eauto. }
-        split.
-        + simpl. split; [exact HIpost|].
-          unfold ALin. simpl. rewrite TMap.gss. reflexivity.
-        + unfold source_G. repeat split; auto.
-          * simpl. apply heap_evol_refl.
-          * unfold cas_evol. simpl.
-            destruct (PositiveMap.E.eq_dec t0 owner).
-            -- exists chain, chain, nil. repeat split; auto.
-            -- reflexivity.
-          * intros r Hneq. simpl. rewrite TMap.gro by exact Hneq.
-            reflexivity.
-          * intros r Hneq. simpl. rewrite TMap.gso by exact Hneq.
-            reflexivity.
+          (h := mem_heap mc) (top := fst (cas_value cc))
+          (chain := chain) (saved := saved) (suffix := l :: tl); eauto. }
+      split.
+      { rewrite Hnodes. eapply linked_abstract_lookup; eauto.
+        rewrite Hchain. apply in_or_app. right. now left. }
+      split; [exact Hlin|].
+      exists chain, prefix, saved. repeat split; auto.
     Qed.
+
+    Lemma live_order_cons_live h l tl :
+      live_at h l = true -> live_order h (l :: tl) = l :: live_order h tl.
+    Proof. intros H. simpl. rewrite H. reflexivity. Qed.
+
+    Lemma live_order_cons_dead h l tl :
+      live_at h l = false -> live_order h (l :: tl) = live_order h tl.
+    Proof. intros H. simpl. rewrite H. reflexivity. Qed.
+
+    Lemma getTop_complete_step t count l v ts nx σ s π :
+      GetTopScan t count (Some l) (mk σ (Ready s) π) ->
+      mem_heap (fst σ) l = Some (pair (pair (pair v ts) false) nx) ->
+      Step (li_lts F)
+        (Build_ThreadEvent t
+          (ResEv (@lgetTop A) (@inl (@LNode A) nat (pair (pair v ts) l))))
+        (Ready s) (Ready (clear_snapshot t s)).
+    Proof.
+      intros Hscan Hcell.
+      destruct (getTop_scan_facts _ _ _ _ _ _ _ _ _ _ Hscan Hcell)
+        as (tl & Htail & Hactual & Habstract & _).
+      eapply step_getTop_nonEmpty; [|exact Habstract].
+      assert (Hlive : live_at (mem_heap (fst σ)) l = true).
+      { unfold live_at, node_live. rewrite Hcell. reflexivity. }
+      rewrite (live_order_cons_live _ _ _ Hlive) in Hactual. exact Hactual.
+    Qed.
+
+    Lemma getTop_empty_step t count l v ts σ s π :
+      GetTopScan t count (Some l) (mk σ (Ready s) π) ->
+      mem_heap (fst σ) l = Some (pair (pair (pair v ts) true) None) ->
+      Step (li_lts F)
+        (Build_ThreadEvent t
+          (ResEv (@lgetTop A) (@inr (@LNode A) nat count)))
+        (Ready s) (Ready (clear_snapshot t s)).
+    Proof.
+      intros Hscan Hcell.
+      destruct (getTop_scan_facts _ _ _ _ _ _ _ _ _ _ Hscan Hcell)
+        as (tl & Htail & Hactual & _).
+      assert (Etl : tl = nil) by
+        (eapply linked_deterministic; [exact Htail|constructor]).
+      subst tl.
+      eapply step_getTop_empty.
+      assert (Hdead : live_at (mem_heap (fst σ)) l = false).
+      { unfold live_at, node_live. rewrite Hcell. reflexivity. }
+      rewrite (live_order_cons_dead _ _ _ Hdead) in Hactual. exact Hactual.
+    Qed.
+
+    Lemma getTop_shift_scan t count l v ts l' σ s π :
+      GetTopScan t count (Some l) (mk σ (Ready s) π) ->
+      mem_heap (fst σ) l = Some (pair (pair (pair v ts) true) (Some l')) ->
+      GetTopScan t count (Some l') (mk σ (Ready s) π).
+    Proof.
+      intros Hscan Hcell. pose proof Hscan as [HI [Hlin _]].
+      destruct (getTop_scan_facts _ _ _ _ _ _ _ _ _ _ Hscan Hcell)
+        as (tl & Htail & Hactual & Habstract & _ &
+            chain & prefix & saved & Hfull & Hchain & Hsaved & Hforall &
+            Hfilter).
+      split; [exact HI|]. split; [exact Hlin|].
+      exists saved, chain, tl, (prefix ++ (l :: nil)). simpl.
+      split; [exact Hfull|]. split; [exact Hsaved|].
+      split; [exact Htail|].
+      split; [rewrite Hchain, <- app_assoc; reflexivity|].
+      split; [exact Hforall|].
+      assert (Hdead : live_at (mem_heap (fst σ)) l = false).
+      { unfold live_at, node_live. rewrite Hcell. reflexivity. }
+      rewrite (live_order_cons_dead _ _ _ Hdead) in Hfilter. exact Hfilter.
+    Qed.
+
+    Lemma getTop_ret_completed t ret σ s π :
+      source_I (mk σ (Ready s) π) ->
+      TMap.find t π = Some (ls_lini (@lgetTop A)) ->
+      Completed t (@lgetTop A) ret
+        (mk σ (Ready (clear_snapshot t s))
+          (TMap.add t (ls_linr (@lgetTop A) ret) π)).
+    Proof.
+      intros HI Hlin.
+      destruct HI as (mc & cc & s0 & Eσ & Eρ & Hmc & Hcc & Hrep & Hsnap).
+      simpl in Eρ. inversion Eρ; subst s0.
+      split.
+      - exists mc, cc, (clear_snapshot t s). simpl.
+        split; [exact Eσ|]. split; [reflexivity|].
+        split; [exact Hmc|]. split; [exact Hcc|]. split.
+        + destruct Hrep as (chain & H1 & H2 & H3 & H4 & H5).
+          exists chain. simpl.
+          split; [exact H1|]. split; [exact H2|]. split; [exact H3|].
+          split; [exact H4|]. exact H5.
+        + eapply snapshot_consistent_getTop_res; eauto.
+      - unfold ALin. simpl. rewrite TMap.gss. reflexivity.
+    Qed.
+
+    Lemma getTop_ret_G t ret mc cc mc' cc' s π :
+      mem_heap mc' = mem_heap mc ->
+      cas_value cc' = cas_value cc ->
+      source_I (mk (pair mc cc) (Ready s) π) ->
+      source_I (mk (pair mc' cc') (Ready (clear_snapshot t s))
+        (TMap.add t (ls_linr (@lgetTop A) ret) π)) ->
+      source_G t (mk (pair mc cc) (Ready s) π)
+        (mk (pair mc' cc') (Ready (clear_snapshot t s))
+          (TMap.add t (ls_linr (@lgetTop A) ret) π)).
+    Proof.
+      intros Hheap Hcas HI HI'.
+      split; [exact HI|]. split; [exact HI'|].
+      cbn [mk SinglePossState.σ SinglePossState.ρ SinglePossState.π fst snd].
+      rewrite Hheap, Hcas.
+      split; [apply heap_evol_refl|].
+      split; [intros; reflexivity|].
+      split.
+      { unfold cas_evol.
+        destruct (PositiveMap.E.eq_dec t owner) as [Heq|Hneq].
+        - destruct HI as (mc0 & cc0 & s0 & Eσ & Eρ & _ & _ & Hrep & _).
+          destruct Hrep as (chain & Hspatial & _).
+          pose proof (HLinked_implies_linked _ _ _ Hspatial) as Hlinked.
+          simpl in Eσ. inversion Eσ; subst mc0 cc0.
+          exists chain, chain, nil. repeat split; auto.
+        - reflexivity. }
+      split.
+      - intros q Hq. simpl. rewrite TMap.gro by exact Hq. reflexivity.
+      - intros q Hq. simpl. rewrite TMap.gso by exact Hq. reflexivity.
+    Qed.
+
+    (** *** Configurations built by the window steps *)
+
+    Definition ret_image_prop (Δ : @AbstractConfig (li_sig F) (li_lts F))
+        (t : tid) (ret : Sig.ar (@lgetTop A))
+        (Sel : tmap (@LinState (li_sig F)) -> Prop) :
+        @AbstractConfigProp (li_sig F) (li_lts F) :=
+      fun ρ' π' => exists s π, Δ (Ready s) π /\ Sel π /\
+        ρ' = Ready (clear_snapshot t s) /\
+        π' = TMap.add t (ls_linr (@lgetTop A) ret) π.
+
+    Lemma ret_image_domain (Δ : @AbstractConfig (li_sig F) (li_lts F)) t ret (Sel : tmap (@LinState (li_sig F)) -> Prop) :
+      (forall ρ π, Δ ρ π -> Sel π ->
+        TMap.find t π = Some (ls_lini (@lgetTop A))) ->
+      forall ρ' π', ret_image_prop Δ t ret Sel ρ' π' ->
+        domain_equiv (map_domain π') (ac_active Δ).
+    Proof.
+      intros Hlini ρ' π' (s & π & Hposs & Hsel & _ & ->).
+      eapply domain_equiv_trans; [|eapply ac_domain; exact Hposs].
+      intros r. unfold map_domain.
+      destruct (PositiveMap.E.eq_dec r t) as [->|Hrt].
+      - rewrite TMap.gss, (Hlini _ _ Hposs Hsel).
+        split; intros _; eexists; reflexivity.
+      - rewrite TMap.gso by exact Hrt. reflexivity.
+    Qed.
+
+    Definition fork_prop (Δ : @AbstractConfig (li_sig F) (li_lts F)) t ret : @AbstractConfigProp (li_sig F) (li_lts F) :=
+      fun ρ' π' => Δ ρ' π' \/ ret_image_prop Δ t ret (fun _ => True) ρ' π'.
+
+    Lemma fork_nonempty (Δ : @AbstractConfig (li_sig F) (li_lts F)) t ret : exists ρ π, fork_prop Δ t ret ρ π.
+    Proof.
+      destruct (ac_nonempty Δ) as (ρ & π & H). exists ρ, π. left. exact H.
+    Qed.
+
+    Lemma fork_domain (Δ : @AbstractConfig (li_sig F) (li_lts F)) t ret
+        (Hlini : forall ρ π, Δ ρ π -> TMap.find t π = Some (ls_lini (@lgetTop A))) :
+      forall ρ π, fork_prop Δ t ret ρ π ->
+        domain_equiv (map_domain π) (ac_active Δ).
+    Proof.
+      intros ρ π [H | H]; [eapply ac_domain; exact H |].
+      eapply ret_image_domain; [|exact H].
+      intros ρ0 π0 Hposs _. exact (Hlini _ _ Hposs).
+    Qed.
+
+    Definition fork_config (Δ : @AbstractConfig (li_sig F) (li_lts F)) t ret Hlini : @AbstractConfig (li_sig F) (li_lts F) :=
+      {| ac_active := ac_active Δ; ac_prop := fork_prop Δ t ret;
+         ac_nonempty := fork_nonempty Δ t ret;
+         ac_domain := fork_domain Δ t ret Hlini |}.
+
+    Definition filter_prop (Δ : @AbstractConfig (li_sig F) (li_lts F)) (Sel : tmap (@LinState (li_sig F)) -> Prop) :
+        @AbstractConfigProp (li_sig F) (li_lts F) :=
+      fun ρ π => Δ ρ π /\ Sel π.
+
+    Lemma filter_domain (Δ : @AbstractConfig (li_sig F) (li_lts F)) (Sel : tmap (@LinState (li_sig F)) -> Prop) :
+      forall ρ π, filter_prop Δ Sel ρ π ->
+        domain_equiv (map_domain π) (ac_active Δ).
+    Proof. intros ρ π [H _]. eapply ac_domain; exact H. Qed.
+
+    Definition filter_config (Δ : @AbstractConfig (li_sig F) (li_lts F)) (Sel : tmap (@LinState (li_sig F)) -> Prop)
+        (Hne : exists ρ π, filter_prop Δ Sel ρ π) :
+        @AbstractConfig (li_sig F) (li_lts F) :=
+      {| ac_active := ac_active Δ; ac_prop := filter_prop Δ Sel;
+         ac_nonempty := Hne; ac_domain := filter_domain Δ Sel |}.
+
+    Definition ret_image_config (Δ : @AbstractConfig (li_sig F) (li_lts F)) t ret (Sel : tmap (@LinState (li_sig F)) -> Prop) Hlini
+        (Hne : exists ρ' π', ret_image_prop Δ t ret Sel ρ' π') :
+        @AbstractConfig (li_sig F) (li_lts F) :=
+      {| ac_active := ac_active Δ; ac_prop := ret_image_prop Δ t ret Sel;
+         ac_nonempty := Hne; ac_domain := ret_image_domain Δ t ret Sel Hlini |}.
+
+    Lemma ret_image_offslot q t ret σ s π sy πy :
+      q <> t ->
+      offslot_agree q (mk σ (Ready s) π) (mk σ (Ready sy) πy) ->
+      offslot_agree q
+        (mk σ (Ready (clear_snapshot t s))
+          (TMap.add t (ls_linr (@lgetTop A) ret) π))
+        (mk σ (Ready (clear_snapshot t sy))
+          (TMap.add t (ls_linr (@lgetTop A) ret) πy)).
+    Proof.
+      intros Hqt [_ [Hs Ht]]. split; [reflexivity|]. split.
+      - intros r Hr. unfold slot_snapshot, payload_of. simpl.
+        destruct (PositiveMap.E.eq_dec r t) as [->|Hrt].
+        + rewrite !TMap.grs. reflexivity.
+        + rewrite !TMap.gro by exact Hrt. exact (Hs r Hr).
+      - intros r Hr. unfold slot_token. simpl.
+        destruct (PositiveMap.E.eq_dec r t) as [->|Hrt].
+        + rewrite !TMap.gss. reflexivity.
+        + rewrite !TMap.gso by exact Hrt. exact (Ht r Hr).
+    Qed.
+
+    Lemma ret_image_offslot_orig t ret σ s π :
+      offslot_agree t
+        (mk σ (Ready (clear_snapshot t s))
+          (TMap.add t (ls_linr (@lgetTop A) ret) π))
+        (mk σ (Ready s) π).
+    Proof.
+      split; [reflexivity|]. split.
+      - intros r Hr. unfold slot_snapshot, payload_of. simpl.
+        rewrite TMap.gro by exact Hr. reflexivity.
+      - intros r Hr. unfold slot_token. simpl.
+        rewrite TMap.gso by exact Hr. reflexivity.
+    Qed.
+
+    Lemma ret_image_kind_linr t ret σ s π :
+      kind_linr t
+        (mk σ (Ready (clear_snapshot t s))
+          (TMap.add t (ls_linr (@lgetTop A) ret) π)).
+    Proof.
+      exists (@lgetTop A), ret. unfold slot_token. simpl.
+      rewrite TMap.gss. reflexivity.
+    Qed.
+
+    Lemma ret_image_token_other q t ret σ s π :
+      q <> t ->
+      slot_token q (mk σ (Ready (clear_snapshot t s))
+        (TMap.add t (ls_linr (@lgetTop A) ret) π)) =
+      slot_token q (mk σ (Ready s) π).
+    Proof.
+      intros Hq. unfold slot_token. simpl. rewrite TMap.gso by exact Hq.
+      reflexivity.
+    Qed.
+
+    (** *** Errors *)
+
+    Lemma getTop_value_no_error t count l :
+      ⊨ GetTopScan t count (Some l) ==>>
+        AssertionsSingle.A.ANoError
+          (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetValue l)))).
+    Proof.
+      intros w [HI [Hlin Hdata]] Herror.
+      destruct Hdata as
+        (saved & chain & suffix & prefix & Hfull & Hsaved & Hsuffix &
+         Hchain & Hforall & Hfilter).
+      destruct (SinglePossState.σ w) as [mc cc] eqn:Eσ.
+      simpl in Hsuffix. simpl in Herror. dependent destruction Herror.
+      inversion Hsuffix; subst. simpl in *. congruence.
+    Qed.
+
+    Lemma getTop_next_no_error t count l v :
+      ⊨ GetTopScanVal t count l v ==>>
+        AssertionsSingle.A.ANoError
+          (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetNext l)))).
+    Proof.
+      intros w [_ [nx (ts & taken & Hcell) ]] Herror.
+      destruct (SinglePossState.σ w) as [mc cc] eqn:Eσ.
+      simpl in Hcell. simpl in Herror. dependent destruction Herror.
+      simpl in *. congruence.
+    Qed.
+
+    Lemma getTop_ts_no_error t count l v nx :
+      ⊨ GetTopScanAt t count l v nx ==>>
+        AssertionsSingle.A.ANoError
+          (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetTS l)))).
+    Proof.
+      intros w [_ (ts & taken & Hcell) ] Herror.
+      destruct (SinglePossState.σ w) as [mc cc] eqn:Eσ.
+      simpl in Hcell. simpl in Herror. dependent destruction Herror.
+      simpl in *. congruence.
+    Qed.
+
+    Lemma getTop_taken_no_error t count l v nx ts :
+      ⊨ GetTopWindow t count l v nx ts ==>>
+        AssertionsSet.A.ANoError
+          (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetTaken l)))).
+    Proof.
+      intros s [_ [ (ts' & taken & Hcell) _] ] Herror.
+      destruct (SetPossState.σ s) as [mc cc] eqn:Eσ.
+      simpl in Hcell. simpl in Herror. dependent destruction Herror.
+      simpl in *. congruence.
+    Qed.
+
+    (** *** Twins across the window steps *)
+
+    Lemma filter_twins q t σ1 σ2 (Δ : @AbstractConfig (li_sig F) (li_lts F)) (Sel : tmap (@LinState (li_sig F)) -> Prop) Hne :
+      q <> t ->
+      (forall π π', TMap.find t π = TMap.find t π' -> Sel π -> Sel π') ->
+      twins_preserved q (mks σ1 Δ) (mks σ2 (filter_config Δ Sel Hne)).
+    Proof.
+      intros Hq Hsel.
+      assert (Hgen : forall K : tid -> single_state -> Prop,
+        (forall x y, slot_token q x = slot_token q y -> K q x -> K q y) ->
+        HasKind K q (mks σ1 Δ) ->
+        HasKind K q (mks σ2 (filter_config Δ Sel Hne))).
+      { intros K Ktok HK ρ π [Hposs Hlin].
+        destruct (HK _ _ Hposs) as (ρy & πy & Hpossy & Hoff & Hkind).
+        exists ρy, πy. split.
+        - split; [exact Hpossy|]. destruct Hoff as [_ [_ Ht]].
+          apply (Hsel π πy); [|exact Hlin].
+          exact (Ht t (fun Heq => Hq (eq_sym Heq))).
+        - split; [eapply offslot_agree_change_σ; exact Hoff|].
+          eapply Ktok; [|exact Hkind]. reflexivity. }
+      split.
+      - intros HK. exact (Hgen kind_lini (kind_lini_token q) HK).
+      - intros HK. exact (Hgen kind_linr (kind_linr_token q) HK).
+    Qed.
+
+    Lemma ret_image_twins q t ret σ1 σ2 (Δ : @AbstractConfig (li_sig F) (li_lts F)) (Sel : tmap (@LinState (li_sig F)) -> Prop) Hlini Hne :
+      q <> t ->
+      (forall ρ π, Δ ρ π -> exists s, ρ = Ready s) ->
+      (forall π π', TMap.find t π = TMap.find t π' -> Sel π -> Sel π') ->
+      twins_preserved q (mks σ1 Δ)
+        (mks σ2 (ret_image_config Δ t ret Sel Hlini Hne)).
+    Proof.
+      intros Hq Hready Hsel.
+      assert (Hgen : forall K : tid -> single_state -> Prop,
+        (forall x y, slot_token q x = slot_token q y -> K q x -> K q y) ->
+        HasKind K q (mks σ1 Δ) ->
+        HasKind K q (mks σ2 (ret_image_config Δ t ret Sel Hlini Hne))).
+      { intros K Ktok HK ρ' π' (s & π & Hposs & Hlin & -> & ->).
+        destruct (HK _ _ Hposs) as (ρy & πy & Hpossy & Hoff & Hkind).
+        destruct (Hready _ _ Hpossy) as [sy ->].
+        exists (Ready (clear_snapshot t sy)),
+          (TMap.add t (ls_linr (@lgetTop A) ret) πy).
+        split.
+        - exists sy, πy. split; [exact Hpossy|]. split.
+          + destruct Hoff as [_ [_ Ht]]. apply (Hsel π πy); [|exact Hlin].
+            exact (Ht t (fun Heq => Hq (eq_sym Heq))).
+          + split; reflexivity.
+        - split.
+          + apply ret_image_offslot; [exact Hq|].
+            eapply offslot_agree_change_σ; exact Hoff.
+          + eapply Ktok; [|exact Hkind]. unfold slot_token. simpl.
+            rewrite TMap.gso by exact Hq. reflexivity. }
+      split.
+      - intros HK. exact (Hgen kind_lini (kind_lini_token q) HK).
+      - intros HK. exact (Hgen kind_linr (kind_linr_token q) HK).
+    Qed.
+
+    Lemma fork_twins q t ret σ1 σ2 (Δ : @AbstractConfig (li_sig F) (li_lts F)) Hlini :
+      q <> t ->
+      (forall ρ π, Δ ρ π -> exists s, ρ = Ready s) ->
+      twins_preserved q (mks σ1 Δ) (mks σ2 (fork_config Δ t ret Hlini)).
+    Proof.
+      intros Hq Hready.
+      assert (Hgen : forall K : tid -> single_state -> Prop,
+        (forall x y, slot_token q x = slot_token q y -> K q x -> K q y) ->
+        HasKind K q (mks σ1 Δ) ->
+        HasKind K q (mks σ2 (fork_config Δ t ret Hlini))).
+      { intros K Ktok HK ρ' π' [Hposs | (s & π & Hposs & _ & -> & ->) ].
+        - destruct (HK _ _ Hposs) as (ρy & πy & Hpossy & Hoff & Hkind).
+          exists ρy, πy. split; [left; exact Hpossy|].
+          split; [eapply offslot_agree_change_σ; exact Hoff|].
+          eapply Ktok; [|exact Hkind]. reflexivity.
+        - destruct (HK _ _ Hposs) as (ρy & πy & Hpossy & Hoff & Hkind).
+          destruct (Hready _ _ Hpossy) as [sy ->].
+          exists (Ready (clear_snapshot t sy)),
+            (TMap.add t (ls_linr (@lgetTop A) ret) πy).
+          split.
+          + right. exists sy, πy. split; [exact Hpossy|].
+            split; [exact I|]. split; reflexivity.
+          + split.
+            * apply ret_image_offslot; [exact Hq|].
+              eapply offslot_agree_change_σ; exact Hoff.
+            * eapply Ktok; [|exact Hkind]. unfold slot_token. simpl.
+              rewrite TMap.gso by exact Hq. reflexivity. }
+      split.
+      - intros HK. exact (Hgen kind_lini (kind_lini_token q) HK).
+      - intros HK. exact (Hgen kind_linr (kind_linr_token q) HK).
+    Qed.
+
+    Lemma source_I_ready_ex w :
+      source_I w -> exists s, SinglePossState.ρ w = Ready s.
+    Proof. intros HI. eexists. exact (source_I_ready _ HI). Qed.
+
+    (** *** Updates of the per-field reads *)
+
+    Lemma getTop_value_inv_update t count l :
+      AssertionsSingle.PUpdate (source_G t)
+        (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetValue l))))
+        (GetTopScan t count (Some l)) (GetTopScan t count (Some l)).
+    Proof.
+      pupdate_intros_atomic. pupdate_finish.
+      pose proof (proj1 Hpre) as HIpre.
+      pose proof (source_I_cas_control _ HIpre) as Hcc. simpl in Hcc.
+      pose proof (getTop_scan_change_controls _ _ _ _
+        (Pending s3 t0 (nmgetValue l0)) s2 Hpre eq_refl eq_refl I Hcc) as Hpost.
+      pose proof (proj1 Hpost) as HIpost.
+      split; [exact Hpost|].
+      eapply source_G_same_payload; simpl; eauto.
+    Qed.
+
+    Lemma getTop_value_res_update t count l v :
+      AssertionsSingle.PUpdate (source_G t)
+        (Build_ThreadEvent t (@ResEv (li_sig E) (in_mem (nmgetValue l)) v))
+        (GetTopScan t count (Some l)) (GetTopScanVal t count l v).
+    Proof.
+      pupdate_intros_atomic.
+      match goal with H : s3 l0 = Some _ |- _ => rename H into Hconcrete end.
+      pupdate_finish.
+      pose proof (proj1 Hpre) as HIpre.
+      pose proof (source_I_cas_control _ HIpre) as Hcc. simpl in Hcc.
+      pose proof (getTop_scan_change_controls _ _ _ _
+        (Idle s3) s2 Hpre eq_refl eq_refl I Hcc) as Hpost.
+      pose proof (proj1 Hpost) as HIpost.
+      split.
+      - split; [exact Hpost|]. do 3 eexists. exact Hconcrete.
+      - eapply source_G_same_payload; simpl; eauto.
+    Qed.
+
+    Lemma getTop_next_inv_update t count l v :
+      AssertionsSingle.PUpdate (source_G t)
+        (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetNext l))))
+        (GetTopScanVal t count l v) (GetTopScanVal t count l v).
+    Proof.
+      pupdate_intros_atomic. pupdate_finish.
+      destruct Hpre as [Hscan [nx Hcell]].
+      pose proof (proj1 Hscan) as HIpre.
+      pose proof (source_I_cas_control _ HIpre) as Hcc. simpl in Hcc.
+      pose proof (getTop_scan_change_controls _ _ _ _
+        (Pending s3 t0 (nmgetNext l0)) s2 Hscan eq_refl eq_refl I Hcc) as Hpost.
+      pose proof (proj1 Hpost) as HIpost.
+      split.
+      - split; [exact Hpost|]. exists nx. exact Hcell.
+      - eapply source_G_same_payload; simpl; eauto.
+    Qed.
+
+    Lemma getTop_next_res_update t count l v nx :
+      AssertionsSingle.PUpdate (source_G t)
+        (Build_ThreadEvent t (@ResEv (li_sig E) (in_mem (nmgetNext l)) nx))
+        (GetTopScanVal t count l v) (GetTopScanAt t count l v nx).
+    Proof.
+      pupdate_intros_atomic.
+      match goal with H : s3 l0 = Some _ |- _ => rename H into Hconcrete end.
+      pupdate_finish.
+      destruct Hpre as [Hscan [nx0 (ts0 & tk0 & Hcell0) ]]. simpl in Hcell0.
+      rewrite Hcell0 in Hconcrete. injection Hconcrete as Hv Hts Htk Hnx.
+      rewrite Hnx in Hcell0.
+      pose proof (proj1 Hscan) as HIpre.
+      pose proof (source_I_cas_control _ HIpre) as Hcc. simpl in Hcc.
+      pose proof (getTop_scan_change_controls _ _ _ _
+        (Idle s3) s2 Hscan eq_refl eq_refl I Hcc) as Hpost.
+      pose proof (proj1 Hpost) as HIpost.
+      split.
+      - split; [exact Hpost|]. do 2 eexists. exact Hcell0.
+      - eapply source_G_same_payload; simpl; eauto.
+    Qed.
+
+    Lemma getTop_ts_inv_update t count l v nx :
+      AssertionsSingle.PUpdate (source_G t)
+        (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetTS l))))
+        (GetTopScanAt t count l v nx) (GetTopScanAt t count l v nx).
+    Proof.
+      pupdate_intros_atomic. pupdate_finish.
+      destruct Hpre as [Hscan Hcell].
+      pose proof (proj1 Hscan) as HIpre.
+      pose proof (source_I_cas_control _ HIpre) as Hcc. simpl in Hcc.
+      pose proof (getTop_scan_change_controls _ _ _ _
+        (Pending s3 t0 (nmgetTS l0)) s2 Hscan eq_refl eq_refl I Hcc) as Hpost.
+      pose proof (proj1 Hpost) as HIpost.
+      split.
+      - split; [exact Hpost|]. exact Hcell.
+      - eapply source_G_same_payload; simpl; eauto.
+    Qed.
+
+    (** The timestamp read: every scanning possibility whose node is still
+        untaken forks a possibility in which [getTop] has returned it. *)
+    Lemma getTop_ts_res_update t count l v nx ts :
+      AssertionsSet.PUpdate (G t)
+        (Build_ThreadEvent t (@ResEv (li_sig E) (in_mem (nmgetTS l)) ts))
+        (lift_assert (GetTopScanAt t count l v nx))
+        (GetTopWindow t count l v nx ts).
+    Proof.
+      AssertionsSet.pupdate_intros_atomic.
+      match goal with H : s3 l0 = Some _ |- _ => rename H into Hconcrete end.
+      match goal with
+      | |- context [GetTopWindow _ _ _ _ _ ?tss] => pose (TS := tss)
+      end.
+      pose (RET := @inl (@LNode A) nat (pair (pair v TS) l0)).
+      destruct (ac_nonempty Δ1) as (ρ0 & π0 & Hposs0).
+      destruct (Hpre _ _ Hposs0) as [_ (ts' & tk & Hc) ]. simpl in Hc.
+      rewrite Hc in Hconcrete. injection Hconcrete as Hv Hts Htk Hnx.
+      rewrite Hts in Hc. clear Hv Hts Htk Hnx ts'.
+      assert (Hlini : forall ρ π, Δ1 ρ π ->
+        TMap.find t0 π = Some (ls_lini (@lgetTop A))).
+      { intros ρ π Hposs. destruct (Hpre _ _ Hposs) as [[_ [Hlin _]] _].
+        exact Hlin. }
+      assert (HIpre : forall ρ π, Δ1 ρ π ->
+        source_I (mk (pair (Pending s3 t0 (nmgetTS l0)) s2) ρ π)).
+      { intros ρ π Hposs. exact (proj1 (proj1 (Hpre _ _ Hposs))). }
+      assert (Hready : forall ρ π, Δ1 ρ π -> exists s, ρ = Ready s).
+      { intros ρ π Hposs. exact (source_I_ready_ex _ (HIpre _ _ Hposs)). }
+      assert (Hcc : cas_control_ok s2).
+      { exact (source_I_cas_control _ (HIpre _ _ Hposs0)). }
+      assert (HpostA : forall ρ π, Δ1 ρ π ->
+        GetTopScanAt t0 count l0 v nx (mk (pair (Idle s3) s2) ρ π)).
+      { intros ρ π Hposs. destruct (Hpre _ _ Hposs) as [Hscan Hcell]. split.
+        - exact (getTop_scan_change_controls _ _ _ _ (Idle s3) s2 Hscan
+            eq_refl eq_refl I Hcc).
+        - destruct Hcell as (a & b & Hcell). exists a, b. exact Hcell. }
+      assert (HIpost : forall ρ π, Δ1 ρ π -> source_I (mk (pair (Idle s3) s2) ρ π)).
+      { intros ρ π Hposs. exact (proj1 (proj1 (HpostA _ _ Hposs))). }
+      assert (Gsame : forall ρ π, Δ1 ρ π ->
+        source_G t0 (mk (pair (Pending s3 t0 (nmgetTS l0)) s2) ρ π)
+          (mk (pair (Idle s3) s2) ρ π)).
+      { intros ρ π Hposs. apply source_G_same_payload; simpl; auto. }
+      destruct tk.
+      - (* already taken: no fork *)
+        exists Δ1. split; [apply ac_steps_refl|]. split.
+        + split; [|split; [|split]].
+          * intros ρ π Hposs. left. exact (HpostA _ _ Hposs).
+          * exists TS, true. exact Hc.
+          * intros ρ π Hposs. exists ρ, π. split; [exact Hposs|].
+            split; [apply offslot_agree_refl|].
+            exists (@lgetTop A). exact (Hlini _ _ Hposs).
+          * intros Hlive. exfalso. unfold live_at, node_live in Hlive.
+            simpl in Hlive. rewrite Hc in Hlive. discriminate.
+        + split.
+          * intros ρ π Hposs. exists ρ, π. split; [exact Hposs|].
+            exact (Gsame _ _ Hposs).
+          * intros q _. apply twins_preserved_refl.
+      - (* untaken: fork *)
+        assert (Hcomplete : forall s π, Δ1 (Ready s) π ->
+          Step (li_lts F)
+            (Build_ThreadEvent t0 (ResEv (@lgetTop A) RET))
+            (Ready s) (Ready (clear_snapshot t0 s))).
+        { intros s π Hposs. destruct (Hpre _ _ Hposs) as [Hscan _].
+          eapply getTop_complete_step; [exact Hscan | exact Hc]. }
+        assert (HpostB : forall s π, Δ1 (Ready s) π ->
+          Completed t0 (@lgetTop A) RET
+            (mk (pair (Idle s3) s2) (Ready (clear_snapshot t0 s))
+              (TMap.add t0 (ls_linr (@lgetTop A) RET) π))).
+        { intros s π Hposs.
+          apply getTop_ret_completed; [exact (HIpost _ _ Hposs) | exact (Hlini _ _ Hposs) ]. }
+        exists (fork_config Δ1 t0 RET Hlini).
+        split; [|split].
+        + intros ρ' π' [Hposs | (s & π & Hposs & _ & -> & ->) ].
+          * apply ac_steps_refl. exact Hposs.
+          * econstructor; [exact Hposs|]. apply rt_step.
+            eapply ps_ret; [exact (Hcomplete _ _ Hposs) | exact (Hlini _ _ Hposs) ].
+        + split; [|split; [|split]].
+          * intros ρ' π' [Hposs | (s & π & Hposs & _ & -> & ->) ].
+            -- left. exact (HpostA _ _ Hposs).
+            -- right. exact (HpostB _ _ Hposs).
+          * exists TS, false. exact Hc.
+          * intros ρ' π' [Hposs | (s & π & Hposs & _ & -> & ->) ].
+            -- exists ρ', π'. split; [left; exact Hposs|].
+               split; [apply offslot_agree_refl|].
+               exists (@lgetTop A). exact (Hlini _ _ Hposs).
+            -- exists (Ready s), π. split; [left; exact Hposs|].
+               split; [apply ret_image_offslot_orig|].
+               exists (@lgetTop A). exact (Hlini _ _ Hposs).
+          * intros _ ρ' π' [Hposs | (s & π & Hposs & _ & -> & ->) ].
+            -- destruct (Hready _ _ Hposs) as [s ->].
+               exists (Ready (clear_snapshot t0 s)),
+                 (TMap.add t0 (ls_linr (@lgetTop A) RET) π').
+               split.
+               ++ right. exists s, π'. split; [exact Hposs|].
+                  split; [exact I|]. split; reflexivity.
+               ++ split; [apply offslot_agree_sym, ret_image_offslot_orig |
+                          apply ret_image_kind_linr].
+            -- exists (Ready (clear_snapshot t0 s)),
+                 (TMap.add t0 (ls_linr (@lgetTop A) RET) π).
+               split.
+               ++ right. exists s, π. split; [exact Hposs|].
+                  split; [exact I|]. split; reflexivity.
+               ++ split; [apply offslot_agree_refl | apply ret_image_kind_linr].
+        + split.
+          * intros ρ' π' [Hposs | (s & π & Hposs & _ & -> & ->) ].
+            -- exists ρ', π'. split; [exact Hposs|]. exact (Gsame _ _ Hposs).
+            -- exists (Ready s), π. split; [exact Hposs|].
+               apply getTop_ret_G; [reflexivity | reflexivity |
+                 exact (HIpre _ _ Hposs) | exact (proj1 (HpostB _ _ Hposs)) ].
+          * intros q Hq. apply fork_twins; [exact Hq | exact Hready].
+    Qed.
+
+    Lemma getTop_taken_inv_update t count l v nx ts :
+      AssertionsSet.PUpdate (G t)
+        (Build_ThreadEvent t (@InvEv (li_sig E) (in_mem (nmgetTaken l))))
+        (GetTopWindow t count l v nx ts) (GetTopWindow t count l v nx ts).
+    Proof.
+      AssertionsSet.pupdate_intros_atomic.
+      destruct Hpre as [Hkinds [Hcell [Hlini Hlinr]]].
+      destruct (ac_nonempty Δ1) as (ρ0 & π0 & Hposs0).
+      assert (Hcc : cas_control_ok s2).
+      { exact (source_I_cas_control _
+          (getTop_kind_entails_I _ _ _ _ _ _ _ (Hkinds _ _ Hposs0))). }
+      assert (Hkinds' : forall ρ π, Δ1 ρ π ->
+        GetTopKind t0 count l0 v nx ts (mk (pair (Pending s3 t0 (nmgetTaken l0)) s2) ρ π)).
+      { intros ρ π Hposs.
+        exact (getTop_kind_change_controls _ _ _ _ _ _ _
+          (Pending s3 t0 (nmgetTaken l0)) s2 (Hkinds _ _ Hposs)
+          eq_refl eq_refl I Hcc). }
+      exists Δ1. split; [apply ac_steps_refl|]. split.
+      - split; [|split; [|split]].
+        + intros ρ π Hposs. exact (Hkinds' _ _ Hposs).
+        + exact Hcell.
+        + exact (HasKind_change_σ kind_lini t0 (pair (Idle s3) s2)
+            (pair (Pending s3 t0 (nmgetTaken l0)) s2) Δ1 (kind_lini_σ t0) Hlini).
+        + intros Hlive.
+          apply (HasKind_change_σ kind_linr t0 (pair (Idle s3) s2)
+            (pair (Pending s3 t0 (nmgetTaken l0)) s2) Δ1 (kind_linr_σ t0)).
+          apply Hlinr. exact Hlive.
+      - split.
+        + intros ρ π Hposs. exists ρ, π. split; [exact Hposs|].
+          apply source_G_same_payload; simpl; auto.
+          * exact (getTop_kind_entails_I _ _ _ _ _ _ _ (Hkinds _ _ Hposs)).
+          * exact (getTop_kind_entails_I _ _ _ _ _ _ _ (Hkinds' _ _ Hposs)).
+        + intros q _. apply twins_preserved_refl.
+    Qed.
+
+    (** The taken read: a [false] flag keeps the returned possibilities,
+        a [true] flag keeps the scanning ones (and completes them with
+        the empty result when the node was the last one). *)
+    Lemma getTop_taken_res_update t count l v nx ts b :
+      AssertionsSet.PUpdate (G t)
+        (Build_ThreadEvent t (@ResEv (li_sig E) (in_mem (nmgetTaken l)) b))
+        (GetTopWindow t count l v nx ts)
+        (lift_assert (GetTopTakenPost t count l v nx ts b)).
+    Proof.
+      AssertionsSet.pupdate_intros_atomic.
+      match goal with H : s3 l0 = Some _ |- _ => rename H into Hconcrete end.
+      destruct Hpre as [Hkinds [Hcell [Hlini Hlinr]]].
+      simpl in Hcell. destruct Hcell as (ts' & tk & Hc). simpl in Hc.
+      rewrite Hc in Hconcrete. injection Hconcrete as Hv Hts Htk Hnx.
+      subst tk. clear Hv Hts Hnx.
+      pose (RET := @inl (@LNode A) nat (pair (pair v ts) l0)).
+      destruct (ac_nonempty Δ1) as (ρ0 & π0 & Hposs0).
+      assert (HIpre : forall ρ π, Δ1 ρ π ->
+        source_I (mk (pair (Pending s3 t0 (nmgetTaken l0)) s2) ρ π)).
+      { intros ρ π Hposs.
+        exact (getTop_kind_entails_I _ _ _ _ _ _ _ (Hkinds _ _ Hposs)). }
+      assert (Hcc : cas_control_ok s2).
+      { exact (source_I_cas_control _ (HIpre _ _ Hposs0)). }
+      assert (HIpost : forall ρ π, Δ1 ρ π -> source_I (mk (pair (Idle s3) s2) ρ π)).
+      { intros ρ π Hposs.
+        exact (source_I_change_controls _ (Idle s3) s2 (HIpre _ _ Hposs)
+          eq_refl eq_refl I Hcc). }
+      assert (Hready : forall ρ π, Δ1 ρ π -> exists s, ρ = Ready s).
+      { intros ρ π Hposs. exact (source_I_ready_ex _ (HIpre _ _ Hposs)). }
+      assert (Gsame : forall ρ π, Δ1 ρ π ->
+        source_G t0 (mk (pair (Pending s3 t0 (nmgetTaken l0)) s2) ρ π)
+          (mk (pair (Idle s3) s2) ρ π)).
+      { intros ρ π Hposs. apply source_G_same_payload; simpl; auto. }
+      assert (HkindA : forall ρ π, Δ1 ρ π ->
+        TMap.find t0 π = Some (ls_lini (@lgetTop A)) ->
+        GetTopScanAt t0 count l0 v nx (mk (pair (Pending s3 t0 (nmgetTaken l0)) s2) ρ π)).
+      { intros ρ π Hposs Hlin.
+        destruct (Hkinds _ _ Hposs) as [HA | [_ HB]]; [exact HA|].
+        unfold ALin in HB. simpl in HB.
+        pose proof (eq_trans (eq_sym Hlin) HB) as Habs. discriminate Habs. }
+      assert (HkindB : forall ρ π, Δ1 ρ π ->
+        (exists f r, TMap.find t0 π = Some (ls_linr f r)) ->
+        Completed t0 (@lgetTop A) RET
+          (mk (pair (Pending s3 t0 (nmgetTaken l0)) s2) ρ π)).
+      { intros ρ π Hposs (f & r & Hlin).
+        destruct (Hkinds _ _ Hposs) as [[[_ [HA _]] _] | HB]; [|exact HB].
+        unfold ALin in HA. simpl in HA.
+        pose proof (eq_trans (eq_sym Hlin) HA) as Habs. discriminate Habs. }
+      match goal with
+      | |- context [GetTopTakenPost _ _ _ _ _ _ ?bb] => destruct bb
+      end.
+      - (* taken: keep the scanning possibilities *)
+        assert (Hne : exists ρ π,
+          filter_prop Δ1 (fun π => TMap.find t0 π = Some (ls_lini (@lgetTop A))) ρ π).
+        { destruct (Hlini _ _ Hposs0) as (ρ1 & π1 & Hposs1 & _ & [f Hf]).
+          unfold slot_token in Hf. simpl in Hf.
+          destruct (Hkinds _ _ Hposs1) as [[[_ [HA _]] _] | [_ HB]].
+          - exists ρ1, π1. split; [exact Hposs1|]. exact HA.
+          - unfold ALin in HB. simpl in HB.
+            pose proof (eq_trans (eq_sym Hf) HB) as Habs. discriminate Habs. }
+        match goal with
+        | |- context [GetTopTakenPost _ _ _ _ ?nn _ _] => destruct nn as [l'|]
+        end.
+        + (* there is a next node: shift the scan *)
+          exists (filter_config Δ1 _ Hne). split; [|split].
+          * intros ρ π [Hposs _]. apply ac_steps_refl. exact Hposs.
+          * intros ρ π [Hposs Hlin]. simpl.
+            destruct (Hready _ _ Hposs) as [s ->].
+            destruct (HkindA _ _ Hposs Hlin) as [Hscan _].
+            pose proof (getTop_shift_scan _ _ _ _ _ _ _ _ _ Hscan Hc) as Hshift.
+            exact (getTop_scan_change_controls _ _ _ _ (Idle s3) s2 Hshift
+              eq_refl eq_refl I Hcc).
+          * split.
+            -- intros ρ π [Hposs _]. exists ρ, π. split; [exact Hposs|].
+               exact (Gsame _ _ Hposs).
+            -- intros q Hq. apply (filter_twins q t0); [exact Hq|].
+               intros π π' Heq Hsel. exact (eq_trans (eq_sym Heq) Hsel).
+        + (* the node was the last one: the list is empty *)
+          assert (Hlini' : forall ρ π, Δ1 ρ π ->
+            TMap.find t0 π = Some (ls_lini (@lgetTop A)) ->
+            TMap.find t0 π = Some (ls_lini (@lgetTop A))).
+          { intros ρ π _ H. exact H. }
+          assert (Hne' : exists ρ' π',
+            ret_image_prop Δ1 t0 (@inr (@LNode A) nat count)
+              (fun π => TMap.find t0 π = Some (ls_lini (@lgetTop A))) ρ' π').
+          { destruct Hne as (ρ1 & π1 & Hposs1 & Hlin1).
+            destruct (Hready _ _ Hposs1) as [s1 ->].
+            exists (Ready (clear_snapshot t0 s1)),
+              (TMap.add t0 (ls_linr (@lgetTop A) (@inr (@LNode A) nat count)) π1).
+            exists s1, π1. split; [exact Hposs1|]. split; [exact Hlin1|].
+            split; reflexivity. }
+          exists (ret_image_config Δ1 t0 (@inr (@LNode A) nat count) _ Hlini' Hne').
+          split; [|split].
+          * intros ρ' π' (s & π & Hposs & Hlin & -> & ->).
+            econstructor; [exact Hposs|]. apply rt_step.
+            eapply ps_ret; [|exact Hlin].
+            destruct (HkindA _ _ Hposs Hlin) as [Hscan _].
+            eapply getTop_empty_step; [exact Hscan | exact Hc].
+          * intros ρ' π' (s & π & Hposs & Hlin & -> & ->). simpl.
+            exact (getTop_ret_completed t0 (@inr (@LNode A) nat count)
+              (pair (Idle s3) s2) s π (HIpost _ _ Hposs) Hlin).
+          * split.
+            -- intros ρ' π' (s & π & Hposs & Hlin & -> & ->).
+               exists (Ready s), π. split; [exact Hposs|].
+               apply getTop_ret_G; [reflexivity | reflexivity |
+                 exact (HIpre _ _ Hposs) |].
+               exact (proj1 (getTop_ret_completed t0 (@inr (@LNode A) nat count)
+                 (pair (Idle s3) s2) s π (HIpost _ _ Hposs) Hlin)).
+            -- intros q Hq. apply ret_image_twins; [exact Hq | exact Hready |].
+               intros π π' Heq Hsel. exact (eq_trans (eq_sym Heq) Hsel).
+      - (* untaken: keep the returned possibilities *)
+        assert (Hlive : live_at (mem_heap (fst
+            (SetPossState.σ (mks (pair (Pending s3 t0 (nmgetTaken l0)) s2) Δ1)))) l0 = true).
+        { unfold live_at, node_live. simpl. rewrite Hc. reflexivity. }
+        assert (Hne : exists ρ π,
+          filter_prop Δ1 (fun π => exists f r, TMap.find t0 π = Some (ls_linr f r)) ρ π).
+        { destruct (Hlinr Hlive _ _ Hposs0) as (ρ1 & π1 & Hposs1 & _ & Hk).
+          exists ρ1, π1. split; [exact Hposs1|]. exact Hk. }
+        exists (filter_config Δ1 _ Hne). split; [|split].
+        + intros ρ π [Hposs _]. apply ac_steps_refl. exact Hposs.
+        + intros ρ π [Hposs Hlin]. simpl.
+          exact (completed_change_controls _ _ _ _ (Idle s3) s2
+            (HkindB _ _ Hposs Hlin) eq_refl eq_refl I Hcc).
+        + split.
+          * intros ρ π [Hposs _]. exists ρ, π. split; [exact Hposs|].
+            exact (Gsame _ _ Hposs).
+          * intros q Hq. apply (filter_twins q t0); [exact Hq|].
+            intros π π' Heq (f & r & Hsel). exists f, r.
+            exact (eq_trans (eq_sym Heq) Hsel).
+    Qed.
+
+    (** *** The [getTop] triple *)
 
     Lemma getTop_triple t :
       [li_lts E, li_lts F, R t, G t, SI, t] ⊢
@@ -3253,42 +5250,74 @@ Module SPListProof.
             -- intros [p|ret]; unfold GetTopBodyPost; simpl.
                ++ unfold SGetTopLoop. intros w Hpost. exact Hpost.
                ++ unfold SCompleted. intros w Hpost. exact Hpost.
-            -- eapply singleton_provable_vis_safe with
-              (P' := GetTopScan t count (Some l))
-              (Q' := fun node => GetTopReadPost t count l node).
-               +++ intros w [HI [Hlin Hdata]] Herror.
-               destruct Hdata as
-                 (saved & chain & suffix & prefix & Hfull & Hsaved & Hsuffix &
-                  Hchain & Hforall & Hfilter).
-               destruct (SinglePossState.σ w) as [mc cc] eqn:Eσ.
-               simpl in Hsuffix.
-               simpl in Herror. dependent destruction Herror.
-               inversion Hsuffix; subst.
-               simpl in *. congruence.
-               +++ apply getTop_scan_entails_I.
-               +++ intros node. destruct node as [[[v ts] taken] next].
-               simpl. destruct taken, next; simpl;
-                 try apply getTop_scan_entails_I;
-                 apply completed_entails_I.
-               +++ apply getTop_scan_stable.
-               +++ intros node. destruct node as [[[v ts] taken] next].
-               simpl. destruct taken, next; simpl;
-                 try apply getTop_scan_stable;
-                 apply completed_stable.
-               +++ apply getTop_mem_inv_update.
-               +++ intros node. apply getTop_mem_res_update.
-               +++ intros node. destruct node as [[[v ts] taken] next].
-               simpl. destruct taken; simpl.
-               ++ unfold GetTopReadPost, GetTopBodyPost. simpl.
-                  singleton_ret_safe.
-                  ** apply ImplRefl.
-                  ** apply getTop_loop_entails_I.
-                  ** apply getTop_loop_stable.
-               ++ unfold GetTopReadPost, GetTopBodyPost. simpl.
-                  singleton_ret_safe.
-                  ** apply ImplRefl.
-                  ** apply completed_entails_I.
-                  ** apply completed_stable.
+            -- (* value read *)
+               eapply singleton_provable_vis_safe with
+                 (P' := GetTopScan t count (Some l))
+                 (Q' := fun v => GetTopScanVal t count l v).
+               ++ apply getTop_value_no_error.
+               ++ apply getTop_scan_entails_I.
+               ++ intros v. apply getTop_scan_val_entails_I.
+               ++ apply getTop_scan_stable.
+               ++ intros v. apply getTop_scan_val_stable.
+               ++ apply getTop_value_inv_update.
+               ++ intros v. apply getTop_value_res_update.
+               ++ intros v. (* next read *)
+                  eapply singleton_provable_vis_safe with
+                    (P' := GetTopScanVal t count l v)
+                    (Q' := fun nx => GetTopScanAt t count l v nx).
+                  ** apply getTop_next_no_error.
+                  ** apply getTop_scan_val_entails_I.
+                  ** intros nx. apply getTop_scan_at_entails_I.
+                  ** apply getTop_scan_val_stable.
+                  ** intros nx. apply getTop_scan_at_stable.
+                  ** apply getTop_next_inv_update.
+                  ** intros nx. apply getTop_next_res_update.
+                  ** intros nx. (* timestamp read: fork *)
+                     eapply SetLogic.provable_vis_safe with
+                       (P' := lift_assert (GetTopScanAt t count l v nx))
+                       (Q' := fun ts => GetTopWindow t count l v nx ts).
+                     --- intros s HP. eapply lift_no_error;
+                           [apply getTop_ts_no_error | exact HP].
+                     --- intros s HP. eapply lift_impl;
+                           [apply getTop_scan_at_entails_I | exact HP].
+                     --- intros ts. apply getTop_window_entails_I.
+                     --- apply lift_stable. apply getTop_scan_at_stable.
+                     --- intros ts. apply getTop_window_stable.
+                     --- apply lift_pupdate.
+                         +++ apply getTop_scan_at_entails_I.
+                         +++ apply getTop_scan_at_entails_I.
+                         +++ apply slot_local_getTop_scan_at.
+                         +++ apply getTop_ts_inv_update.
+                     --- intros ts. apply getTop_ts_res_update.
+                     --- intros ts. (* taken read: drop *)
+                         eapply SetLogic.provable_vis_safe with
+                           (P' := GetTopWindow t count l v nx ts)
+                           (Q' := fun b =>
+                             lift_assert (GetTopTakenPost t count l v nx ts b)).
+                         +++ apply getTop_taken_no_error.
+                         +++ apply getTop_window_entails_I.
+                         +++ intros b s HQ. eapply lift_impl;
+                               [apply getTop_taken_post_entails_I | exact HQ].
+                         +++ apply getTop_window_stable.
+                         +++ intros b. apply lift_stable.
+                             apply getTop_taken_post_stable.
+                         +++ apply getTop_taken_inv_update.
+                         +++ intros b. apply getTop_taken_res_update.
+                         +++ intros b. destruct b.
+                             *** unfold GetTopTakenPost. singleton_ret_safe.
+                                 ---- intros w H. exact H.
+                                 ---- apply getTop_loop_entails_I.
+                                 ---- apply getTop_loop_stable.
+                             *** unfold GetTopTakenPost. singleton_ret_safe.
+                                 ---- intros w H. exact H.
+                                 ---- apply completed_entails_I.
+                                 ---- apply completed_stable.
+                  ** apply getTop_scan_val_entails_I.
+                  ** apply slot_local_getTop_scan_val.
+                  ** intros nx. apply slot_local_getTop_scan_at.
+               ++ apply getTop_scan_entails_I.
+               ++ apply slot_local_getTop_scan.
+               ++ intros v. apply slot_local_getTop_scan_val.
           * unfold SGetTopLoop, GetTopLoop. simpl.
             eapply SetLogic.provable_conseq_weak_post with
               (Q' := fun r => lift_assert (GetTopBodyPost t count r)).
@@ -3307,6 +5336,9 @@ Module SPListProof.
                ++ apply ImplRefl.
                ++ apply completed_entails_I.
                ++ apply completed_stable.
+      - apply active_entails_I.
+      - apply slot_local_active.
+      - intros q. apply slot_local_getTop_loop.
     Qed.
 
     Lemma initial_represents :

@@ -29,7 +29,10 @@ Module NodeMemSpec.
   Variant ENodeMem_op :=
   | nmalloc (v : A) (next : Ptr)
   | nmsetTS (l : Addr) (t : TS)
-  | nmget (l : Addr)
+  | nmgetValue (l : Addr)
+  | nmgetTS (l : Addr)
+  | nmgetTaken (l : Addr)
+  | nmgetNext (l : Addr)
   | nmtryTake (l : Addr).
   Arguments ENodeMem_op : clear implicits.
 
@@ -37,7 +40,10 @@ Module NodeMemSpec.
     match m with
     | nmalloc _ _ => Addr
     | nmsetTS _ _ => unit
-    | nmget _ => Node
+    | nmgetValue _ => A
+    | nmgetTS _ => TS
+    | nmgetTaken _ => bool
+    | nmgetNext _ => Ptr
     | nmtryTake _ => bool
     end.
 
@@ -72,14 +78,41 @@ Module NodeMemSpec.
         h l = Some (v, old_ts, taken, next) ->
         StepNodeMem e h (heap_update l (v, match old_ts with TSTop => ts | _ => old_ts end, taken, next) h)
 
-    (* read *)
-    | step_get_inv t h l e :
-        e = {| te_tid := t; te_ev := InvEv (nmget l) |} ->
+    (* per-field reads.  Each field is read on its own; a client that
+       needs a consistent view of several fields must argue from the
+       monotonicity of [ts] (set once from [TSTop]) and [taken]
+       (flipped once from [false]). *)
+    | step_getValue_inv t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetValue l) |} ->
         h l <> None ->
         StepNodeMem e h h
-    | step_get_res t h l node e :
-        e = {| te_tid := t; te_ev := ResEv (nmget l) node |} ->
-        h l = Some node ->
+    | step_getValue_res t h l v ts taken next e :
+        e = {| te_tid := t; te_ev := ResEv (nmgetValue l) v |} ->
+        h l = Some (v, ts, taken, next) ->
+        StepNodeMem e h h
+    | step_getTS_inv t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetTS l) |} ->
+        h l <> None ->
+        StepNodeMem e h h
+    | step_getTS_res t h l v ts taken next e :
+        e = {| te_tid := t; te_ev := ResEv (nmgetTS l) ts |} ->
+        h l = Some (v, ts, taken, next) ->
+        StepNodeMem e h h
+    | step_getTaken_inv t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetTaken l) |} ->
+        h l <> None ->
+        StepNodeMem e h h
+    | step_getTaken_res t h l v ts taken next e :
+        e = {| te_tid := t; te_ev := ResEv (nmgetTaken l) taken |} ->
+        h l = Some (v, ts, taken, next) ->
+        StepNodeMem e h h
+    | step_getNext_inv t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetNext l) |} ->
+        h l <> None ->
+        StepNodeMem e h h
+    | step_getNext_res t h l v ts taken next e :
+        e = {| te_tid := t; te_ev := ResEv (nmgetNext l) next |} ->
+        h l = Some (v, ts, taken, next) ->
         StepNodeMem e h h
 
     (* atomic test-and-take *)
@@ -102,8 +135,20 @@ Module NodeMemSpec.
         e = {| te_tid := t; te_ev := InvEv (nmsetTS l ts) |} ->
         h l = None ->
         ErrorNodeMem e (Idle h)
-    | error_get_undefined t h l e :
-        e = {| te_tid := t; te_ev := InvEv (nmget l) |} ->
+    | error_getValue_undefined t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetValue l) |} ->
+        h l = None ->
+        ErrorNodeMem e (Idle h)
+    | error_getTS_undefined t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetTS l) |} ->
+        h l = None ->
+        ErrorNodeMem e (Idle h)
+    | error_getTaken_undefined t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetTaken l) |} ->
+        h l = None ->
+        ErrorNodeMem e (Idle h)
+    | error_getNext_undefined t h l e :
+        e = {| te_tid := t; te_ev := InvEv (nmgetNext l) |} ->
         h l = None ->
         ErrorNodeMem e (Idle h)
     | error_tryTake_undefined t h l e :

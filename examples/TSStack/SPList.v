@@ -99,8 +99,15 @@ Module SPListImpl.
         match p with
         | None => Break(inr count)
         | Some l =>
-            in_mem (nmget l) >= node =>
-            let '(((v, ts), taken), next) := node in
+            (* The value and next pointer are immutable once the node is
+               published.  The timestamp must be read before the taken
+               flag: a node observed untaken after its timestamp was read
+               was untaken, with that timestamp, at the time of the
+               timestamp read. *)
+            in_mem (nmgetValue l) >= v =>
+            in_mem (nmgetNext l) >= next =>
+            in_mem (nmgetTS l) >= ts =>
+            in_mem (nmgetTaken l) >= taken =>
             if taken
             then Continue(next)
             else Break(@inl (@LNode A) nat ((v, ts), l))
