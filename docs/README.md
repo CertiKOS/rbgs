@@ -19,6 +19,7 @@ each layer proof. Tracked in git.
 | File | Subject |
 | --- | --- |
 | `TimestampVerificationPlan.md` | Timestamp layer proof |
+| `NodeMemVerificationPlan.md` | NodeMem layer proof; owner-map ghost memory and its proof from the plain memory |
 | `SPListArrayVerificationPlan.md` | SPListArray layer proof |
 | `ListPoolVerificationPlan.md` | ListPool layer proof |
 | `TryStackAuxVerificationPlan.md` | TryStackAux layer proof |

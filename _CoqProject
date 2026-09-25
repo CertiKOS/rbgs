@@ -70,6 +70,8 @@ examples/Common/AtomicLTS.v
 examples/Common/Heap.v
 examples/Common/MemSpec.v
 examples/Common/CASMemSpec.v
+examples/Common/OwnerMemSpec.v
+examples/Common/OwnerMemProof.v
 examples/Common/OwnedMemSpec.v
 examples/Common/ThreadDomain.v
 examples/Common/IndexedFamilySpec.v
@@ -115,12 +117,14 @@ examples/TSStack/TryStackAux.v
 examples/TSStack/TryStack.v
 examples/TSStack/TSStack.v
 examples/TSStack/TimestampProof.v
+examples/TSStack/NodeMemProof.v
 examples/TSStack/ListPoolProof.v
 examples/TSStack/TryStackAuxProof.v
 examples/TSStack/TryStackLinearization.v
 examples/TSStack/TryStackTrace.v
 examples/TSStack/TryStackProof.v
 examples/TSStack/TSStackProof.v
+examples/TSStack/TSStack_TopLevel.v
 examples/TSStack/SPListProof.v
 examples/TSStack/SPListFamily.v
 
